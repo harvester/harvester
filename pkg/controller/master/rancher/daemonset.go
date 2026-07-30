@@ -50,7 +50,7 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 
 		// re-run registerExposeService may be needed since in HA nodes during upgrade traefik / nginx will be flapping until all controlplane nodes
 		// get the update as part of the OS update
-		svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, metav1.GetOptions{})
+		svc, err := h.Services.Get(util.KubeSystemNamespace, util.TraefikServiceName, metav1.GetOptions{})
 		if err != nil {
 			return ds, fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
 		}

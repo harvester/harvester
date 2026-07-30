@@ -38,7 +38,6 @@ const (
 	internalCACertsSetting   = "internal-cacerts"
 	rancherExposeServiceName = "rancher-expose"
 	ingressExposeServiceName = "ingress-expose"
-	traefikServiceName       = "rke2-traefik"
 	systemNamespacesSetting  = "system-namespaces"
 	tlsCNPrefix              = "listener.cattle.io/cn-"
 
@@ -59,7 +58,7 @@ const (
 	daemonSetsController              = "daemonset-controller"
 )
 
-var traefikServiceNameWithNamespace = fmt.Sprintf("%s/%s", util.KubeSystemNamespace, traefikServiceName)
+var traefikServiceNameWithNamespace = fmt.Sprintf("%s/%s", util.KubeSystemNamespace, util.TraefikServiceName)
 
 type Handler struct {
 	RancherSettings          rancherv3.SettingClient
@@ -324,7 +323,7 @@ func (h *Handler) RancherTokenOnChange(_ string, token *v3.Token) (*v3.Token, er
 // which means underlying rke2 has been swapped out to using traefik as
 // ingress controller
 func (h *Handler) doesTraefikExist() (bool, error) {
-	_, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+	_, err := h.Services.Get(util.KubeSystemNamespace, util.TraefikServiceName, v1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -337,7 +336,7 @@ func (h *Handler) doesTraefikExist() (bool, error) {
 // patchTraefikServiceAnnotations will update the traefik service with kubevip annotations
 // if needed
 func (h *Handler) patchTraefikServiceAnnotations() error {
-	svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
+	svc, err := h.Services.Get(util.KubeSystemNamespace, util.TraefikServiceName, v1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
 	}

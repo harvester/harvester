@@ -131,6 +131,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		jobClient:          jobs,
 		jobCache:           jobs.Cache(),
 		nodeCache:          nodes.Cache(),
+		secretCache:        secrets.Cache(),
+		secretClient:       secrets,
 		namespace:          options.Namespace,
 		upgradeClient:      upgrades,
 		upgradeCache:       upgrades.Cache(),

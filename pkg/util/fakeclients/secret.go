@@ -43,8 +43,8 @@ func (c SecretClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, er
 	panic("implement me")
 }
 
-func (c SecretClient) Patch(_, _ string, _ types.PatchType, _ []byte, _ ...string) (*corev1.Secret, error) {
-	panic("implement me")
+func (c SecretClient) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*corev1.Secret, error) {
+	return c(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
 }
 
 func (c SecretClient) WithImpersonation(_ rest.ImpersonationConfig) (generic.ClientInterface[*corev1.Secret, *corev1.SecretList], error) {

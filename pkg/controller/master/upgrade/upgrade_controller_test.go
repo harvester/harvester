@@ -12,6 +12,7 @@ import (
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -155,6 +156,42 @@ func newManagedChartWithKubevirtValuesOverride(namespace, name string) *mgmtv3.M
 	}
 }
 
+func newSecret(namespace, name string, annotations map[string]string) *v1.Secret {
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: annotations,
+		},
+	}
+}
+
+func newService(namespace, name string) *v1.Service {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+}
+
+func newDeployment(namespace, name string, annotations map[string]string, replicas int32) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: annotations,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+		},
+		Status: appsv1.DeploymentStatus{
+			Replicas:        replicas,
+			UpdatedReplicas: replicas,
+		},
+	}
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key          string
@@ -166,6 +203,9 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		managedChart *mgmtv3.ManagedChart
 		lhsettings   []*lhv1beta2.Setting
 		nodes        []*v1.Node
+		secrets      []*v1.Secret
+		services     []*v1.Service
+		deployments  []*appsv1.Deployment
 	}
 	type output struct {
 		plan         *upgradeapiv1.Plan
@@ -174,6 +214,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		vmi          *harvesterv1.VirtualMachineImage
 		kubevirt     *kubevirtv1.KubeVirt
 		managedChart *mgmtv3.ManagedChart
+		secret       *v1.Secret
 		err          error
 	}
 	var testCases = []struct {
@@ -290,6 +331,9 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
 					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
 				},
+				secrets: []*v1.Secret{
+					newSecret("cattle-system", "tls-rancher-internal", map[string]string{}),
+				},
 			},
 			expected: output{
 				upgrade: newTestUpgradeBuilder().
@@ -330,6 +374,9 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
 					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
 				},
+				secrets: []*v1.Secret{
+					newSecret("cattle-system", "tls-rancher-internal", map[string]string{}),
+				},
 			},
 			expected: output{
 				upgrade: newTestUpgradeBuilder().
@@ -364,6 +411,53 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "tls-rancher-internal secret should be unfreeze after upgrade",
+			given: input{
+				key: testUpgradeName,
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).Build(),
+				version:      newVersionBuilder(testVersion).Build(),
+				vmi:          newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
+				cluster:      newCluster(util.FleetLocalNamespaceName, util.LocalClusterName),
+				managedChart: newManagedChartWithKubevirtValuesOverride(util.FleetLocalNamespaceName, util.HarvesterManagedChart),
+				nodes: []*v1.Node{
+					newNodeBuilder("node-1").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-2").Managed().ControlPlane().Build(),
+					newNodeBuilder("node-3").Managed().ControlPlane().Build(),
+				},
+				secrets: []*v1.Secret{
+					newSecret("cattle-system", "tls-rancher-internal", map[string]string{"listener.cattle.io/static": "true"}),
+				},
+				services: []*v1.Service{
+					newService("kube-system", "rke2-traefik"),
+				},
+				deployments: []*appsv1.Deployment{
+					newDeployment("cattle-system", "rancher", map[string]string{"harvesterhci.io/trigger-rollout-restart-reason": "tls-internal-cn-allowed-services"}, 3),
+				},
+			},
+			expected: output{
+				upgrade: newTestUpgradeBuilder().
+					InitStatus().
+					LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").
+					ImageReadyCondition(v1.ConditionTrue, "", "").
+					RepoProvisionedCondition(v1.ConditionTrue, "", "").
+					NodesPreparedCondition(v1.ConditionTrue, "", "").
+					ChartUpgradeStatus(v1.ConditionTrue, "", "").
+					NodesUpgradedCondition(v1.ConditionTrue, "", "").
+					WithAnnotation(imageCleanupPlanCompletedAnnotation, strconv.FormatBool(true)).
+					WithAnnotation(longhornSettingsRestoredAnnotation, strconv.FormatBool(true)).
+					WithLabel(upgradeCleanupLabel, StateSucceeded).Build(),
+				secret: newSecret("cattle-system", "tls-rancher-internal", map[string]string{}),
+			},
+		},
 	}
 	for _, tc := range testCases {
 		var defaultObjs = []runtime.Object{tc.given.upgrade, tc.given.version, tc.given.vmi, tc.given.cluster}
@@ -381,11 +475,22 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		for _, node := range tc.given.nodes {
 			objs = append(objs, node)
 		}
+		for _, secret := range tc.given.secrets {
+			objs = append(objs, secret)
+		}
+		for _, service := range tc.given.services {
+			objs = append(objs, service)
+		}
+		for _, deployment := range tc.given.deployments {
+			objs = append(objs, deployment)
+		}
 		var clientset = fake.NewSimpleClientset(objs...)
 
 		var handler = &upgradeHandler{
 			namespace:          harvesterSystemNamespace,
 			nodeCache:          fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			secretCache:        fakeclients.SecretCache(clientset.CoreV1().Secrets),
+			secretClient:       fakeclients.SecretClient(clientset.CoreV1().Secrets),
 			planClient:         fakeclients.PlanClient(clientset.UpgradeV1().Plans),
 			planCache:          fakeclients.PlanCache(clientset.UpgradeV1().Plans),
 			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
@@ -469,6 +574,14 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			actual.managedChart, err = handler.managedChartClient.Get(tc.expected.managedChart.Namespace, tc.expected.managedChart.Name, metav1.GetOptions{})
 			if assert.Nil(t, err, "case %q: managedChart get error", tc.name) {
 				assert.Equal(t, tc.expected.managedChart.Spec.Values, actual.managedChart.Spec.Values, "case %q: managedChart values mismatch", tc.name)
+			}
+		}
+
+		if tc.expected.secret != nil {
+			var err error
+			actual.secret, err = handler.secretClient.Get(tc.expected.secret.Namespace, tc.expected.secret.Name, metav1.GetOptions{})
+			if assert.Nil(t, err, "case %q: secret get error", tc.name) {
+				assert.Equal(t, tc.expected.secret.Annotations, actual.secret.Annotations, "case %q: secret annotations mismatch", tc.name)
 			}
 		}
 	}

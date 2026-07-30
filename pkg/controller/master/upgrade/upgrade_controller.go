@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rancher/dynamiclistener/factory"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
@@ -24,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
@@ -93,6 +95,8 @@ type upgradeHandler struct {
 	ctx               context.Context
 	namespace         string
 	nodeCache         ctlcorev1.NodeCache
+	secretCache       ctlcorev1.SecretCache
+	secretClient      ctlcorev1.SecretClient
 	jobClient         v1.JobClient
 	jobCache          v1.JobCache
 	upgradeClient     ctlharvesterv1.UpgradeClient
@@ -650,6 +654,10 @@ func (h *upgradeHandler) cleanup(upgrade *harvesterv1.Upgrade, cleanJobs bool) (
 		return upgrade, err
 	}
 
+	if upgrade, err = h.unfreezeTlsRancherInternal(upgrade); err != nil {
+		return upgrade, err
+	}
+
 	return upgrade, h.resumeManagedCharts()
 }
 
@@ -1009,6 +1017,55 @@ func (h *upgradeHandler) addUpgradeLabelToDeschedulerAddons(upgrade *harvesterv1
 		}
 	}
 	return nil
+}
+
+// unfreezeTlsRancherInternal remove "listener.cattle.io/static" annotation from tls-rancher-internal secret
+// The annotation was set by freeze_tls_rancher_internal in upgrade_manafests.sh.
+// Remove it once the Harvester controller configures the 'tls-internal-cn-allowed-services' Rancher setting.
+func (h *upgradeHandler) unfreezeTlsRancherInternal(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
+	logrus.Infof("Unfreeze %s after upgrade", util.InternalTLSSecretName)
+
+	secret, err := h.secretCache.Get(util.CattleSystemNamespaceName, util.InternalTLSSecretName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret %s: %w", util.InternalTLSSecretName, err)
+	}
+
+	if !factory.IsStatic(secret) {
+		logrus.Infof("%s doesn't have static annotation, skip removing", util.InternalTLSSecretName)
+		return upgrade, nil
+	}
+
+	_, err = h.serviceClient.Get(util.KubeSystemNamespace, util.TraefikServiceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service %s: %w", util.TraefikServiceName, err)
+	}
+
+	deployment, err := h.deploymentCache.Get(util.CattleSystemNamespaceName, "rancher")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment rancher: %w", err)
+	}
+
+	reason, exists := deployment.Annotations[util.AnnotationTriggerRolloutRestartReason]
+	if !exists {
+		return nil, fmt.Errorf("deployment rancher doesn't rollout restart yet due to missing annotation: %s", util.AnnotationTriggerRolloutRestartReason)
+	}
+	logrus.Infof("value of annotation %s on rancher deployment is: %s", util.AnnotationTriggerRolloutRestartReason, reason)
+
+	desiredReplicas := int32(1)
+	if deployment.Spec.Replicas != nil {
+		desiredReplicas = *deployment.Spec.Replicas
+	}
+	if deployment.Status.UpdatedReplicas != desiredReplicas {
+		return nil, fmt.Errorf("should wait for rancher rollout to finish: %d of %d replicas are updated", deployment.Status.UpdatedReplicas, desiredReplicas)
+	}
+
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{"%s":null}}}`, factory.Static)
+	_, err = h.secretClient.Patch(util.CattleSystemNamespaceName, util.InternalTLSSecretName, types.StrategicMergePatchType, []byte(patch))
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove static annotation from %s: %w", util.InternalTLSSecretName, err)
+	}
+
+	return upgrade, nil
 }
 
 // enableKubevirtWorkloadLiveMigrate enable KubeVirt workload live migration for cpu/mem hotplugging after upgrade.

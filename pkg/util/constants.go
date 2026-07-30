@@ -129,6 +129,7 @@ const (
 	InternalTLSSecretName                 = "tls-rancher-internal"
 	Rke2IngressNginxAppName               = "rke2-ingress-nginx"
 	Rke2TraefikAppName                    = "rke2-traefik"
+	TraefikServiceName                    = "rke2-traefik"
 	RancherExposeIngressName              = "rancher-expose"
 	TraefikIngressClassName               = "traefik"
 	DefaultTraefikTLSStoreName            = "default"
@@ -249,6 +250,8 @@ const (
 
 	HarvesterInstallCordonedLabel               = prefix + "/install-cordoned"
 	HarvesterInstallCordonedProcessedAnnotation = prefix + "/install-cordoned-processed"
+
+	AnnotationTriggerRolloutRestartReason = prefix + "/trigger-rollout-restart-reason"
 )
 
 var (

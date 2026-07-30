@@ -42,7 +42,7 @@ func (h *Handler) RancherSettingOnChange(_ string, setting *rancherv3api.Setting
 		if err != nil {
 			return nil, err
 		}
-		if err := h.triggerRancherRolloutRestart(); err != nil {
+		if err := h.triggerRancherRolloutRestart(tlsInternalCnAllowedServicesSetting); err != nil {
 			return nil, err
 		}
 		return updated, nil
@@ -125,8 +125,13 @@ func (h *Handler) initializeTlsInternalCnAllowedServices(setting *rancherv3api.S
 	return h.RancherSettings.Update(toUpdate)
 }
 
-func (h *Handler) triggerRancherRolloutRestart() error {
+func (h *Handler) triggerRancherRolloutRestart(reason string) error {
 	patch := fmt.Sprintf(`{
+		"metadata": {
+			"annotations": {
+				"%s": "%s"
+			}
+		},
 		"spec": {
 			"template": {
 				"metadata": {
@@ -136,7 +141,7 @@ func (h *Handler) triggerRancherRolloutRestart() error {
 				}
 			}
 		}
-	}`, time.Now().Format(time.RFC3339))
+	}`, util.AnnotationTriggerRolloutRestartReason, reason, time.Now().Format(time.RFC3339))
 	_, err := h.Deployments.Patch(util.CattleSystemNamespaceName, "rancher", types.StrategicMergePatchType, []byte(patch))
 	return err
 }
