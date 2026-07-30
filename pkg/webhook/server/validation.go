@@ -122,10 +122,10 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.Pod().Cache(),
 			clients.Core.PersistentVolumeClaim().Cache(),
-			clients.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplateVersion().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
+			clients.K8s.AuthorizationV1().SubjectAccessReviews()),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
