@@ -838,7 +838,7 @@ upgrade_rancher() {
 
   save_fleet_controller_configmap
 
-  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,crt-token-ttl-rotation=false"' values.yaml
 
   if [[ "$imageMode" == "legacy" ]]; then
     echo "Rancher image values are in legacy mode, convert them to new mode"
