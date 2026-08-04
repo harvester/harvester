@@ -55,9 +55,9 @@ Prerequisites:
 Steps:
 
 1. In the Harvester UI, create or edit a VM.
-2. Go to the filesystem tab and add a ServiceAccount filesystem mount, selecting the target ServiceAccount.
+2. Go to the filesystem tab and choose a ServiceAccount filesystem mount, selecting the target ServiceAccount and paste the mount path in cloud init user data in Advanced tab. 
 3. Start the VM.
-4. Inside the guest, the ServiceAccount is projected as a virtio-fs mount (for example under `/mnt/serviceaccount`), containing `token`, `ca.crt`, and `namespace`.
+4. Harvester attaches the ServiceAccount as a virtio-fs filesystem to the VM.After the guest OS mounts it, the directory contains `token`, `ca.crt`, and `namespace`.
 5. Applications in the VM authenticate to the Kubernetes API using these files, for example:
 
    ```bash
@@ -68,6 +68,9 @@ Steps:
    ```
 
 6. Updating the ServiceAccount RBAC or rotating its token is reflected inside the running VM without a restart.
+
+
+Note. Mounting service account inside the guest OS (paste mount path such as `/mnt/serviceaccount` in user data) is the VM user's responsibility and is outside Harvester's visibility.
 
 ### API changes
 
