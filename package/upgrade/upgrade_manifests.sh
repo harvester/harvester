@@ -1627,6 +1627,18 @@ EOF
   fi
 }
 
+# Since Rancher v2.15.0, this annotation is needed on management cluster such that
+# system-agent-upgrader can complete successfully.
+# https://github.com/harvester/harvester/issues/11336
+annotate_management_cluster_provisioning_administrated() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+    echo "Skip patch management cluster provisioning administrated if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+  echo "Annotate management cluster 'local' with provisioning.cattle.io/administrated=true"
+  kubectl annotate clusters.management.cattle.io local provisioning.cattle.io/administrated=true --overwrite
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1635,6 +1647,7 @@ preserve_overcommit_config
 pause_all_charts
 skip_restart_rancher_system_agent
 disable_kubevirt_workload_live_migration
+annotate_management_cluster_provisioning_administrated
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
