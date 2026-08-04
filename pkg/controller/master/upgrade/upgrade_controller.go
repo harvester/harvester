@@ -1042,9 +1042,10 @@ func (h *upgradeHandler) unfreezeTlsRancherInternal(upgrade *harvesterv1.Upgrade
 
 	reason, exists := deployment.Annotations[util.AnnotationTriggerRolloutRestartReason]
 	if !exists {
-		return nil, fmt.Errorf("deployment rancher doesn't rollout restart yet due to missing annotation: %s", util.AnnotationTriggerRolloutRestartReason)
+		logrus.Warnf("deployment rancher doesn't rollout restart yet due to missing annotation: %s", util.AnnotationTriggerRolloutRestartReason)
+	} else {
+		logrus.Infof("value of annotation %s on rancher deployment is: %s", util.AnnotationTriggerRolloutRestartReason, reason)
 	}
-	logrus.Infof("value of annotation %s on rancher deployment is: %s", util.AnnotationTriggerRolloutRestartReason, reason)
 
 	desiredReplicas := int32(1)
 	if deployment.Spec.Replicas != nil {
