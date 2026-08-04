@@ -98,8 +98,8 @@ prepare_rke2_bundle() {
     local rke2_url="${RKE2_IMAGE_REPO}${RKE2_VERSION}"
     local rke2_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images.linux-${ARCH}-${rke2_ver}.txt"
     local rke2_archive="${BUNDLE_DIR}/harvester/images/rke2-images.linux-${ARCH}-${rke2_ver}.tar.zst"
-    local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-amd64-${rke2_ver}.txt"
-    local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-amd64-${rke2_ver}.tar.zst"
+    local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-${ARCH}-${rke2_ver}.txt"
+    local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-${ARCH}-${rke2_ver}.tar.zst"
 
     prepare_rke2_tarball_bundle "${rke2_ver}" "${rke2_url}" "${rke2_list}" "${rke2_archive}"
     prepare_rke2_multus_bundle  "${rke2_ver}" "${rke2_url}" "${multus_list}" "${multus_archive}"

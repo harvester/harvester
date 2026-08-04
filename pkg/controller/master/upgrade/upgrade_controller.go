@@ -1020,7 +1020,7 @@ func (h *upgradeHandler) addUpgradeLabelToDeschedulerAddons(upgrade *harvesterv1
 }
 
 // unfreezeTlsRancherInternal remove "listener.cattle.io/static" annotation from tls-rancher-internal secret
-// The annotation was set by freeze_tls_rancher_internal in upgrade_manafests.sh.
+// The annotation was set by freeze_tls_rancher_internal in upgrade_manifests.sh.
 // Remove it once the Harvester controller configures the 'tls-internal-cn-allowed-services' Rancher setting.
 func (h *upgradeHandler) unfreezeTlsRancherInternal(upgrade *harvesterv1.Upgrade) (*harvesterv1.Upgrade, error) {
 	logrus.Infof("Unfreeze %s after upgrade", util.InternalTLSSecretName)
