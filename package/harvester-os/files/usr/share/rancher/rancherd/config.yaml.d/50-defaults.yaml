@@ -4,7 +4,7 @@ rancherValues:
     repository: rancher/rancher
     tag: v2.15.0
   noDefaultAdmin: false
-  features: multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false
+  features: multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,crt-token-ttl-rotation=false
   useBundledSystemChart: true
   bootstrapPassword: admin
   hostPort: 0
