@@ -126,9 +126,18 @@ Preparation:
 ServiceAccount test (based on PR #9981 "Virtiofs with serviceaccount"):
 
 1. Create a namespace, a ServiceAccount (e.g. `vm-sa`), and a Role/RoleBinding granting read access to core resources (pods, services, configmaps, secrets) in that namespace.
-2. Create a VM and attach the ServiceAccount as a filesystem mount (mounted at, for example, `/mnt/serviceaccount`).
-3. Start the VM and open its console.
-4. Verify the virtio-fs mount and its content inside the VM:
+2. Create a VM and select a ServiceAccount as a filesystem volume (mount path, e.g `/mnt/appserviceaccountfs`). 
+
+3. Paste the below mount path in VM Advanced tab user data  
+   ```
+   #cloud-config
+   runcmd:
+     - mkdir -p /mnt/appserviceaccountfs
+     - mount -t virtiofs appserviceaccountfs /mnt/appserviceaccountfs
+   ```
+
+4. Start the VM and open its console.
+5. Verify the virtio-fs mount and its content inside the VM:
 
    ```bash
    sudo mount | grep virtiofs
@@ -137,7 +146,7 @@ ServiceAccount test (based on PR #9981 "Virtiofs with serviceaccount"):
    sudo cat /mnt/serviceaccount/token
    ```
 
-5. Verify Kubernetes API access from inside the VM:
+6. Verify Kubernetes API access from inside the VM:
 
    ```bash
    TOKEN="$(sudo cat /mnt/serviceaccount/token)"
@@ -150,7 +159,7 @@ ServiceAccount test (based on PR #9981 "Virtiofs with serviceaccount"):
      https://kubernetes.default.svc/api/v1/namespaces/<namespace>/pods
    ```
 
-6. Update the ServiceAccount's RBAC (e.g. extend to `deployments`, `statefulsets` in `apps`) and verify the new permissions take effect inside the running VM without a restart:
+7. Update the ServiceAccount's RBAC (e.g. extend to `deployments`, `statefulsets` in `apps`) and verify the new permissions take effect inside the running VM without a restart:
 
    ```bash
    TOKEN="$(sudo cat /mnt/serviceaccount/token)"
@@ -169,4 +178,5 @@ No special upgrade action is required. The feature depends on the KubeVirt featu
 
 - The ServiceAccount, Role, and RoleBinding must be created and managed by the user;
 - Harvester only projects the ServiceAccount into the VM.
+- Limitation: VMs with filesystem mounts do not support live migration.
 - If the ServiceAccount has `kubernetes.io/enforce-mountable-secrets: "true"`, ensure any Secret volumes the VM references (for example the cloud-init Secret) are listed in the ServiceAccount's `secrets`, otherwise the VM launcher pod may be rejected.
