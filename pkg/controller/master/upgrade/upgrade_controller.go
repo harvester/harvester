@@ -1035,11 +1035,6 @@ func (h *upgradeHandler) unfreezeTlsRancherInternal(upgrade *harvesterv1.Upgrade
 		return upgrade, nil
 	}
 
-	_, err = h.serviceClient.Get(util.KubeSystemNamespace, util.TraefikServiceName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get service %s: %w", util.TraefikServiceName, err)
-	}
-
 	deployment, err := h.deploymentCache.Get(util.CattleSystemNamespaceName, "rancher")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment rancher: %w", err)

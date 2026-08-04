@@ -166,15 +166,6 @@ func newSecret(namespace, name string, annotations map[string]string) *v1.Secret
 	}
 }
 
-func newService(namespace, name string) *v1.Service {
-	return &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-	}
-}
-
 func newDeployment(namespace, name string, annotations map[string]string, replicas int32) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -204,7 +195,6 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		lhsettings   []*lhv1beta2.Setting
 		nodes        []*v1.Node
 		secrets      []*v1.Secret
-		services     []*v1.Service
 		deployments  []*appsv1.Deployment
 	}
 	type output struct {
@@ -436,9 +426,6 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 				secrets: []*v1.Secret{
 					newSecret("cattle-system", "tls-rancher-internal", map[string]string{"listener.cattle.io/static": "true"}),
 				},
-				services: []*v1.Service{
-					newService("kube-system", "rke2-traefik"),
-				},
 				deployments: []*appsv1.Deployment{
 					newDeployment("cattle-system", "rancher", map[string]string{"harvesterhci.io/trigger-rollout-restart-reason": "tls-internal-cn-allowed-services"}, 3),
 				},
@@ -477,9 +464,6 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 		}
 		for _, secret := range tc.given.secrets {
 			objs = append(objs, secret)
-		}
-		for _, service := range tc.given.services {
-			objs = append(objs, service)
 		}
 		for _, deployment := range tc.given.deployments {
 			objs = append(objs, deployment)
