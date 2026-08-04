@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -37,13 +38,23 @@ func (h *Handler) RancherSettingOnChange(_ string, setting *rancherv3api.Setting
 		return h.initializeSystemNamespaces(setting)
 	}
 
-	if setting.Name == tlsInternalCnAllowedServicesSetting && !strings.Contains(setting.Value, traefikServiceNameWithNamespace) {
-		updated, err := h.initializeTlsInternalCnAllowedServices(setting)
+	if setting.Name == tlsInternalCnAllowedServicesSetting {
+		updated := setting
+		if !strings.Contains(setting.Value, traefikServiceNameWithNamespace) {
+			var err error
+			updated, err = h.initializeTlsInternalCnAllowedServices(setting)
+			if err != nil {
+				return nil, err
+			}
+		}
+		triggered, err := h.alreadyTriggeredRancherRolloutRestart(tlsInternalCnAllowedServicesSetting)
 		if err != nil {
 			return nil, err
 		}
-		if err := h.triggerRancherRolloutRestart(tlsInternalCnAllowedServicesSetting); err != nil {
-			return nil, err
+		if !triggered {
+			if err := h.triggerRancherRolloutRestart(tlsInternalCnAllowedServicesSetting); err != nil {
+				return nil, err
+			}
 		}
 		return updated, nil
 	}
@@ -144,6 +155,18 @@ func (h *Handler) triggerRancherRolloutRestart(reason string) error {
 	}`, util.AnnotationTriggerRolloutRestartReason, reason, time.Now().Format(time.RFC3339))
 	_, err := h.Deployments.Patch(util.CattleSystemNamespaceName, "rancher", types.StrategicMergePatchType, []byte(patch))
 	return err
+}
+
+func (h *Handler) alreadyTriggeredRancherRolloutRestart(reason string) (bool, error) {
+	deployment, err := h.Deployments.Get(util.CattleSystemNamespaceName, "rancher", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	reasonObserved, exists := deployment.Annotations[util.AnnotationTriggerRolloutRestartReason]
+	if !exists {
+		return false, nil
+	}
+	return reasonObserved == reason, nil
 }
 
 // PatchCAPIDeployment is used to patch env variables for capi-deployment created by rancher.
