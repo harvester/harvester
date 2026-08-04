@@ -131,8 +131,24 @@ func (h *Handler) syncCACert(setting *rancherv3api.Setting) error {
 }
 
 func (h *Handler) initializeTlsInternalCnAllowedServices(setting *rancherv3api.Setting) (*rancherv3api.Setting, error) {
+	seen := map[string]struct{}{}
+	vals := make([]string, 0, 1)
+	for v := range strings.SplitSeq(setting.Value, ",") {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		vals = append(vals, v)
+	}
+	if _, ok := seen[traefikServiceNameWithNamespace]; !ok {
+		vals = append(vals, traefikServiceNameWithNamespace)
+	}
 	toUpdate := setting.DeepCopy()
-	toUpdate.Value = traefikServiceNameWithNamespace
+	toUpdate.Value = strings.Join(vals, ",")
 	return h.RancherSettings.Update(toUpdate)
 }
 

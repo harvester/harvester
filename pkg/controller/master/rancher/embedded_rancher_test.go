@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	rancherv3api "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var (
@@ -141,5 +143,53 @@ func Test_PatchCAPIDeployment(t *testing.T) {
 				assert.NotEmpty(v.Env, fmt.Sprintf("expected to find no env variables in test case: %s", tt.Name))
 			}
 		}
+	}
+}
+
+func Test_initializeTlsInternalCnAllowedServices(t *testing.T) {
+	var tests = []struct {
+		Name     string
+		Given    *rancherv3api.Setting
+		Expected *rancherv3api.Setting
+	}{
+		{
+			Name: "empty value",
+			Given: &rancherv3api.Setting{
+				Value: "",
+			},
+			Expected: &rancherv3api.Setting{
+				Value: "kube-system/rke2-traefik",
+			},
+		},
+		{
+			Name: "should keep existing values and append with kube-system/rke2-traefik",
+			Given: &rancherv3api.Setting{
+				Value: "default/abc-service,service-in-the-same-ns",
+			},
+			Expected: &rancherv3api.Setting{
+				Value: "default/abc-service,service-in-the-same-ns,kube-system/rke2-traefik",
+			},
+		},
+		{
+			Name: "do nothing if kube-system/rke2-traefik is already present",
+			Given: &rancherv3api.Setting{
+				Value: "default/abc-service,kube-system/rke2-traefik,service-in-the-same-ns",
+			},
+			Expected: &rancherv3api.Setting{
+				Value: "default/abc-service,kube-system/rke2-traefik,service-in-the-same-ns",
+			},
+		},
+	}
+
+	assert := require.New(t)
+	for _, tt := range tests {
+		objs := []runtime.Object{tt.Given}
+		clientset := fake.NewSimpleClientset(objs...)
+		handler := &Handler{
+			RancherSettings: fakeclients.RancherSettingClient(clientset.ManagementV3().Settings),
+		}
+		actual, err := handler.initializeTlsInternalCnAllowedServices(tt.Given)
+		assert.NoError(err, "expected no error in case %s", tt.Name)
+		assert.Equal(tt.Expected.Value, actual.Value, "didn't get expected Value in case %s", tt.Name)
 	}
 }
