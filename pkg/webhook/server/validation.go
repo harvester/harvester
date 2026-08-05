@@ -119,7 +119,9 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().BackingImage().Cache(),
+			clients.K8s.AuthorizationV1().SubjectAccessReviews()),
 		virtualmachineimage.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.Core.Pod().Cache(),
