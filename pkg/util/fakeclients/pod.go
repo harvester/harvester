@@ -72,7 +72,6 @@ func (c PodCache) List(namespace string, selector labels.Selector) ([]*corev1.Po
 }
 
 func (c PodCache) AddIndexer(_ string, _ generic.Indexer[*corev1.Pod]) {
-	panic("implement me")
 }
 
 func (c PodCache) GetByIndex(indexName, key string) ([]*corev1.Pod, error) {

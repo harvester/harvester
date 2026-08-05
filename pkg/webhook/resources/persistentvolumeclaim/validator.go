@@ -240,12 +240,13 @@ func (v *pvcValidator) validateBackingImageAccess(request *types.Request, scName
 		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
 	}
 
-	imageID, ok := bi.Annotations[util.AnnotationImageID]
-	if !ok || imageID == "" {
+	biImageID := bi.Annotations[util.AnnotationImageID]
+
+	if biImageID == "" {
 		return nil
 	}
 
-	parts := strings.SplitN(imageID, "/", 2)
+	parts := strings.SplitN(biImageID, "/", 2)
 	if len(parts) != 2 {
 		return nil
 	}
