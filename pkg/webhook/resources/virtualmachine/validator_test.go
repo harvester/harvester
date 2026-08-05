@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	cniv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -952,6 +953,7 @@ func TestVmValidator_Update(t *testing.T) {
 		oldVM                   *kubevirtv1.VirtualMachine
 		newVM                   *kubevirtv1.VirtualMachine
 		scErr                   bool
+		sarDenied               bool
 		oldObjMeta              *metav1.ObjectMeta
 		newObjMeta              *metav1.ObjectMeta
 		newSpec                 *kubevirtv1.VirtualMachineSpec
@@ -1181,7 +1183,19 @@ func TestVmValidator_Update(t *testing.T) {
 			},
 			expectedValidationError: true,
 		},
+		{
+			name:                    "SAR check denied for image access is rejected",
+			oldVM:                   templateVM.DeepCopy(),
+			newVM:                   templateVM.DeepCopy(),
+			sarDenied:               true,
+			expectedValidationError: true,
+		},
 	}
+
+	allowedFakeSAR := fakeclients.AllowedSARClient()
+	denyFakeSAR := fakeclients.DeniedSARClient()
+
+	fakeRequest := fakeclients.NewFakeRequest("test-user")
 
 	corefakeclientset := corefake.NewClientset()
 	err := corefakeclientset.Tracker().Add(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
@@ -1215,7 +1229,12 @@ func TestVmValidator_Update(t *testing.T) {
 			} else {
 				validator.scCache = fakeScCache
 			}
-			err := validator.Update(nil, test.oldVM, test.newVM)
+			if test.sarDenied {
+				validator.sar = denyFakeSAR
+			} else {
+				validator.sar = allowedFakeSAR
+			}
+			err := validator.Update(fakeRequest, test.oldVM, test.newVM)
 
 			if test.expectedValidationError {
 				assert.Error(t, err)
@@ -1944,6 +1963,225 @@ func TestCheckShareableVolumes(t *testing.T) {
 				assert.Contains(t, err.Error(), tc.errorKey, tc.name)
 			} else {
 				assert.NoError(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestCheckBackingImageIDMatch(t *testing.T) {
+	const (
+		scName     = "lh-test-sc"
+		biName     = "vmi-test-bi"
+		imageID    = "default/image-abc"
+		otherImage = "default/image-xyz"
+	)
+
+	newSC := func(provisioner, backingImage string) *storagev1.StorageClass {
+		params := map[string]string{}
+		if backingImage != "" {
+			params[util.LonghornOptionBackingImageName] = backingImage
+		}
+		return &storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: scName},
+			Provisioner: provisioner,
+			Parameters:  params,
+		}
+	}
+
+	newBI := func(annotationImageID string) *longhorn.BackingImage {
+		annotations := map[string]string{}
+		if annotationImageID != "" {
+			annotations[util.AnnotationImageID] = annotationImageID
+		}
+		return &longhorn.BackingImage{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        biName,
+				Namespace:   util.LonghornSystemNamespaceName,
+				Annotations: annotations,
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		sc          *storagev1.StorageClass
+		bi          *longhorn.BackingImage
+		expectError bool
+	}{
+		{
+			name:        "sc not found",
+			expectError: false,
+		},
+		{
+			name:        "sc is not longhorn provisioner",
+			sc:          newSC("other.csi.driver", biName),
+			expectError: false,
+		},
+		{
+			name:        "longhorn sc without backingImage param",
+			sc:          newSC(util.CSIProvisionerLonghorn, ""),
+			expectError: false,
+		},
+		{
+			name:        "longhorn sc with backingImage but BackingImage not found",
+			sc:          newSC(util.CSIProvisionerLonghorn, biName),
+			expectError: false,
+		},
+		{
+			name:        "backing image imageId matches",
+			sc:          newSC(util.CSIProvisionerLonghorn, biName),
+			bi:          newBI(imageID),
+			expectError: false,
+		},
+		{
+			name:        "backing image imageId mismatch",
+			sc:          newSC(util.CSIProvisionerLonghorn, biName),
+			bi:          newBI(otherImage),
+			expectError: true,
+		},
+		{
+			name:        "backing image has no imageId annotation",
+			sc:          newSC(util.CSIProvisionerLonghorn, biName),
+			bi:          newBI(""),
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+
+			if tc.sc != nil {
+				err := clientset.Tracker().Add(tc.sc)
+				assert.NoError(t, err)
+			}
+			if tc.bi != nil {
+				err := clientset.Tracker().Add(tc.bi)
+				assert.NoError(t, err)
+			}
+
+			v := &vmValidator{
+				scCache:           fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				backingImageCache: fakeclients.BackingImageCache(clientset.LonghornV1beta2().BackingImages),
+			}
+
+			err := v.checkBackingImageIDMatch(scName, imageID)
+			if tc.expectError {
+				assert.Error(t, err, tc.name)
+			} else {
+				assert.NoError(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestVmValidator_Create(t *testing.T) {
+	// createVM has no network/MAC to avoid needing vmCache/nadCache setup
+	createVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"harvesterhci.io/volumeClaimTemplates": `[{"metadata":{"name":"test-disk-0",` +
+					`"annotations":{"harvesterhci.io/imageId":"default/image"}},` +
+					`"spec":{"accessModes":["ReadWriteMany"],"resources":{"requests":{"storage":"10Gi"}}` +
+					`,"volumeMode":"Block","storageClassName":"longhorn-image"}}]`,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Memory: &kubevirtv1.Memory{
+							Guest: resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name                    string
+		vm                      *kubevirtv1.VirtualMachine
+		objMeta                 *metav1.ObjectMeta
+		sarDenied               bool
+		expectedValidationError bool
+	}{
+		{
+			name:                    "VM with annotation and SAR allowed - pass",
+			vm:                      createVM.DeepCopy(),
+			expectedValidationError: false,
+		},
+		{
+			name: "VM with no annotation - pass",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{Name: createVM.Name, Namespace: createVM.Namespace},
+				Spec:       createVM.Spec,
+			},
+			expectedValidationError: false,
+		},
+		{
+			name:                    "VM with annotation and SAR denied - fail",
+			vm:                      createVM.DeepCopy(),
+			sarDenied:               true,
+			expectedValidationError: true,
+		},
+		{
+			name: "VM with bad JSON annotation - fail",
+			vm:   createVM.DeepCopy(),
+			objMeta: &metav1.ObjectMeta{
+				Name:      createVM.Name,
+				Namespace: createVM.Namespace,
+				Annotations: map[string]string{
+					"harvesterhci.io/volumeClaimTemplates": `[{"]`,
+				},
+			},
+			expectedValidationError: true,
+		},
+		{
+			name: "VM with invalid maintenance mode strategy - fail",
+			vm:   createVM.DeepCopy(),
+			objMeta: func() *metav1.ObjectMeta {
+				m := createVM.ObjectMeta.DeepCopy()
+				m.Labels = map[string]string{util.LabelMaintainModeStrategy: "foobar"}
+				return m
+			}(),
+			expectedValidationError: true,
+		},
+	}
+
+	allowedFakeSAR := fakeclients.AllowedSARClient()
+	denyFakeSAR := fakeclients.DeniedSARClient()
+
+	fakeRequest := fakeclients.NewFakeRequest("test-user")
+
+	corefakeclientset := corefake.NewClientset()
+	assert.NoError(t, corefakeclientset.Tracker().Add(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: createVM.Namespace}}))
+	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
+
+	harvesterFakeClientset := fake.NewSimpleClientset()
+	assert.NoError(t, harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{Name: "longhorn-image"}}))
+	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
+
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			vm := test.vm.DeepCopy()
+			if test.objMeta != nil {
+				vm.ObjectMeta = *test.objMeta
+			}
+			if test.sarDenied {
+				validator.sar = denyFakeSAR
+			} else {
+				validator.sar = allowedFakeSAR
+			}
+			err := validator.Create(fakeRequest, vm)
+			if test.expectedValidationError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
