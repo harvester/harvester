@@ -86,7 +86,9 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache(),
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
-			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
+			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),
+			clients.LonghornFactory.Longhorn().V1beta2().BackingImage().Cache(),
+			clients.K8s.AuthorizationV1().SubjectAccessReviews()),
 		volumeremotebackup.NewBackupValidator(
 			clients.Core.PersistentVolumeClaim().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VolumeRemoteBackup(),
