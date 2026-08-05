@@ -140,14 +140,11 @@ check_rancher_version() {
 
 check_rancher_images() {
   local fname=${SCRIPTS_DIR}/images/rancher-images.txt
-  local francherbootstrap=${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt
-  echo "File ${fname} ${francherbootstrap}"
+  echo "File ${fname}"
 
   # must be paired ones
   check_image_pair_tag ${fname} "rancher/rancher" ${fname} "rancher/rancher-agent"
   check_image_pair_tag ${fname} "rancher/fleet" ${fname} "rancher/fleet-agent"
-
-  check_image_pair_tag ${fname} "rancher/rancher" ${francherbootstrap} "rancher/system-agent-installer-rancher"
 
   # must be existing
   check_image_tag ${fname} "rancher/system-agent"
@@ -156,20 +153,10 @@ check_rancher_images() {
   check_image_tag ${fname} "rancher/cluster-api-controller"
 }
 
-check_rancher_bootstrap_images() {
-  local fname=${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt
-  echo "File ${fname}"
-
-  # must be existing
-  check_image_tag ${fname} "rancher/system-agent-installer-rancher"
-}
-
 echo "Check images to ensure they are aligned"
 
 check_rancher_version
 
 check_rancher_images
-
-check_rancher_bootstrap_images
 
 echo "All pass"
