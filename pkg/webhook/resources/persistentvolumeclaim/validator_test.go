@@ -3,16 +3,18 @@ package persistentvolumeclaim
 import (
 	"testing"
 
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 func newUpgradeImage(namespace, name string) *harvesterv1.VirtualMachineImage {
@@ -359,11 +361,43 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
+	const (
+		biName  = "vmi-test-bi"
+		imageID = "default/image-szq79"
+	)
+
+	newLonghornSC := func(name, backingImage string) *storagev1.StorageClass {
+		return &storagev1.StorageClass{
+			ObjectMeta:  metav1.ObjectMeta{Name: name},
+			Provisioner: util.CSIProvisionerLonghorn,
+			Parameters:  map[string]string{util.LonghornOptionBackingImageName: backingImage},
+		}
+	}
+	newBI := func(annotationImageID string) *longhorn.BackingImage {
+		annotations := map[string]string{}
+		if annotationImageID != "" {
+			annotations[util.AnnotationImageID] = annotationImageID
+		}
+		return &longhorn.BackingImage{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        biName,
+				Namespace:   util.LonghornSystemNamespaceName,
+				Annotations: annotations,
+			},
+		}
+	}
+
 	tests := []struct {
 		name          string
 		pvc           *corev1.PersistentVolumeClaim
+<<<<<<< HEAD
 		dataPVC       *corev1.PersistentVolumeClaim
 		image         *harvesterv1.VirtualMachineImage
+=======
+		sc            *storagev1.StorageClass
+		bi            *longhorn.BackingImage
+		sarDenied     bool
+>>>>>>> 078ed05 (test: add test cases)
 		expectError   bool
 		errorContains string
 	}{
@@ -552,7 +586,7 @@ func TestCreate(t *testing.T) {
 						{
 							APIVersion: "kubevirt.io/v1",
 							Kind:       "VirtualMachine",
-							Name:       "vm2", // mismatched name
+							Name:       "vm2",
 							UID:        "test-uid",
 						},
 					},
@@ -564,11 +598,48 @@ func TestCreate(t *testing.T) {
 			expectError:   true,
 			errorContains: "reserved storage class",
 		},
+		{
+			name: "create PVC with Longhorn SC that has backingImage, SAR allowed",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To("lh-test-sc"),
+				},
+			},
+			sc:          newLonghornSC("lh-test-sc", biName),
+			bi:          newBI(imageID),
+			expectError: false,
+		},
+		{
+			name: "create PVC with Longhorn SC that has backingImage, SAR denied",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: "default",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To("lh-test-sc"),
+				},
+			},
+			sc:          newLonghornSC("lh-test-sc", biName),
+			bi:          newBI(imageID),
+			sarDenied:   true,
+			expectError: true,
+		},
 	}
+
+	allowedFakeSAR := fakeclients.AllowedSARClient()
+	denyFakeSAR := fakeclients.DeniedSARClient()
+
+	fakeRequest := fakeclients.NewFakeRequest("test-user")
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
+<<<<<<< HEAD
 <<<<<<< HEAD
 			if tc.image != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.image))
@@ -584,9 +655,26 @@ func TestCreate(t *testing.T) {
 			validator := &pvcValidator{
 				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 >>>>>>> 7c0f1fd (feat: check lh sc when creating pvc)
+=======
+			if tc.sc != nil {
+				assert.NoError(t, clientset.Tracker().Add(tc.sc))
+			}
+			if tc.bi != nil {
+				assert.NoError(t, clientset.Tracker().Add(tc.bi))
+>>>>>>> 078ed05 (test: add test cases)
 			}
 
-			err := validator.Create(nil, tc.pvc)
+			var sar = allowedFakeSAR
+			if tc.sarDenied {
+				sar = denyFakeSAR
+			}
+			validator := &pvcValidator{
+				scCache:           fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				backingImageCache: fakeclients.BackingImageCache(clientset.LonghornV1beta2().BackingImages),
+				sar:               sar,
+			}
+
+			err := validator.Create(fakeRequest, tc.pvc)
 
 			if tc.expectError {
 				assert.NotNil(t, err, tc.name)
