@@ -315,7 +315,10 @@ func TestCreate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			validator := &pvcValidator{}
+			clientset := fake.NewSimpleClientset()
+			validator := &pvcValidator{
+				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
 
 			err := validator.Create(nil, tc.pvc)
 
