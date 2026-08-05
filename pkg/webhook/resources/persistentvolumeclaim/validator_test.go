@@ -569,6 +569,7 @@ func TestCreate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
+<<<<<<< HEAD
 			if tc.image != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.image))
 			}
@@ -579,6 +580,10 @@ func TestCreate(t *testing.T) {
 			validator := &pvcValidator{
 				pvcCache:   fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 				imageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+=======
+			validator := &pvcValidator{
+				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+>>>>>>> 7c0f1fd (feat: check lh sc when creating pvc)
 			}
 
 			err := validator.Create(nil, tc.pvc)
