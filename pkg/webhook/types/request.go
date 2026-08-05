@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rancher/wrangler/v3/pkg/webhook"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -31,6 +32,12 @@ func (r *Request) IsFromController() bool {
 		return false
 	}
 	return r.Username() == r.options.HarvesterControllerUsername
+}
+
+// IsFromControllers returns true when the request comes from controllers.
+func (r *Request) IsFromControllers() bool {
+	username := r.Username()
+	return strings.HasPrefix(username, "system:serviceaccount:")
 }
 
 func (r *Request) IsGarbageCollection() bool {
