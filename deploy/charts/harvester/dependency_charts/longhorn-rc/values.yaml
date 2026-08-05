@@ -39,6 +39,8 @@ networkPolicies:
   restrictInternalTraffic: true
   # -- Distribution that determines the policy for allowing access for an ingress. (Options: "k3s", "rke2", "rke1")
   type: "k3s"
+  # -- Kubernetes API server source CIDRs allowed to access the Longhorn admission webhook. When empty, source filtering is disabled.
+  kubeAPIServerSourceCIDRs: []
 image:
   longhorn:
     engine:
@@ -47,49 +49,49 @@ image:
       # -- Repository for the Longhorn Engine image.
       repository: longhornio/longhorn-engine
       # -- Tag for the Longhorn Engine image.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     manager:
       # -- Registry for the Longhorn Manager image.
       registry: ""
       # -- Repository for the Longhorn Manager image.
       repository: longhornio/longhorn-manager
       # -- Tag for the Longhorn Manager image.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     ui:
       # -- Registry for the Longhorn UI image.
       registry: ""
       # -- Repository for the Longhorn UI image.
       repository: longhornio/longhorn-ui
       # -- Tag for the Longhorn UI image.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     instanceManager:
       # -- Registry for the Longhorn Instance Manager image.
       registry: ""
       # -- Repository for the Longhorn Instance Manager image.
       repository: longhornio/longhorn-instance-manager
       # -- Tag for the Longhorn Instance Manager image.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     shareManager:
       # -- Registry for the Longhorn Share Manager image.
       registry: ""
       # -- Repository for the Longhorn Share Manager image.
       repository: longhornio/longhorn-share-manager
       # -- Tag for the Longhorn Share Manager image.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     backingImageManager:
       # -- Registry for the Backing Image Manager image. When unspecified, Longhorn uses the default value.
       registry: ""
       # -- Repository for the Backing Image Manager image. When unspecified, Longhorn uses the default value.
       repository: longhornio/backing-image-manager
       # -- Tag for the Backing Image Manager image. When unspecified, Longhorn uses the default value.
-      tag: v1.12.1-rc1
+      tag: v1.12.1-rc3
     supportBundleKit:
       # -- Registry for the Longhorn Support Bundle Manager image.
       registry: ""
       # -- Repository for the Longhorn Support Bundle Manager image.
       repository: longhornio/support-bundle-kit
       # -- Tag for the Longhorn Support Bundle Manager image.
-      tag: v0.0.89
+      tag: v0.0.91
   csi:
     attacher:
       # -- Registry for the CSI attacher image. When unspecified, Longhorn uses the default value.
@@ -402,7 +404,7 @@ defaultSettings:
   restoreConcurrentLimit: ~
   # -- Setting that allows you to enable the V1 Data Engine.
   v1DataEngine: ~
-  # -- Setting that allows you to enable the V2 Data Engine, which is based on the Storage Performance Development Kit (SPDK). The V2 Data Engine is an experimental feature and should not be used in production environments.
+  # -- Setting that allows you to enable the V2 Data Engine, which is based on the Storage Performance Development Kit (SPDK).
   v2DataEngine: ~
   # -- Applies only to the V2 Data Engine. Enables hugepages for the Storage Performance Development Kit (SPDK) target daemon. If disabled, legacy memory is used. Allocation size is set via the Data Engine Memory Size setting.
   dataEngineHugepageEnabled: ~
@@ -578,6 +580,14 @@ longhornUI:
   ## and uncomment this example block
   #  label-key1: "label-value1"
   #  label-key2: "label-value2"
+  # -- Pod Disruption Budget for Longhorn UI. Keeps a minimum number of UI pods available during voluntary disruptions such as node drains. Effective only when `longhornUI.replicas` is greater than 1.
+  podDisruptionBudget:
+    # -- Setting that allows you to enable the Pod Disruption Budget for Longhorn UI.
+    enabled: false
+    # -- (string) Minimum number or percentage of Longhorn UI pods that must remain available during a disruption. Mutually exclusive with `longhornUI.podDisruptionBudget.maxUnavailable`.
+    minAvailable: 1
+    # -- Maximum number or percentage of Longhorn UI pods that can be unavailable during a disruption. When set, it takes precedence over `longhornUI.podDisruptionBudget.minAvailable`.
+    maxUnavailable: ""
 ingress:
   # -- Setting that allows Longhorn to generate ingress records for the Longhorn UI service.
   enabled: false
@@ -674,7 +684,7 @@ metrics:
     interval: ""
     # -- Timeout after which Prometheus considers the scrape to be failed.
     scrapeTimeout: ""
-    # -- Configures the relabeling rules to apply the target’s metadata labels. See the [Prometheus Operator
+    # -- Configures the relabeling rules to apply the target's metadata labels. See the [Prometheus Operator
     # documentation](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.Endpoint) for
     # formatting details.
     relabelings: []
