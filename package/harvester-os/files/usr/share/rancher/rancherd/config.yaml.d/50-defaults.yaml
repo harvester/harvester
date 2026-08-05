@@ -13,4 +13,11 @@ rancherValues:
     cattle:
       psp:
         enabled: false
+  extraEnv:
+    # Since Rancher v2.15.0, tls-internal-cn-allowed-services is needed to be
+    # configured properly to prevent TLS certificate flapping.
+    # For fresh installs, only the Traefik service is included as it is the default ingress provider.
+    # https://github.com/harvester/harvester/issues/11338
+    - name: CATTLE_TLS_INTERNAL_CN_ALLOWED_SERVICES
+      value: "kube-system/rke2-traefik"
 rancherInstallerImage: rancher/system-agent-installer-rancher:v2.15.0
