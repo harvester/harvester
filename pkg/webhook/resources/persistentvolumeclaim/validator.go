@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -17,6 +18,7 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
@@ -31,25 +33,31 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	kubevirtCache ctlkv1.KubeVirtCache,
 	imageCache ctlharvesterv1.VirtualMachineImageCache,
 	scCache ctlstoragev1.StorageClassCache,
-	settingCache ctlharvesterv1.SettingCache) types.Validator {
+	settingCache ctlharvesterv1.SettingCache,
+	backingImageCache ctllonghornv1.BackingImageCache,
+	sar authorizationv1client.SubjectAccessReviewInterface) types.Validator {
 	return &pvcValidator{
-		pvcCache:      pvcCache,
-		vmCache:       vmCache,
-		kubevirtCache: kubevirtCache,
-		imageCache:    imageCache,
-		scCache:       scCache,
-		settingCache:  settingCache,
+		pvcCache:          pvcCache,
+		vmCache:           vmCache,
+		kubevirtCache:     kubevirtCache,
+		imageCache:        imageCache,
+		scCache:           scCache,
+		settingCache:      settingCache,
+		backingImageCache: backingImageCache,
+		sar:               sar,
 	}
 }
 
 type pvcValidator struct {
 	types.DefaultValidator
-	pvcCache      v1.PersistentVolumeClaimCache
-	vmCache       ctlkv1.VirtualMachineCache
-	imageCache    ctlharvesterv1.VirtualMachineImageCache
-	kubevirtCache ctlkv1.KubeVirtCache
-	scCache       ctlstoragev1.StorageClassCache
-	settingCache  ctlharvesterv1.SettingCache
+	pvcCache          v1.PersistentVolumeClaimCache
+	vmCache           ctlkv1.VirtualMachineCache
+	imageCache        ctlharvesterv1.VirtualMachineImageCache
+	kubevirtCache     ctlkv1.KubeVirtCache
+	scCache           ctlstoragev1.StorageClassCache
+	settingCache      ctlharvesterv1.SettingCache
+	backingImageCache ctllonghornv1.BackingImageCache
+	sar               authorizationv1client.SubjectAccessReviewInterface
 }
 
 func (v *pvcValidator) Resource() types.Resource {
@@ -144,7 +152,7 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 
 func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {
 	newPVC := newObj.(*corev1.PersistentVolumeClaim)
-	return v.validateInternalUsage(newPVC)
+	return v.validateInternalUsage(request, newPVC)
 }
 
 func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) error {
@@ -178,7 +186,7 @@ func (v *pvcValidator) checkGoldenImageAnno(pvc *corev1.PersistentVolumeClaim) e
 	return nil
 }
 
-func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) error {
+func (v *pvcValidator) validateInternalUsage(request *types.Request, pvc *corev1.PersistentVolumeClaim) error {
 	if pvc.Spec.StorageClassName == nil {
 		return nil
 	}
@@ -202,8 +210,64 @@ func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) 
 		}
 		return nil
 	default:
+		return v.validateBackingImageAccess(request, scName)
+	}
+}
+
+func (v *pvcValidator) validateBackingImageAccess(request *types.Request, scName string) error {
+	sc, err := v.scCache.Get(scName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
+	}
+
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
 		return nil
 	}
+
+	biName, ok := sc.Parameters[util.LonghornOptionBackingImageName]
+	if !ok || biName == "" {
+		return nil
+	}
+
+	bi, err := v.backingImageCache.Get(util.LonghornSystemNamespaceName, biName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
+	}
+
+	imageID, ok := bi.Annotations[util.AnnotationImageID]
+	if !ok || imageID == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(imageID, "/", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	imageNS, imageName := parts[0], parts[1]
+
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineImageGVR,
+		Namespace: imageNS,
+		Name:      imageName,
+	})
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check access to image %s/%s: %v", imageNS, imageName, err))
+	}
+	if !allowed {
+		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access image %s/%s", request.UserInfo.Username, imageNS, imageName), "spec.storageClassName")
+	}
+
+	return nil
 }
 
 func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim) (bool, error) {
