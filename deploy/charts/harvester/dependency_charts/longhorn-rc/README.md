@@ -20,7 +20,7 @@ Longhorn is 100% open source software. Project source code is spread across a nu
 ## Prerequisites
 
 1. A container runtime compatible with Kubernetes (Docker v1.13+, containerd v1.3.7+, etc.)
-2. Kubernetes >= v1.25
+2. Kubernetes >= v1.34
 3. Make sure `bash`, `curl`, `findmnt`, `grep`, `awk` and `blkid` has been installed in all nodes of the Kubernetes cluster.
 4. Make sure `open-iscsi` has been installed, and the `iscsid` daemon is running on all nodes of the Kubernetes cluster. For GKE, recommended Ubuntu as guest OS image since it contains `open-iscsi` already.
 
@@ -90,6 +90,7 @@ The `values.yaml` contains items used to tweak a deployment of this chart.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | networkPolicies.enabled | bool | `false` | Setting that allows you to enable network policies that control access to Longhorn pods. |
+| networkPolicies.kubeAPIServerSourceCIDRs | list | `[]` | Kubernetes API server source CIDRs allowed to access the Longhorn admission webhook. When empty, source filtering is disabled. |
 | networkPolicies.restrictInternalTraffic | bool | `true` | Setting that allows you to enable network policies for internal Longhorn components. When enabled, only authorized Longhorn components are allowed to communicate with each other. |
 | networkPolicies.type | string | `"k3s"` | Distribution that determines the policy for allowing access for an ingress. (Options: "k3s", "rke2", "rke1") |
 
@@ -117,25 +118,25 @@ The `values.yaml` contains items used to tweak a deployment of this chart.
 | image.csi.snapshotter.tag | string | `"v8.6.0"` | Tag for the CSI Snapshotter image. When unspecified, Longhorn uses the default value. |
 | image.longhorn.backingImageManager.registry | string | `""` | Registry for the Backing Image Manager image. When unspecified, Longhorn uses the default value. |
 | image.longhorn.backingImageManager.repository | string | `"longhornio/backing-image-manager"` | Repository for the Backing Image Manager image. When unspecified, Longhorn uses the default value. |
-| image.longhorn.backingImageManager.tag | string | `"v1.12.x-head"` | Tag for the Backing Image Manager image. When unspecified, Longhorn uses the default value. |
+| image.longhorn.backingImageManager.tag | string | `"v1.12.1-rc3"` | Tag for the Backing Image Manager image. When unspecified, Longhorn uses the default value. |
 | image.longhorn.engine.registry | string | `""` | Registry for the Longhorn Engine image. |
 | image.longhorn.engine.repository | string | `"longhornio/longhorn-engine"` | Repository for the Longhorn Engine image. |
-| image.longhorn.engine.tag | string | `"v1.12.x-head"` | Tag for the Longhorn Engine image. |
+| image.longhorn.engine.tag | string | `"v1.12.1-rc3"` | Tag for the Longhorn Engine image. |
 | image.longhorn.instanceManager.registry | string | `""` | Registry for the Longhorn Instance Manager image. |
 | image.longhorn.instanceManager.repository | string | `"longhornio/longhorn-instance-manager"` | Repository for the Longhorn Instance Manager image. |
-| image.longhorn.instanceManager.tag | string | `"v1.12.x-head"` | Tag for the Longhorn Instance Manager image. |
+| image.longhorn.instanceManager.tag | string | `"v1.12.1-rc3"` | Tag for the Longhorn Instance Manager image. |
 | image.longhorn.manager.registry | string | `""` | Registry for the Longhorn Manager image. |
 | image.longhorn.manager.repository | string | `"longhornio/longhorn-manager"` | Repository for the Longhorn Manager image. |
-| image.longhorn.manager.tag | string | `"v1.12.x-head"` | Tag for the Longhorn Manager image. |
+| image.longhorn.manager.tag | string | `"v1.12.1-rc3"` | Tag for the Longhorn Manager image. |
 | image.longhorn.shareManager.registry | string | `""` | Registry for the Longhorn Share Manager image. |
 | image.longhorn.shareManager.repository | string | `"longhornio/longhorn-share-manager"` | Repository for the Longhorn Share Manager image. |
-| image.longhorn.shareManager.tag | string | `"v1.12.x-head"` | Tag for the Longhorn Share Manager image. |
+| image.longhorn.shareManager.tag | string | `"v1.12.1-rc3"` | Tag for the Longhorn Share Manager image. |
 | image.longhorn.supportBundleKit.registry | string | `""` | Registry for the Longhorn Support Bundle Manager image. |
 | image.longhorn.supportBundleKit.repository | string | `"longhornio/support-bundle-kit"` | Repository for the Longhorn Support Bundle Manager image. |
-| image.longhorn.supportBundleKit.tag | string | `"v0.0.89"` | Tag for the Longhorn Support Bundle Manager image. |
+| image.longhorn.supportBundleKit.tag | string | `"v0.0.91"` | Tag for the Longhorn Support Bundle Manager image. |
 | image.longhorn.ui.registry | string | `""` | Registry for the Longhorn UI image. |
 | image.longhorn.ui.repository | string | `"longhornio/longhorn-ui"` | Repository for the Longhorn UI image. |
-| image.longhorn.ui.tag | string | `"v1.12.x-head"` | Tag for the Longhorn UI image. |
+| image.longhorn.ui.tag | string | `"v1.12.1-rc3"` | Tag for the Longhorn UI image. |
 | image.openshift.oauthProxy.registry | string | `""` | Registry for the OAuth Proxy image. Specify the upstream image (for example, "quay.io/openshift/origin-oauth-proxy"). This setting applies only to OpenShift users. |
 | image.openshift.oauthProxy.repository | string | `""` | Repository for the OAuth Proxy image. Specify the upstream image (for example, "quay.io/openshift/origin-oauth-proxy"). This setting applies only to OpenShift users. |
 | image.openshift.oauthProxy.tag | string | `""` | Tag for the OAuth Proxy image. Specify OCP/OKD version 4.1 or later (including version 4.18, which is available at quay.io/openshift/origin-oauth-proxy:4.18). This setting applies only to OpenShift users. |
@@ -234,6 +235,10 @@ Longhorn consists of user-deployed components (for example, Longhorn Manager, Lo
 |-----|------|---------|-------------|
 | longhornUI.affinity | object | `{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchExpressions":[{"key":"app","operator":"In","values":["longhorn-ui"]}]},"topologyKey":"kubernetes.io/hostname"},"weight":1}]}}` | Affinity for Longhorn UI pods. Specify the affinity you want to use for Longhorn UI. |
 | longhornUI.nodeSelector | object | `{}` | Node selector for Longhorn UI. Specify the nodes allowed to run Longhorn UI. |
+| longhornUI.podDisruptionBudget | object | `{"enabled":false,"maxUnavailable":"","minAvailable":1}` | Pod Disruption Budget for Longhorn UI. Keeps a minimum number of UI pods available during voluntary disruptions such as node drains. Effective only when `longhornUI.replicas` is greater than 1. |
+| longhornUI.podDisruptionBudget.enabled | bool | `false` | Setting that allows you to enable the Pod Disruption Budget for Longhorn UI. |
+| longhornUI.podDisruptionBudget.maxUnavailable | string | `""` | Maximum number or percentage of Longhorn UI pods that can be unavailable during a disruption. When set, it takes precedence over `longhornUI.podDisruptionBudget.minAvailable`. |
+| longhornUI.podDisruptionBudget.minAvailable | int | `1` | (string) Minimum number or percentage of Longhorn UI pods that must remain available during a disruption. Mutually exclusive with `longhornUI.podDisruptionBudget.maxUnavailable`. |
 | longhornUI.priorityClass | string | `"longhorn-critical"` | PriorityClass for Longhorn UI. |
 | longhornUI.replicas | int | `2` | Replica count for Longhorn UI. |
 | longhornUI.tolerations | list | `[]` | Toleration for Longhorn UI on nodes allowed to run Longhorn components. |
@@ -286,7 +291,7 @@ You can install Longhorn in an air-gapped environment with a private registry. F
 | metrics.serviceMonitor.enabled | bool | `false` | Setting that allows the creation of a Prometheus ServiceMonitor resource for Longhorn Manager components. |
 | metrics.serviceMonitor.interval | string | `""` | Interval at which Prometheus scrapes the metrics from the target. |
 | metrics.serviceMonitor.metricRelabelings | list | `[]` | Configures the relabeling rules to apply to the samples before ingestion. See the [Prometheus Operator documentation](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.Endpoint) for formatting details. |
-| metrics.serviceMonitor.relabelings | list | `[]` | Configures the relabeling rules to apply the target’s metadata labels. See the [Prometheus Operator documentation](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.Endpoint) for formatting details. |
+| metrics.serviceMonitor.relabelings | list | `[]` | Configures the relabeling rules to apply the target's metadata labels. See the [Prometheus Operator documentation](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.Endpoint) for formatting details. |
 | metrics.serviceMonitor.sampleLimit | int | `0` | Per-scrape sample limit. A value of 0 (default) omits sampleLimit. |
 | metrics.serviceMonitor.scrapeTimeout | string | `""` | Timeout after which Prometheus considers the scrape to be failed. |
 
@@ -425,7 +430,7 @@ During installation, you can either allow Longhorn to use the default system set
 | defaultSettings.upgradeChecker | Upgrade Checker that periodically checks for new Longhorn versions. When a new version is available, a notification appears on the Longhorn UI. This setting is enabled by default |
 | defaultSettings.upgradeResponderURL | The Upgrade Responder sends a notification whenever a new Longhorn version that you can upgrade to becomes available. The default value is https://longhorn-upgrade-responder.rancher.io/v1/checkupgrade. |
 | defaultSettings.v1DataEngine | Setting that allows you to enable the V1 Data Engine. |
-| defaultSettings.v2DataEngine | Setting that allows you to enable the V2 Data Engine, which is based on the Storage Performance Development Kit (SPDK). The V2 Data Engine is an experimental feature and should not be used in production environments. |
+| defaultSettings.v2DataEngine | Setting that allows you to enable the V2 Data Engine, which is based on the Storage Performance Development Kit (SPDK). |
 
 ---
 Please see [link](https://github.com/longhorn/longhorn) for more information.
