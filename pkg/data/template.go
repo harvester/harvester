@@ -197,7 +197,7 @@ metadata:
   name: windows-iso-small-template
   namespace: {{ .Namespace }}
 spec:
-  description: Small Windows Server VM (2 vCPU, 4 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for dev, test, and lightweight Windows Server 2019/2022/2025 workloads.
+  description: Small Windows Server VM (2 vCPU, 4 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-blk rootdisk. Sized for dev, test, and lightweight Windows Server 2019/2022/2025 workloads.
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
@@ -205,7 +205,7 @@ metadata:
   name: windows-iso-medium-template
   namespace: {{ .Namespace }}
 spec:
-  description: Medium Windows Server VM (4 vCPU, 16 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for general Windows Server workloads (IIS, small SQL, application servers).
+  description: Medium Windows Server VM (4 vCPU, 16 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-blk rootdisk. Sized for general Windows Server workloads (IIS, small SQL, application servers).
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
@@ -213,7 +213,7 @@ metadata:
   name: windows-iso-large-template
   namespace: {{ .Namespace }}
 spec:
-  description: Large Windows Server VM (8 vCPU, 32 GiB RAM, 128 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-scsi rootdisk. Sized for heavier Windows Server workloads (SQL Server, RDS, medium databases).
+  description: Large Windows Server VM (8 vCPU, 32 GiB RAM, 128 GiB rootdisk). Boots from an uploaded Windows ISO with the VMDP virtio-driver container attached. Enables balanced Hyper-V enlightenments and a virtio-blk rootdisk. Sized for heavier Windows Server workloads (SQL Server, RDS, medium databases).
 ---
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplate
@@ -221,7 +221,7 @@ metadata:
   name: windows-w11-iso-template
   namespace: {{ .Namespace }}
 spec:
-  description: Windows 11 VM (4 vCPU, 8 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows 11 ISO with the VMDP virtio-driver container attached. Enables UEFI + Secure Boot + vTPM (required by Windows 11 Setup), balanced Hyper-V enlightenments, and a virtio-scsi rootdisk.
+  description: Windows 11 VM (4 vCPU, 8 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows 11 ISO with the VMDP virtio-driver container attached. Enables UEFI + Secure Boot + vTPM (required by Windows 11 Setup), balanced Hyper-V enlightenments, and a virtio-blk rootdisk.
 `
 
 	// windows default resource request refer to windows server docs https://docs.microsoft.com/en-us/windows-server/get-started-19/sys-reqs-19
@@ -615,7 +615,7 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
-  name: windows-iso-small-version
+  name: windows-iso-small-optimized
   namespace: {{ .Namespace }}
 spec:
   templateId: {{ .Namespace }}/windows-iso-small-template
@@ -710,7 +710,7 @@ spec:
                 name: cdrom-disk
                 bootOrder: 1
               - disk:
-                  bus: scsi
+                  bus: virtio
                 name: rootdisk
                 bootOrder: 2
               - cdrom:
@@ -746,7 +746,7 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
-  name: windows-iso-medium-version
+  name: windows-iso-medium-optimized
   namespace: {{ .Namespace }}
 spec:
   templateId: {{ .Namespace }}/windows-iso-medium-template
@@ -841,7 +841,7 @@ spec:
                 name: cdrom-disk
                 bootOrder: 1
               - disk:
-                  bus: scsi
+                  bus: virtio
                 name: rootdisk
                 bootOrder: 2
               - cdrom:
@@ -877,7 +877,7 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
-  name: windows-iso-large-version
+  name: windows-iso-large-optimized
   namespace: {{ .Namespace }}
 spec:
   templateId: {{ .Namespace }}/windows-iso-large-template
@@ -972,7 +972,7 @@ spec:
                 name: cdrom-disk
                 bootOrder: 1
               - disk:
-                  bus: scsi
+                  bus: virtio
                 name: rootdisk
                 bootOrder: 2
               - cdrom:
@@ -1008,7 +1008,7 @@ spec:
 apiVersion: harvesterhci.io/v1beta1
 kind: VirtualMachineTemplateVersion
 metadata:
-  name: windows-w11-iso-version
+  name: windows-w11-iso-optimized
   namespace: {{ .Namespace }}
 spec:
   templateId: {{ .Namespace }}/windows-w11-iso-template
@@ -1108,7 +1108,7 @@ spec:
                 name: cdrom-disk
                 bootOrder: 1
               - disk:
-                  bus: scsi
+                  bus: virtio
                 name: rootdisk
                 bootOrder: 2
               - cdrom:
