@@ -838,7 +838,7 @@ upgrade_rancher() {
 
   save_fleet_controller_configmap
 
-  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false"' values.yaml
+  yq -i '.features = "multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,crt-token-ttl-rotation=false"' values.yaml
 
   if [[ "$imageMode" == "legacy" ]]; then
     echo "Rancher image values are in legacy mode, convert them to new mode"
@@ -1583,6 +1583,88 @@ migrate_longhorn_v1beta1_crds() {
       -p "$(kubectl get validatingwebhookconfiguration longhorn-webhook-validator -o json | jq '.webhooks[0].rules |= map(if .apiGroups == ["longhorn.io"] and .resources == ["settings"] then .operations |= (. + ["UPDATE"] | unique) else . end)')"
 }
 
+patch_rke2_traefik_config() {
+  echo "Check and apply default rke2-traefik helm chart config"
+
+  local name="rke2-traefik"
+  local namespace="kube-system"
+  local manifest="$UPGRADE_TMP_DIR/rke2-traefik-helmchartconfig.yaml"
+
+  mkdir -p "$UPGRADE_TMP_DIR"
+
+  # 1. Prepare Manifest
+  cat > "$manifest" <<EOF
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: $name
+  namespace: $namespace
+spec:
+  valuesContent: |-
+    logs:
+      access:
+        enabled: "true"
+    additionalArguments:
+    - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
+    - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
+EOF
+
+  # 2. Check if the resource exists
+  local EXIT_CODE=0
+  # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
+  rke2_traefik_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    if [[ "$rke2_traefik_chart_config_output" == *"NotFound"* || "$rke2_traefik_chart_config_output" == *"not found"* ]]; then
+      echo "Resource '$name' not found. Creating..."
+      kubectl apply -f "$manifest"
+      return 0
+    else
+      # Catch critical errors (RBAC, API timeouts, etc.)
+      echo "CRITICAL ERROR: kubectl check failed with: $rke2_traefik_chart_config_output EXIT_CODE:$EXIT_CODE"
+      return 1
+    fi
+  fi
+}
+
+# Since Rancher v2.15.0, tls-internal-cn-allowed-services is needed to be
+# configured properly to prevent TLS certificate flapping
+# https://github.com/harvester/harvester/issues/11338
+apply_tls_internal_cn_allowed_services_setting() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+    echo "Skip set tls-internal-cn-allowed-services if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+
+  local manifest="$UPGRADE_TMP_DIR/tls-internal-cn-allowed-services-settings.yaml"
+  mkdir -p "$UPGRADE_TMP_DIR"
+  cat > "$manifest" <<EOF
+apiVersion: management.cattle.io/v3
+customized: false
+default: ""
+kind: Setting
+metadata:
+  name: tls-internal-cn-allowed-services
+source: ""
+value: "kube-system/ingress-expose,kube-system/rke2-traefik"
+EOF
+  echo "The content of ${manifest}"
+  cat ${manifest}
+  kubectl apply -f "${manifest}"
+}
+
+# Since Rancher v2.15.0, this annotation is needed on management cluster such that
+# system-agent-upgrader can complete successfully.
+# https://github.com/harvester/harvester/issues/11336
+annotate_management_cluster_provisioning_administrated() {
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+    echo "Skip patch management cluster provisioning administrated if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
+    return
+  fi
+  echo "Annotate management cluster 'local' with provisioning.cattle.io/administrated=true"
+  kubectl annotate clusters.management.cattle.io local provisioning.cattle.io/administrated=true --overwrite
+}
+
 wait_repo
 detect_repo
 detect_upgrade
@@ -1591,6 +1673,8 @@ preserve_overcommit_config
 pause_all_charts
 skip_restart_rancher_system_agent
 disable_kubevirt_workload_live_migration
+apply_tls_internal_cn_allowed_services_setting
+annotate_management_cluster_provisioning_administrated
 upgrade_rancher
 patch_local_cluster_details
 update_local_rke_state_secret
@@ -1609,3 +1693,5 @@ upgrade_addons
 upgrade_harvester_csi_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
+# ingress will be swapped during the pre drain stage but we can apply traefik default config here
+patch_rke2_traefik_config

@@ -70,7 +70,6 @@ import (
 
 const (
 	minSNPrefixLength                 = 16
-	mcmFeature                        = "multi-cluster-management"
 	labelAppNameKey                   = "app.kubernetes.io/name"
 	labelAppNameValuePrometheus       = "prometheus"
 	labelAppNameValueAlertManager     = "alertmanager"
@@ -220,6 +219,8 @@ func NewValidator(
 	validateSettingUpdateFuncs[settings.LHIMResourcesSettingName] = validator.validateUpdateLHIMResources
 	validateSettingDeleteFuncs[settings.LHIMResourcesSettingName] = validator.validateDeleteLHIMResources
 
+	validateSettingUpdateFuncs[settings.TraefikDefaultTLSOptionsSettingName] = validateTraefikDefaultTLSOptionsUpdate
+	validateSettingFuncs[settings.TraefikDefaultTLSOptionsSettingName] = validateTraefikDefaultTLSOptions
 	return validator
 }
 
@@ -2558,4 +2559,23 @@ func validateLonghornV2DataEngineMemorySize(newSetting *v1beta1.Setting) error {
 
 func validateUpdateLonghornV2DataEngineMemorySize(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateLonghornV2DataEngineMemorySize(newSetting)
+}
+
+// verify if the default TLS options for Traefik are valid.
+func validateTraefikDefaultTLSOptions(setting *v1beta1.Setting) error {
+	tlsOptionSpec := &settings.TLSOptionSpec{}
+	value := setting.Value
+	if value == "" {
+		value = setting.Default
+	}
+
+	if err := json.Unmarshal([]byte(value), tlsOptionSpec); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateTraefikDefaultTLSOptionsUpdate(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateTraefikDefaultTLSOptions(newSetting)
 }

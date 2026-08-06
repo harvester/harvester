@@ -54,17 +54,24 @@ Helps maintainers make informed decisions about whether to proceed with a compon
 
 ## Steps
 
-1. If a pull request does not change the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, skip risk assessment and call the `noop` tool with a message explaining why.
-1. If a pull request changes the `deploy/charts/harvester/values.yaml` or `deploy/charts/harvester/Chart.yaml` files, check if it bumps the version of any key component following instructions in the "About components upgrade" section. If not, skip risk assessment and call the `noop` tool with a message explaining why.
+1. Skip upgrade risk assessment on a pull request if it does not change any of the following files:
+    * `deploy/charts/harvester/values.yaml`
+    * `deploy/charts/harvester/Chart.yaml`
+    * `scripts/version-rancher`
+    * `scripts/version-rke2`
+1. If a pull request is skipped, call the `noop` tool with a message explaining why.
+1. If a pull request changes any of the files listed in step 1, check if it bumps the version of any key components following instructions in the "About components upgrade" section. If not, skip risk assessment on the pull request, and call the `noop` tool with a message explaining why.
 1. If a pull request bumps the version of any key component, check the list of commits between the old version and the new version. See the "Determining change logs" section for instructions on how to determine the changelog.
 1. Categorize the commits into three categories: new features, bug fixes, and build/test/docs changes. Then report the risk profile based on the rules provided in the "Risk profile assessment rules" section.
 1. Report the risk profile in the pull request comment. See the "Report Risk Profile" section for the report template.
 
 ## About components upgrade
 
-A pull request contains components upgrade when it bumps the `tag` property of the components in the `deploy/charts/harvester/values.yaml` file.
+### deploy/charts/harvester/values.yaml
 
-These are the list of components and their images we care about:
+This file contains the image versions of several key Harvester components and 3rd party components. A pull request upgrades a component's version by bumping the `tag` property of the component image in this file.
+
+We only care about this list of 3rd party components and their images:
 
 Component          | Included Images (name only)
 ------------------ | ---------------------------
@@ -75,30 +82,21 @@ csi-snapshotter    | snapshot-controller
 kube-vip           | kube-vip-iptables
 whereabouts        | whereabouts
 
-The image versions are determined by the `tag` property of the images in the `deploy/charts/harvester/values.yaml` file.
+Components with image name prefixed with `rancher/harvester` are exempted from the upgrade risk assessment, because they are developed and maintained by us. For example, skip assessment for version changes of components like `harvester-network-controller`, `harvester-networkfs-manager` because their image names are prefixed with `rancher/harvester`.
 
-Components with image name prefixed with `rancher/harvester` are exempted from the upgrade risk assessment, because they are developed and maintained by us. For example, skip assessment for version changes of components like `harvester-network-controller`, `harvester-networkfs-manager` because their image names are prefixed with `rancher/harvester` .
-
-These are the list of components and their images that we don't care about:
+Hence, we don't care about this list of components and their images:
 
 * containers
 * harvester-network-controller
 * harvester-networkfs-manager
 * harvester-node-disk-manager
-* longhorn (managed differently, see the "Longhorn version upgrade" section for details)
 * webhook
 * upgrade
 * harvester-load-balancer
 * support-bundle-kit
 * generalJob
 
-Longhorn is managed differently. See the "Longhorn version upgrade" section for details.
-
-### Longhorn version upgrade
-
-The Longhorn components are managed differently. For Longhorn, a version upgrade is signified by changes to the `version` property of the Longhorn Helm chart defined under the `dependencies` section in the `deploy/charts/harvester/Chart.yaml` file. There is no need to track down its image names and versions.
-
-### KubeVirt and CDI version upgrade
+#### KubeVirt and CDI version upgrade
 
 When bumping KubeVirt and KubeVirt CDI versions, ignore the pre-release identifier (e.g., `-rc`, `-beta`, `-alpha`) of the version; use only the major.minor.patch segment.
 
@@ -106,6 +104,20 @@ For example,
 
 * if a pull request bumps KubeVirt from `1.7.0-150700.3.16.2` to `1.7.0-150700.3.21.1` where both the source and target versions are `1.7.0`, notify the maintainer that this is an internal pre-release upgrade, skip the upgrade risk assessment and report "Unknown" risk profile
 * if a pull request bumps KubeVirt from `1.6.3-150700.3.13.1` to `1.7.0-150700.3.16.2`, compare the commits between KubeVirt 1.6.3 and 1.7.0. The pre-release identifiers can be ignored
+
+### deploy/charts/harvester/Chart.yaml
+
+The only dependency version upgrade we care about in this file is the Longhorn version upgrade.
+
+A Longhorn version upgrade is signified by changes to the `version` property of the Longhorn Helm chart defined under the `dependencies` section in this file. For other dependencies, we don't care about their version upgrades.
+
+### scripts/version-rancher
+
+A Rancher version upgrade is signified by changes to the `RANCHER_VERSION` variable in this file. For alpha releases where the release name is suffixed with `-alpha`, you may not find any release notes or changelog in the GitHub repository. Make sure to compare the commits between the old version and the new version anyway to determine the risk profile.
+
+### scripts/version-rke2
+
+A RKE2 version upgrade is signified by changes to the `RKE2_VERSION` variable in this file.
 
 ### Examples of component upgrade patches
 
@@ -165,6 +177,30 @@ index 4f05eac57..27d4e9c2f 100644
      version: 0.9.8
 ```
 
+Bumps Rancher from version v2.14.2 to v2.15.0-alpha21:
+
+```diff
+diff --git a/scripts/version-rancher b/scripts/version-rancher
+index 283dbb7e9..294cd69d8 100644
+--- a/scripts/version-rancher
++++ b/scripts/version-rancher
+@@ -1 +1 @@
+-RANCHER_VERSION="v2.14.2"
++RANCHER_VERSION="v2.15.0-alpha21"
+```
+
+Bumps RKE2 from version v1.35.6+rke2r1 to v1.36.2+rke2r1:
+
+```diff
+diff --git a/scripts/version-rke2 b/scripts/version-rke2
+index 73c5bae0f..7b9b7ace6 100644
+--- a/scripts/version-rke2
++++ b/scripts/version-rke2
+@@ -1 +1 @@
+-RKE2_VERSION="v1.35.6+rke2r1"
++RKE2_VERSION="v1.36.2+rke2r1"
+```
+
 ## Determining change logs
 
 The following table shows the remote repositories for the components we care about, and where to find the commits, changelog and release notes:
@@ -176,6 +212,8 @@ KubeVirt CDI | <https://github.com/kubevirt/containerized-data-importer.git>
 CSI          | <https://github.com/kubernetes-csi/external-snapshotter.git>
 kube-vip     | <https://github.com/kube-vip/kube-vip.git>
 whereabouts  | <https://github.com/k8snetworkplumbingwg/whereabouts.git>
+Rancher      | <https://github.com/rancher/rancher.git>
+RKE2         | <https://github.com/rancher/rke2.git>
 
 Use the `gh` CLI tool to fetch the commits between the old version and the new version. For example,
 
@@ -189,9 +227,9 @@ gh api repos/kubevirt/kubevirt/compare/v1.6.3...v1.6.6 --jq '.commits[] | "\(.sh
 
 Do not include current version's commits in the changelog. For example, when upgrading from version 1.7.0 to 1.7.4, do not include the commits of 1.7.0.
 
-Also, use the `web-fetch` tool to fetch the release notes for each version and curate summaries of notable changes, which  complement the raw commit list.
+Also, use the `web-fetch` tool to fetch the release notes for each version and curate summaries of notable changes, which complement the raw commit list.
 
-If you cannot find the changelog or release notes for the component, report "Unknown" risk profile, explain the challenges you faced, and notify the maintainers to manually review the upgrade.
+If you cannot find the changelog, release notes and commits for the component, report "Unknown" risk profile, explain the challenges you faced, and notify the maintainers to manually review the upgrade.
 
 ## Risk profile assessment rules
 
@@ -209,7 +247,15 @@ Use the template defined in the "Risk Profile Template" section below to report 
 
 Due to the character limit of each pull request comment, report the risk profile of each component upgrade in a separate pull request comment. For example, if a pull request contains version bumps for both KubeVirt and CDI, create two pull request comments, one for KubeVirt and one for CDI, and report the risk profile separately.
 
-Limit the usage of hyperlinks in the risk profile to only high-risk items, critical/high priority bug fixes and security advisories. Ensures there are  no more than 50 links in the risk profile, due to GitHub limitation on the number of links in a comment. A good usage of hyperlinks is to link to upstream pull requests and issues.
+In the risk profile report, use hyperlinks to reference upstream pull requests and security advisories to allow maintainers to quickly access more details about these items.
+
+However, GitHub imposes a limit of 50 hyperlinks in a pull request comment. If the number of hyperlinks exceeded the allowed limit, our workflow would fail. One way to workaround this is to use hyperlinks in the following important sections only:
+
+* High-Risk Items
+* Bug Fixes Critical/High Priority
+* Security Advisories
+
+For less important items in the medium and low priority bug fixes, build/test/docs changes sections, providing just the pull request numbers without hyperlinks is acceptable.
 
 For fun, add some emojis to make the report more visually appealing and easier to scan. For example, you can use 🚨 for high-risk items, 🐛 for bug fixes, and 📚 for build/test/docs changes.
 
@@ -256,7 +302,7 @@ This is for maintainers to be aware of the changes to build/test/docs, but they 
 
 ## Security Advisories
 
-This section should list any security advisories (CVEs) affecting the new versions. These are CVEs that are not fixed in the new versions. For example, when upgrading from version 1.7.0 to 1.7.4, list all the CVEs that are not fixed in 1.7.1, 1.7.2, 1.7.3 and 1.7.4.
+This section should list any security advisories (CVEs) that are not fixed in the new target version. For example, when upgrading KubeVirt from version 1.7.0 to 1.7.4, only list advisories with CVEs that are not fixed in KubeVirt 1.7.4. Do not report any fixed CVEs to help reduce noise in the report. If you are not sure if a CVE is fixed, include it in the list and notify the maintainers to verify it.
 
 For each CVE, provide a link to the CVE details and a brief description of the vulnerability and its potential impact. Do not include duplicated entries.
 

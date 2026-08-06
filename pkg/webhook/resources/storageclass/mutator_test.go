@@ -34,7 +34,7 @@ func Test_generatePatchOps(t *testing.T) {
 				emptyAnnotationsPatch,
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileCloneStrategy),
-					strconv.Quote(string(cdiv1.CloneStrategyHostAssisted))),
+					strconv.Quote(string(cdiv1.CloneStrategyCsiClone))),
 				fmt.Sprintf(patchAnnotation,
 					patch.EscapeJSONPointer(util.AnnotationStorageProfileSnapshotClass),
 					strconv.Quote("longhorn-snapshot")),

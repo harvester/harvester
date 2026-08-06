@@ -18,7 +18,6 @@ const (
 
 // vmImageHandler syncs status on vm image changes, and manage a storageclass & a backingimage per vm image
 type vmImageHandler struct {
-	vmiClient     ctlharvesterv1.VirtualMachineImageClient
 	vmiController ctlharvesterv1.VirtualMachineImageController
 	vmio          common.VMIOperator
 	backends      map[harvesterv1.VMIBackend]backend.Backend
@@ -30,16 +29,6 @@ func (h *vmImageHandler) OnChanged(_ string, vmi *harvesterv1.VirtualMachineImag
 	}
 
 	if h.vmio.IsImported(vmi) {
-		// sync display_name to labels in order to list by labelSelector
-		if vmi.Spec.DisplayName != vmi.Labels[util.LabelImageDisplayName] {
-			toUpdate := vmi.DeepCopy()
-			if toUpdate.Labels == nil {
-				toUpdate.Labels = map[string]string{}
-			}
-			toUpdate.Labels[util.LabelImageDisplayName] = vmi.Spec.DisplayName
-			return h.vmiClient.Update(toUpdate)
-		}
-
 		// sync virtualSize (handles the case for existing images that were
 		// imported before this field was added, because adding the field to
 		// the CRD triggers vmImageHandler.OnChanged)

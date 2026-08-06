@@ -13,7 +13,7 @@ sources:
   - https://github.com/harvester/harvester
 dependencies:
   - name: kubevirt-operator
-    version: 0.6.2
+    version: 0.7.0
     repository: file://dependency_charts/kubevirt-operator
     condition: kubevirt-operator.enabled
     tags:
@@ -50,11 +50,11 @@ dependencies:
     repository: file://dependency_charts/csi-snapshotter
     condition: csi-snapshotter.enabled
   - name: longhorn
-    version: 1.12.0
-    repository: https://charts.longhorn.io
+    version: 1.12.1-rc3
+    repository: file://dependency_charts/longhorn-rc
     condition: longhorn.enabled
   - name: kube-vip
-    version: 0.9.8
+    version: 0.9.9
     repository: https://kube-vip.github.io/helm-charts
   - name: harvester-load-balancer
     version: 1.10.0-dev.0

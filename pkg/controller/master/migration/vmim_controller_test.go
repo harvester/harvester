@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakecore "k8s.io/client-go/kubernetes/fake"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	kubevirtservices "kubevirt.io/kubevirt/pkg/virt-controller/services"
+	kubevirthypervisor "kubevirt.io/kubevirt/pkg/hypervisor"
 
 	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
@@ -56,7 +56,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota(t *testing.T) {
 				},
 			},
 		}
-		overhead := kubevirtservices.GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
+		overhead := kubevirthypervisor.NewLauncherHypervisorResources(kubevirtv1.KvmHypervisorName).GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
 		return overhead.Value() + memLimit
 	}
 
@@ -660,7 +660,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensation(t *testing.T) 
 				},
 			},
 		}
-		overhead := kubevirtservices.GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
+		overhead := kubevirthypervisor.NewLauncherHypervisorResources(kubevirtv1.KvmHypervisorName).GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
 		return overhead.Value() + memLimit
 	}
 
@@ -954,7 +954,7 @@ func TestHandler_OnVmimChanged_WithResourceQuota_WithCompensationResult(t *testi
 				},
 			},
 		}
-		overhead := kubevirtservices.GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
+		overhead := kubevirthypervisor.NewLauncherHypervisorResources(kubevirtv1.KvmHypervisorName).GetMemoryOverhead(&vmi, runtime.GOARCH, util.GetAdditionalGuestMemoryOverheadRatioWithoutError(nil)) // use default ratio 1.5
 		return overhead.Value() + memLimit
 	}
 

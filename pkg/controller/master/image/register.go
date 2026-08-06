@@ -42,7 +42,6 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	}
 
 	vmImageHandler := &vmImageHandler{
-		vmiClient:     vmi,
 		vmiController: vmi,
 		vmio:          vmio,
 		backends:      backends,

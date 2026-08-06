@@ -27,6 +27,7 @@ import (
 	catalogv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/catalog.cattle.io/v1"
 	cdiv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cdi.kubevirt.io/v1beta1"
 	clusterv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/cluster.x-k8s.io/v1beta1"
+	discoveryv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/discovery.k8s.io/v1"
 	harvesterhciv1beta1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	k8scnicncfiov1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 	kubeovnv1 "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/kubeovn.io/v1"
@@ -57,6 +58,7 @@ type Interface interface {
 	CatalogV1() catalogv1.CatalogV1Interface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
 	ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface
+	DiscoveryV1() discoveryv1.DiscoveryV1Interface
 	HarvesterhciV1beta1() harvesterhciv1beta1.HarvesterhciV1beta1Interface
 	K8sCniCncfIoV1() k8scnicncfiov1.K8sCniCncfIoV1Interface
 	KubeovnV1() kubeovnv1.KubeovnV1Interface
@@ -84,6 +86,7 @@ type Clientset struct {
 	catalogV1           *catalogv1.CatalogV1Client
 	cdiV1beta1          *cdiv1beta1.CdiV1beta1Client
 	clusterV1beta1      *clusterv1beta1.ClusterV1beta1Client
+	discoveryV1         *discoveryv1.DiscoveryV1Client
 	harvesterhciV1beta1 *harvesterhciv1beta1.HarvesterhciV1beta1Client
 	k8sCniCncfIoV1      *k8scnicncfiov1.K8sCniCncfIoV1Client
 	kubeovnV1           *kubeovnv1.KubeovnV1Client
@@ -130,6 +133,11 @@ func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 // ClusterV1beta1 retrieves the ClusterV1beta1Client
 func (c *Clientset) ClusterV1beta1() clusterv1beta1.ClusterV1beta1Interface {
 	return c.clusterV1beta1
+}
+
+// DiscoveryV1 retrieves the DiscoveryV1Client
+func (c *Clientset) DiscoveryV1() discoveryv1.DiscoveryV1Interface {
+	return c.discoveryV1
 }
 
 // HarvesterhciV1beta1 retrieves the HarvesterhciV1beta1Client
@@ -280,6 +288,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.discoveryV1, err = discoveryv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.harvesterhciV1beta1, err = harvesterhciv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -371,6 +383,7 @@ func New(c rest.Interface) *Clientset {
 	cs.catalogV1 = catalogv1.New(c)
 	cs.cdiV1beta1 = cdiv1beta1.New(c)
 	cs.clusterV1beta1 = clusterv1beta1.New(c)
+	cs.discoveryV1 = discoveryv1.New(c)
 	cs.harvesterhciV1beta1 = harvesterhciv1beta1.New(c)
 	cs.k8sCniCncfIoV1 = k8scnicncfiov1.New(c)
 	cs.kubeovnV1 = kubeovnv1.New(c)

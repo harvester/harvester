@@ -4,11 +4,31 @@ load_addon_env() {
   
   if [ ! -d "${addon_path}" ]; then
     echo "[ERROR] addon path ${addon_path} doesn't exist."
-    exit 1
+    return 1
   fi
   
   source ${addon_path}/version_info
   source ${addon_path}/scripts/hack/patch-rancher-monitoring
   source ${addon_path}/scripts/hack/patch-rancher-logging
   source ${addon_path}/scripts/hack/patch-rancher-monitoring-crd
+
+  # load addon specific image check script and image list file, if they exist
+  # set global variables to default values first
+  MONITORING_LOGGING_ADDON_IMAGE_FILE=""
+  MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC=""
+
+  local addon_check_chart_images_file="${addon_path}/scripts/hack/check-monitoring-logging-chart-images"
+  local addon_image_file="${addon_path}/scripts/hack/monitoring-logging-chart-images-list.txt"
+  # hard-coded function name, as the function is defined in the check-monitoring-logging-chart-images script
+  local internal_func_name="check_rancher_monitoring_logging_images_from_file"
+
+  if [ -f "${addon_check_chart_images_file}" ] && [ -f "${addon_image_file}" ]; then
+    source "${addon_check_chart_images_file}"
+    if declare -F "${internal_func_name}" >/dev/null; then
+      MONITORING_LOGGING_ADDON_IMAGE_FILE="${addon_image_file}"
+      MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC="${internal_func_name}"
+    else
+      echo "[WARN] ${addon_check_chart_images_file} does not define check_rancher_monitoring_logging_images_from_file; skipping monitoring and logging addon image check"
+    fi
+  fi
 }

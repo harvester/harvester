@@ -47,7 +47,6 @@ import (
 	volumeapi "github.com/harvester/harvester/pkg/api/volume"
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/builder"
-	nodecontroller "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -725,7 +724,7 @@ func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachin
 }
 
 func isDrained(node *corev1.Node) bool {
-	if _, ok := node.Annotations[nodecontroller.MaintainStatusAnnotationKey]; ok {
+	if _, ok := node.Annotations[util.MaintainStatusAnnotationKey]; ok {
 		return ok
 	}
 	if _, ok := node.Annotations[drainhelper.DrainAnnotation]; ok {
@@ -1013,6 +1012,12 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 		return err
 	}
 
+	if input.Shareable {
+		if err := virtualmachine.CheckShareableVolume(h.pvcCache, h.storageClassCache, namespace, input.VolumeSourceName); err != nil {
+			return err
+		}
+	}
+
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -1029,6 +1034,9 @@ func (h *vmActionHandler) addVolume(ctx context.Context, namespace, name string,
 				Bus: "scsi",
 			},
 		},
+	}
+	if input.Shareable {
+		newDisk.Shareable = ptr.To(true)
 	}
 	newVol := kubevirtv1.Volume{
 		Name: input.DiskName,

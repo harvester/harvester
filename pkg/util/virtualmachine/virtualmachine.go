@@ -175,6 +175,70 @@ func volumeSupportRWXForVM(accessModes []corev1.PersistentVolumeAccessMode, prov
 	return slices.Contains(accessModes, corev1.ReadWriteMany)
 }
 
+// CheckShareableVolume checks whether the given PVC can back a shareable disk.
+// Concurrent writers on different nodes require a block-mode RWX volume, and
+// Longhorn does not support that for VMs, so a provisioner other than Longhorn
+// is required. KubeVirt itself performs no admission validation on shareable
+// disks, so this is the only gate.
+func CheckShareableVolume(pvcCache v1.PersistentVolumeClaimCache, scCache ctlstoragev1.StorageClassCache, pvcNS, pvcName string) error {
+	pvc, err := pvcCache.Get(pvcNS, pvcName)
+	if apierrors.IsNotFound(err) {
+		// Unlike other checks we do not skip runtime-created PVCs
+		// (volumeClaimTemplates): a shareable disk shares an existing volume,
+		// and skipping would admit a spec whose PVC turns out to be
+		// non-shareable once created.
+		return fmt.Errorf("PVC %s/%s does not exist: a shareable disk requires an existing volume", pvcNS, pvcName)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get PVC %s/%s, err: %s", pvcNS, pvcName, err)
+	}
+
+	provisioner := util.GetProvisionedPVCProvisioner(pvc, scCache)
+	if !volumeSupportRWXForVM(pvc.Spec.AccessModes, provisioner) {
+		return fmt.Errorf("PVC %s/%s cannot back a shareable disk: a ReadWriteMany volume from a provisioner other than Longhorn is required", pvcNS, pvcName)
+	}
+	if pvc.Spec.VolumeMode == nil || *pvc.Spec.VolumeMode != corev1.PersistentVolumeBlock {
+		return fmt.Errorf("PVC %s/%s cannot back a shareable disk: volumeMode must be Block", pvcNS, pvcName)
+	}
+	return nil
+}
+
+// HasShareableDisk returns the name of the first disk with shareable enabled.
+func HasShareableDisk(vm *kubevirtv1.VirtualMachine) (string, bool) {
+	if vm.Spec.Template == nil {
+		return "", false
+	}
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Shareable != nil && *disk.Shareable {
+			return disk.Name, true
+		}
+	}
+	return "", false
+}
+
+// VMUsesPVCAsShareable returns true if the VM attaches the given PVC through a
+// disk with shareable enabled.
+func VMUsesPVCAsShareable(vm *kubevirtv1.VirtualMachine, pvcName string) bool {
+	if vm.Spec.Template == nil {
+		return false
+	}
+	shareableDisks := map[string]struct{}{}
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.Shareable != nil && *disk.Shareable {
+			shareableDisks[disk.Name] = struct{}{}
+		}
+	}
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil || volume.PersistentVolumeClaim.ClaimName != pvcName {
+			continue
+		}
+		if _, ok := shareableDisks[volume.Name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func isDiskSataCdRom(disk *kubevirtv1.Disk) bool {
 	return disk.CDRom != nil && disk.CDRom.Bus == kubevirtv1.DiskBusSATA
 }

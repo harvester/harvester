@@ -379,6 +379,9 @@ command_pre_drain() {
 
   remove_rke2_canal_config
   disable_rke2_charts
+
+  # switch ingress
+  switch_ingress
 }
 
 get_node_rke2_version() {
@@ -812,6 +815,13 @@ start_repo_vm() {
   virtctl start $repo_vm -n harvester-system || true
 }
 
+switch_ingress() {
+  if [ ! -f $HOST_DIR/etc/rancher/rke2/config.yaml.d/99-traefik.yaml ]
+  then
+    echo "ingress-controller: traefik" > $HOST_DIR/etc/rancher/rke2/config.yaml.d/99-traefik.yaml
+  fi
+}
+
 command_post_drain() {
   wait_repo
   detect_repo
@@ -863,6 +873,9 @@ command_single_node_upgrade() {
   set_reserved_resource
   set_rke2_device_permissions
   set_oem_cleanup_kubelet
+
+  # switch ingress
+  switch_ingress
   # Upgarde RKE2
   upgrade_rke2
 
@@ -872,6 +885,7 @@ command_single_node_upgrade() {
   generate_networkmanager_config
 
   generate_hostname_persistance
+  
   # Upgrade OS
   upgrade_os
 }

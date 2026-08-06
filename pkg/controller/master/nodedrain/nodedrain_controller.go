@@ -19,7 +19,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
-	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
@@ -225,7 +224,7 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return node, err
 	}
 
-	nodeCopy.Annotations[ctlnode.MaintainStatusAnnotationKey] = ctlnode.MaintainStatusRunning
+	nodeCopy.Annotations[util.MaintainStatusAnnotationKey] = util.MaintainStatusRunning
 	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
 	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
 
@@ -534,7 +533,7 @@ func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node
 
 func (ndc *ControllerHandler) cleanupMaintenanceModeAnnotations(node *corev1.Node) (*corev1.Node, error) {
 	nodeCopy := node.DeepCopy()
-	delete(nodeCopy.Annotations, ctlnode.MaintainStatusAnnotationKey)
+	delete(nodeCopy.Annotations, util.MaintainStatusAnnotationKey)
 	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
 	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
 	nodeUpdate, err := ndc.nodes.Update(nodeCopy)

@@ -1,25 +1,45 @@
 package util
 
 import (
-	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
+	ctldiscoveryv1 "github.com/harvester/harvester/pkg/generated/controllers/discovery.k8s.io/v1"
 )
 
-func GetKubernetesIps(endpointCache ctlcorev1.EndpointsCache) ([]string, error) {
-	endpoints, err := endpointCache.Get(metav1.NamespaceDefault, "kubernetes")
+func GetKubernetesIps(endpointSliceCache ctldiscoveryv1.EndpointSliceCache) ([]string, error) {
+	selector := labels.SelectorFromSet(labels.Set{
+		discoveryv1.LabelServiceName: "kubernetes",
+	})
+	endpointSlices, err := endpointSliceCache.List(metav1.NamespaceDefault, selector)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"namespace": metav1.NamespaceDefault,
-			"name":      "kubernetes",
-		}).WithError(err).Error("endpointCache.Get")
+			"namespace":     metav1.NamespaceDefault,
+			"labelSelector": selector.String(),
+		}).WithError(err).Error("endpointSliceCache.List")
 		return nil, err
 	}
 
 	var ips []string
-	for _, subset := range endpoints.Subsets {
-		for _, address := range subset.Addresses {
-			ips = append(ips, address.IP+":6443")
+	seen := map[string]bool{}
+	for _, endpointSlice := range endpointSlices {
+		if endpointSlice.AddressType != discoveryv1.AddressTypeIPv4 {
+			continue
+		}
+		for _, endpoint := range endpointSlice.Endpoints {
+			// nil Ready is interpreted as ready, per the EndpointSlice API
+			if endpoint.Conditions.Ready != nil && !*endpoint.Conditions.Ready {
+				continue
+			}
+			for _, address := range endpoint.Addresses {
+				if seen[address] {
+					continue
+				}
+				seen[address] = true
+				ips = append(ips, address+":6443")
+			}
 		}
 	}
 

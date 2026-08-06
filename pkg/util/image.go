@@ -2,6 +2,8 @@ package util
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
@@ -31,30 +33,85 @@ func backingImageName(image *harvesterv1.VirtualMachineImage) string {
 	return fmt.Sprintf("%s-%s", backingimagePrefix, image.UID)
 }
 
-func GetBackingImage(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (*lhv1beta2.BackingImage, error) {
-	bi, err := backingImageCache.Get(LonghornSystemNamespaceName, backingImageLegacyName(image))
-	if err == nil {
-		return bi, nil
-	}
-
-	if !errors.IsNotFound(err) {
-		return nil, err
-	}
-
-	bi, err = backingImageCache.Get(LonghornSystemNamespaceName, backingImageLegacyNameV2(image))
-	if err == nil {
-		return bi, nil
-	}
-
-	if !errors.IsNotFound(err) {
-		return nil, err
-	}
-
-	rectifyName := lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength)
-	return backingImageCache.Get(LonghornSystemNamespaceName, rectifyName)
+func defaultBackingImageName(image *harvesterv1.VirtualMachineImage) string {
+	return lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength)
 }
 
-func GetBackingImageName(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (string, error) {
+func restoreBackingImageName(image *harvesterv1.VirtualMachineImage) (string, bool) {
+	if image.Spec.SourceType != harvesterv1.VirtualMachineImageSourceTypeRestore {
+		return "", false
+	}
+
+	parsedURL, err := url.Parse(image.Spec.URL)
+	if err != nil {
+		return "", false
+	}
+
+	name := parsedURL.Query().Get(LonghornOptionBackingImageName)
+	if name == "" || !lhutil.ValidateName(name) {
+		return "", false
+	}
+
+	return name, true
+}
+
+func GetRestoreSCName(image *harvesterv1.VirtualMachineImage) (string, bool) {
+	biName, ok := restoreBackingImageName(image)
+	if !ok {
+		return "", false
+	}
+
+	scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
+	return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+}
+
+func getBackingImageByNames(
+	backingImageCache ctllhv1.BackingImageCache,
+	names ...string,
+) (*lhv1beta2.BackingImage, error) {
+	var lastErr error
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+
+		bi, err := backingImageCache.Get(LonghornSystemNamespaceName, name)
+		if err == nil || !errors.IsNotFound(err) {
+			return bi, err
+		}
+		lastErr = err
+	}
+
+	return nil, lastErr
+}
+
+func backingImageNameForCreate(image *harvesterv1.VirtualMachineImage) string {
+	if biName, ok := restoreBackingImageName(image); ok {
+		return biName
+	}
+	return defaultBackingImageName(image)
+}
+
+func GetBackingImage(
+	backingImageCache ctllhv1.BackingImageCache,
+	image *harvesterv1.VirtualMachineImage,
+) (*lhv1beta2.BackingImage, error) {
+	names := []string{
+		backingImageLegacyName(image),
+		backingImageLegacyNameV2(image),
+		defaultBackingImageName(image),
+	}
+	if biName, ok := restoreBackingImageName(image); ok {
+		names = append([]string{biName}, names...)
+	}
+
+	return getBackingImageByNames(backingImageCache, names...)
+}
+
+func GetBackingImageName(
+	backingImageCache ctllhv1.BackingImageCache,
+	image *harvesterv1.VirtualMachineImage,
+) (string, error) {
 	bi, err := GetBackingImage(backingImageCache, image)
 	if err == nil {
 		return bi.Name, nil
@@ -64,7 +121,7 @@ func GetBackingImageName(backingImageCache ctllhv1.BackingImageCache, image *har
 		return "", err
 	}
 
-	return lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength), nil
+	return backingImageNameForCreate(image), nil
 }
 
 func GetBackingImageDataSourceName(backingImageCache ctllhv1.BackingImageCache, image *harvesterv1.VirtualMachineImage) (string, error) {

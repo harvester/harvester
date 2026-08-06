@@ -16,6 +16,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util"
 	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
 	lhutil "github.com/longhorn/longhorn-manager/util"
 )
@@ -177,24 +178,37 @@ func (vmio *vmiOperator) GetDisplayName(vmi *harvesterv1.VirtualMachineImage) st
 	return vmi.Spec.DisplayName
 }
 
+func (vmio *vmiOperator) getSCByNames(names ...string) string {
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if _, err := vmio.scCache.Get(name); err == nil {
+			return name
+		}
+	}
+	return ""
+}
+
 func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string {
 	if vmi.Spec.Backend == harvesterv1.VMIBackendCDI {
 		return vmi.Spec.TargetStorageClassName
 	}
 
+	restoreSCName, hasRestoreSCName := util.GetRestoreSCName(vmi)
 	scName := lhutil.AutoCorrectName(
 		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
 		lhdatastore.NameMaximumLength,
 	)
-	_, err := vmio.scCache.Get(scName)
-	if err == nil {
-		return scName
+	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
+
+	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName); existingSCName != "" {
+		return existingSCName
 	}
 
-	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
-	_, err = vmio.scCache.Get(legacySCName)
-	if err == nil {
-		return legacySCName
+	if hasRestoreSCName {
+		// Fresh restores should keep the BI/SC names derived from spec.url.
+		return restoreSCName
 	}
 
 	// If neither a storage class with the new naming nor with the old naming

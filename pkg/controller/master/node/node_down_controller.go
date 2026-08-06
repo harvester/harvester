@@ -10,9 +10,14 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/client-go/dynamic"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
 	"github.com/harvester/harvester/pkg/config"
@@ -24,7 +29,24 @@ import (
 
 const (
 	nodeDownControllerName = "node-down-controller"
+
+	// Terminal phase strings for the upgrade-toolkit (Upgrade V2) UpgradePlan
+	// CRD. Mirrored from
+	// https://github.com/harvester/upgrade-toolkit/blob/main/api/v1beta1/upgradeplan_types.go
+	// (UpgradePlanPhaseSucceeded / UpgradePlanPhaseFailed). These are part of
+	// the public CRD contract; keep in sync if upgrade-toolkit changes them.
+	upgradePlanPhaseSucceeded = "Succeeded"
+	upgradePlanPhaseFailed    = "Failed"
 )
+
+// upgradePlanGVR is the GVR for upgrade-toolkit's cluster-scoped UpgradePlan
+// resource. Used via the dynamic client so harvester does not need to import
+// upgrade-toolkit (which would create a circular module dependency).
+var upgradePlanGVR = schema.GroupVersionResource{
+	Group:    "management.harvesterhci.io",
+	Version:  "v1beta1",
+	Resource: "upgradeplans",
+}
 
 // kubevirtDrainTaint is used to trigger migration
 var kubevirtDrainTaint = corev1.Taint{
@@ -50,17 +72,23 @@ type nodeDownHandler struct {
 	nodes     ctlcorev1.NodeController
 	nodeCache ctlcorev1.NodeCache
 
-	upgrades ctlharvesterv1.UpgradeClient
+	upgrades      ctlharvesterv1.UpgradeClient
+	dynamicClient dynamic.Interface
 }
 
 // DownRegister registers a controller to delete VMI when node is down
 func DownRegister(ctx context.Context, management *config.Management, _ config.Options) error {
 	nodes := management.CoreFactory.Core().V1().Node()
 	upgrades := management.HarvesterFactory.Harvesterhci().V1beta1().Upgrade()
+	dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client for node-down controller: %w", err)
+	}
 	nodeDownHandler := &nodeDownHandler{
-		nodes:     nodes,
-		nodeCache: nodes.Cache(),
-		upgrades:  upgrades,
+		nodes:         nodes,
+		nodeCache:     nodes.Cache(),
+		upgrades:      upgrades,
+		dynamicClient: dynamicClient,
 	}
 
 	nodes.OnChange(ctx, nodeDownControllerName, nodeDownHandler.OnNodeChanged)
@@ -94,7 +122,7 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		return fmt.Errorf("can't find %s condition in node %s", corev1.NodeReady, node.Name)
 	}
 
-	if isOnUpgrade(h.upgrades) {
+	if isOnUpgrade(h.upgrades, h.dynamicClient) {
 		logrus.Debugf("Node %s is on upgrade, skipping checking node readiness", node.Name)
 		// skip processing during upgrade
 		return nil
@@ -301,7 +329,16 @@ func getNodeTaint(taints []corev1.Taint, taintKey string) *corev1.Taint {
 	return taint
 }
 
-func isOnUpgrade(upgrades ctlharvesterv1.UpgradeClient) bool {
+func isOnUpgrade(upgrades ctlharvesterv1.UpgradeClient, dynamicClient dynamic.Interface) bool {
+	if isOnUpgradeV1(upgrades) {
+		return true
+	}
+	return isOnUpgradeV2(dynamicClient)
+}
+
+// isOnUpgradeV1 checks for in-progress harvesterhci.io/v1beta1 Upgrade CRs
+// created by the legacy (in-tree) upgrade controller.
+func isOnUpgradeV1(upgrades ctlharvesterv1.UpgradeClient) bool {
 	req, err := labels.NewRequirement(util.LabelHarvesterUpgradeState, selection.NotIn, []string{upgrade.StateSucceeded, upgrade.StateFailed})
 	if err != nil {
 		logrus.Warnf("Failed to create label requirement for %s: %v", util.LabelHarvesterUpgradeState, err)
@@ -317,6 +354,42 @@ func isOnUpgrade(upgrades ctlharvesterv1.UpgradeClient) bool {
 	}
 	if len(upgradesItems.Items) > 0 {
 		logrus.Debugf("There are ongoing upgrades: %v.", upgradesItems.Items[0].Name)
+		return true
+	}
+	return false
+}
+
+// isOnUpgradeV2 checks for in-progress management.harvesterhci.io/v1beta1
+// UpgradePlan CRs managed by upgrade-toolkit. An UpgradePlan is considered
+// in-progress when its status.currentPhase is anything other than Succeeded
+// or Failed (including the empty string, which means the plan has just been
+// created and the controller has not yet set a phase).
+//
+// The CRD may not be installed on every cluster (e.g. clusters not using
+// upgrade-toolkit). NotFound / NoMatchError responses are treated as "no
+// active upgrade" so the controller continues to function as before. Any
+// other transient error also falls through to false to match the behavior of
+// isOnUpgradeV1.
+func isOnUpgradeV2(dynamicClient dynamic.Interface) bool {
+	if dynamicClient == nil {
+		return false
+	}
+	upgradePlans, err := dynamicClient.Resource(upgradePlanGVR).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			logrus.Debugf("UpgradePlan CRD not present; skipping Upgrade V2 check: %v", err)
+			return false
+		}
+		logrus.Warnf("Failed to list UpgradePlans: %v", err)
+		return false
+	}
+	for i := range upgradePlans.Items {
+		plan := &upgradePlans.Items[i]
+		phase, _, _ := unstructured.NestedString(plan.Object, "status", "currentPhase")
+		if phase == upgradePlanPhaseSucceeded || phase == upgradePlanPhaseFailed {
+			continue
+		}
+		logrus.Debugf("There are ongoing UpgradePlans: %s (currentPhase=%q).", plan.GetName(), phase)
 		return true
 	}
 	return false

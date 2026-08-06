@@ -101,6 +101,11 @@ const (
 	HostDeviceUSB  = "usb"
 	AddressPCI     = "pci"
 	AddressCCW     = "ccw"
+
+	ControllerTypePCI              = "pci"
+	ControllerModelPCIeRoot        = "pcie-root"
+	ControllerModelPCIeRootPort    = "pcie-root-port"
+	ControllerModelPCIeExpanderBus = "pcie-expander-bus"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -117,6 +122,18 @@ type DomainStatus struct {
 	Interfaces     []InterfaceStatus
 	OSInfo         GuestOSInfo
 	FSFreezeStatus FSFreeze
+}
+
+// GuestPanicInfo contains details about a guest panic event from QEMU
+type GuestPanicInfo struct {
+	Type string
+	// Hyper-V specific args (Windows bugcheck parameters)
+	// Arg1 is the bugcheck code
+	Arg1 uint64
+	Arg2 uint64
+	Arg3 uint64
+	Arg4 uint64
+	Arg5 uint64
 }
 
 type DomainSysInfo struct {
@@ -219,7 +236,11 @@ type DomainSpec struct {
 	NUMATune       *NUMATune       `xml:"numatune"`
 	IOThreads      *IOThreads      `xml:"iothreads,omitempty"`
 	LaunchSecurity *LaunchSecurity `xml:"launchSecurity,omitempty"`
+	OnReboot       string          `xml:"on_reboot,omitempty"`
 }
+
+const DomainOnRebootDestroy = "destroy"
+const DomainOnRebootRestart = "restart"
 
 type CPUTune struct {
 	VCPUPin     []CPUTuneVCPUPin     `xml:"vcpupin"`
@@ -330,7 +351,7 @@ type FeatureHyperv struct {
 	VendorID        *FeatureVendorID  `xml:"vendor_id,omitempty"`
 	Frequencies     *FeatureState     `xml:"frequencies,omitempty"`
 	Reenlightenment *FeatureState     `xml:"reenlightenment,omitempty"`
-	TLBFlush        *FeatureState     `xml:"tlbflush,omitempty"`
+	TLBFlush        *TLBFlush         `xml:"tlbflush,omitempty"`
 	IPI             *FeatureState     `xml:"ipi,omitempty"`
 	EVMCS           *FeatureState     `xml:"evmcs,omitempty"`
 }
@@ -343,6 +364,12 @@ type FeatureSpinlocks struct {
 type SyNICTimer struct {
 	Direct *FeatureState `xml:"direct,omitempty"`
 	State  string        `xml:"state,attr,omitempty"`
+}
+
+type TLBFlush struct {
+	Direct   *FeatureState `xml:"direct,omitempty"`
+	Extended *FeatureState `xml:"extended,omitempty"`
+	State    string        `xml:"state,attr,omitempty"`
 }
 
 type FeaturePVSpinlock struct {
@@ -388,6 +415,7 @@ type KubeVirtMetadata struct {
 	UID              types.UID                 `xml:"uid"`
 	GracePeriod      *GracePeriodMetadata      `xml:"graceperiod,omitempty"`
 	Migration        *MigrationMetadata        `xml:"migration,omitempty"`
+	Backup           *BackupMetadata           `xml:"backup,omitempty"`
 	AccessCredential *AccessCredentialMetadata `xml:"accessCredential,omitempty"`
 	MemoryDump       *MemoryDumpMetadata       `xml:"memoryDump,omitempty"`
 }
@@ -416,11 +444,88 @@ type MigrationMetadata struct {
 	Mode           v1.MigrationMode `xml:"mode,omitempty"`
 }
 
+type BackupMetadata struct {
+	Name           string       `xml:"name,omitempty"`
+	Mode           string       `xml:"mode,omitempty"`
+	SkipQuiesce    bool         `xml:"skipQuiesce,omitempty"`
+	StartTimestamp *metav1.Time `xml:"startTimestamp,omitempty"`
+	EndTimestamp   *metav1.Time `xml:"endTimestamp,omitempty"`
+	Completed      bool         `xml:"completed,omitempty"`
+	Failed         bool         `xml:"failed,omitempty"`
+	BackupMsg      string       `xml:"backupMsg,omitempty"`
+	CheckpointName string       `xml:"checkpointName,omitempty"`
+	Volumes        string       `xml:"volumes,omitempty"`
+}
+
 type GracePeriodMetadata struct {
 	DeletionGracePeriodSeconds int64        `xml:"deletionGracePeriodSeconds"`
 	DeletionTimestamp          *metav1.Time `xml:"deletionTimestamp,omitempty"`
 	MarkedForGracefulShutdown  *bool        `xml:"markedForGracefulShutdown,omitempty"`
 }
+
+// DomainBackup mirroring libvirt XML under https://libvirt.org/formatbackup.html#backup-xml-format
+type DomainBackup struct {
+	XMLName     xml.Name            `xml:"domainbackup"`
+	Mode        string              `xml:"mode,attr"`
+	Incremental *string             `xml:"incremental,omitempty"`
+	BackupDisks *BackupDisks        `xml:"disks"`
+	Server      *DomainBackupServer `xml:"server"`
+}
+
+type BackupDisks struct {
+	Disks []BackupDisk `xml:"disk"`
+}
+
+type BackupDisk struct {
+	Name         string         `xml:"name,attr"`
+	Backup       string         `xml:"backup,attr"`
+	Type         string         `xml:"type,attr,omitempty"`
+	Target       *BackupTarget  `xml:"target,omitempty"`
+	Scratch      *BackupScratch `xml:"scratch,omitempty"`
+	ExportName   string         `xml:"exportname,attr,omitempty"`
+	ExportBitmap string         `xml:"exportbitmap,attr,omitempty"`
+}
+
+type BackupTarget struct {
+	File string `xml:"file,attr,omitempty"`
+}
+
+type BackupScratch struct {
+	File string `xml:"file,attr,omitempty"`
+}
+
+// DomainCheckpoint mirroring libvirt XML under https://libvirt.org/formatcheckpoint.html#checkpoint-xml
+type DomainCheckpoint struct {
+	XMLName         xml.Name          `xml:"domaincheckpoint"`
+	Name            string            `xml:"name"`
+	CheckpointDisks *CheckpointDisks  `xml:"disks"`
+	CreationTime    *uint64           `xml:"creationTime"`
+	Parent          *CheckpointParent `xml:"parent"`
+}
+
+type CheckpointDisks struct {
+	Disks []CheckpointDisk `xml:"disk"`
+}
+
+type CheckpointDisk struct {
+	Name       string `xml:"name,attr"`
+	Checkpoint string `xml:"checkpoint,attr"`
+}
+
+type CheckpointParent struct {
+	Name string `xml:"name"`
+}
+
+type DomainBackupServer struct {
+	Transport DomainBackupServerTransport `xml:"transport,attr"`
+	Socket    string                      `xml:"socket,attr,omitempty"`
+}
+
+type DomainBackupServerTransport string
+
+const (
+	BackupUnixTransport DomainBackupServerTransport = "unix"
+)
 
 type Commandline struct {
 	QEMUEnv []Env `xml:"qemu:env,omitempty"`
@@ -646,6 +751,7 @@ type Controller struct {
 	Alias     *Alias            `xml:"alias,omitempty"`
 	Address   *Address          `xml:"address,omitempty"`
 	PCIHole64 *PCIHole64        `xml:"pcihole64,omitempty"`
+	Target    *ControllerTarget `xml:"target,omitempty"`
 }
 
 // END Controller -----------------------------
@@ -666,6 +772,14 @@ type PCIHole64 struct {
 }
 
 // END PCIHole64
+
+// BEGIN ControllerTarget
+type ControllerTarget struct {
+	BusNr    *uint32 `xml:"busNr,attr,omitempty"`
+	NUMANode *uint32 `xml:"node,omitempty"`
+}
+
+// END ControllerTarget
 
 // BEGIN Disk -----------------------------
 
@@ -946,6 +1060,10 @@ func NewUserDefinedAlias(aliasName string) *Alias {
 	return &Alias{name: aliasName, userDefined: true}
 }
 
+func NewNonUserDefinedAlias(aliasName string) *Alias {
+	return &Alias{name: aliasName, userDefined: false}
+}
+
 func (alias Alias) GetName() string {
 	return alias.name
 }
@@ -1161,9 +1279,9 @@ type GraphicsListen struct {
 }
 
 type Address struct {
-	Type       string `xml:"type,attr"`
+	Type       string `xml:"type,attr,omitempty"`
 	Domain     string `xml:"domain,attr,omitempty"`
-	Bus        string `xml:"bus,attr"`
+	Bus        string `xml:"bus,attr,omitempty"`
 	Slot       string `xml:"slot,attr,omitempty"`
 	Function   string `xml:"function,attr,omitempty"`
 	Controller string `xml:"controller,attr,omitempty"`

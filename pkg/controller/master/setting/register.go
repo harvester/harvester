@@ -3,10 +3,12 @@ package setting
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/harvester/harvester/pkg/config"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
@@ -24,7 +26,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	daemonsets := management.AppsFactory.Apps().V1().DaemonSet()
 	deployments := management.AppsFactory.Apps().V1().Deployment()
 	configmaps := management.CoreFactory.Core().V1().ConfigMap()
-	endpoints := management.CoreFactory.Core().V1().Endpoints()
+	endpointSlices := management.DiscoveryFactory.Discovery().V1().EndpointSlice()
 	lhs := management.LonghornFactory.Longhorn().V1beta2().Setting()
 	lhVolumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 	managedCharts := management.RancherManagementFactory.Management().V3().ManagedChart()
@@ -36,6 +38,10 @@ func Register(ctx context.Context, management *config.Management, options config
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
+	dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return fmt.Errorf("error generating dynamic client in settings handler: %w", err)
+	}
 	controller := &Handler{
 		namespace:            options.Namespace,
 		apply:                management.Apply,
@@ -57,7 +63,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		longhornVolumeCache:  lhVolumes.Cache(),
 		configmaps:           configmaps,
 		configmapCache:       configmaps.Cache(),
-		endpointCache:        endpoints.Cache(),
+		endpointSliceCache:   endpointSlices.Cache(),
 		managedCharts:        managedCharts,
 		managedChartCache:    managedCharts.Cache(),
 		helmChartConfigs:     helmChartConfigs,
@@ -73,6 +79,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		kubeVirtConfigCache:  kubevirt.Cache(),
 		namespaces:           namespaces,
 		namespacesCache:      namespaces.Cache(),
+		dynamicClient:        dynamicClient,
+		ctx:                  ctx,
 
 		httpClient: http.Client{
 			Timeout: 30 * time.Second,
@@ -107,6 +115,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		harvSettings.MaxHotplugRatioSettingName:                  controller.syncMaxHotplugRatio,
 		harvSettings.KubeVirtMigrationSettingName:                controller.syncKubeVirtMigration,
 		harvSettings.ClusterPodSecurityStandardSettingName:       controller.syncPodSecuritySetting,
+		harvSettings.TraefikDefaultTLSOptionsSettingName:         controller.syncTLSOption,
 		// for "backup-target" syncer, please check harvester-backup-target-controller
 		// for "storage-network" syncer, please check harvester-storage-network-controller
 		// for "vm-migration-network" syncer, please check harvester-vm-migration-network-controller

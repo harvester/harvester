@@ -83,7 +83,8 @@ var _ = Describe("verify image APIs", func() {
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvesterhci.io": "for-test",
+							"test.harvesterhci.io":     "for-test",
+							util.LabelImageDisplayName: imageDisplayName,
 						},
 						Annotations: map[string]string{
 							"test.harvesterhci.io": "for-test",
@@ -137,7 +138,8 @@ var _ = Describe("verify image APIs", func() {
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvesterhci.io": "for-test",
+							"test.harvesterhci.io":     "for-test",
+							util.LabelImageDisplayName: imageDisplayName,
 						},
 						Annotations: map[string]string{
 							"test.harvesterhci.io": "for-test",
@@ -191,7 +193,8 @@ var _ = Describe("verify image APIs", func() {
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvesterhci.io": "for-test",
+							"test.harvesterhci.io":     "for-test",
+							util.LabelImageDisplayName: imageDisplayName,
 						},
 						Annotations: map[string]string{
 							"test.harvesterhci.io": "for-test",
@@ -211,7 +214,8 @@ var _ = Describe("verify image APIs", func() {
 						Name:      imageName,
 						Namespace: imageNamespace,
 						Labels: map[string]string{
-							"test.harvesterhci.io": "for-test-update",
+							"test.harvesterhci.io":     "for-test-update",
+							util.LabelImageDisplayName: imageDisplayName,
 						},
 						Annotations: map[string]string{
 							"test.harvesterhci.io": "for-test-update",

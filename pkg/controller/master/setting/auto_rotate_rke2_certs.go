@@ -38,7 +38,7 @@ func (h *Handler) syncAutoRotateRKE2Certs(setting *harvesterv1.Setting) error {
 		return nil
 	}
 
-	kubernetesIPs, err := util.GetKubernetesIps(h.endpointCache)
+	kubernetesIPs, err := util.GetKubernetesIps(h.endpointSliceCache)
 	if err != nil {
 		return err
 	}
