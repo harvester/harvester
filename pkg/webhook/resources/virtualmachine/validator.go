@@ -500,29 +500,39 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.Virtual
 }
 
 // checkVolumeClaimTemplateEntry validates a single entry:
-// 1. Verifies the imageID matches the backing image behind the SC (rejects on mismatch).
-// 2. Verifies the requester has get access to the referenced VMImage.
-// No identity-based bypass — both checks always run regardless of who is making the request.
+// 1. Resolves the VMImage ID via the SC → BackingImage → imageId annotation chain.
+// 2. If unresolvable (no Longhorn SC, no backing image, etc.) — skips all validation.
+// 3. Compares the resolved VMImage ID against the entry's imageId annotation; rejects on mismatch.
+// 4. Verifies the requester has get access to the referenced VMImage.
 func (v *vmValidator) checkVolumeClaimTemplateEntry(request *types.Request, entry util.VolumeClaimTemplateEntry) error {
-	imageID, ok := entry.Annotations[util.AnnotationImageID]
-	if !ok || imageID == "" {
+	if entry.Spec.StorageClassName == nil {
 		return nil
 	}
 
-	parts := strings.SplitN(imageID, "/", 2)
+	vmImageID, err := v.getVMImageIDFromSC(*entry.Spec.StorageClassName)
+	if err != nil {
+		return err
+	}
+	// SC → BackingImage chain incomplete — skip the entire validation
+	if vmImageID == "" {
+		return nil
+	}
+
+	targetVMImageID := vmImageID
+
+	if entryImageID := entry.Annotations[util.AnnotationImageID]; entryImageID != "" && vmImageID != entryImageID {
+		return werror.NewInvalidError(
+			fmt.Sprintf("imageId %q in volume template does not match backing image of storage class %q (expected %q)",
+				entryImageID, *entry.Spec.StorageClassName, vmImageID),
+			fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates),
+		)
+	}
+
+	parts := strings.SplitN(targetVMImageID, "/", 2)
 	if len(parts) != 2 {
 		return nil
 	}
 	imageNS, imageName := parts[0], parts[1]
-
-	// If the SC has a backingImage, its imageId annotation must match the entry.
-	// Longhorn v1 has a backingImageName parameter in the storage class, which is used to create a backing image resource.
-	// Longhorn v2 doesn't have that, so we can skip it.
-	if entry.Spec.StorageClassName != nil {
-		if err := v.checkBackingImageIDMatch(*entry.Spec.StorageClassName, imageID); err != nil {
-			return err
-		}
-	}
 
 	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
 		SAR:       v.sar,
@@ -615,37 +625,34 @@ func scNameEqual(a, b *string) bool {
 	return *a == *b
 }
 
-func (v *vmValidator) checkBackingImageIDMatch(scName, imageID string) error {
+// getVMImageIDFromSC resolves the VMImage ID for scName via SC → BackingImage → imageId annotation.
+// Returns "" if any step is missing (SC not found, non-Longhorn provisioner, no backingImage param, BI not found, or no imageId annotation).
+func (v *vmValidator) getVMImageIDFromSC(scName string) (string, error) {
 	sc, err := v.scCache.Get(scName)
-	if err != nil || sc.Provisioner != util.CSIProvisionerLonghorn {
-		if err != nil && !apierrors.IsNotFound(err) {
-			return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
 		}
-		return nil
+		return "", werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
+	}
+	if sc.Provisioner != util.CSIProvisionerLonghorn {
+		return "", nil
 	}
 
 	biName := sc.Parameters[util.LonghornOptionBackingImageName]
 	if biName == "" {
-		return nil
+		return "", nil
 	}
 
 	bi, err := v.backingImageCache.Get(util.LonghornSystemNamespaceName, biName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return "", nil
 		}
-		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
+		return "", werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
 	}
 
-	vmImageID := bi.Annotations[util.AnnotationImageID]
-	if vmImageID != imageID {
-		return werror.NewInvalidError(
-			fmt.Sprintf("imageId %q in volume template does not match backing image %q (expected %q, got %q)",
-				imageID, biName, imageID, vmImageID),
-			fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates),
-		)
-	}
-	return nil
+	return bi.Annotations[util.AnnotationImageID], nil
 }
 
 func (v *vmValidator) checkVolumeAnnotations(oldVM, newVM *kubevirtv1.VirtualMachine) ([]util.VolumeClaimTemplateEntry, error) {

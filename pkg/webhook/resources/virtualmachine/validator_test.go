@@ -1210,13 +1210,26 @@ func TestVmValidator_Update(t *testing.T) {
 	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
 
 	harvesterFakeClientset := fake.NewSimpleClientset()
-	err = harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{
-		Name: "longhorn-image",
-	}})
+	// SC must be a Longhorn provisioner with a backingImage so checkVolumeClaimTemplateEntry
+	// resolves the backing image ID and reaches the SAR check.
+	err = harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{
+		ObjectMeta:  metav1.ObjectMeta{Name: "longhorn-image"},
+		Provisioner: util.CSIProvisionerLonghorn,
+		Parameters:  map[string]string{util.LonghornOptionBackingImageName: "test-bi"},
+	})
+	assert.NoError(t, err)
+	err = harvesterFakeClientset.Tracker().Add(&longhorn.BackingImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-bi",
+			Namespace:   util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{util.AnnotationImageID: "default/image"},
+		},
+	})
 	assert.NoError(t, err)
 	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
+	fakeBICache := fakeclients.BackingImageCache(harvesterFakeClientset.LonghornV1beta2().BackingImages)
 
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1973,7 +1986,7 @@ func TestCheckShareableVolumes(t *testing.T) {
 	}
 }
 
-func TestCheckBackingImageIDMatch(t *testing.T) {
+func TestGetVMImageIDFromSC(t *testing.T) {
 	const (
 		scName     = "lh-test-sc"
 		biName     = "vmi-test-bi"
@@ -2008,47 +2021,48 @@ func TestCheckBackingImageIDMatch(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		sc          *storagev1.StorageClass
-		bi          *longhorn.BackingImage
-		expectError bool
+		name            string
+		sc              *storagev1.StorageClass
+		bi              *longhorn.BackingImage
+		expectedImageID string
+		expectError     bool
 	}{
 		{
-			name:        "sc not found",
-			expectError: false,
+			name:            "sc not found, returns empty",
+			expectedImageID: "",
 		},
 		{
-			name:        "sc is not longhorn provisioner",
-			sc:          newSC("other.csi.driver", biName),
-			expectError: false,
+			name:            "sc is not longhorn provisioner, returns empty",
+			sc:              newSC("other.csi.driver", biName),
+			expectedImageID: "",
 		},
 		{
-			name:        "longhorn sc without backingImage param",
-			sc:          newSC(util.CSIProvisionerLonghorn, ""),
-			expectError: false,
+			name:            "longhorn sc without backingImage param, returns empty",
+			sc:              newSC(util.CSIProvisionerLonghorn, ""),
+			expectedImageID: "",
 		},
 		{
-			name:        "longhorn sc with backingImage but BackingImage not found",
-			sc:          newSC(util.CSIProvisionerLonghorn, biName),
-			expectError: false,
+			name:            "longhorn sc with backingImage param but BackingImage not found, returns empty",
+			sc:              newSC(util.CSIProvisionerLonghorn, biName),
+			expectedImageID: "",
 		},
 		{
-			name:        "backing image imageId matches",
-			sc:          newSC(util.CSIProvisionerLonghorn, biName),
-			bi:          newBI(imageID),
-			expectError: false,
+			name:            "backing image has vmImageId annotation, returns vmImage ID",
+			sc:              newSC(util.CSIProvisionerLonghorn, biName),
+			bi:              newBI(imageID),
+			expectedImageID: imageID,
 		},
 		{
-			name:        "backing image imageId mismatch",
-			sc:          newSC(util.CSIProvisionerLonghorn, biName),
-			bi:          newBI(otherImage),
-			expectError: true,
+			name:            "backing image has different vmImageId annotation, returns that vmImage ID",
+			sc:              newSC(util.CSIProvisionerLonghorn, biName),
+			bi:              newBI(otherImage),
+			expectedImageID: otherImage,
 		},
 		{
-			name:        "backing image has no imageId annotation",
-			sc:          newSC(util.CSIProvisionerLonghorn, biName),
-			bi:          newBI(""),
-			expectError: true,
+			name:            "backing image has no vmImageId annotation, returns empty",
+			sc:              newSC(util.CSIProvisionerLonghorn, biName),
+			bi:              newBI(""),
+			expectedImageID: "",
 		},
 	}
 
@@ -2057,12 +2071,10 @@ func TestCheckBackingImageIDMatch(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 
 			if tc.sc != nil {
-				err := clientset.Tracker().Add(tc.sc)
-				assert.NoError(t, err)
+				assert.NoError(t, clientset.Tracker().Add(tc.sc))
 			}
 			if tc.bi != nil {
-				err := clientset.Tracker().Add(tc.bi)
-				assert.NoError(t, err)
+				assert.NoError(t, clientset.Tracker().Add(tc.bi))
 			}
 
 			v := &vmValidator{
@@ -2070,11 +2082,12 @@ func TestCheckBackingImageIDMatch(t *testing.T) {
 				backingImageCache: fakeclients.BackingImageCache(clientset.LonghornV1beta2().BackingImages),
 			}
 
-			err := v.checkBackingImageIDMatch(scName, imageID)
+			got, err := v.getVMImageIDFromSC(scName)
 			if tc.expectError {
 				assert.Error(t, err, tc.name)
 			} else {
 				assert.NoError(t, err, tc.name)
+				assert.Equal(t, tc.expectedImageID, got, tc.name)
 			}
 		})
 	}
@@ -2166,10 +2179,24 @@ func TestVmValidator_Create(t *testing.T) {
 	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
 
 	harvesterFakeClientset := fake.NewSimpleClientset()
-	assert.NoError(t, harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{Name: "longhorn-image"}}))
+	// SC must be a Longhorn provisioner with a backingImage so checkVolumeClaimTemplateEntry
+	// resolves the backing image ID and reaches the SAR check.
+	assert.NoError(t, harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{
+		ObjectMeta:  metav1.ObjectMeta{Name: "longhorn-image"},
+		Provisioner: util.CSIProvisionerLonghorn,
+		Parameters:  map[string]string{util.LonghornOptionBackingImageName: "test-bi"},
+	}))
+	assert.NoError(t, harvesterFakeClientset.Tracker().Add(&longhorn.BackingImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-bi",
+			Namespace:   util.LonghornSystemNamespaceName,
+			Annotations: map[string]string{util.AnnotationImageID: "default/image"},
+		},
+	}))
 	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
+	fakeBICache := fakeclients.BackingImageCache(harvesterFakeClientset.LonghornV1beta2().BackingImages)
 
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
