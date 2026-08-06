@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultVMTemplates        = 4
-	defaultVMTemplateVersions = 4
+	defaultVMTemplates        = 8
+	defaultVMTemplateVersions = 8
 )
 
 var _ = Describe("verify vm template APIs", func() {
