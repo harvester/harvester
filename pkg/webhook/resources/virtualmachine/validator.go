@@ -637,11 +637,11 @@ func (v *vmValidator) checkBackingImageIDMatch(scName, imageID string) error {
 		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
 	}
 
-	biImageID := bi.Annotations[util.AnnotationImageID]
-	if biImageID != imageID {
+	vmImageID := bi.Annotations[util.AnnotationImageID]
+	if vmImageID != imageID {
 		return werror.NewInvalidError(
 			fmt.Sprintf("imageId %q in volume template does not match backing image %q (expected %q, got %q)",
-				imageID, biName, imageID, biImageID),
+				imageID, biName, imageID, vmImageID),
 			fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates),
 		)
 	}
