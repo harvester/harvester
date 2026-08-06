@@ -235,7 +235,11 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return nil
 	}
 
-	if err := v.checkVMSpec(request, vm); err != nil {
+	if err := v.checkVMSpec(vm); err != nil {
+		return err
+	}
+
+	if err := v.checkAllVolumeClaimTemplateEntries(request, vm); err != nil {
 		return err
 	}
 
@@ -264,7 +268,7 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 		return nil
 	}
 
-	if err := v.checkVMSpec(request, newVM); err != nil {
+	if err := v.checkVMSpec(newVM); err != nil {
 		return err
 	}
 
@@ -275,6 +279,10 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 	if oldVM == nil {
 		return nil
+	}
+
+	if err := v.checkChangedVolumeClaimTemplateEntries(request, oldVM, newVM); err != nil {
+		return err
 	}
 
 	if err := v.checkStorageResourceQuota(newVM, oldVM); err != nil {
@@ -320,8 +328,8 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	return nil
 }
 
-func (v *vmValidator) checkVMSpec(request *types.Request, vm *kubevirtv1.VirtualMachine) error {
-	if err := v.checkVolumeClaimTemplatesAnnotation(request, vm); err != nil {
+func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
+	if err := v.checkVolumeClaimTemplatesAnnotation(vm); err != nil {
 		message := fmt.Sprintf("the volumeClaimTemplates annotaion is invalid: %v", err)
 		return werror.NewInvalidError(message, "metadata.annotations")
 	}
@@ -473,7 +481,8 @@ func (v *vmValidator) checkVMStoppingStatus(oldVM *kubevirtv1.VirtualMachine, ne
 	return false
 }
 
-func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(request *types.Request, vm *kubevirtv1.VirtualMachine) error {
+// checkVolumeClaimTemplatesAnnotation validates the structure of the annotation (name required per entry).
+func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(vm *kubevirtv1.VirtualMachine) error {
 	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
 	if !ok || volumeClaimTemplatesStr == "" {
 		return nil
@@ -486,14 +495,15 @@ func (v *vmValidator) checkVolumeClaimTemplatesAnnotation(request *types.Request
 		if entry.Name == "" {
 			return errors.New("PVC name is required")
 		}
-		if err := v.checkImageIDAccess(request, entry); err != nil {
-			return err
-		}
 	}
 	return nil
 }
 
-func (v *vmValidator) checkImageIDAccess(request *types.Request, entry util.VolumeClaimTemplateEntry) error {
+// checkVolumeClaimTemplateEntry validates a single entry:
+// 1. Verifies the imageID matches the backing image behind the SC (rejects on mismatch).
+// 2. Verifies the requester has get access to the referenced VMImage.
+// No identity-based bypass — both checks always run regardless of who is making the request.
+func (v *vmValidator) checkVolumeClaimTemplateEntry(request *types.Request, entry util.VolumeClaimTemplateEntry) error {
 	imageID, ok := entry.Annotations[util.AnnotationImageID]
 	if !ok || imageID == "" {
 		return nil
@@ -505,17 +515,13 @@ func (v *vmValidator) checkImageIDAccess(request *types.Request, entry util.Volu
 	}
 	imageNS, imageName := parts[0], parts[1]
 
-	// If the SC has a backingImage, its imageId annotation must match the entry
+	// If the SC has a backingImage, its imageId annotation must match the entry.
 	// Longhorn v1 has a backingImageName parameter in the storage class, which is used to create a backing image resource.
 	// Longhorn v2 doesn't have that, so we can skip it.
 	if entry.Spec.StorageClassName != nil {
 		if err := v.checkBackingImageIDMatch(*entry.Spec.StorageClassName, imageID); err != nil {
 			return err
 		}
-	}
-
-	if request == nil || request.IsFromControllers() {
-		return nil
 	}
 
 	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
@@ -538,6 +544,75 @@ func (v *vmValidator) checkImageIDAccess(request *types.Request, entry util.Volu
 		)
 	}
 	return nil
+}
+
+// checkAllVolumeClaimTemplateEntries runs checkVolumeClaimTemplateEntry for every entry in the annotation.
+// Used on CREATE where all entries are new and must be fully validated.
+func (v *vmValidator) checkAllVolumeClaimTemplateEntries(request *types.Request, vm *kubevirtv1.VirtualMachine) error {
+	volumeClaimTemplatesStr, ok := vm.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplatesStr == "" {
+		return nil
+	}
+	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplatesStr)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := v.checkVolumeClaimTemplateEntry(request, entry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkChangedVolumeClaimTemplateEntries runs checkVolumeClaimTemplateEntry only for entries whose
+// imageID or StorageClassName changed between oldVM and newVM.
+// Used on UPDATE to avoid re-checking unchanged image references.
+func (v *vmValidator) checkChangedVolumeClaimTemplateEntries(request *types.Request, oldVM, newVM *kubevirtv1.VirtualMachine) error {
+	oldAnn := oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
+	newAnn := newVM.Annotations[util.AnnotationVolumeClaimTemplates]
+	if newAnn == "" || oldAnn == newAnn {
+		return nil
+	}
+
+	newEntries, err := util.UnmarshalVolumeClaimTemplates(newAnn)
+	if err != nil {
+		return err
+	}
+
+	oldEntryMap := make(map[string]util.VolumeClaimTemplateEntry)
+	if oldAnn != "" {
+		oldEntries, err := util.UnmarshalVolumeClaimTemplates(oldAnn)
+		if err != nil {
+			return err
+		}
+		for _, e := range oldEntries {
+			oldEntryMap[e.Name] = e
+		}
+	}
+
+	for _, newEntry := range newEntries {
+		old, exists := oldEntryMap[newEntry.Name]
+		if exists &&
+			old.Annotations[util.AnnotationImageID] == newEntry.Annotations[util.AnnotationImageID] &&
+			scNameEqual(old.Spec.StorageClassName, newEntry.Spec.StorageClassName) {
+			continue
+		}
+		if err := v.checkVolumeClaimTemplateEntry(request, newEntry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scNameEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 func (v *vmValidator) checkBackingImageIDMatch(scName, imageID string) error {
