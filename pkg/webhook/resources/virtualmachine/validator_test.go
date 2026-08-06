@@ -1075,9 +1075,14 @@ func TestVmValidator_Update(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name:          "SAR check denied for image access is rejected",
-			oldVM:         templateVM.DeepCopy(),
-			newVM:         templateVM.DeepCopy(),
+			// oldObjMeta has no annotation so oldAnn != newAnn, triggering the SAR check
+			name:  "SAR check denied for image access is rejected",
+			oldVM: templateVM.DeepCopy(),
+			newVM: templateVM.DeepCopy(),
+			oldObjMeta: &metav1.ObjectMeta{
+				Name:      templateVM.Name,
+				Namespace: templateVM.Namespace,
+			},
 			sarDenied:     true,
 			expectedError: true,
 		},
