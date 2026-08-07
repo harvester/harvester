@@ -412,6 +412,7 @@ func TestCreate(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassHarvesterLonghorn),
 				},
 			},
+			sc:          newLonghornSC(util.StorageClassHarvesterLonghorn, ""),
 			expectError: false,
 		},
 		{
