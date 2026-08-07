@@ -481,6 +481,9 @@ longhorn:
   ## defaults to "true"
   enabled: true
 
+  global:
+    imageRegistry: "docker.io"
+
   createNamespace: true
 
   ## Specify the namespace to install longhorn.
