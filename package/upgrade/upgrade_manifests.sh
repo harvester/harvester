@@ -1631,7 +1631,7 @@ EOF
 # configured properly to prevent TLS certificate flapping
 # https://github.com/harvester/harvester/issues/11338
 apply_tls_internal_cn_allowed_services_setting() {
-  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8[.-][a-zA-Z0-9.-]+$ ]]; then
     echo "Skip set tls-internal-cn-allowed-services if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
     return
   fi
@@ -1657,7 +1657,7 @@ EOF
 # system-agent-upgrader can complete successfully.
 # https://github.com/harvester/harvester/issues/11336
 annotate_management_cluster_provisioning_administrated() {
-  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8\.[0-9]$ ]]; then
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8[.-][a-zA-Z0-9.-]+$ ]]; then
     echo "Skip patch management cluster provisioning administrated if you are not upgrade from v1.8.x, current version: $UPGRADE_PREVIOUS_VERSION"
     return
   fi
