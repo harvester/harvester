@@ -16,10 +16,14 @@ package ext
 
 import (
 	"encoding/base64"
+	"fmt"
+	"math"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Encoders returns a cel.EnvOption to configure extended functions for string, byte, and object
@@ -47,18 +51,47 @@ import (
 // Examples:
 //
 //	base64.encode(b'hello') // return b'aGVsbG8='
-func Encoders() cel.EnvOption {
-	return cel.Lib(encoderLib{})
+//
+// # JSON.Encode
+//
+// Introduced at version: 1
+//
+// Encodes a CEL value to a JSON string.
+//
+//	json.encode(<dyn>) -> <string>
+//
+// Examples:
+//
+//	json.encode({'hello': 'world'}) // return '{"hello":"world"}'
+func Encoders(options ...EncodersOption) cel.EnvOption {
+	l := &encoderLib{version: math.MaxUint32}
+	for _, o := range options {
+		l = o(l)
+	}
+	return cel.Lib(l)
 }
 
-type encoderLib struct{}
+// EncodersOption declares a functional operator for configuring encoder extensions.
+type EncodersOption func(*encoderLib) *encoderLib
 
-func (encoderLib) LibraryName() string {
+// EncodersVersion sets the library version for encoder extensions.
+func EncodersVersion(version uint32) EncodersOption {
+	return func(lib *encoderLib) *encoderLib {
+		lib.version = version
+		return lib
+	}
+}
+
+type encoderLib struct {
+	version uint32
+}
+
+func (*encoderLib) LibraryName() string {
 	return "cel.lib.ext.encoders"
 }
 
-func (encoderLib) CompileOptions() []cel.EnvOption {
-	return []cel.EnvOption{
+func (lib *encoderLib) CompileOptions() []cel.EnvOption {
+	opts := []cel.EnvOption{
 		cel.Function("base64.decode",
 			cel.Overload("base64_decode_string", []*cel.Type{cel.StringType}, cel.BytesType,
 				cel.UnaryBinding(func(str ref.Val) ref.Val {
@@ -72,9 +105,19 @@ func (encoderLib) CompileOptions() []cel.EnvOption {
 					return stringOrError(base64EncodeBytes([]byte(b)))
 				}))),
 	}
+	if lib.version >= 1 {
+		opts = append(opts,
+			cel.Function("json.encode",
+				cel.Overload("json_encode_dyn", []*cel.Type{cel.DynType}, cel.StringType,
+					cel.UnaryBinding(func(val ref.Val) ref.Val {
+						return stringOrError(jsonEncodeValue(val))
+					}))),
+		)
+	}
+	return opts
 }
 
-func (encoderLib) ProgramOptions() []cel.ProgramOption {
+func (*encoderLib) ProgramOptions() []cel.ProgramOption {
 	return []cel.ProgramOption{}
 }
 
@@ -91,4 +134,20 @@ func base64DecodeString(str string) ([]byte, error) {
 
 func base64EncodeBytes(bytes []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(bytes), nil
+}
+
+func jsonEncodeValue(val ref.Val) (string, error) {
+	native, err := val.ConvertToNative(types.JSONValueType)
+	if err != nil {
+		return "", err
+	}
+	jsonValue, ok := native.(*structpb.Value)
+	if !ok {
+		return "", fmt.Errorf("cannot convert %T to JSON value", native)
+	}
+	jsonBytes, err := protojson.Marshal(jsonValue)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }
