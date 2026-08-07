@@ -605,7 +605,7 @@ func (v *vmValidator) checkChangedVolumeClaimTemplateEntries(request *types.Requ
 		old, exists := oldEntryMap[newEntry.Name]
 		if exists &&
 			old.Annotations[util.AnnotationImageID] == newEntry.Annotations[util.AnnotationImageID] &&
-			scNameEqual(old.Spec.StorageClassName, newEntry.Spec.StorageClassName) {
+			reflect.DeepEqual(old.Spec.StorageClassName, newEntry.Spec.StorageClassName) {
 			continue
 		}
 		if err := v.checkVolumeClaimTemplateEntry(request, newEntry); err != nil {
@@ -615,24 +615,11 @@ func (v *vmValidator) checkChangedVolumeClaimTemplateEntries(request *types.Requ
 	return nil
 }
 
-func scNameEqual(a, b *string) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
-}
-
 // getVMImageIDFromSC resolves the VMImage ID for scName via SC → BackingImage → imageId annotation.
 // Returns "" if any step is missing (SC not found, non-Longhorn provisioner, no backingImage param, BI not found, or no imageId annotation).
 func (v *vmValidator) getVMImageIDFromSC(scName string) (string, error) {
 	sc, err := v.scCache.Get(scName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", nil
-		}
 		return "", werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
 	}
 	if sc.Provisioner != util.CSIProvisionerLonghorn {
@@ -646,9 +633,6 @@ func (v *vmValidator) getVMImageIDFromSC(scName string) (string, error) {
 
 	bi, err := v.backingImageCache.Get(util.LonghornSystemNamespaceName, biName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", nil
-		}
 		return "", werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
 	}
 
