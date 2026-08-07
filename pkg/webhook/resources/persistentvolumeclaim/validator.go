@@ -217,9 +217,6 @@ func (v *pvcValidator) validateInternalUsage(request *types.Request, pvc *corev1
 func (v *pvcValidator) validateBackingImageAccess(request *types.Request, scName string) error {
 	sc, err := v.scCache.Get(scName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
 		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
 	}
 
@@ -234,9 +231,6 @@ func (v *pvcValidator) validateBackingImageAccess(request *types.Request, scName
 
 	bi, err := v.backingImageCache.Get(util.LonghornSystemNamespaceName, biName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
 		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
 	}
 

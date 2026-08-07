@@ -1218,6 +1218,13 @@ func TestVmValidator_Update(t *testing.T) {
 		Parameters:  map[string]string{util.LonghornOptionBackingImageName: "test-bi"},
 	})
 	assert.NoError(t, err)
+	// "longhorn" SC has no backingImage param, so image-access check is skipped for entries using it.
+	err = harvesterFakeClientset.Tracker().Add(&storagev1.StorageClass{
+		ObjectMeta:  metav1.ObjectMeta{Name: "longhorn"},
+		Provisioner: util.CSIProvisionerLonghorn,
+		Parameters:  map[string]string{},
+	})
+	assert.NoError(t, err)
 	err = harvesterFakeClientset.Tracker().Add(&longhorn.BackingImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-bi",
@@ -2028,8 +2035,8 @@ func TestGetVMImageIDFromSC(t *testing.T) {
 		expectError     bool
 	}{
 		{
-			name:            "sc not found, returns empty",
-			expectedImageID: "",
+			name:        "sc not found, returns error",
+			expectError: true,
 		},
 		{
 			name:            "sc is not longhorn provisioner, returns empty",
@@ -2042,9 +2049,9 @@ func TestGetVMImageIDFromSC(t *testing.T) {
 			expectedImageID: "",
 		},
 		{
-			name:            "longhorn sc with backingImage param but BackingImage not found, returns empty",
-			sc:              newSC(util.CSIProvisionerLonghorn, biName),
-			expectedImageID: "",
+			name:        "longhorn sc with backingImage param but BackingImage not found, returns error",
+			sc:          newSC(util.CSIProvisionerLonghorn, biName),
+			expectError: true,
 		},
 		{
 			name:            "backing image has vmImageId annotation, returns vmImage ID",
