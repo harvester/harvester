@@ -167,6 +167,11 @@ type Install struct {
 	ClusterPodCIDR     string `json:"clusterPodCidr,omitempty"`
 	ClusterServiceCIDR string `json:"clusterServiceCidr,omitempty"`
 
+	// IPv6Enabled is set by the installer UI for join/install modes where
+	// ClusterPodCIDR is not provided. For create mode the flag is derived
+	// from the CIDR input instead.
+	IPv6Enabled bool `json:"ipv6Enabled,omitempty"`
+
 	ForceEFI      bool     `json:"forceEfi,omitempty"`
 	Device        string   `json:"device,omitempty"`
 	ConfigURL     string   `json:"configUrl,omitempty"`
@@ -540,7 +545,11 @@ func GenerateRancherdConfig(config *HarvesterConfig) (*yipSchema.YipConfig, erro
 		return nil, err
 	}
 
-	if err := UpdateManagementInterfaceConfig(config.ManagementInterface, config.OS.DNSNameservers, NMConnectionPath, true); err != nil {
+	ipv6Enabled, err := isIPv6Enabled(config.Install.ClusterPodCIDR)
+	if err != nil {
+		return nil, err
+	}
+	if err := UpdateManagementInterfaceConfig(config.ManagementInterface, config.OS.DNSNameservers, NMConnectionPath, true, ipv6Enabled); err != nil {
 		return nil, err
 	}
 

@@ -294,6 +294,9 @@ func TestConvertToCOS_EnableIPv6(t *testing.T) {
 	conf, err := LoadHarvesterConfig(util.LoadFixture(t, "harvester-config.yaml"))
 	assert.NoError(t, err)
 	conf.Mode = ModeInstall
+	// For non-create modes, IPv6 is driven by the explicit flag set by the installer UI (or
+	// config.yaml for PXE). ClusterPodCIDR is empty for join/install nodes and is not used.
+	conf.Install.IPv6Enabled = true
 
 	yipConfig, err := ConvertToCOS(conf)
 	assert.NoError(t, err)
