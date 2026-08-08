@@ -2,14 +2,14 @@
 
 if [[ $# != 1 ]]
 then
-        echo "We need the settings.yaml from ipxe repo"
+        echo "We need the config.yaml from harvester-dev"
         exit 1
 fi
 
 SETTINGS=$1
 
-VIP=$(yq e ".harvester_network_config.vip.ip" ${SETTINGS})
-NODE0_IP=$(yq e ".harvester_network_config.cluster[0].ip" ${SETTINGS})
+VIP=$(yq e ".vip" ${SETTINGS})
+NODE0_IP=$(yq e ".nodes[0].ip" ${SETTINGS})
 
 echo "Get kubeconfig from ${NODE0_IP}, VIP: ${VIP}"
 
