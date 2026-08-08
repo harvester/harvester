@@ -1,0 +1,200 @@
+name: Install test
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'ci/**'
+      - 'cmd/installer/**'
+      - 'pkg/installer/**'
+      - 'vendor/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'Makefile'
+      - 'package/harvester-repo/**'
+      - 'package/harvester-os/**'
+      - 'scripts/**'
+      - '!scripts/*.txt'
+      - '!scripts/build'
+      - '!scripts/generate-*'
+      - '!scripts/package-*'
+      - '!scripts/test-*'
+      - '!scripts/validate-*'
+  push:
+    branches:
+      - master
+      - 'v**'
+  schedule:
+    - cron: '30 19 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/heads/v') && !startsWith(github.ref, 'refs/tags/v') }}
+
+env:
+  LIBVIRT_DEFAULT_URI: "qemu:///system"
+  KEEP_ENV_WHEN_FAILURE: ${{ secrets.KEEP_CI_FAILURE }}
+  REGISTRY: "172.17.0.1:5000"
+
+jobs:
+  main:
+    name: Build and deploy
+    if: ${{ !(github.actor == 'renovate[bot]' && github.event_name == 'pull_request') }}
+    runs-on:
+      group: vagrant
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Build Harvester artifacts
+        env:
+          DISABLE_BUILD_NET_INSTALL_ISO: "true"
+          REPO: ${{ env.REGISTRY }}/rancher
+          PUSH: "true"
+        run: |
+          # image tags are determined from the branch name
+          git checkout -b vagrant-run${{ github.run_number }}-${{ github.run_attempt }}
+          make package-all
+          make build-iso
+      - name: Clean up previous harvester-dev deployment
+        run: |
+          dev_dir="$HOME/harvester-dev"
+          if [ -d "$dev_dir" ]; then
+            cd "$dev_dir"
+            # -- --force skips the interactive confirmation in confirm-op.sh
+            task clean -- --force || echo "::warning::task clean failed, removing the directory anyway"
+            cd "$HOME"
+          fi
+          rm -rf "$dev_dir"
+          # the artifacts server bind-mounts the removed directory, stop the stale container
+          docker ps -a --format '{{.Names}}' | grep -- '-artifacts-server$' | xargs -r docker rm -f
+      - name: Clone harvester-dev
+        id: dev
+        run: |
+          cd $HOME
+          git clone https://github.com/harvester/harvester-dev.git harvester-dev
+          echo "DEV_HOME=$HOME/harvester-dev" >> $GITHUB_OUTPUT
+      - name: Generate SSH keys
+        run: |
+          ssh-keygen -t rsa -q -N "" -f ./ci/terraform/tmp-ssh-key
+      - name: Configure harvester-dev
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          # derive the version from the built artifacts instead of guessing:
+          # scripts/version yields master, a tag, a hash, or hash-dirty
+          # depending on the git state, and the file names follow it
+          kernel_name=$(basename "${{ github.workspace }}"/dist/artifacts/harvester-*-vmlinuz-amd64)
+          VERSION=${kernel_name#harvester-}
+          VERSION=${VERSION%-vmlinuz-amd64}
+          echo "Detected artifact version: ${VERSION}"
+
+          cp config.yaml.sample config.yaml
+
+          # the sample pins the modular virtqemud socket; hosts running the
+          # monolithic libvirtd only have libvirt-sock, so pick what exists
+          if [ -S /var/run/libvirt/virtqemud-sock ]; then
+            VALUE="qemu:///system?socket=/var/run/libvirt/virtqemud-sock"
+          else
+            VALUE="qemu:///system?socket=/var/run/libvirt/libvirt-sock"
+          fi
+          VALUE="$VALUE" yq e -i '.provider.libvirt.uri = strenv(VALUE)' config.yaml
+
+          # stage the locally built artifacts into the artifacts server;
+          # the air-gapped nodes fetch them over http from the admin network
+          iso_dir="artifacts/isos/harvester-${VERSION}"
+          mkdir -p "$iso_dir"
+          cp -al "${{ github.workspace }}/dist/artifacts/." "$iso_dir/" 2>/dev/null \
+            || cp -a "${{ github.workspace }}/dist/artifacts/." "$iso_dir/"
+
+          server_url="$(yq e '.artifact_server_url' config.yaml)"
+          base_url="${server_url}/isos/harvester-${VERSION}"
+          VALUE="${base_url}/harvester-${VERSION}-amd64.iso" \
+            yq e -i '.harvester_iso_url = strenv(VALUE)' config.yaml
+          VALUE="${base_url}/harvester-${VERSION}-vmlinuz-amd64" \
+            yq e -i '.harvester_kernel_url = strenv(VALUE)' config.yaml
+          VALUE="${base_url}/harvester-${VERSION}-initrd-amd64" \
+            yq e -i '.harvester_ramdisk_url = strenv(VALUE)' config.yaml
+          VALUE="${base_url}/harvester-${VERSION}-rootfs-amd64.squashfs" \
+            yq e -i '.harvester_rootfs_url = strenv(VALUE)' config.yaml
+
+          # the ci/terraform scripts ssh into the nodes with this key
+          export PUB_KEY=$(cat ${{ github.workspace }}/ci/terraform/tmp-ssh-key.pub)
+          yq e -i '.node_additional_keys += [ strenv(PUB_KEY) ]' config.yaml
+
+          NODE_COUNT=3 yq e -i '.node_count = env(NODE_COUNT)' config.yaml
+
+          # avoid MAC collisions between deployments on the same lab network
+          task generate-macs
+          task config-check
+      - name: Prepare admin and guest images
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          cache_dir="$HOME/harvester-dev-cache/images"
+          mkdir -p "$cache_dir" artifacts/images
+          # seed from cache, including the .last-modified markers the script uses
+          cp -al "$cache_dir/." artifacts/images/ 2>/dev/null || true
+
+          # image names are version-pinned, a complete cache needs no network at all
+          missing=0
+          while read -r name; do
+            [ -f "artifacts/images/$name" ] || missing=1
+          done < <(yq -r '.artifacts.images[].name' config.yaml)
+
+          if [ "$missing" = "0" ]; then
+            echo "All images are cached, skipping download"
+          else
+            # downloads only missing or outdated images (Last-Modified based)
+            task download-images
+            # rebuild the cache from the refreshed content (hard links, no extra space)
+            rm -rf "$cache_dir"
+            cp -al artifacts/images/. "$cache_dir/"
+          fi
+
+          # download-images.sh writes files via mktemp (mode 600); the nginx
+          # worker (uid 101) in the artifacts server cannot read them -> 403
+          chmod -R a+rX artifacts/images
+      - name: Start artifacts server
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          task artifacts-up
+      - name: Deploy Harvester cluster
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          task up
+      - name: Enable node egress
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          # the install runs air-gapped to catch missing images; the terraform
+          # tests need external access (guest image download), so open it now
+          task op:admin-enable-egress
+      - name: Clean the previous temp files
+        working-directory: ./ci/terraform
+        run: |
+          ./cleanup_test_files.sh
+      - name: Testing existing files
+        working-directory: ./ci/terraform
+        run: |
+          ./check_files.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
+      - name: Testing services status
+        working-directory: ./ci/terraform
+        run: |
+          ./check_services_status.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
+      - name: Testing basic operations with terraform
+        working-directory: ./ci/terraform
+        run: |
+          TERRAFORM_VERSION="1.14.8"
+          TERRAFORM_SUM_amd64="56a5d12f47cbc1c6bedb8f5426ae7d5df984d1929572c24b56f4c82e9f9bf709"
+          curl https://releases.hashicorp.com/terraform/$TERRAFORM_VERSION/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform_bin.zip
+          echo "$TERRAFORM_SUM_amd64  terraform_bin.zip" | sha256sum -c -
+          unzip -o terraform_bin.zip
+          ./get_kubeconfig.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
+          ./terraform init -no-color
+          ./terraform apply -auto-approve -no-color
+      - name: Test network on the VMs
+        working-directory: ./ci/terraform
+        run: |
+          ./test_terraform_vm.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
+      - name: Clean up harvester-dev cluster
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        if: ${{ env.KEEP_ENV_WHEN_FAILURE != 'true' }}
+        run: |
+          task clean -- --force
