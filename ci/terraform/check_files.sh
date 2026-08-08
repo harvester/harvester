@@ -2,14 +2,14 @@
 
 if [[ $# != 1 ]]
 then
-        echo "We need the settings.yaml from ipxe repo"
+        echo "We need the config.yaml from harvester-dev"
         exit 1
 fi
 
 SETTINGS=$1
 
 EXISTING_FILES="/oem/grubenv /oem/grubcustom"
-NODE0_IP=$(yq e ".harvester_network_config.cluster[0].ip" ${SETTINGS})
+NODE0_IP=$(yq e ".nodes[0].ip" ${SETTINGS})
 
 echo "Check files that should exist."
 
