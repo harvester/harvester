@@ -69,7 +69,8 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 <<<<<<< HEAD
 =======
 	// add a prefix based handler for forklift
-	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.k8sClient.AuthorizationV1().SubjectAccessReviews())
+	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.scaled)
+
 	m.Path("/v1/harvester/providers/vsphere/{providerId}/{object}").Methods("GET").Handler(forkliftProxyHandler)
 
 >>>>>>> 9305199 (task: refactor webhook logic)
