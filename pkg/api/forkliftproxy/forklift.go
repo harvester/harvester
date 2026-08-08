@@ -8,9 +8,12 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
+	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -26,12 +29,14 @@ var (
 )
 
 type ForkliftProxyHandler struct {
-	sar authorizationv1client.SubjectAccessReviewInterface
+	sar      authorizationv1client.SubjectAccessReviewInterface
+	services ctlcorev1.ServiceController
 }
 
-func NewForkliftProxyHandler(sar authorizationv1client.SubjectAccessReviewInterface) *ForkliftProxyHandler {
+func NewForkliftProxyHandler(scaled *config.Scaled) *ForkliftProxyHandler {
 	return &ForkliftProxyHandler{
-		sar: sar,
+		sar:      scaled.Management.ClientSet.AuthorizationV1().SubjectAccessReviews(),
+		services: scaled.CoreFactory.Core().V1().Service(),
 	}
 }
 
@@ -56,8 +61,15 @@ func (f *ForkliftProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Reque
 
 	err := f.checkServiceAccess(req)
 	if err != nil {
-		logrus.Errorf("failed to fetch service with user impersonation: %v", err)
+		logrus.Errorf("failed to verify service access with user impersonation: %v", err)
 		http.Error(rw, "error verifying access to service: "+err.Error(), http.StatusForbidden)
+		return
+	}
+
+	_, err = f.services.Get(forkliftInventoryNamespace, forkliftInventoryServiceName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("failed to fetch service: %v", err)
+		http.Error(rw, "error fetching service: "+err.Error(), http.StatusForbidden)
 		return
 	}
 
