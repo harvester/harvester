@@ -68,7 +68,8 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	})
 
 	// add a prefix based handler for forklift
-	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.k8sClient.AuthorizationV1().SubjectAccessReviews())
+	forkliftProxyHandler := forkliftproxy.NewForkliftProxyHandler(r.scaled)
+
 	m.Path("/v1/harvester/providers/vsphere/{providerId}/{object}").Methods("GET").Handler(forkliftProxyHandler)
 
 	// Those routes should be above /v1/harvester/{type}, otherwise, the response status code would be 404
