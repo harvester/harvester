@@ -80,7 +80,7 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 
 	logrus.Debugf("create VM %s/%s", vm.Namespace, vm.Name)
 
-	patchOps, err := m.patchResourceOvercommit(vm)
+	patchOps, err := m.patchResourceOvercommit(nil, vm)
 	if err != nil {
 		return patchOps, err
 	}
@@ -129,7 +129,7 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 	var err error
 
 	if needUpdateResourceOvercommit(oldVM, newVM) {
-		patchOps, err = m.patchResourceOvercommit(newVM)
+		patchOps, err = m.patchResourceOvercommit(oldVM, newVM)
 	}
 	if err != nil {
 		return patchOps, err
@@ -237,12 +237,26 @@ func needUpdateResourceOvercommit(oldVM, newVM *kubevirtv1.VirtualMachine) bool 
 	return hostDevicesOvercommitNeeded(oldVM, newVM)
 }
 
-func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]string, error) {
+// oldVM is the previously admitted object (nil on Create). It is used to tell a
+// request the caller just changed apart from one that merely carries over a value
+// this mutator computed on a prior admission, so overcommit can keep recomputing
+// requests that are still mutator-owned while never clobbering one the caller set.
+func (m *vmMutator) patchResourceOvercommit(oldVM, vm *kubevirtv1.VirtualMachine) ([]string, error) {
 	var patchOps types.PatchOps
 	limits := vm.Spec.Template.Spec.Domain.Resources.Limits
 	cpu := limits.Cpu()
 	mem := limits.Memory()
-	requestsMissing := len(vm.Spec.Template.Spec.Domain.Resources.Requests) == 0
+	requests := vm.Spec.Template.Spec.Domain.Resources.Requests
+	requestsMissing := len(requests) == 0
+	var oldRequests v1.ResourceList
+	if oldVM != nil {
+		oldRequests = oldVM.Spec.Template.Spec.Domain.Resources.Requests
+	}
+	// honor a request the caller explicitly set or changed; if it is unchanged from
+	// the previously admitted object (or there is none, i.e. Create), it is still
+	// mutator-owned and safe to keep recomputing from limits/overcommit as before
+	cpuRequestSet := !requests.Cpu().IsZero() && (oldVM == nil || !requests.Cpu().Equal(*oldRequests.Cpu()))
+	memRequestSet := !requests.Memory().IsZero() && (oldVM == nil || !requests.Memory().Equal(*oldRequests.Memory()))
 	requestsToMutate := v1.ResourceList{}
 	overcommit, err := m.getOvercommit()
 	if err != nil || overcommit == nil {
@@ -258,7 +272,7 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		err = nil
 	}
 
-	if !cpu.IsZero() {
+	if !cpu.IsZero() && !cpuRequestSet {
 		var newRequest int64
 		if isDedicatedCPU(vm) {
 			// do not apply overcommitted resource since dedicated CPU requires guaranteed QoS
@@ -280,7 +294,7 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 			return patchOps, err
 		}
 
-		memPatch, err := generateMemoryPatch(vm, mem, overcommit, agmorc, requestsMissing, requestsToMutate, isARM)
+		memPatch, err := generateMemoryPatch(vm, mem, overcommit, agmorc, requestsMissing, memRequestSet, requestsToMutate, isARM)
 		if err != nil {
 			return patchOps, err
 		}
@@ -302,6 +316,7 @@ func generateMemoryPatch(
 	overcommit *settings.Overcommit,
 	agmorc *settings.AdditionalGuestMemoryOverheadRatioConfig,
 	requestsMissing bool,
+	memRequestSet bool,
 	requestsToMutate v1.ResourceList,
 	isARM bool,
 ) (types.PatchOps, error) {
@@ -373,10 +388,12 @@ func generateMemoryPatch(
 		guestMemory.DeepCopyInto(quantity)
 	}
 
-	if requestsMissing {
-		requestsToMutate[v1.ResourceMemory] = *quantity
-	} else {
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
+	if !memRequestSet {
+		if requestsMissing {
+			requestsToMutate[v1.ResourceMemory] = *quantity
+		} else {
+			patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "%s"}`, quantity))
+		}
 	}
 
 	// patch guest memory
