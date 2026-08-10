@@ -578,6 +578,10 @@ func (v *vmValidator) checkAllVolumeClaimTemplateEntries(request *types.Request,
 // checkChangedVolumeClaimTemplateEntries runs checkVolumeClaimTemplateEntry only for entries whose
 // imageID or StorageClassName changed between oldVM and newVM.
 // Used on UPDATE to avoid re-checking unchanged image references.
+//
+// Edge cases for AnnotationVolumeClaimTemplates transitions:
+//   - Empty → non-empty: oldEntryMap remains empty, so every new entry is validated.
+//   - Non-empty → empty: the function returns early (newAnn == "") so no entries are validated.
 func (v *vmValidator) checkChangedVolumeClaimTemplateEntries(request *types.Request, oldVM, newVM *kubevirtv1.VirtualMachine) error {
 	oldAnn := oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
 	newAnn := newVM.Annotations[util.AnnotationVolumeClaimTemplates]
