@@ -2,7 +2,7 @@
 
 if [[ $# != 1 ]]
 then
-        echo "We need the settings.yaml from ipxe repo"
+        echo "We need the config.yaml from harvester-dev"
         exit 1
 fi
 
@@ -10,7 +10,7 @@ echo "test vm network..."
 TEST_VM_IP=$(./terraform show -json |jq '.values.root_module.resources[] |select (.name=="cirros-01")'|jq .values.network_interface[0].ip_address)
 SETTINGS=$1
 
-NODE0_IP=$(yq e ".harvester_network_config.cluster[0].ip" ${SETTINGS})
+NODE0_IP=$(yq e ".nodes[0].ip" ${SETTINGS})
 
 retries=0
 while [ true ]; do
