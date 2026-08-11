@@ -7,6 +7,10 @@ on:
       - master
     paths:
       - 'package/upgrade/**'
+      - 'pkg/controller/master/upgrade/**'
+      - 'pkg/controller/master/upgradelog/**'
+      - 'pkg/webhook/resources/upgrade/**'
+      - 'pkg/webhook/resources/upgradelog/**'
 
 env:
   UPGRADE_PROJECT_URL: https://github.com/orgs/harvester/projects/28
