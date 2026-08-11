@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	k8suser "k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
@@ -1426,7 +1427,7 @@ func Test_isVmNetworkHotpluggable(t *testing.T) {
 
 func TestInsertCdRomVolumeAction(t *testing.T) {
 	vmName := "vm1"
-	vmNamespace := "default"
+	vmNamespace := "test"
 	vm := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
@@ -1464,7 +1465,7 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	vmImage := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmImageName,
-			Namespace: vmNamespace,
+			Namespace: vmImageNamespace,
 		},
 		Status: harvesterv1.VirtualMachineImageStatus{
 			VirtualSize:      25165824,
@@ -1472,20 +1473,28 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 		},
 	}
 
-	clientset := fake.NewSimpleClientset(vm, vmImage)
+	newHandler := func(sarAllowed bool) *vmActionHandler {
+		clientset := fake.NewSimpleClientset(vm.DeepCopy(), vmImage.DeepCopy())
 
-	handler := &vmActionHandler{
-		vmClient:     fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-		vmCache:      fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		vmImageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		return &vmActionHandler{
+			clientSet:    fakeclients.SARClientSet(sarAllowed),
+			vmClient:     fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+			vmCache:      fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+			vmImageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		}
 	}
 
 	input := InsertCdRomVolumeActionInput{
 		DeviceName: "cdrom1",
 		ImageName:  vmImageNamespace + "/" + vmImageName,
 	}
+	requester := &k8suser.DefaultInfo{
+		Name:   "test-user",
+		Groups: []string{"test-group"},
+	}
 
-	err := handler.insertCdRomVolume(vmName, vmNamespace, input)
+	handler := newHandler(true)
+	err := handler.insertCdRomVolume(context.Background(), requester, vmName, vmNamespace, input)
 	assert.Nil(t, err, "insertCdRomVolume shouldn't return error")
 
 	vmUpdated, err := handler.vmCache.Get(vmNamespace, vmName)
@@ -1497,6 +1506,15 @@ func TestInsertCdRomVolumeAction(t *testing.T) {
 	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
 	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
 	assert.Len(t, entries, 1, "Should add to volumeClaimTemplates annotation")
+
+	handler = newHandler(false)
+	err = handler.insertCdRomVolume(context.Background(), requester, vmName, vmNamespace, input)
+	assert.NotNil(t, err, "insertCdRomVolume should fail when the user cannot access the image")
+	assert.Contains(t, err.Error(), `user "test-user" is not allowed to access image default/image-8jpqp`)
+
+	vmUpdated, err = handler.vmCache.Get(vmNamespace, vmName)
+	assert.Nil(t, err, "Should get the unchanged VM")
+	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should not hot-plug a volume without image access")
 }
 
 func TestEjectCdRomVolumeAction(t *testing.T) {
