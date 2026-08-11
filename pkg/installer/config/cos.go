@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -198,18 +197,11 @@ func ConvertToCOS(config *HarvesterConfig) (*yipSchema.YipConfig, error) {
 
 	// Write a persistent sysctl drop-in whose value matches the install's IPv6 choice.
 	// For dual-stack, IPv6 is enabled (disable_ipv6=0); for IPv4-only it is disabled (disable_ipv6=1).
-	// For create mode the choice is derived from the cluster CIDR.
-	// For join/install modes the installer UI explicitly asks the user and stores the result
-	// in cfg.Install.IPv6Enabled — never infer it from the empty CIDR.
-	var ipv6Enabled bool
-	if cfg.Install.Mode == ModeCreate {
-		ipv6Enabled, err = isIPv6Enabled(cfg.Install.ClusterPodCIDR)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		ipv6Enabled = cfg.Install.IPv6Enabled
-	}
+	// IPFamilies is set by the installer UI for all modes (create, join, install).
+	// A config produced by an older build will have an empty IPFamilies slice,
+	// which IsIPv6Enabled() maps to IPv4-only -- the only mode supported before
+	// dual-stack was introduced.
+	ipv6Enabled := cfg.Install.IsIPv6Enabled()
 	ipv6SysctlVal := "1"
 	ipv6FileHeader := "# Written by harvester-installer (IPv4-only install)\n"
 	if ipv6Enabled {
@@ -1017,39 +1009,4 @@ WantedBy=sysinit.target`)
 		Owner:       0,
 		Group:       0,
 	})
-}
-
-// isIPv6Enabled reports whether clusterPodCIDR describes a valid dual-stack
-// configuration: exactly two comma-separated prefixes in IPv4-first order.
-// An empty value returns (false, nil). A single IPv4 CIDR returns (false, nil).
-// A single IPv6-only CIDR returns an error (unsupported mode).
-// A two-part value with a malformed prefix returns (false, err).
-func isIPv6Enabled(clusterPodCIDR string) (bool, error) {
-	parts := strings.Split(clusterPodCIDR, ",")
-	if len(parts) == 1 {
-		cidr := strings.TrimSpace(parts[0])
-		if cidr == "" {
-			return false, nil
-		}
-		prefix, err := netip.ParsePrefix(cidr)
-		if err != nil {
-			return false, err
-		}
-		if !prefix.Addr().Is4() {
-			return false, fmt.Errorf("IPv6-only CIDR %q is not supported; use IPv4 or IPv4,IPv6 for dual-stack", cidr)
-		}
-		return false, nil
-	}
-	if len(parts) != 2 {
-		return false, fmt.Errorf("at most two CIDRs (IPv4,IPv6) are allowed, got %d", len(parts))
-	}
-	first, err := netip.ParsePrefix(strings.TrimSpace(parts[0]))
-	if err != nil {
-		return false, err
-	}
-	second, err := netip.ParsePrefix(strings.TrimSpace(parts[1]))
-	if err != nil {
-		return false, err
-	}
-	return first.Addr().Is4() && !second.Addr().Is4(), nil
 }

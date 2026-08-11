@@ -25,6 +25,7 @@ const (
 	askBondModePanel            = "askBondMode"
 	bondNotePanel               = "bondNote"
 	askNetworkMethodPanel       = "askNetworkMethod"
+	askNetworkTypePanel         = "askNetworkType"
 	hostnamePanel               = "hostname"
 	addressPanel                = "address"
 	addrMaskPanel               = "mask"
@@ -63,6 +64,7 @@ const (
 	askInterfaceLabel     = "Management NIC"
 	askVlanIDLabel        = "VLAN ID (optional)"
 	askNetworkMethodLabel = "IPv4 Method"
+	askNetworkTypeLabel   = "Network type"
 	hostNameLabel         = "HostName"
 	addressLabel          = "IPv4 Address"
 	addrMaskLabel         = "IPv4 Mask"
@@ -74,6 +76,10 @@ const (
 
 	networkMethodDHCPText   = "Automatic (DHCP)"
 	networkMethodStaticText = "Static"
+
+	// ipFamiliesDualStack is the dropdown sentinel value for IPv4+IPv6 dual-stack.
+	// It is converted to Install.IPFamilies = ["IPv4","IPv6"] when confirmed.
+	ipFamiliesDualStack = "IPv4,IPv6"
 
 	vipTitle          = "Configure VIP"
 	vipLabel          = "VIP"
@@ -90,7 +96,7 @@ const (
 	clusterNetworkNotePanel      = "clusterNetworkNotePanel"
 	clusterNetworkDNSNotePanel   = "clusterNetworkDNSNotePanel"
 	clusterNetworkValidatorPanel = "clusterNetworkValidatorPanel"
-	clusterNetworkNote           = "Note: Leave blank to use the default pod CIDR 10.52.0.0/16, service CIDR 10.53.0.0/16 and cluster DNS 10.53.0.10. For dual-stack, use comma-separated IPv4,IPv6 values (e.g. 10.42.0.0/16,fd42::/48). IPv4 must be listed first. If the service CIDR is changed, the DNS IP must be updated to be within the service CIDR."
+	clusterNetworkNote           = "Note: Defaults are pre-filled. The DNS IP must be within the service CIDR range. Pod and service CIDRs must not overlap."
 
 	clusterTokenCreateNote = "Note: The token is used for adding nodes to the cluster"
 	clusterTokenJoinNote   = "Note: Input the token of the existing cluster"

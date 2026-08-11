@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -58,7 +59,7 @@ func checkDefaultRoute() (bool, error) {
 	return false, nil
 }
 
-func applyNetworks(network config.Network, hostname string) error {
+func applyNetworks(network config.Network, hostname string, ipv6Enabled bool) error {
 	if err := config.RestoreOriginalNetworkConfig(); err != nil {
 		return err
 	}
@@ -113,7 +114,7 @@ func applyNetworks(network config.Network, hostname string) error {
 		}
 	}
 
-	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true, false)
+	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true, ipv6Enabled)
 	if err != nil {
 		return err
 	}
@@ -297,4 +298,45 @@ func applyKernelIPv6(enabled bool) error {
 		}
 	}
 	return nil
+}
+
+// checkIPv6Address verifies that ifaceName has at least one non-link-local,
+// non-loopback IPv6 unicast address assigned. It polls for up to maxWait,
+// sleeping pollInterval between attempts, to allow time for SLAAC assignment.
+// Returns an error if no qualifying address is found within the deadline.
+func checkIPv6Address(ifaceName string, maxWait, pollInterval time.Duration) error {
+	deadline := time.Now().Add(maxWait)
+	for {
+		iface, err := net.InterfaceByName(ifaceName)
+		if err != nil {
+			return fmt.Errorf("interface %s not found: %w", ifaceName, err)
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return fmt.Errorf("failed to list addresses on %s: %w", ifaceName, err)
+		}
+		for _, a := range addrs {
+			var ip net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.To4() != nil {
+				continue // skip non-IPv6
+			}
+			if ip.IsLinkLocalUnicast() || ip.IsLoopback() {
+				continue // skip link-local and loopback
+			}
+			logrus.Infof("IPv6 address found on %s: %s", ifaceName, ip)
+			return nil
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(pollInterval)
+	}
+	return fmt.Errorf("no non-link-local IPv6 address found on interface %s after %s; "+
+		"ensure the network provides IPv6 via SLAAC or DHCPv6 before selecting dual-stack mode", ifaceName, maxWait)
 }

@@ -35,7 +35,7 @@ address1={{ .Bridge.IP }}/{{ .Bridge.SubnetMask }},{{ .Bridge.Gateway }}
 [ipv6]
 {{ if .IPv6Enabled -}}
 method=auto
-addr-gen-mode=eui64
+addr-gen-mode=stable-privacy
 ip6-privacy=0
 {{- else -}}
 method=disabled

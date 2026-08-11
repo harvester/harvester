@@ -167,10 +167,11 @@ type Install struct {
 	ClusterPodCIDR     string `json:"clusterPodCidr,omitempty"`
 	ClusterServiceCIDR string `json:"clusterServiceCidr,omitempty"`
 
-	// IPv6Enabled is set by the installer UI for join/install modes where
-	// ClusterPodCIDR is not provided. For create mode the flag is derived
-	// from the CIDR input instead.
-	IPv6Enabled bool `json:"ipv6Enabled,omitempty"`
+	// IPFamilies defines the IP stack mode for this node using the same
+	// convention as Kubernetes ipFamilies: ["IPv4"] for single-stack IPv4
+	// or ["IPv4","IPv6"] for dual-stack IPv4-first.
+	// An empty or nil slice defaults to IPv4-only.
+	IPFamilies []string `json:"ipFamilies,omitempty"`
 
 	ForceEFI      bool     `json:"forceEfi,omitempty"`
 	Device        string   `json:"device,omitempty"`
@@ -197,6 +198,18 @@ type Install struct {
 	Harvester               HarvesterChartValues `json:"harvester,omitempty"`
 	RawDiskImagePath        string               `json:"rawDiskImagePath,omitempty"`
 	PersistentPartitionSize string               `json:"persistentPartitionSize,omitempty"`
+}
+
+// IsIPv6Enabled reports whether the install is configured for dual-stack
+// (IPv4+IPv6). It returns true when IPFamilies contains IPFamilyIPv6.
+// An empty or nil IPFamilies slice means IPv4-only and returns false.
+func (i *Install) IsIPv6Enabled() bool {
+	for _, f := range i.IPFamilies {
+		if f == IPFamilyIPv6 {
+			return true
+		}
+	}
+	return false
 }
 
 type File struct {
@@ -545,10 +558,7 @@ func GenerateRancherdConfig(config *HarvesterConfig) (*yipSchema.YipConfig, erro
 		return nil, err
 	}
 
-	ipv6Enabled, err := isIPv6Enabled(config.Install.ClusterPodCIDR)
-	if err != nil {
-		return nil, err
-	}
+	ipv6Enabled := config.Install.IsIPv6Enabled()
 	if err := UpdateManagementInterfaceConfig(config.ManagementInterface, config.OS.DNSNameservers, NMConnectionPath, true, ipv6Enabled); err != nil {
 		return nil, err
 	}
