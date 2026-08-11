@@ -17,26 +17,24 @@ import (
 
 // AllowedSARClient returns a fake SAR client whose reactor always returns Allowed=true.
 func AllowedSARClient() authorizationv1client.SubjectAccessReviewInterface {
-	cs := corefake.NewClientset()
-	cs.Fake.PrependReactor("create", "subjectaccessreviews",
-		func(_ k8stesting.Action) (bool, k8sruntime.Object, error) {
-			return true, &authorizationv1.SubjectAccessReview{
-				Status: authorizationv1.SubjectAccessReviewStatus{Allowed: true},
-			}, nil
-		})
-	return cs.AuthorizationV1().SubjectAccessReviews()
+	return SARClientSet(true).AuthorizationV1().SubjectAccessReviews()
 }
 
 // DeniedSARClient returns a fake SAR client whose reactor always returns Allowed=false.
 func DeniedSARClient() authorizationv1client.SubjectAccessReviewInterface {
+	return SARClientSet(false).AuthorizationV1().SubjectAccessReviews()
+}
+
+// SARClientSet returns a fake Kubernetes clientset whose SAR reactor returns the given Allowed status.
+func SARClientSet(allowed bool) *corefake.Clientset {
 	cs := corefake.NewClientset()
 	cs.Fake.PrependReactor("create", "subjectaccessreviews",
 		func(_ k8stesting.Action) (bool, k8sruntime.Object, error) {
 			return true, &authorizationv1.SubjectAccessReview{
-				Status: authorizationv1.SubjectAccessReviewStatus{Allowed: false},
+				Status: authorizationv1.SubjectAccessReviewStatus{Allowed: allowed},
 			}, nil
 		})
-	return cs.AuthorizationV1().SubjectAccessReviews()
+	return cs
 }
 
 // NewFakeRequest returns a fake webhook request with the given username.
