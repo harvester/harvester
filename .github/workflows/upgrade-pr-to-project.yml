@@ -1,0 +1,50 @@
+name: "[Upgrade] Add Merged Upgrade Related PR to Project"
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+    paths:
+      - 'package/upgrade/**'
+
+env:
+  UPGRADE_PROJECT_URL: https://github.com/orgs/harvester/projects/28
+
+jobs:
+  add-to-project:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files in package/upgrade/
+        id: changed
+        run: |
+          FILES=$(git diff --name-only \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.event.pull_request.head.sha }} \
+            -- package/upgrade/)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Changed files: $FILES"
+
+      - name: Add merged PR to project
+        id: add-project
+        if: steps.changed.outputs.files != ''
+        uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+        with:
+          project-url: ${{ env.UPGRADE_PROJECT_URL }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Set project status to Todo
+        if: steps.add-project.outputs.itemId != ''
+        uses: rancher/gh-issue-mgr/update-project-fields@b70f0bdf12a03e5e3f33e4f92ccb6c89deb3ebd9 # main
+        with:
+          project-url: ${{ env.UPGRADE_PROJECT_URL }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          item-id: ${{ steps.add-project.outputs.itemId }}
+          field-keys: Status
+          field-values: Todo
