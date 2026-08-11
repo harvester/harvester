@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	k8suser "k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes"
@@ -128,7 +129,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v", err))
 		}
-		return nil, h.insertCdRomVolume(name, namespace, input)
+		return nil, h.insertCdRomVolume(r.Context(), user, name, namespace, input)
 	case ejectCdRomVolume:
 		var input EjectCdRomVolumeActionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -327,7 +328,7 @@ func (h *vmActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.Response
 	return nil, nil
 }
 
-func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input InsertCdRomVolumeActionInput) error {
+func (h *vmActionHandler) insertCdRomVolume(ctx context.Context, userInfo k8suser.Info, name, namespace string, input InsertCdRomVolumeActionInput) error {
 	vm, err := h.vmCache.Get(namespace, name)
 	if err != nil {
 		return err
@@ -343,8 +344,13 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid image name: %s, should be namespace/name", input.ImageName)
 	}
+	imageNS, imageName := parts[0], parts[1]
 
-	vmImage, err := h.vmImageCache.Get(parts[0], parts[1])
+	if err := h.checkVMImageAccess(ctx, userInfo, imageNS, imageName); err != nil {
+		return err
+	}
+
+	vmImage, err := h.vmImageCache.Get(imageNS, imageName)
 	if err != nil {
 		return err
 	}
@@ -394,6 +400,30 @@ func (h *vmActionHandler) insertCdRomVolume(name, namespace string, input Insert
 	vmCopy.Spec.Template.Spec.Volumes = append(vmCopy.Spec.Template.Spec.Volumes, newVol)
 	_, err = h.vmClient.Update(vmCopy)
 	return err
+}
+
+func (h *vmActionHandler) checkVMImageAccess(ctx context.Context, userInfo k8suser.Info, namespace, name string) error {
+	if h.clientSet == nil {
+		return apierror.NewAPIError(validation.ServerError, "Kubernetes client is not configured")
+	}
+
+	allowed, err := util.CheckObjectAccess(ctx, util.ResourceAccessCheck{
+		SAR:       h.clientSet.AuthorizationV1().SubjectAccessReviews(),
+		Username:  userInfo.GetName(),
+		Groups:    userInfo.GetGroups(),
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineImageGVR,
+		Namespace: namespace,
+		Name:      name,
+	})
+	if err != nil {
+		return apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to check access to image %s/%s: %v", namespace, name, err))
+	}
+	if !allowed {
+		return apierror.NewAPIError(validation.PermissionDenied, fmt.Sprintf("user %q is not allowed to access image %s/%s", userInfo.GetName(), namespace, name))
+	}
+
+	return nil
 }
 
 func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
