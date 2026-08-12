@@ -160,6 +160,10 @@ jobs:
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
           task up
+      - name: Test addons
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        run: |
+          task op:test-addons-ready
       - name: Enable node egress
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
