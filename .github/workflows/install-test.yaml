@@ -19,6 +19,7 @@ on:
       - '!scripts/build'
       - '!scripts/generate-*'
       - '!scripts/package-*'
+      - 'scripts/package-harvester-os'
       - '!scripts/test-*'
       - '!scripts/validate-*'
   push:
