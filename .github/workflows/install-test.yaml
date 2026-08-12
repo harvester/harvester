@@ -5,6 +5,7 @@ on:
     types: [opened, reopened, synchronize]
     paths:
       - 'ci/**'
+      - 'deploy/charts/**'
       - 'cmd/installer/**'
       - 'pkg/installer/**'
       - 'vendor/**'
