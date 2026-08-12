@@ -134,34 +134,34 @@ kubevirt:
 cdi:
   enabled: true
   containers:
-    version: &cdiVersion 1.64.0-150700.9.11.1
+    version: &cdiVersion 1.65.0-3.4
     operator:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-operator
-        tag: *cdiVersion
+        repository: registry.suse.com/suse/sles/16.0/cdi-operator
+        tag: 1.65.0-3.7
     controller:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-controller
+        repository: registry.suse.com/suse/sles/16.0/cdi-controller
         tag: *cdiVersion
     importer:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-importer
+        repository: registry.suse.com/suse/sles/16.0/cdi-importer
         tag: *cdiVersion
     cloner:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-cloner
+        repository: registry.suse.com/suse/sles/16.0/cdi-cloner
         tag: *cdiVersion
     apiserver:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-apiserver
+        repository: registry.suse.com/suse/sles/16.0/cdi-apiserver
         tag: *cdiVersion
     uploadserver:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-uploadserver
+        repository: registry.suse.com/suse/sles/16.0/cdi-uploadserver
         tag: *cdiVersion
     uploadproxy:
       image:
-        repository: registry.suse.com/suse/sles/15.7/cdi-uploadproxy
+        repository: registry.suse.com/suse/sles/16.0/cdi-uploadproxy
         tag: *cdiVersion
     hook:
       image:
@@ -173,6 +173,7 @@ cdi:
     config:
       featureGates:
         - HonorWaitForFirstConsumer
+        - WebhookPvcRendering
       podResourceRequirements:
         limits:
           memory: 2G
