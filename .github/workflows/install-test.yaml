@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/install-test.yaml'
       - 'ci/**'
+      - 'deploy/charts/**'
       - 'cmd/installer/**'
       - 'pkg/installer/**'
       - 'vendor/**'
