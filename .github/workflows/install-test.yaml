@@ -4,6 +4,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize]
     paths:
+      - '.github/workflows/install-test.yaml'
       - 'ci/**'
       - 'cmd/installer/**'
       - 'pkg/installer/**'
