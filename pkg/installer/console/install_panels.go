@@ -3,7 +3,6 @@ package console
 import (
 	"fmt"
 	"net"
-	"net/netip"
 	"os"
 	"slices"
 	"strconv"
@@ -2195,12 +2194,12 @@ func addClusterNetworkPanel(c *Console) error {
 			return err
 		}
 
-		if err := validateCIDR(podCIDR); err != nil {
+		if err := util.ValidateCIDR(podCIDR); err != nil {
 			return c.setContentByName(
 				clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid pod CIDR: %s", err))
 		}
-		if err := validateCIDRMatchesIPFamilies(podCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
+		if err := util.ValidateCIDRMatchesIPFamilies(podCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid pod CIDR: %s", err))
 		}
@@ -2219,16 +2218,16 @@ func addClusterNetworkPanel(c *Console) error {
 			return err
 		}
 
-		if err = validateCIDR(serviceCIDR); err != nil {
+		if err = util.ValidateCIDR(serviceCIDR); err != nil {
 			return c.setContentByName(
 				clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid service CIDR: %s", err))
 		}
-		if err = validateCIDRMatchesIPFamilies(serviceCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
+		if err = util.ValidateCIDRMatchesIPFamilies(serviceCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid service CIDR: %s", err))
 		}
-		if err = validateCIDRConsistency(c.config.ClusterPodCIDR, serviceCIDR); err != nil {
+		if err = util.ValidateCIDRConsistency(c.config.ClusterPodCIDR, serviceCIDR); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
 		c.config.ClusterServiceCIDR = serviceCIDR
@@ -2244,10 +2243,10 @@ func addClusterNetworkPanel(c *Console) error {
 		if err != nil {
 			return err
 		}
-		if err = validateDNSIP(dns, c.config.ClusterServiceCIDR); err != nil {
+		if err = util.ValidateDNSIP(dns, c.config.ClusterServiceCIDR); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
-		if err = validateDNSMatchesIPFamilies(dns, c.config.Install.IsIPv6Enabled()); err != nil {
+		if err = util.ValidateDNSMatchesIPFamilies(dns, c.config.Install.IsIPv6Enabled()); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
 		c.config.ClusterDNS = dns
@@ -2305,199 +2304,6 @@ func addClusterNetworkPanel(c *Console) error {
 	setLocation(validatorPanel, 6)
 	c.AddElement(clusterNetworkValidatorPanel, validatorPanel)
 
-	return nil
-}
-
-// validateCIDR checks that cidr is a valid CIDR string (or empty).
-// At most two comma-separated CIDRs are allowed (dual-stack).
-// A single CIDR must be IPv4; the first of two must be IPv4 and the second IPv6
-// (IPv4-first order -- the only supported dual-stack variant).
-func validateCIDR(cidr string) error {
-	cidr = strings.TrimSpace(cidr)
-	if cidr == "" {
-		return nil
-	}
-	parts := strings.Split(cidr, ",")
-	if len(parts) > 2 {
-		return fmt.Errorf("at most two CIDRs (IPv4,IPv6) are allowed, got %d", len(parts))
-	}
-	for _, p := range parts {
-		if _, err := netip.ParsePrefix(strings.TrimSpace(p)); err != nil {
-			return fmt.Errorf("%q is not a valid CIDR (expected e.g. 10.52.0.0/16 or fd52::/56)", strings.TrimSpace(p))
-		}
-	}
-	if len(parts) == 1 {
-		single, err := netip.ParsePrefix(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return err
-		}
-		if !single.Addr().Is4() {
-			return fmt.Errorf("a single CIDR must be IPv4 (e.g. 10.52.0.0/16); for dual-stack provide IPv4,IPv6")
-		}
-	}
-	if len(parts) == 2 {
-		first, err := netip.ParsePrefix(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return err
-		}
-		second, err := netip.ParsePrefix(strings.TrimSpace(parts[1]))
-		if err != nil {
-			return err
-		}
-		if !first.Addr().Is4() || second.Addr().Is4() {
-			return fmt.Errorf("dual-stack CIDRs must be in IPv4-first order (e.g. 10.52.0.0/16,fd52::/56)")
-		}
-	}
-	return nil
-}
-
-// validateCIDRConsistency checks that podCIDR and serviceCIDR are compatible:
-// both must have the same number of entries (both single-stack or both dual-stack)
-// and their ranges must not overlap.
-func validateCIDRConsistency(podCIDR, serviceCIDR string) error {
-	podCIDR = strings.TrimSpace(podCIDR)
-	serviceCIDR = strings.TrimSpace(serviceCIDR)
-	if podCIDR == "" || serviceCIDR == "" {
-		return nil
-	}
-	podParts := strings.Split(podCIDR, ",")
-	svcParts := strings.Split(serviceCIDR, ",")
-	if len(podParts) != len(svcParts) {
-		if len(podParts) > len(svcParts) {
-			return fmt.Errorf("pod CIDR is dual-stack but service CIDR is single-stack; both must use the same number of CIDRs")
-		}
-		return fmt.Errorf("service CIDR is dual-stack but pod CIDR is single-stack; both must use the same number of CIDRs")
-	}
-	podPrefixes := make([]netip.Prefix, 0, len(podParts))
-	for _, p := range podParts {
-		prefix, err := netip.ParsePrefix(strings.TrimSpace(p))
-		if err != nil {
-			return err
-		}
-		podPrefixes = append(podPrefixes, prefix.Masked())
-	}
-	svcPrefixes := make([]netip.Prefix, 0, len(svcParts))
-	for _, p := range svcParts {
-		prefix, err := netip.ParsePrefix(strings.TrimSpace(p))
-		if err != nil {
-			return err
-		}
-		svcPrefixes = append(svcPrefixes, prefix.Masked())
-	}
-	for _, pod := range podPrefixes {
-		for _, svc := range svcPrefixes {
-			if pod.Overlaps(svc) {
-				return fmt.Errorf("pod CIDR %s and service CIDR %s must not overlap", pod, svc)
-			}
-		}
-	}
-	return nil
-}
-
-// validateDNSIP checks that ip (comma-separated DNS addresses) are valid and
-// each falls within the matching-family service CIDR.
-// An empty ip with a non-empty serviceCIDR is allowed (defaults will be used).
-func validateDNSIP(ip, serviceCIDR string) error {
-	ip = strings.TrimSpace(ip)
-	serviceCIDR = strings.TrimSpace(serviceCIDR)
-	if ip == "" && serviceCIDR == "" {
-		return nil
-	}
-
-	// Build a map from Is4() bool -> service prefix so each DNS address
-	// can be matched to the CIDR of its own address family.
-	svcParts := strings.Split(serviceCIDR, ",")
-	svcNets := make(map[bool]netip.Prefix, len(svcParts))
-	for _, part := range svcParts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		prefix, parseErr := netip.ParsePrefix(part)
-		if parseErr != nil {
-			return fmt.Errorf("to override the cluster DNS IP, the service CIDR must be valid: %w", parseErr)
-		}
-		svcNets[prefix.Addr().Is4()] = prefix
-	}
-
-	if ip == "" {
-		return nil
-	}
-
-	// A single DNS IP must be IPv4; IPv6-only is not a supported mode.
-	if !strings.Contains(ip, ",") {
-		singleAddr, parseErr := netip.ParseAddr(strings.TrimSpace(ip))
-		if parseErr == nil && !singleAddr.Is4() {
-			return fmt.Errorf("a single DNS IP must be IPv4 (e.g. 10.53.0.10); for dual-stack provide IPv4,IPv6 (e.g. 10.53.0.10,fd53::a)")
-		}
-	}
-
-	dnsParts := strings.Split(ip, ",")
-	if len(dnsParts) > 2 {
-		return fmt.Errorf("at most two DNS IPs (IPv4,IPv6) are allowed, got %d", len(dnsParts))
-	}
-	parsed := make([]netip.Addr, 0, len(dnsParts))
-	for _, part := range dnsParts {
-		part = strings.TrimSpace(part)
-		ipAddr, parseErr := netip.ParseAddr(part)
-		if parseErr != nil {
-			return fmt.Errorf("invalid cluster DNS IP: %w", parseErr)
-		}
-		svcNet, ok := svcNets[ipAddr.Is4()]
-		if !ok {
-			return fmt.Errorf("invalid cluster DNS IP: %s has no matching service CIDR for its address family", part)
-		}
-		if !svcNet.Contains(ipAddr) {
-			return fmt.Errorf("invalid cluster DNS IP: %s is not in the service CIDR %s", part, svcNet)
-		}
-		if ipAddr == svcNet.Masked().Addr() {
-			return fmt.Errorf("invalid cluster DNS IP: %s is the network address of %s and cannot be used as a host address", part, svcNet)
-		}
-		parsed = append(parsed, ipAddr)
-	}
-	if len(parsed) == 2 {
-		if !parsed[0].Is4() || parsed[1].Is4() {
-			return fmt.Errorf("dual-stack DNS IPs must be in IPv4-first order (e.g. 10.53.0.10,fd53::a)")
-		}
-	}
-	return nil
-}
-
-// validateCIDRMatchesIPFamilies enforces that the CIDR stack mode matches the
-// configured IP families: IPv4-only mode requires a single IPv4 CIDR; dual-stack
-// mode requires exactly two CIDRs in IPv4,IPv6 order.
-// An empty cidr is always allowed (defaults are applied later).
-func validateCIDRMatchesIPFamilies(cidr string, ipv6Enabled bool) error {
-	cidr = strings.TrimSpace(cidr)
-	if cidr == "" {
-		return nil
-	}
-	isDual := strings.Contains(cidr, ",")
-	if ipv6Enabled {
-		if !isDual {
-			return fmt.Errorf("dual-stack mode (IPv4,IPv6) requires both an IPv4 and an IPv6 CIDR (e.g. 10.52.0.0/16,fd52::/56)")
-		}
-	} else {
-		if isDual {
-			return fmt.Errorf("IPv4-only mode requires a single IPv4 CIDR")
-		}
-	}
-	return nil
-}
-
-// validateDNSMatchesIPFamilies enforces DNS IP constraints based on the
-// configured IP families: IPv4-only mode requires a single IPv4 DNS address.
-// Dual-stack mode allows a single IPv4 address or IPv4+IPv6 pair.
-// An empty dns string is always allowed.
-func validateDNSMatchesIPFamilies(dns string, ipv6Enabled bool) error {
-	dns = strings.TrimSpace(dns)
-	if dns == "" {
-		return nil
-	}
-	isDual := strings.Contains(dns, ",")
-	if !ipv6Enabled && isDual {
-		return fmt.Errorf("IPv4-only mode requires a single IPv4 DNS address")
-	}
 	return nil
 }
 

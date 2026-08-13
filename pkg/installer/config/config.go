@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/imdario/mergo"
@@ -204,12 +205,7 @@ type Install struct {
 // (IPv4+IPv6). It returns true when IPFamilies contains IPFamilyIPv6.
 // An empty or nil IPFamilies slice means IPv4-only and returns false.
 func (i *Install) IsIPv6Enabled() bool {
-	for _, f := range i.IPFamilies {
-		if f == IPFamilyIPv6 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(i.IPFamilies, IPFamilyIPv6)
 }
 
 type File struct {
