@@ -19,30 +19,21 @@ func ValidateCIDR(cidr string) error {
 	if len(parts) > 2 {
 		return fmt.Errorf("at most two CIDRs (IPv4,IPv6) are allowed, got %d", len(parts))
 	}
+	prefixes := make([]netip.Prefix, 0, len(parts))
 	for _, p := range parts {
-		if _, err := netip.ParsePrefix(strings.TrimSpace(p)); err != nil {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(p))
+		if err != nil {
 			return fmt.Errorf("%q is not a valid CIDR (expected e.g. 10.52.0.0/16 or fd52::/56)", strings.TrimSpace(p))
 		}
+		prefixes = append(prefixes, prefix)
 	}
-	if len(parts) == 1 {
-		single, err := netip.ParsePrefix(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return err
-		}
-		if !single.Addr().Is4() {
+	switch len(prefixes) {
+	case 1:
+		if !prefixes[0].Addr().Is4() {
 			return fmt.Errorf("a single CIDR must be IPv4 (e.g. 10.52.0.0/16); for dual-stack provide IPv4,IPv6")
 		}
-	}
-	if len(parts) == 2 {
-		first, err := netip.ParsePrefix(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return err
-		}
-		second, err := netip.ParsePrefix(strings.TrimSpace(parts[1]))
-		if err != nil {
-			return err
-		}
-		if !first.Addr().Is4() || second.Addr().Is4() {
+	case 2:
+		if !prefixes[0].Addr().Is4() || prefixes[1].Addr().Is4() {
 			return fmt.Errorf("dual-stack CIDRs must be in IPv4-first order (e.g. 10.52.0.0/16,fd52::/56)")
 		}
 	}
@@ -124,7 +115,7 @@ func ValidateDNSIP(ip, serviceCIDR string) error {
 
 	// A single DNS IP must be IPv4; IPv6-only is not a supported mode.
 	if !strings.Contains(ip, ",") {
-		singleAddr, parseErr := netip.ParseAddr(strings.TrimSpace(ip))
+		singleAddr, parseErr := netip.ParseAddr(ip)
 		if parseErr == nil && !singleAddr.Is4() {
 			return fmt.Errorf("a single DNS IP must be IPv4 (e.g. 10.53.0.10); for dual-stack provide IPv4,IPv6 (e.g. 10.53.0.10,fd53::a)")
 		}
@@ -171,14 +162,11 @@ func ValidateCIDRMatchesIPFamilies(cidr string, ipv6Enabled bool) error {
 		return nil
 	}
 	isDual := strings.Contains(cidr, ",")
-	if ipv6Enabled {
-		if !isDual {
-			return fmt.Errorf("dual-stack mode (IPv4,IPv6) requires both an IPv4 and an IPv6 CIDR (e.g. 10.52.0.0/16,fd52::/56)")
-		}
-	} else {
-		if isDual {
-			return fmt.Errorf("IPv4-only mode requires a single IPv4 CIDR")
-		}
+	if ipv6Enabled && !isDual {
+		return fmt.Errorf("dual-stack mode (IPv4,IPv6) requires both an IPv4 and an IPv6 CIDR (e.g. 10.52.0.0/16,fd52::/56)")
+	}
+	if !ipv6Enabled && isDual {
+		return fmt.Errorf("IPv4-only mode requires a single IPv4 CIDR")
 	}
 	return nil
 }

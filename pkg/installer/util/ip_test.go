@@ -8,9 +8,10 @@ import (
 
 func TestValidateCIDR(t *testing.T) {
 	tests := []struct {
-		name    string
-		cidr    string
-		wantErr bool
+		name        string
+		cidr        string
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name:    "empty string is allowed",
@@ -109,9 +110,12 @@ func TestValidateCIDR(t *testing.T) {
 			err := ValidateCIDR(tc.cidr)
 			if tc.wantErr {
 				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -211,8 +215,18 @@ func TestValidateCIDRConsistency(t *testing.T) {
 			svcCIDR:     "0.0.0.0/0,::/0",
 			wantErr:     true,
 			errContains: "must not overlap",
+		}, {
+			name:    "invalid pod CIDR part returns parse error",
+			podCIDR: "not-a-cidr",
+			svcCIDR: "10.53.0.0/16",
+			wantErr: true,
 		},
-	}
+		{
+			name:    "invalid service CIDR part returns parse error",
+			podCIDR: "10.52.0.0/16",
+			svcCIDR: "not-a-cidr",
+			wantErr: true,
+		}}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidateCIDRConsistency(tc.podCIDR, tc.svcCIDR)
@@ -221,9 +235,9 @@ func TestValidateCIDRConsistency(t *testing.T) {
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
-			} else {
-				assert.NoError(t, err)
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -344,8 +358,19 @@ func TestValidateDNSIP(t *testing.T) {
 			ip:          "192.168.1.1",
 			serviceCIDR: "0.0.0.0/0",
 			wantErr:     false,
+		}, {
+			name:        "service CIDR with trailing comma skips empty part",
+			ip:          "10.53.0.10",
+			serviceCIDR: "10.53.0.0/16,",
+			wantErr:     false,
 		},
-	}
+		{
+			name:        "invalid service CIDR returns parse error",
+			ip:          "10.53.0.10",
+			serviceCIDR: "not-a-cidr",
+			wantErr:     true,
+			errContains: "the service CIDR must be valid",
+		}}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidateDNSIP(tc.ip, tc.serviceCIDR)
@@ -354,9 +379,9 @@ func TestValidateDNSIP(t *testing.T) {
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
-			} else {
-				assert.NoError(t, err)
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -370,16 +395,9 @@ func TestValidateCIDRMatchesIPFamilies(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:        "empty CIDR is always allowed (IPv4-only mode)",
-			cidr:        "",
-			ipv6Enabled: false,
-			wantErr:     false,
-		},
-		{
-			name:        "empty CIDR is always allowed (dual-stack mode)",
-			cidr:        "",
-			ipv6Enabled: true,
-			wantErr:     false,
+			name:    "empty CIDR is always allowed",
+			cidr:    "",
+			wantErr: false,
 		},
 		{
 			name:        "IPv4-only mode accepts single IPv4 CIDR",
@@ -447,9 +465,9 @@ func TestValidateCIDRMatchesIPFamilies(t *testing.T) {
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
-			} else {
-				assert.NoError(t, err)
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -463,16 +481,9 @@ func TestValidateDNSMatchesIPFamilies(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:        "empty DNS is always allowed (IPv4-only mode)",
-			dns:         "",
-			ipv6Enabled: false,
-			wantErr:     false,
-		},
-		{
-			name:        "empty DNS is always allowed (dual-stack mode)",
-			dns:         "",
-			ipv6Enabled: true,
-			wantErr:     false,
+			name:    "empty DNS is always allowed",
+			dns:     "",
+			wantErr: false,
 		},
 		{
 			name:        "IPv4-only mode accepts single IPv4 DNS",
@@ -508,9 +519,9 @@ func TestValidateDNSMatchesIPFamilies(t *testing.T) {
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
-			} else {
-				assert.NoError(t, err)
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
