@@ -45,8 +45,8 @@ PRETTY_NAME="Harvester ${VERSION}"
 cat > harvester-release.yaml <<EOF
 harvester: ${HARVESTER_VERSION}
 harvesterChart: ${HARVESTER_CHART_VERSION}
-installer: ${HARVESTER_VERSION}
 os: ${PRETTY_NAME}
+osImage: ${BASE_OS_IMAGE}
 kubernetes: ${RKE2_VERSION}
 rancher: ${RANCHER_VERSION}
 monitoringChart: ${MONITORING_VERSION}
