@@ -25,7 +25,7 @@ dependencies:
   version: 1.12.1-rc3
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
-  version: 0.9.9
+  version: 0.11.0
 - name: harvester-load-balancer
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
-digest: sha256:6439fbf84f277c72165bc1ed79699c10538acbf535b426f0ef65b802f4ee8ab0
-generated: "2026-08-12T15:22:11.640504448+08:00"
+digest: sha256:3851bd4369f0bf481d309e173faf565b3cf47e0d06bb05e3104bf550c1574ef2
+generated: "2026-08-14T08:48:34.013946166+02:00"
