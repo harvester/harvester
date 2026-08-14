@@ -1,0 +1,34 @@
+name: "Upgrade Collect Merged Upgrade PR Data"
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+    paths:
+      - 'package/upgrade/**'
+      - 'pkg/controller/master/upgrade/**'
+      - 'pkg/controller/master/upgradelog/**'
+      - 'pkg/webhook/resources/upgrade/**'
+      - 'pkg/webhook/resources/upgradelog/**'
+
+jobs:
+  collect-pr-data:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    permissions:
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Save PR data to artifact
+        run: |
+          {
+            echo "HTML_URL=${{ github.event.pull_request.html_url }}"
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}"
+          } > pr-data.env
+
+      - name: Upload PR data artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: upgrade-pr-data
+          path: pr-data.env
