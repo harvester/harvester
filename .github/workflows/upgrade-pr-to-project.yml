@@ -1,31 +1,41 @@
-name: "[Upgrade] Add Merged Upgrade Related PR to Project"
+name: "Upgrade Add Merged Upgrade Related PR to Project"
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - master
-    paths:
-      - 'package/upgrade/**'
-      - 'pkg/controller/master/upgrade/**'
-      - 'pkg/controller/master/upgradelog/**'
-      - 'pkg/webhook/resources/upgrade/**'
-      - 'pkg/webhook/resources/upgradelog/**'
+  workflow_run:
+    workflows: ["Upgrade Collect Merged Upgrade PR Data"]
+    types: [completed]
 
 env:
   UPGRADE_PROJECT_URL: https://github.com/orgs/harvester/projects/28
+  PROJECT_OWNER: harvester
+  PROJECT_NUMBER: 28
 
 jobs:
   add-to-project:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      actions: read
     steps:
+      - name: Download PR data artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: upgrade-pr-data
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Load PR data
+        run: |
+          cat pr-data.env >> $GITHUB_ENV
+
       - name: Add merged PR to project
         id: add-project
-        uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
-        with:
-          project-url: ${{ env.UPGRADE_PROJECT_URL }}
-          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        run: |
+          item_id=$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$HTML_URL" --format json | jq -r '.id')
+          sleep 5 # newly added items default to DONE; wait before overriding to avoid race
+          echo "itemId=$item_id" >> $GITHUB_OUTPUT
 
       - name: Set project status to Todo
         if: steps.add-project.outputs.itemId != ''
