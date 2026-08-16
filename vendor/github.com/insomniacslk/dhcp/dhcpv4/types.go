@@ -281,7 +281,9 @@ const (
 	OptionQueryEndTime      optionCode = 155
 	OptionDHCPState         optionCode = 156
 	OptionDataSource        optionCode = 157
-	// Options 158-174 returned in RFC 3679
+	// Options 158-161 returned in RFC 3679
+	OptionV4DNR optionCode = 162
+	// Options 163-174 returned in RFC 3679
 	OptionEtherboot                        optionCode = 175
 	OptionIPTelephone                      optionCode = 176
 	OptionEtherbootPacketCableAndCableHome optionCode = 177
@@ -446,7 +448,9 @@ var optionCodeToString = map[OptionCode]string{
 	OptionQueryEndTime:      "Query End Time",
 	OptionDHCPState:         "DHCP Staet",
 	OptionDataSource:        "Data Source",
-	// Options 158-174 returned in RFC 3679
+	// Options 158-161 returned in RFC 3679
+	OptionV4DNR: "Encrypted DNS",
+	// Options 163-174 returned in RFC 3679
 	OptionEtherboot:                        "Etherboot",
 	OptionIPTelephone:                      "IP Telephone",
 	OptionEtherbootPacketCableAndCableHome: "Etherboot / PacketCable and CableHome",

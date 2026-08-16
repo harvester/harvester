@@ -21,11 +21,6 @@ var (
 	// ErrZeroLengthByteStream is an error that is thrown any time a zero-length
 	// byte stream is encountered.
 	ErrZeroLengthByteStream = errors.New("zero-length byte stream")
-
-	// ErrInvalidOptions is returned when invalid options data is
-	// encountered during parsing. The data could report an incorrect
-	// length or have trailing bytes which are not part of the option.
-	ErrInvalidOptions = errors.New("invalid options data")
 )
 
 // OptionValue is an interface that all DHCP v4 options adhere to.
@@ -161,14 +156,6 @@ func (o Options) fromBytesCheckEnd(data []byte, checkEndOption bool) error {
 		return io.ErrUnexpectedEOF
 	}
 
-	// Any bytes left must be padding.
-	var pad uint8
-	for buf.Len() >= 1 {
-		pad = buf.Read8()
-		if pad != optPad && pad != optEnd {
-			return ErrInvalidOptions
-		}
-	}
 	return nil
 }
 
@@ -344,7 +331,8 @@ func getOption(code OptionCode, data []byte, vendorDecoder OptionDecoder) fmt.St
 		d = &OptionCodeList{}
 
 	case OptionHostName, OptionDomainName, OptionRootPath,
-		OptionClassIdentifier, OptionTFTPServerName, OptionBootfileName:
+		OptionClassIdentifier, OptionTFTPServerName, OptionBootfileName,
+		OptionMessage, OptionReferenceToTZDatabase:
 		var s String
 		d = &s
 
@@ -354,7 +342,9 @@ func getOption(code OptionCode, data []byte, vendorDecoder OptionDecoder) fmt.St
 	case OptionDNSDomainSearchList:
 		d = &rfc1035label.Labels{}
 
-	case OptionIPAddressLeaseTime, OptionRenewTimeValue, OptionRebindingTimeValue, OptionIPv6OnlyPreferred:
+	case OptionIPAddressLeaseTime, OptionRenewTimeValue,
+		OptionRebindingTimeValue, OptionIPv6OnlyPreferred, OptionArpCacheTimeout,
+		OptionTimeOffset:
 		var dur Duration
 		d = &dur
 

@@ -73,7 +73,7 @@ require (
 	github.com/harvester/node-manager v1.7.0-rc1.0.20260616060042-1afd5765b4b9
 	github.com/iancoleman/strcase v0.3.0
 	github.com/imdario/mergo v0.3.16
-	github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9
+	github.com/insomniacslk/dhcp v0.0.0-20260719225207-c76316d4aa82
 	github.com/jroimartin/gocui v0.5.0
 	github.com/k3s-io/helm-controller v0.16.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
