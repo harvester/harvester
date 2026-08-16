@@ -87,6 +87,16 @@ func OptNTPServers(ntpServers ...net.IP) Option {
 	}
 }
 
+// OptNetBIOSNameServers returns a new DHCPv4 NetBIOS Name Server option.
+//
+// The NetBIOS over TCP/IP Name Server option is described by RFC 2132, Section 8.5.
+func OptNetBIOSNameServers(netBIOSNameServers ...net.IP) Option {
+	return Option{
+		Code:  OptionNetBIOSOverTCPIPNameServer,
+		Value: IPs(netBIOSNameServers),
+	}
+}
+
 // OptDNS returns a new DHCPv4 Domain Name Server option.
 //
 // The DNS server option is described by RFC 2132, Section 3.8.

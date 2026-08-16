@@ -7,12 +7,14 @@ type EnterpriseID int
 const (
 	EnterpriseIDCiscoSystems            EnterpriseID = 9
 	EnterpriseIDCienaCorporation        EnterpriseID = 1271
+	EnterpriseIDInfineraCorp            EnterpriseID = 21296
 	EnterpriseIDMellanoxTechnologiesLTD EnterpriseID = 33049
 )
 
 var enterpriseIDToStringMap = map[EnterpriseID]string{
 	EnterpriseIDCiscoSystems:            "Cisco Systems",
 	EnterpriseIDCienaCorporation:        "Ciena Corporation",
+	EnterpriseIDInfineraCorp:            "Infinera Corp.",
 	EnterpriseIDMellanoxTechnologiesLTD: "Mellanox Technologies LTD",
 }
 

@@ -587,8 +587,8 @@ github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9
-## explicit; go 1.20
+# github.com/insomniacslk/dhcp v0.0.0-20260719225207-c76316d4aa82
+## explicit; go 1.23.0
 github.com/insomniacslk/dhcp/dhcpv4
 github.com/insomniacslk/dhcp/dhcpv4/nclient4
 github.com/insomniacslk/dhcp/iana
