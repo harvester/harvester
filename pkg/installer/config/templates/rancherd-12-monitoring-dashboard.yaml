@@ -1827,7 +1827,7 @@ resources:
                   "uid": "prometheus"
                 },
                 "editorMode": "code",
-                "expr": "kubevirt_vmi_migration_disk_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}",
+                "expr": "kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}",
                 "legendFormat": "memory transfer rate",
                 "range": true,
                 "refId": "A"
