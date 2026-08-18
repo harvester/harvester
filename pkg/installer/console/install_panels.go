@@ -2198,7 +2198,7 @@ func addClusterNetworkPanel(c *Console) error {
 				fmt.Sprintf("Invalid pod CIDR: %s", err))
 		}
 
-		c.config.ClusterPodCIDR = podCIDR
+		c.config.ClusterPodCIDR = strings.TrimSpace(podCIDR)
 
 		if err := c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
@@ -2224,7 +2224,7 @@ func addClusterNetworkPanel(c *Console) error {
 		if err = util.ValidateCIDRConsistency(c.config.ClusterPodCIDR, serviceCIDR); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
-		c.config.ClusterServiceCIDR = serviceCIDR
+		c.config.ClusterServiceCIDR = strings.TrimSpace(serviceCIDR)
 
 		if err = c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
@@ -2243,7 +2243,7 @@ func addClusterNetworkPanel(c *Console) error {
 		if err = util.ValidateDNSMatchesIPFamilies(dns, c.config.Install.IsIPv6Enabled()); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
-		c.config.ClusterDNS = dns
+		c.config.ClusterDNS = strings.TrimSpace(dns)
 
 		if err = c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
