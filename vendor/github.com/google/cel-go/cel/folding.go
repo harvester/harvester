@@ -15,6 +15,8 @@
 package cel
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/cel-go/common/ast"
@@ -38,6 +40,23 @@ func MaxConstantFoldIterations(limit int) ConstantFoldingOption {
 	}
 }
 
+// FoldKnownValues adds an Activation which provides known values for the folding evaluator
+//
+// Any values the activation provides will be used by the constant folder and turned into
+// literals in the AST.
+//
+// Defaults to the NoVars() Activation
+func FoldKnownValues(knownValues Activation) ConstantFoldingOption {
+	return func(opt *constantFoldingOptimizer) (*constantFoldingOptimizer, error) {
+		if knownValues != nil {
+			opt.knownValues = knownValues
+		} else {
+			opt.knownValues = NoVars()
+		}
+		return opt, nil
+	}
+}
+
 // NewConstantFoldingOptimizer creates an optimizer which inlines constant scalar an aggregate
 // literal values within function calls and select statements with their evaluated result.
 func NewConstantFoldingOptimizer(opts ...ConstantFoldingOption) (ASTOptimizer, error) {
@@ -56,6 +75,7 @@ func NewConstantFoldingOptimizer(opts ...ConstantFoldingOption) (ASTOptimizer, e
 
 type constantFoldingOptimizer struct {
 	maxFoldIterations int
+	knownValues       Activation
 }
 
 // Optimize queries the expression graph for scalar and aggregate literal expressions within call and
@@ -68,30 +88,37 @@ func (opt *constantFoldingOptimizer) Optimize(ctx *OptimizerContext, a *ast.AST)
 	// Walk the list of foldable expression and continue to fold until there are no more folds left.
 	// All of the fold candidates returned by the constantExprMatcher should succeed unless there's
 	// a logic bug with the selection of expressions.
-	foldableExprs := ast.MatchDescendants(root, constantExprMatcher)
+	constantExprMatcherCapture := func(e ast.NavigableExpr) bool { return opt.constantExprMatcher(ctx, a, e) }
+	foldableExprs := ast.MatchDescendants(root, constantExprMatcherCapture)
 	foldCount := 0
 	for len(foldableExprs) != 0 && foldCount < opt.maxFoldIterations {
 		for _, fold := range foldableExprs {
 			// If the expression could be folded because it's a non-strict call, and the
 			// branches are pruned, continue to the next fold.
-			if fold.Kind() == ast.CallKind && maybePruneBranches(ctx, fold) {
+			if fold.Kind() == ast.CallKind && maybePruneBranches(ctx, a, fold) {
+				continue
+			}
+			// Late-bound function calls cannot be folded.
+			if fold.Kind() == ast.CallKind && isLateBoundFunctionCall(ctx, fold) {
 				continue
 			}
 			// Otherwise, assume all context is needed to evaluate the expression.
-			err := tryFold(ctx, a, fold)
-			if err != nil {
+			err := opt.tryFold(ctx, a, fold)
+			// Ignore errors for identifiers or subexpressions that cannot be folded, since there is no guarantee that the environment
+			// has a value for them.
+			if err != nil && fold.Kind() != ast.IdentKind && !errors.Is(err, errCannotFold) {
 				ctx.ReportErrorAtID(fold.ID(), "constant-folding evaluation failed: %v", err.Error())
 				return a
 			}
 		}
 		foldCount++
-		foldableExprs = ast.MatchDescendants(root, constantExprMatcher)
+		foldableExprs = ast.MatchDescendants(root, constantExprMatcherCapture)
 	}
 	// Once all of the constants have been folded, try to run through the remaining comprehensions
 	// one last time. In this case, there's no guarantee they'll run, so we only update the
 	// target comprehension node with the literal value if the evaluation succeeds.
 	for _, compre := range ast.MatchDescendants(root, ast.KindMatcher(ast.ComprehensionKind)) {
-		tryFold(ctx, a, compre)
+		opt.tryFold(ctx, a, compre)
 	}
 
 	// If the output is a list, map, or struct which contains optional entries, then prune it
@@ -117,20 +144,19 @@ func (opt *constantFoldingOptimizer) Optimize(ctx *OptimizerContext, a *ast.AST)
 	return a
 }
 
+var errCannotFold = errors.New("subexpression cannot be folded")
+
 // tryFold attempts to evaluate a sub-expression to a literal.
 //
 // If the evaluation succeeds, the input expr value will be modified to become a literal, otherwise
 // the method will return an error.
-func tryFold(ctx *OptimizerContext, a *ast.AST, expr ast.Expr) error {
-	// Assume all context is needed to evaluate the expression.
-	subAST := &Ast{
-		impl: ast.NewCheckedAST(ast.NewAST(expr, a.SourceInfo()), a.TypeMap(), a.ReferenceMap()),
+func (opt *constantFoldingOptimizer) tryFold(ctx *OptimizerContext, a *ast.AST, expr ast.Expr) error {
+	activation := opt.knownValues
+	if activation == nil {
+		activation = NoVars()
 	}
-	prg, err := ctx.Program(subAST)
-	if err != nil {
-		return err
-	}
-	out, _, err := prg.Eval(NoVars())
+	navExpr := expr.(ast.NavigableExpr)
+	out, err := evaluateExpr(ctx, a, navExpr, activation)
 	if err != nil {
 		return err
 	}
@@ -139,16 +165,49 @@ func tryFold(ctx *OptimizerContext, a *ast.AST, expr ast.Expr) error {
 	return nil
 }
 
+func evaluateExpr(ctx *OptimizerContext, a *ast.AST, navigableExpr ast.NavigableExpr, activation Activation) (ref.Val, error) {
+	partialActivation, err := ctx.PartialVars(activation)
+	if err != nil {
+		return nil, err
+	}
+	subAST := &Ast{
+		impl: ast.NewCheckedAST(ast.NewAST(navigableExpr, a.SourceInfo()), a.TypeMap(), a.ReferenceMap()),
+	}
+	prg, err := ctx.Program(subAST)
+	if err != nil {
+		return nil, err
+	}
+	// Folding will not attempt to call async functions which are all marked as late-bound,
+	// but the presence of such functions requires the use of `ConcurrentEval` in order to
+	// avoid an early return error which blocks async functions from running in `Eval` and
+	// `ContextEval` call paths.
+	resCh := prg.ConcurrentEval(context.Background(), partialActivation)
+	res := <-resCh
+	if res.Err != nil || types.IsUnknown(res.Val) {
+		return nil, errCannotFold
+	}
+	return res.Val, nil
+}
+
+func isLateBoundFunctionCall(ctx *OptimizerContext, expr ast.Expr) bool {
+	call := expr.AsCall()
+	function := ctx.Functions()[call.FunctionName()]
+	if function == nil {
+		return false
+	}
+	return function.HasLateBinding()
+}
+
 // maybePruneBranches inspects the non-strict call expression to determine whether
 // a branch can be removed. Evaluation will naturally prune logical and / or calls,
 // but conditional will not be pruned cleanly, so this is one small area where the
 // constant folding step reimplements a portion of the evaluator.
-func maybePruneBranches(ctx *OptimizerContext, expr ast.NavigableExpr) bool {
+func maybePruneBranches(ctx *OptimizerContext, a *ast.AST, expr ast.NavigableExpr) bool {
 	call := expr.AsCall()
 	args := call.Args()
 	switch call.FunctionName() {
 	case operators.LogicalAnd, operators.LogicalOr:
-		return maybeShortcircuitLogic(ctx, call.FunctionName(), args, expr)
+		return maybeShortcircuitLogic(ctx, a, call.FunctionName(), args, expr)
 	case operators.Conditional:
 		cond := args[0]
 		truthy := args[1]
@@ -169,11 +228,17 @@ func maybePruneBranches(ctx *OptimizerContext, expr ast.NavigableExpr) bool {
 			return true
 		}
 		needle := args[0]
-		if needle.Kind() == ast.LiteralKind && haystack.Kind() == ast.ListKind {
-			needleValue := needle.AsLiteral()
+		if (needle.Kind() == ast.LiteralKind || isSelfEqualIdent(needle)) && haystack.Kind() == ast.ListKind {
+			needleIsLit := needle.Kind() == ast.LiteralKind
+			needleLitVal := needle.AsLiteral()
+			needleIdentVal := needle.AsIdent()
 			list := haystack.AsList()
-			for _, e := range list.Elements() {
-				if e.Kind() == ast.LiteralKind && e.AsLiteral().Equal(needleValue) == types.True {
+			for _, elem := range list.Elements() {
+				if needleIsLit && elem.Kind() == ast.LiteralKind && elem.AsLiteral().Equal(needleLitVal) == types.True {
+					ctx.UpdateExpr(expr, ctx.NewLiteral(types.True))
+					return true
+				}
+				if !needleIsLit && elem.Kind() == ast.IdentKind && elem.AsIdent() == needleIdentVal {
 					ctx.UpdateExpr(expr, ctx.NewLiteral(types.True))
 					return true
 				}
@@ -183,7 +248,7 @@ func maybePruneBranches(ctx *OptimizerContext, expr ast.NavigableExpr) bool {
 	return false
 }
 
-func maybeShortcircuitLogic(ctx *OptimizerContext, function string, args []ast.Expr, expr ast.NavigableExpr) bool {
+func maybeShortcircuitLogic(ctx *OptimizerContext, a *ast.AST, function string, args []ast.Expr, expr ast.NavigableExpr) bool {
 	shortcircuit := types.False
 	skip := types.True
 	if function == operators.LogicalOr {
@@ -206,15 +271,29 @@ func maybeShortcircuitLogic(ctx *OptimizerContext, function string, args []ast.E
 	}
 	if len(newArgs) == 0 {
 		newArgs = append(newArgs, args[0])
-		ctx.UpdateExpr(expr, newArgs[0])
-		return true
+	}
+	if len(newArgs) == len(args) {
+		return false
 	}
 	if len(newArgs) == 1 {
+		if !isBoolType(a, newArgs[0]) {
+			return false
+		}
 		ctx.UpdateExpr(expr, newArgs[0])
 		return true
 	}
 	ctx.UpdateExpr(expr, ctx.NewCall(function, newArgs...))
 	return true
+}
+
+func isBoolType(a *ast.AST, e ast.Expr) bool {
+	if a != nil && a.GetType(e.ID()) == types.BoolType {
+		return true
+	}
+	if e.Kind() == ast.LiteralKind && e.AsLiteral().Type() == types.BoolType {
+		return true
+	}
+	return false
 }
 
 // pruneOptionalElements works from the bottom up to resolve optional elements within
@@ -247,9 +326,9 @@ func pruneOptionalListElements(ctx *OptimizerContext, e ast.Expr) {
 	updatedElems := []ast.Expr{}
 	updatedIndices := []int32{}
 	newOptIndex := -1
-	for _, e := range elems {
+	for i, e := range elems {
 		newOptIndex++
-		if !l.IsOptional(int32(newOptIndex)) {
+		if !l.IsOptional(int32(i)) {
 			updatedElems = append(updatedElems, e)
 			continue
 		}
@@ -455,13 +534,15 @@ func adaptLiteral(ctx *OptimizerContext, val ref.Val) (ast.Expr, error) {
 // Only comprehensions which are not nested are included as possible constant folds, and only
 // if all variables referenced in the comprehension stack exist are only iteration or
 // accumulation variables.
-func constantExprMatcher(e ast.NavigableExpr) bool {
+func (opt *constantFoldingOptimizer) constantExprMatcher(ctx *OptimizerContext, a *ast.AST, e ast.NavigableExpr) bool {
 	switch e.Kind() {
 	case ast.CallKind:
 		return constantCallMatcher(e)
 	case ast.SelectKind:
 		sel := e.AsSelect() // guaranteed to be a navigable value
 		return constantMatcher(sel.Operand().(ast.NavigableExpr))
+	case ast.IdentKind:
+		return opt.knownValues != nil && a.ReferenceMap()[e.ID()] != nil && !hasComprehensionVar(e)
 	case ast.ComprehensionKind:
 		if isNestedComprehension(e) {
 			return false
@@ -473,8 +554,15 @@ func constantExprMatcher(e ast.NavigableExpr) bool {
 				nested := e.AsComprehension()
 				vars[nested.AccuVar()] = true
 				vars[nested.IterVar()] = true
+				if nested.IterVar2() != "" {
+					vars[nested.IterVar2()] = true
+				}
 			}
 			if e.Kind() == ast.IdentKind && !vars[e.AsIdent()] {
+				constantExprs = false
+			}
+			// Late-bound function calls cannot be folded.
+			if e.Kind() == ast.CallKind && isLateBoundFunctionCall(ctx, e) {
 				constantExprs = false
 			}
 		})
@@ -510,17 +598,33 @@ func constantCallMatcher(e ast.NavigableExpr) bool {
 			return true
 		}
 	}
+	if fnName == operators.Equals || fnName == operators.NotEquals {
+		if hasComprehensionVar(e) {
+			return false
+		}
+		if isExprConstantOfKind(children[0], types.BoolType) || isExprConstantOfKind(children[1], types.BoolType) {
+			return true
+		}
+	}
 	if fnName == operators.In {
+		if hasComprehensionVar(e) {
+			return false
+		}
 		haystack := children[1]
 		if haystack.Kind() == ast.ListKind && haystack.AsList().Size() == 0 {
 			return true
 		}
 		needle := children[0]
-		if needle.Kind() == ast.LiteralKind && haystack.Kind() == ast.ListKind {
-			needleValue := needle.AsLiteral()
+		if (needle.Kind() == ast.LiteralKind || isSelfEqualIdent(needle)) && haystack.Kind() == ast.ListKind {
+			needleIsLit := needle.Kind() == ast.LiteralKind
+			needleLitVal := needle.AsLiteral()
+			needleIdentVal := needle.AsIdent()
 			list := haystack.AsList()
-			for _, e := range list.Elements() {
-				if e.Kind() == ast.LiteralKind && e.AsLiteral().Equal(needleValue) == types.True {
+			for _, elem := range list.Elements() {
+				if needleIsLit && elem.Kind() == ast.LiteralKind && elem.AsLiteral().Equal(needleLitVal) == types.True {
+					return true
+				}
+				if !needleIsLit && elem.Kind() == ast.IdentKind && elem.AsIdent() == needleIdentVal {
 					return true
 				}
 			}
@@ -533,6 +637,74 @@ func constantCallMatcher(e ast.NavigableExpr) bool {
 		}
 	}
 	return true
+}
+
+// isSelfEqualIdent indicates whether the expression is an identifier whose static type
+// guarantees that its runtime value is equal to itself.
+//
+// Matching an identifier against a list element by name only proves list membership when the
+// value the name resolves to is self-equal. A double may be NaN, which is not equal to itself,
+// and dyn, abstract, and struct types may all hold a NaN at runtime, so the check is limited
+// to the scalar types which cannot, and to the aggregate types whose type parameters are
+// themselves self-equal.
+func isSelfEqualIdent(e ast.Expr) bool {
+	if e.Kind() != ast.IdentKind {
+		return false
+	}
+	nav, ok := e.(ast.NavigableExpr)
+	if !ok {
+		return false
+	}
+	return isSelfEqualType(nav.Type())
+}
+
+// isSelfEqualType indicates whether all runtime values of the given type are equal to themselves.
+func isSelfEqualType(t *types.Type) bool {
+	if t == nil {
+		return false
+	}
+	switch t.Kind() {
+	case types.BoolKind, types.BytesKind, types.DurationKind, types.IntKind,
+		types.NullTypeKind, types.StringKind, types.TimestampKind, types.TypeKind,
+		types.UintKind:
+		return true
+	case types.ListKind, types.MapKind:
+		// Aggregates compare element-wise, so they are self-equal exactly when their type
+		// parameters are. A list(dyn) or map(string, double) may still contain a NaN.
+		for _, p := range t.Parameters() {
+			if !isSelfEqualType(p) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func isExprConstantOfKind(e ast.Expr, t *types.Type) bool {
+	return e.Kind() == ast.LiteralKind && e.AsLiteral().Type() == t
+}
+
+func hasComprehensionVar(e ast.NavigableExpr) bool {
+	idents := ast.MatchDescendants(e, ast.KindMatcher(ast.IdentKind))
+	for _, identNode := range idents {
+		identName := identNode.AsIdent()
+		curr := identNode
+		parent, found := curr.Parent()
+		for found {
+			if parent.Kind() == ast.ComprehensionKind {
+				compre := parent.AsComprehension()
+				if (compre.AccuVar() == identName || compre.IterVar() == identName || compre.IterVar2() == identName) &&
+					curr.ID() != compre.IterRange().ID() && curr.ID() != compre.AccuInit().ID() {
+					return true
+				}
+			}
+			curr = parent
+			parent, found = parent.Parent()
+		}
+	}
+	return false
 }
 
 func isNestedComprehension(e ast.NavigableExpr) bool {
