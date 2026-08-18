@@ -440,6 +440,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
@@ -553,6 +555,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
@@ -684,6 +688,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
@@ -815,6 +821,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
@@ -946,6 +954,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
@@ -1081,6 +1091,8 @@ spec:
                   enabled: true
                 synictimer:
                   enabled: true
+                  direct:
+                    enabled: true
                 ipi:
                   enabled: true
                 runtime:
