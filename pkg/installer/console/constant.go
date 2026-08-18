@@ -96,7 +96,7 @@ const (
 	clusterNetworkNotePanel      = "clusterNetworkNotePanel"
 	clusterNetworkDNSNotePanel   = "clusterNetworkDNSNotePanel"
 	clusterNetworkValidatorPanel = "clusterNetworkValidatorPanel"
-	clusterNetworkNote           = "Note: Defaults are pre-filled. The DNS IP must be within the service CIDR range. Pod and service CIDRs must not overlap."
+	clusterNetworkNote           = "Note: Defaults are pre-filled. For dual-stack, use comma-separated IPv4,IPv6 values (pod 10.52.0.0/16,fd52::/56; service 10.53.0.0/16,fd53::/112; DNS 10.53.0.10,fd53::a), with IPv4 first. DNS must be within the service CIDR; pod and service CIDRs must not overlap."
 
 	clusterTokenCreateNote = "Note: The token is used for adding nodes to the cluster"
 	clusterTokenJoinNote   = "Note: Input the token of the existing cluster"

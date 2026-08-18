@@ -1589,12 +1589,6 @@ func addNetworkPanel(c *Console) error {
 	preGotoNextPage := func() (string, error) {
 		ipv6Enabled := c.config.Install.IsIPv6Enabled()
 
-		// Enable or disable IPv6 in the kernel before NetworkManager applies
-		// the interface config so that NM can configure IPv6 if needed.
-		if err := applyKernelIPv6(ipv6Enabled); err != nil {
-			return fmt.Sprintf("Failed to configure IPv6 kernel settings: %s", err), nil
-		}
-
 		err := setupNetwork()
 		if err != nil {
 			return fmt.Sprintf("Configure network failed: %s", err), nil

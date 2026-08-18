@@ -114,6 +114,10 @@ func applyNetworks(network config.Network, hostname string, ipv6Enabled bool) er
 		}
 	}
 
+	if err := applyKernelIPv6(ipv6Enabled); err != nil {
+		return err
+	}
+
 	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true, ipv6Enabled)
 	if err != nil {
 		return err
