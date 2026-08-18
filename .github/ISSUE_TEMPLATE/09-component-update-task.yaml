@@ -27,7 +27,7 @@ body:
         - [ ] Embedded Rancher @wheatdog
         - [ ] RKE2 @wheatdog
         - [ ] Longhorn @Vicente-Cheng
-        - [ ] KubeVirt @Vicente-Cheng (also virtctl)
+        - [ ] KubeVirt @Vicente-Cheng
         - [ ] Kube-OVN @starbops
         - [ ] Containerized-Data Importer @brandboat
       - Libraries
@@ -61,6 +61,11 @@ body:
         - [ ] VMDP (Virtual Machine Driver Pack for Microsoft Windows) @Vicente-Cheng
       - Misc
         - [ ] [Storage Certification Validator](https://github.com/harvester/storage-validator) @ibrokethecloud
+        - OS/Upgrade tool-kits
+          - [ ] kubectl @wheatdog
+          - [ ] virtctl @Vicente-Cheng
+          - [ ] yq @ihcsim (CVE-driven)
+          - [ ] wharfie @ihcsim (CVE-driven)
         
       > [!Note]
       > `*` means the component version (including the chart versions and/or the image tags) will align with Harvester releases.
