@@ -47,7 +47,7 @@ patch_harvester_vm_migration_details_dashboard() {
           "overrides": []
         },
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
-        "id": 12,
+        "id": 10,
         "options": {
           "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false},
           "tooltip": {"mode": "single", "sort": "none"}
@@ -56,13 +56,13 @@ patch_harvester_vm_migration_details_dashboard() {
           {
             "datasource": {"type": "prometheus", "uid": "prometheus"},
             "editorMode": "code",
-            "expr": "(\n  (\n    kubevirt_vmi_migration_dirty_memory_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}\n    / kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}\n  )\n  and on(namespace, name) (\n    kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"} > 0\n  )\n)\nor on(namespace, name) (\n  kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"} == 0\n  * 0 + -1\n)",
+            "expr": "(\n  (\n    kubevirt_vmi_migration_dirty_memory_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}\n    / kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"}\n  )\n  and on(namespace, name) (\n    kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"} > 0\n  )\n)\nor on(namespace, name) (\n  (kubevirt_vmi_migration_memory_transfer_rate_bytes{namespace=\"$namespace\", name=\"$vm\"} == 0)\n  * 0 - 1\n)",
             "legendFormat": "dirty / transfer",
             "range": true,
             "refId": "A"
           }
         ],
-        "title": "Dirty / Transfer Rate Ratio",
+        "title": "Migration Memory Dirty vs Transfer Rate Ratio",
         "type": "timeseries"
       }' '
         .data."harvester_vm_migration_details.json" | fromjson |
@@ -74,16 +74,10 @@ patch_harvester_vm_migration_details_dashboard() {
               .
             end
           ) |
-          if map(.title) | index("Dirty / Transfer Rate Ratio") | not then
-            . + [$new_panel]
+          if map(.title) | index("Migration Memory Dirty vs Transfer Rate Ratio") | not then
+            . + [($new_panel | .id = 10)]
           else
-            map(
-              if .title == "Dirty / Transfer Rate Ratio" then
-                $new_panel
-              else
-                .
-              end
-            )
+            .
           end
         )'
   )
@@ -96,4 +90,3 @@ patch_harvester_vm_migration_details_dashboard() {
   kubectl patch -n cattle-dashboards configmap harvester-vm-migration-details-dashboard \
     --type merge -p "$patch_json"
 }
-patch_harvester_vm_migration_details_dashboard
