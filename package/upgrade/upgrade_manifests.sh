@@ -70,6 +70,9 @@ pre_upgrade_manifest() {
     echo "Executing ${UPGRADE_PREVIOUS_VERSION} pre-hook..."
     # Use source to pass current shell's variables to target script
     source "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh"
+    if [[ "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]+$ ]]; then
+      patch_harvester_vm_migration_details_dashboard
+    fi
   fi
 
   # Safety Gate: Ensure rke2-multus helmchart failurePolicy is 'abort' before proceeding.
