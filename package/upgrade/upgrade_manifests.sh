@@ -1584,6 +1584,12 @@ migrate_longhorn_v1beta1_crds() {
 }
 
 patch_rke2_traefik_config() {
+  # This patch is only needed when the pre-upgrade cluster version is v1.8.*
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.8[.-][a-zA-Z0-9.-]+$ ]]; then
+    echo "Skip check and apply of default rke2-traefik helm chart config: pre-upgrade version is not v1.8.x (actual: ${UPGRADE_PREVIOUS_VERSION})"
+    return
+  fi
+
   echo "Check and apply default rke2-traefik helm chart config"
 
   local name="rke2-traefik"
@@ -1604,6 +1610,9 @@ spec:
     logs:
       access:
         enabled: "true"
+    service:
+      spec:
+        type: LoadBalancer
     additionalArguments:
     - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
     - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
@@ -1612,7 +1621,7 @@ EOF
   # 2. Check if the resource exists
   local EXIT_CODE=0
   # Using a global variable to ensure EXIT_CODE is captured correctly under 'set -e'
-  rke2_traefik_chart_config_output=$(kubectl get helmchartconfig "$name" -n "$namespace" 2>&1) || EXIT_CODE=$?
+  rke2_traefik_chart_config_output=$(kubectl get helmchartconfig "${name}" -n "${namespace}" -o yaml 2>&1) || EXIT_CODE=$?
 
   if [[ $EXIT_CODE -ne 0 ]]; then
     if [[ "$rke2_traefik_chart_config_output" == *"NotFound"* || "$rke2_traefik_chart_config_output" == *"not found"* ]]; then
@@ -1625,6 +1634,18 @@ EOF
       return 1
     fi
   fi
+
+  # 3. Print existing resource configuration
+  echo "Resource helmchartconfig '${name}' exists:"
+  echo "--------------------------------------------------"
+  echo "${rke2_traefik_chart_config_output}"
+  echo "--------------------------------------------------"
+
+  # Note: Extracting and deep-merging spec.valuesContent (e.g., using yq to preserve custom Helm values)
+  # is intentionally skipped. Because valuesContent is an embedded YAML string inside the CRD, a proper merge
+  # requires parsing the raw string, performing a key-by-key YAML merge, and re-serializing it back into the spec.
+  # Since this patch is designed to initialize the canonical HelmChartConfig manifest matching the v1.9.0 default
+  # definition when missing, if the resource already exists, we assume its content is up to date and require no further changes.
 }
 
 # Since Rancher v2.15.0, tls-internal-cn-allowed-services is needed to be
