@@ -228,6 +228,9 @@ resources:
       logs:
         access:
           enabled: "true"
+      service:
+        spec:
+          type: LoadBalancer
       additionalArguments:
       - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
       - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
