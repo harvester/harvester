@@ -3,12 +3,12 @@ package console
 import (
 	"fmt"
 	"net"
-	"net/netip"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jroimartin/gocui"
 	"github.com/sirupsen/logrus"
@@ -1305,9 +1305,9 @@ func addTokenPanel(c *Console) error {
 
 func showNetworkPage(c *Console) error {
 	if mgmtNetwork.Method != config.NetworkMethodStatic {
-		return showNext(c, askVlanIDPanel, askBondModePanel, askNetworkMethodPanel, askInterfacePanel)
+		return showNext(c, askVlanIDPanel, askBondModePanel, askNetworkMethodPanel, askNetworkTypePanel, askInterfacePanel)
 	}
-	return showNext(c, askVlanIDPanel, askBondModePanel, askNetworkMethodPanel, addressPanel, addrMaskPanel, gatewayPanel, mtuPanel, askInterfacePanel)
+	return showNext(c, askVlanIDPanel, askBondModePanel, askNetworkMethodPanel, addressPanel, addrMaskPanel, gatewayPanel, mtuPanel, askNetworkTypePanel, askInterfacePanel)
 }
 
 func showHostnamePage(c *Console) error {
@@ -1481,6 +1481,17 @@ func addNetworkPanel(c *Console) error {
 		return err
 	}
 
+	askNetworkTypeV, err := widgets.NewDropDown(c.Gui, askNetworkTypePanel, askNetworkTypeLabel, getNetworkTypeOptions)
+	if err != nil {
+		return err
+	}
+
+	if c.config.Install.IsIPv6Enabled() {
+		askNetworkTypeV.Value = ipFamiliesDualStack
+	} else {
+		askNetworkTypeV.Value = config.IPFamilyIPv4
+	}
+
 	addressV, err := widgets.NewInput(c.Gui, addressPanel, addressLabel, false)
 	if err != nil {
 		return err
@@ -1557,6 +1568,7 @@ func addNetworkPanel(c *Console) error {
 			askVlanIDPanel,
 			askBondModePanel,
 			askNetworkMethodPanel,
+			askNetworkTypePanel,
 			addressPanel,
 			addrMaskPanel,
 			gatewayPanel,
@@ -1570,10 +1582,13 @@ func addNetworkPanel(c *Console) error {
 		return applyNetworks(
 			mgmtNetwork,
 			c.config.Hostname,
+			c.config.Install.IsIPv6Enabled(),
 		)
 	}
 
 	preGotoNextPage := func() (string, error) {
+		ipv6Enabled := c.config.Install.IsIPv6Enabled()
+
 		err := setupNetwork()
 		if err != nil {
 			return fmt.Sprintf("Configure network failed: %s", err), nil
@@ -1601,6 +1616,14 @@ func addNetworkPanel(c *Console) error {
 		}
 		if !isDefaultRouteExist && mgmtNetwork.Method == config.NetworkMethodDHCP {
 			return ErrMsgNoDefaultRoute, nil
+		}
+
+		// For dual-stack mode, verify the management bridge has acquired a
+		// non-link-local IPv6 address (via SLAAC or DHCPv6) before proceeding.
+		if ipv6Enabled {
+			if err := checkIPv6Address(config.MgmtInterfaceName, 15*time.Second, 1*time.Second); err != nil {
+				return err.Error(), nil
+			}
 		}
 
 		return "", nil
@@ -1773,6 +1796,7 @@ func addNetworkPanel(c *Console) error {
 	c.AddElement(askBondModePanel, askBondModeV)
 
 	// askNetworkMethodV
+	var awaitingDualStackAck bool
 	askNetworkMethodVConfirm := func(_ *gocui.Gui, _ *gocui.View) error {
 		selected, err := askNetworkMethodV.GetData()
 		if err != nil {
@@ -1784,7 +1808,13 @@ func addNetworkPanel(c *Console) error {
 		}
 
 		c.CloseElements(mtuPanel, gatewayPanel, addrMaskPanel, addressPanel)
-		return gotoNextPage(askNetworkMethodPanel)
+		awaitingDualStackAck = false
+		if c.config.Install.IsIPv6Enabled() {
+			askNetworkTypeV.Value = ipFamiliesDualStack
+		} else {
+			askNetworkTypeV.Value = config.IPFamilyIPv4
+		}
+		return showNext(c, askNetworkTypePanel)
 	}
 	askNetworkMethodV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
 		gocui.KeyArrowUp:   gotoNextPanel(c, []string{askBondModePanel}),
@@ -1949,7 +1979,14 @@ func addNetworkPanel(c *Console) error {
 			return updateValidatorMessage(msg)
 		}
 
-		return gotoNextPage(mtuPanel)
+		// Reset ack flag and sync Value before focusing the Network type panel.
+		awaitingDualStackAck = false
+		if c.config.Install.IsIPv6Enabled() {
+			askNetworkTypeV.Value = ipFamiliesDualStack
+		} else {
+			askNetworkTypeV.Value = config.IPFamilyIPv4
+		}
+		return showNext(c, askNetworkTypePanel)
 	}
 	mtuV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
 		gocui.KeyArrowUp:   gotoNextPanel(c, []string{gatewayPanel}, validateMTU),
@@ -1960,9 +1997,61 @@ func addNetworkPanel(c *Console) error {
 	setLocation(mtuV.Panel, 3)
 	c.AddElement(mtuPanel, mtuV)
 
+	// askNetworkTypeV
+	askNetworkTypeV.PreShow = func() error {
+		if mgmtNetwork.Method == config.NetworkMethodStatic {
+			askNetworkTypeV.SetLocation(mtuV.X0, mtuV.Y1, mtuV.X1, mtuV.Y1+3)
+		} else {
+			askNetworkTypeV.SetLocation(askNetworkMethodV.X0, askNetworkMethodV.Y1, askNetworkMethodV.X1, askNetworkMethodV.Y1+3)
+		}
+		return nil
+	}
+	askNetworkTypeVConfirm := func(_ *gocui.Gui, _ *gocui.View) error {
+		selected, err := askNetworkTypeV.GetData()
+		if err != nil {
+			return err
+		}
+		if selected == ipFamiliesDualStack && !awaitingDualStackAck {
+			awaitingDualStackAck = true
+			// Restore the regular note, then show the red warning below it.
+			// Focus must stay on the Network type dropdown so a second Enter
+			// can confirm; set Focus=false before Show() to avoid stealing it.
+			if err := showBondNote(); err != nil {
+				return err
+			}
+			networkValidatorV.Focus = false
+			return c.setContentByName(networkValidatorPanel,
+				"WARNING: Dual-stack networking (IPv4,IPv6) is an experimental feature "+
+					"and may behave unexpectedly in production. "+
+					"Press Enter again to confirm, or press ESC to cancel.")
+		}
+		awaitingDualStackAck = false
+		if selected == ipFamiliesDualStack {
+			c.config.Install.IPFamilies = []string{config.IPFamilyIPv4, config.IPFamilyIPv6}
+		} else {
+			c.config.Install.IPFamilies = []string{config.IPFamilyIPv4}
+		}
+		return gotoNextPage(askNetworkTypePanel)
+	}
+	askNetworkTypeV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
+		gocui.KeyArrowUp: func(_ *gocui.Gui, _ *gocui.View) error {
+			awaitingDualStackAck = false
+			c.CloseElement(networkValidatorPanel)
+			if mgmtNetwork.Method == config.NetworkMethodStatic {
+				return showNext(c, mtuPanel)
+			}
+			return showNext(c, askNetworkMethodPanel)
+		},
+		gocui.KeyArrowDown: askNetworkTypeVConfirm,
+		gocui.KeyEnter:     askNetworkTypeVConfirm,
+		gocui.KeyEsc:       gotoPrevPage,
+	}
+	setLocation(askNetworkTypeV.Panel, 3)
+	c.AddElement(askNetworkTypePanel, askNetworkTypeV)
+
 	// bondNoteV
 	bondNoteV.Wrap = true
-	setLocation(bondNoteV, 8)
+	setLocation(bondNoteV, 4)
 	c.AddElement(bondNotePanel, bondNoteV)
 
 	// networkValidatorV
@@ -1996,6 +2085,11 @@ func addClusterNetworkPanel(c *Console) error {
 	}
 
 	prevPage := func(_ *gocui.Gui, _ *gocui.View) error {
+		// Clear saved cluster network values so the next visit always
+		// pre-fills based on the IP family that is selected at that time
+		c.config.ClusterPodCIDR = ""
+		c.config.ClusterServiceCIDR = ""
+		c.config.ClusterDNS = ""
 		closePage()
 		return showNetworkPage(c)
 	}
@@ -2018,7 +2112,13 @@ func addClusterNetworkPanel(c *Console) error {
 	}
 	podCIDRInput.PreShow = func() error {
 		c.Cursor = true
-		podCIDRInput.Value = c.config.ClusterPodCIDR
+		if c.config.ClusterPodCIDR != "" {
+			podCIDRInput.Value = c.config.ClusterPodCIDR
+		} else if c.config.Install.IsIPv6Enabled() {
+			podCIDRInput.Value = config.DefaultDualStackPodCIDR
+		} else {
+			podCIDRInput.Value = config.DefaultPodCIDR
+		}
 
 		if err := c.setContentByName(
 			titlePanel,
@@ -2049,7 +2149,13 @@ func addClusterNetworkPanel(c *Console) error {
 
 	serviceCIDRInput.PreShow = func() error {
 		c.Cursor = true
-		serviceCIDRInput.Value = c.config.ClusterServiceCIDR
+		if c.config.ClusterServiceCIDR != "" {
+			serviceCIDRInput.Value = c.config.ClusterServiceCIDR
+		} else if c.config.Install.IsIPv6Enabled() {
+			serviceCIDRInput.Value = config.DefaultDualStackServiceCIDR
+		} else {
+			serviceCIDRInput.Value = config.DefaultServiceCIDR
+		}
 		return nil
 	}
 
@@ -2065,47 +2171,13 @@ func addClusterNetworkPanel(c *Console) error {
 
 	dnsInput.PreShow = func() error {
 		c.Cursor = true
-		dnsInput.Value = c.config.ClusterDNS
-		return nil
-	}
-
-	// define inputs validators
-	validateCIDR := func(cidr string) error {
-		cidr = strings.TrimSpace(cidr)
-		if cidr == "" {
-			return nil
+		if c.config.ClusterDNS != "" {
+			dnsInput.Value = c.config.ClusterDNS
+		} else if c.config.Install.IsIPv6Enabled() {
+			dnsInput.Value = config.DefaultDualStackClusterDNS
+		} else {
+			dnsInput.Value = config.DefaultClusterDNS
 		}
-
-		_, err := netip.ParsePrefix(cidr)
-		return err
-	}
-
-	validateDNSIP := func(ip string) error {
-		ip = strings.TrimSpace(ip)
-		serviceCIDR, err := serviceCIDRInput.GetData()
-		if err != nil {
-			return err
-		}
-		if ip == "" && serviceCIDR == "" {
-			return nil
-		}
-
-		// the DNS IP address must be well-formed and within the
-		// service CIDR
-		ipAddr, err := netip.ParseAddr(ip)
-		if err != nil {
-			return fmt.Errorf("invalid cluster DNS IP: %w", err)
-		}
-
-		svcNet, err := netip.ParsePrefix(serviceCIDR)
-		if err != nil {
-			return fmt.Errorf("to override the cluster DNS IP, the service CIDR must be valid: %w", err)
-		}
-
-		if !svcNet.Contains(ipAddr) {
-			return fmt.Errorf("invalid cluster DNS IP: %s is not in the service CIDR %s", ip, serviceCIDR)
-		}
-
 		return nil
 	}
 
@@ -2116,15 +2188,18 @@ func addClusterNetworkPanel(c *Console) error {
 			return err
 		}
 
-		if err := validateCIDR(podCIDR); err != nil {
+		if err := util.ValidateCIDR(podCIDR); err != nil {
 			return c.setContentByName(
 				clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid pod CIDR: %s", err))
 		}
-		c.config.ClusterPodCIDR = podCIDR
+		if err := util.ValidateCIDRMatchesIPFamilies(podCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
+			return c.setContentByName(clusterNetworkValidatorPanel,
+				fmt.Sprintf("Invalid pod CIDR: %s", err))
+		}
 
-		// reset any previous error in the validator panel before
-		// moving to the next panel
+		c.config.ClusterPodCIDR = strings.TrimSpace(podCIDR)
+
 		if err := c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
 		}
@@ -2137,15 +2212,20 @@ func addClusterNetworkPanel(c *Console) error {
 			return err
 		}
 
-		if err = validateCIDR(serviceCIDR); err != nil {
+		if err = util.ValidateCIDR(serviceCIDR); err != nil {
 			return c.setContentByName(
 				clusterNetworkValidatorPanel,
 				fmt.Sprintf("Invalid service CIDR: %s", err))
 		}
-		c.config.ClusterServiceCIDR = serviceCIDR
+		if err = util.ValidateCIDRMatchesIPFamilies(serviceCIDR, c.config.Install.IsIPv6Enabled()); err != nil {
+			return c.setContentByName(clusterNetworkValidatorPanel,
+				fmt.Sprintf("Invalid service CIDR: %s", err))
+		}
+		if err = util.ValidateCIDRConsistency(c.config.ClusterPodCIDR, serviceCIDR); err != nil {
+			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
+		}
+		c.config.ClusterServiceCIDR = strings.TrimSpace(serviceCIDR)
 
-		// reset any previous error in the validator panel before
-		// moving to the next panel
 		if err = c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
 		}
@@ -2157,12 +2237,14 @@ func addClusterNetworkPanel(c *Console) error {
 		if err != nil {
 			return err
 		}
-		if err = validateDNSIP(dns); err != nil {
+		if err = util.ValidateDNSIP(dns, c.config.ClusterServiceCIDR); err != nil {
 			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
 		}
-		c.config.ClusterDNS = dns
+		if err = util.ValidateDNSMatchesIPFamilies(dns, c.config.Install.IsIPv6Enabled()); err != nil {
+			return c.setContentByName(clusterNetworkValidatorPanel, err.Error())
+		}
+		c.config.ClusterDNS = strings.TrimSpace(dns)
 
-		// reset the validator panel before moving to the next page
 		if err = c.setContentByName(clusterNetworkValidatorPanel, ""); err != nil {
 			return err
 		}
@@ -2212,9 +2294,8 @@ func addClusterNetworkPanel(c *Console) error {
 	validatorPanel := widgets.NewPanel(c.Gui, clusterNetworkValidatorPanel)
 	validatorPanel.FgColor = gocui.ColorRed
 	validatorPanel.Focus = false
-	maxX, _ := c.Gui.Size()
-	validatorPanel.X1 = maxX / 8 * 6
-	setLocation(validatorPanel, 3)
+	validatorPanel.Wrap = true
+	setLocation(validatorPanel, 6)
 	c.AddElement(clusterNetworkValidatorPanel, validatorPanel)
 
 	return nil
@@ -2280,6 +2361,19 @@ func getNetworkMethodOptions() ([]widgets.Option, error) {
 		{
 			Value: config.NetworkMethodStatic,
 			Text:  networkMethodStaticText,
+		},
+	}, nil
+}
+
+func getNetworkTypeOptions() ([]widgets.Option, error) {
+	return []widgets.Option{
+		{
+			Value: config.IPFamilyIPv4,
+			Text:  "IPv4 only",
+		},
+		{
+			Value: ipFamiliesDualStack,
+			Text:  "IPv4,IPv6 (dual-stack, IPv4-first)",
 		},
 	}, nil
 }
@@ -2611,7 +2705,7 @@ func addInstallPanel(c *Console) error {
 				// Only need to do this for automatic installs, as manual installs will
 				// have already run applyNetworks()
 				printToPanel(c.Gui, "Configuring network...", installPanel)
-				if err := applyNetworks(c.config.ManagementInterface, c.config.Hostname); err != nil {
+				if err := applyNetworks(c.config.ManagementInterface, c.config.Hostname, c.config.Install.IsIPv6Enabled()); err != nil {
 					printToPanel(c.Gui, fmt.Sprintf("Can't apply networks: %s", err), installPanel)
 					return
 				}
@@ -3192,6 +3286,7 @@ func configureInstallModeDHCP(c *Console) {
 	err := applyNetworks(
 		mgmtNetwork,
 		c.config.Hostname,
+		c.config.Install.IsIPv6Enabled(),
 	)
 	if err != nil {
 		logrus.Error(err)

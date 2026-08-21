@@ -195,7 +195,19 @@ func ConvertToCOS(config *HarvesterConfig) (*yipSchema.YipConfig, error) {
 	// disable multipath for longhorn
 	disableLonghornMultipathing(&initramfs)
 
-	// write a persistent sysctl drop-in and apply at runtime; persists after reboot
+	// Write a persistent sysctl drop-in whose value matches the install's IPv6 choice.
+	// For dual-stack, IPv6 is enabled (disable_ipv6=0); for IPv4-only it is disabled (disable_ipv6=1).
+	// IPFamilies is set by the installer UI for all modes (create, join, install).
+	// A config produced by an older build will have an empty IPFamilies slice,
+	// which IsIPv6Enabled() maps to IPv4-only -- the only mode supported before
+	// dual-stack was introduced.
+	ipv6Enabled := cfg.Install.IsIPv6Enabled()
+	ipv6SysctlVal := "1"
+	ipv6FileHeader := "# Written by harvester-installer (IPv4-only install)\n"
+	if ipv6Enabled {
+		ipv6SysctlVal = "0"
+		ipv6FileHeader = "# Written by harvester-installer (dual-stack install)\n"
+	}
 	initramfs.Directories = append(initramfs.Directories, yipSchema.Directory{
 		Path:        "/etc/sysctl.d",
 		Permissions: 0755,
@@ -204,8 +216,11 @@ func ConvertToCOS(config *HarvesterConfig) (*yipSchema.YipConfig, error) {
 	})
 	initramfs.Files = append(initramfs.Files, yipSchema.File{
 		Path: "/etc/sysctl.d/zz-harvester-enable-ipv6.conf",
-		Content: fmt.Sprintf("# Written by harvester-installer: overrides /etc/sysctl.d/ipv6.conf\n%s = 0\n%s = 0\n%s = 0\n",
-			SysctlDisableIPv6All, SysctlDisableIPv6Default, SysctlDisableIPv6Lo),
+		Content: fmt.Sprintf("%s%s = %s\n%s = %s\n%s = %s\n",
+			ipv6FileHeader,
+			SysctlDisableIPv6All, ipv6SysctlVal,
+			SysctlDisableIPv6Default, ipv6SysctlVal,
+			SysctlDisableIPv6Lo, ipv6SysctlVal),
 		Permissions: 0644,
 		Owner:       0,
 		Group:       0,
@@ -213,9 +228,9 @@ func ConvertToCOS(config *HarvesterConfig) (*yipSchema.YipConfig, error) {
 	if initramfs.Sysctl == nil {
 		initramfs.Sysctl = make(map[string]string)
 	}
-	initramfs.Sysctl[SysctlDisableIPv6All] = "0"
-	initramfs.Sysctl[SysctlDisableIPv6Default] = "0"
-	initramfs.Sysctl[SysctlDisableIPv6Lo] = "0"
+	initramfs.Sysctl[SysctlDisableIPv6All] = ipv6SysctlVal
+	initramfs.Sysctl[SysctlDisableIPv6Default] = ipv6SysctlVal
+	initramfs.Sysctl[SysctlDisableIPv6Lo] = ipv6SysctlVal
 
 	// TOP
 	if cfg.Install.Mode != ModeInstall {
@@ -231,7 +246,7 @@ func ConvertToCOS(config *HarvesterConfig) (*yipSchema.YipConfig, error) {
 			initramfs.Systemctl.Enable = append(initramfs.Systemctl.Enable, timeWaitSyncService)
 		}
 
-		err = UpdateManagementInterfaceConfig(cfg.ManagementInterface, cfg.OS.DNSNameservers, NMConnectionPath, false)
+		err = UpdateManagementInterfaceConfig(cfg.ManagementInterface, cfg.OS.DNSNameservers, NMConnectionPath, false, ipv6Enabled)
 		if err != nil {
 			return nil, err
 		}
@@ -567,7 +582,7 @@ func SaveOriginalNetworkConfig() error {
 
 // UpdateManagementInterfaceConfig generates NetworkManager connection profiles.
 // It restarts networking and waits for the connection to be up if applyConfig is true.
-func UpdateManagementInterfaceConfig(mgmtInterface Network, dnsNameServers []string, configPath string, applyConfig bool) error {
+func UpdateManagementInterfaceConfig(mgmtInterface Network, dnsNameServers []string, configPath string, applyConfig bool, ipv6Enabled bool) error {
 	if len(mgmtInterface.Interfaces) == 0 {
 		return errors.New("no slave defined for management network bond")
 	}
@@ -599,7 +614,7 @@ func UpdateManagementInterfaceConfig(mgmtInterface Network, dnsNameServers []str
 		return err
 	}
 
-	if err := updateBridge(MgmtInterfaceName, &mgmtInterface, dnsNameServers, configPath); err != nil {
+	if err := updateBridge(MgmtInterfaceName, &mgmtInterface, dnsNameServers, configPath, ipv6Enabled); err != nil {
 		return err
 	}
 
@@ -684,7 +699,7 @@ func updateBond(name string, network *Network, configPath string) error {
 	return nil
 }
 
-func updateBridge(name string, mgmtNetwork *Network, dnsNameServers []string, configPath string) error {
+func updateBridge(name string, mgmtNetwork *Network, dnsNameServers []string, configPath string, ipv6Enabled bool) error {
 	// add Bridge named MgmtInterfaceName and attach Bond named MgmtBondInterfaceName to bridge
 
 	// pvid is always 1, if vlan id is 1, it means untagged vlan.
@@ -718,9 +733,10 @@ func updateBridge(name string, mgmtNetwork *Network, dnsNameServers []string, co
 	}
 	// add bridge
 	bridgeData := map[string]interface{}{
-		"Bridge":     bridgeMgmt,
-		"BridgeName": MgmtInterfaceName,
-		"DNSServers": "",
+		"Bridge":      bridgeMgmt,
+		"BridgeName":  MgmtInterfaceName,
+		"DNSServers":  "",
+		"IPv6Enabled": ipv6Enabled,
 	}
 	if !needVlanInterface && len(dnsNameServers) > 0 {
 		bridgeData["DNSServers"] = strings.Join(dnsNameServers, ";") + ";"
@@ -741,9 +757,10 @@ func updateBridge(name string, mgmtNetwork *Network, dnsNameServers []string, co
 		vlanMgmt.SubnetMask = maskToCIDR(vlanMgmt.SubnetMask)
 
 		vlanData := map[string]interface{}{
-			"BridgeName": name,
-			"Vlan":       vlanMgmt,
-			"DNSServers": "",
+			"BridgeName":  name,
+			"Vlan":        vlanMgmt,
+			"DNSServers":  "",
+			"IPv6Enabled": ipv6Enabled,
 		}
 		if len(dnsNameServers) > 0 {
 			vlanData["DNSServers"] = strings.Join(dnsNameServers, ";") + ";"

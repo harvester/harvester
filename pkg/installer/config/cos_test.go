@@ -294,6 +294,9 @@ func TestConvertToCOS_EnableIPv6(t *testing.T) {
 	conf, err := LoadHarvesterConfig(util.LoadFixture(t, "harvester-config.yaml"))
 	assert.NoError(t, err)
 	conf.Mode = ModeInstall
+	// For all modes, IPv6 is driven by the IPFamilies slice set by the installer UI
+	// (or config.yaml for PXE). Set dual-stack so IsIPv6Enabled() returns true.
+	conf.Install.IPFamilies = []string{IPFamilyIPv4, IPFamilyIPv6}
 
 	yipConfig, err := ConvertToCOS(conf)
 	assert.NoError(t, err)
@@ -302,6 +305,62 @@ func TestConvertToCOS_EnableIPv6(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			tc.check(t, initramfs)
+		})
+	}
+}
+
+func TestConvertToCOS_IPv4OnlySysctl(t *testing.T) {
+	testCases := []struct {
+		name       string
+		ipFamilies []string
+		check      func(t *testing.T, initramfs yipSchema.Stage)
+	}{
+		{
+			name:       "explicit IPv4-only: drop-in file writes disable_ipv6=1",
+			ipFamilies: []string{IPFamilyIPv4},
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				for _, f := range initramfs.Files {
+					if f.Path == "/etc/sysctl.d/zz-harvester-enable-ipv6.conf" {
+						assert.Contains(t, f.Content, SysctlDisableIPv6All+" = 1")
+						assert.Contains(t, f.Content, SysctlDisableIPv6Default+" = 1")
+						assert.Contains(t, f.Content, SysctlDisableIPv6Lo+" = 1")
+						assert.Contains(t, f.Content, "IPv4-only install")
+						return
+					}
+				}
+				t.Error("drop-in file not found")
+			},
+		},
+		{
+			name:       "explicit IPv4-only: sysctl map writes disable_ipv6=1",
+			ipFamilies: []string{IPFamilyIPv4},
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.Equal(t, "1", initramfs.Sysctl[SysctlDisableIPv6All])
+				assert.Equal(t, "1", initramfs.Sysctl[SysctlDisableIPv6Default])
+				assert.Equal(t, "1", initramfs.Sysctl[SysctlDisableIPv6Lo])
+			},
+		},
+		{
+			name:       "empty IPFamilies (legacy config): treated as IPv4-only",
+			ipFamilies: []string{},
+			check: func(t *testing.T, initramfs yipSchema.Stage) {
+				assert.Equal(t, "1", initramfs.Sysctl[SysctlDisableIPv6All])
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf, err := LoadHarvesterConfig(util.LoadFixture(t, "harvester-config.yaml"))
+			assert.NoError(t, err)
+			conf.Mode = ModeInstall
+			conf.Install.IPFamilies = tc.ipFamilies
+
+			yipConfig, err := ConvertToCOS(conf)
+			assert.NoError(t, err)
+
+			initramfs := yipConfig.Stages["initramfs"][0]
 			tc.check(t, initramfs)
 		})
 	}

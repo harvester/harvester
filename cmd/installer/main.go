@@ -60,7 +60,7 @@ Executes the Harvester installer if no command is specified.`,
 						return err
 					}
 					if len(paths) == 0 || cmd.Bool("force") {
-						err = config.UpdateManagementInterfaceConfig(harvesterCfg.ManagementInterface, harvesterCfg.OS.DNSNameservers, cmd.String("connection-path"), false)
+						err = config.UpdateManagementInterfaceConfig(harvesterCfg.ManagementInterface, harvesterCfg.OS.DNSNameservers, cmd.String("connection-path"), false, harvesterCfg.Install.IsIPv6Enabled())
 						if err != nil {
 							return err
 						}
