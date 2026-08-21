@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
+	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -52,6 +53,7 @@ func NewValidator(
 	vmims ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
 	vscCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache,
+	sar authorizationv1client.SubjectAccessReviewInterface,
 ) types.Validator {
 	return &restoreValidator{
 		vms:                               vms,
@@ -61,6 +63,7 @@ func NewValidator(
 		svmbackup:                         svmbackup,
 		vscCache:                          vscCache,
 		networkAttachmentDefinitionsCache: networkAttachmentDefinitionsCache,
+		sar:                               sar,
 
 		vmrCalculator: resourcequota.NewCalculator(nss, pods, rqs, vmims, setting),
 		vmbr:          common.NewVMBackupReader(),
@@ -78,6 +81,7 @@ type restoreValidator struct {
 	svmbackup                         ctlharvesterv1.ScheduleVMBackupCache
 	vscCache                          ctlsnapshotv1.VolumeSnapshotClassCache
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache
+	sar                               authorizationv1client.SubjectAccessReviewInterface
 
 	vmrCalculator *resourcequota.Calculator
 	vmbr          common.VMBackupReader
@@ -99,11 +103,15 @@ func (v *restoreValidator) Resource() types.Resource {
 	}
 }
 
-func (v *restoreValidator) Create(_ *types.Request, newObj runtime.Object) error {
+func (v *restoreValidator) Create(request *types.Request, newObj runtime.Object) error {
 	vmr := newObj.(*v1beta1.VirtualMachineRestore)
 
 	if errs := validationutil.IsDNS1123Subdomain(vmr.Spec.Target.Name); len(errs) != 0 {
 		return werror.NewInvalidError(fmt.Sprintf("Target VM name is invalid, err: %v", errs), fieldTargetName)
+	}
+
+	if err := v.checkVMBackupAccess(request, vmr); err != nil {
+		return err
 	}
 
 	vmb, err := v.getVMBackup(vmr)
@@ -258,6 +266,27 @@ func (v *restoreValidator) handleNewVM(vmr *v1beta1.VirtualMachineRestore, vmb *
 		return werror.NewInvalidError("can't restore the new vm with the same macaddress because the source vm is still existent", fieldKeepMacAddress)
 	}
 
+	return nil
+}
+
+func (v *restoreValidator) checkVMBackupAccess(request *types.Request, vmr *v1beta1.VirtualMachineRestore) error {
+	vmbNamespace := v.vmrr.GetVMBackupNamespace(vmr)
+	vmbName := v.vmrr.GetVMBackupName(vmr)
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineBackupGVR,
+		Namespace: vmbNamespace,
+		Name:      vmbName,
+	})
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check access to VMBackup %s/%s: %v", vmbNamespace, vmbName, err))
+	}
+	if !allowed {
+		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access VMBackup %s/%s", request.UserInfo.Username, vmbNamespace, vmbName), fieldVirtualMachineBackupName)
+	}
 	return nil
 }
 
