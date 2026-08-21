@@ -228,14 +228,14 @@ image-cache-show:
 	$(BANNER)
 	docker run --rm \
 	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:ro \
-	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro,z \
 	    alpine image-cache show
 
 image-cache-debug:
 	$(BANNER)
 	docker run --rm -it \
 	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:rw \
-	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
+	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro,z \
 	    alpine sh
 
 .DEFAULT_GOAL := default
