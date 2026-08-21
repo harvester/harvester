@@ -41,7 +41,9 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
-HARVESTER_ADDONS_VERSION  ?= main
+ # Default addons git ref (branch or tag) consumed by scripts/prepare-addons and Docker builds.
+ # Override HARVESTER_ADDONS_VERSION to pin a specific RC/release (e.g. v1.9.0-rc6).
+HARVESTER_ADDONS_VERSION  ?= v1.9
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
 RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
@@ -200,7 +202,9 @@ prepare-addons:
 # ---- Build ISO ----
 build-iso: gen-version-env build-installer check-images
 	$(BANNER)
-	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
+	$(DOCKER_BUILD) --target build-iso \
+		--build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
+		-t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso
 
 

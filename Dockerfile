@@ -107,7 +107,7 @@ COPY --from=build /go/src/github.com/harvester/harvester/bin/ /bin/
 
 # ---- prepare-addons ----
 FROM builder AS prepare-addons
-ARG ADDONS_BRANCH=main
+ARG ADDONS_BRANCH=v1.9
 
 # re-pull when remote sha changed
 ARG REMOTE_SHA=unknown
@@ -250,7 +250,7 @@ RUN bash scripts/check-images
 
 # ---- build-iso ----
 FROM builder AS build-iso
-
+ARG ADDONS_BRANCH=v1.9
 WORKDIR /go/src/github.com/harvester/harvester
 
 COPY --from=build-installer /go/src/github.com/harvester/harvester/bin/harvester-installer package/harvester-os/files/usr/bin/
