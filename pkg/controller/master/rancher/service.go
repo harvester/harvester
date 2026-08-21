@@ -1,17 +1,20 @@
 package rancher
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/harvester/harvester/pkg/util"
@@ -130,20 +133,47 @@ func (h *Handler) getVipConfig() (*VIPConfig, error) {
 	return vipConfig, nil
 }
 
-func (h *Handler) restartKubevipPods() error {
-	pods, err := h.podCache.List(util.HarvesterSystemNamespaceName, labels.Set(map[string]string{
-		"app.kubernetes.io/name": "kube-vip",
-	}).AsSelector())
+func (h *Handler) rolloutKubevipDaemonSet(reason string) error {
+	now := time.Now().Format(time.RFC3339)
+	stampedReason := fmt.Sprintf("[%s] %s", now, reason)
+
+	patchPayload := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"annotations": map[string]string{
+						// Generic standard key "kubectl.kubernetes.io/restartedAt" for kubectl compatibility
+						util.AnnotationKubectlRestartedAt: now,
+						// Harvester controller specific tracking
+						util.AnnotationHarvesterRestartedBy:   controllerRancherName,
+						util.AnnotationHarvesterRestartedAt:   now,
+						util.AnnotationHarvesterRestartReason: stampedReason,
+					},
+				},
+			},
+		},
+	}
+
+	patchBytes, err := json.Marshal(patchPayload)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal restart patch payload: %w", err)
 	}
 
-	for i := range pods {
-		if err := h.podClient.Delete(util.HarvesterSystemNamespaceName, pods[i].Name, &v1.DeleteOptions{}); err != nil {
-			return err
+	_, err = h.DaemonSetClient.Patch(
+		util.HarvesterSystemNamespaceName,
+		kubeVipDaemonSetName,
+		types.StrategicMergePatchType,
+		patchBytes,
+	)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Note: If the kube-vip DaemonSet is missing/deleted, gracefully skip the rollout
+			// restart to avoid throwing errors that cause the Harvester controller to crash loop.
+			logrus.Warnf("DaemonSet %s not found, skipping rollout restart for: %s", kubeVipDaemonSetName, stampedReason)
+			return nil
 		}
+		return fmt.Errorf("failed to rollout restart daemonset %s: %w", kubeVipDaemonSetName, err)
 	}
-
 	return nil
 }
 
@@ -166,6 +196,10 @@ func (h *Handler) doesTraefikExist() (bool, error) {
 func (h *Handler) patchTraefikServiceAnnotations() error {
 	svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, v1.GetOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Warnf("service %s/%s not found, skipping annotation patch", util.KubeSystemNamespace, traefikServiceName)
+			return nil
+		}
 		return fmt.Errorf("error fetching traefik service while attempting to update annotations: %w", err)
 	}
 
@@ -183,27 +217,32 @@ func (h *Handler) patchTraefikServiceAnnotations() error {
 	svcCopy := svc.DeepCopy()
 
 	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
-		svc.Spec.Type = vip.ServiceType
-		if svc.Annotations == nil {
-			svc.Annotations = make(map[string]string)
+		svcCopy.Spec.Type = vip.ServiceType
+		if svcCopy.Annotations == nil {
+			svcCopy.Annotations = make(map[string]string)
 		}
-		svc.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
+		svcCopy.Annotations[keyKubevipIgnoreServiceSecurity] = trueStr
 		// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
 		if strings.ToLower(vip.Mode) == vipDHCPMode {
-			svc.Annotations[keyKubevipRequestIP] = vip.IP
-			svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
-			svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
+			svcCopy.Annotations[keyKubevipRequestIP] = vip.IP
+			svcCopy.Annotations[keyKubevipHwaddr] = vip.HwAddress
+			svcCopy.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
 		} else {
-			svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
+			svcCopy.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
 		}
 	}
 	if !reflect.DeepEqual(svc, svcCopy) {
-		if _, err = h.Services.Update(svc); err != nil {
-			return fmt.Errorf("error updating %s svc: %w", svc.Name, err)
+		reason := fmt.Sprintf("Service %s (old type %s) is updated to align with vip config and DaemonSet %s is rolled out", traefikServiceName, svc.Spec.Type, kubeVipDaemonSetName)
+		logrus.Infof("%s", reason)
+		if _, err = h.Services.Update(svcCopy); err != nil {
+			return fmt.Errorf("error updating %s svc: %w", svcCopy.Name, err)
 		}
 
-		// svc got updated, restart kubevip to ensure changes take effect
-		return h.restartKubevipPods()
+		// svc got updated, rollout kubevip to ensure changes take effect
+		// Note: If rollouttKubevipDaemonSet fails here, it won't re-execute on subsequent reconciliations
+		// because reflect.DeepEqual(svc, svcCopy) will evaluate to true since the Service update already succeeded.
+		// This will be optimized later.
+		return h.rolloutKubevipDaemonSet(reason)
 	}
 
 	return err

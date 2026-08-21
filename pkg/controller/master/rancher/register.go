@@ -37,6 +37,7 @@ const (
 	keyKubevipHwaddr                = "kube-vip.io/hwaddr"
 	keyKubevipIgnoreServiceSecurity = "kube-vip.io/ignore-service-security"
 	keyKubevipLoadBalancerIPs       = "kube-vip.io/loadbalancerIPs"
+	kubeVipDaemonSetName            = "kube-vip"
 
 	VipConfigmapName                  = "vip"
 	vipDHCPMode                       = "dhcp"
@@ -70,6 +71,8 @@ type Handler struct {
 	NamespaceClient          ctlcorev1.NamespaceClient
 	SettingClient            v1beta1.SettingClient
 	DynamicClient            dynamic.Interface
+	DaemonSetController      ctlappsv1.DaemonSetController
+	DaemonSetClient          ctlappsv1.DaemonSetClient
 	ctx                      context.Context
 	RestConfig               *rest.Config
 }
@@ -125,6 +128,8 @@ func Register(ctx context.Context, management *config.Management, options config
 			NamespaceController:      namespaces,
 			SettingClient:            settings,
 			DynamicClient:            dynamicClient,
+			DaemonSetController:      daemonSets,
+			DaemonSetClient:          daemonSets,
 			ctx:                      ctx,
 			RestConfig:               management.RestConfig,
 		}
