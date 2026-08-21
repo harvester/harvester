@@ -8,6 +8,12 @@ TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 REMOTE_URL="https://github.com/harvester/addons.git"
 ADDONS_BRANCH=${HARVESTER_ADDONS_VERSION:-v1.9}
 
+# Enforce strict release version pattern matching, double check upon Makefile env HARVESTER_ADDONS_VERSION
+if [[ ${ADDONS_BRANCH} != v1.9* ]]; then
+    echo "Error: ADDONS_BRANCH must start with 'v1.9' (got '${ADDONS_BRANCH}'). Check if Makefile env HARVESTER_ADDONS_VERSION is correctly set" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 echo "Checking remote addons commit for branch '$ADDONS_BRANCH'..."
 REMOTE_SHA=$(git ls-remote "$REMOTE_URL" "refs/heads/$ADDONS_BRANCH" | cut -f1)
 REMOTE_SHA="${REMOTE_SHA}"
