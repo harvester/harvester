@@ -41,6 +41,8 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
+# Default addons git ref (branch or tag) consumed by scripts/prepare-addons and Docker builds.
+# Override HARVESTER_ADDONS_VERSION to pin a branch/specific RC/release (e.g. v1.9 or v1.9.0-rc6).
 HARVESTER_ADDONS_VERSION  ?= v1.9
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
@@ -129,7 +131,9 @@ validate-ci: gen-version-env
 # ---- Test ----
 test: gen-version-env prepare-addons
 	$(BANNER)
-	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) --target test
+	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) \
+	    --target test \
+	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION)
 
 
 # ---- Test integration ----
@@ -200,7 +204,9 @@ prepare-addons:
 # ---- Build ISO ----
 build-iso: gen-version-env build-installer check-images
 	$(BANNER)
-	$(DOCKER_BUILD) --target build-iso -t $(MK_ISO_BUILDER_IMAGE)
+	$(DOCKER_BUILD) --target build-iso \
+	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
+	    -t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso
 
 
