@@ -1,3 +1,4 @@
+# Dont'forget to update doc/crds/daemonset-install.yaml as well
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -60,8 +61,6 @@ spec:
             mountPath: /host/opt/cni/bin
           - name: cni-net-dir
             mountPath: /host/etc/cni/net.d
-          - name: cron-scheduler-configmap
-            mountPath: /cron-schedule
       volumes:
         - name: cnibin
           hostPath:
@@ -69,13 +68,6 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
-        - name: cron-scheduler-configmap
-          configMap:
-            name: "whereabouts-config"
-            defaultMode: 0744
-            items:
-            - key: "cron-expression"
-              path: "config"
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
