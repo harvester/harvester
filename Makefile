@@ -41,7 +41,7 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
-HARVESTER_ADDONS_VERSION  ?= main
+HARVESTER_ADDONS_VERSION  ?= v1.9
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
 RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
