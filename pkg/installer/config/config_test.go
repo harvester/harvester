@@ -1117,3 +1117,95 @@ kubeovnoperatorchartversion: 1.14.10-dev.1
 	assert.Equal(config.RancherVersion, "v2.13.0")
 	assert.Equal(config.SystemSettings["ntp-servers"], "{\"ntpServers\":[\"0.suse.pool.ntp.org\"]}")
 }
+
+func TestInstall_IsIPv6Enabled(t *testing.T) {
+	testCases := []struct {
+		name       string
+		ipFamilies []string
+		want       bool
+	}{
+		{
+			name:       "nil IPFamilies is IPv4-only",
+			ipFamilies: nil,
+			want:       false,
+		},
+		{
+			name:       "empty IPFamilies is IPv4-only",
+			ipFamilies: []string{},
+			want:       false,
+		},
+		{
+			name:       "IPv4 only",
+			ipFamilies: []string{IPFamilyIPv4},
+			want:       false,
+		},
+		{
+			name:       "IPv6 only",
+			ipFamilies: []string{IPFamilyIPv6},
+			want:       true,
+		},
+		{
+			name:       "dual-stack IPv4+IPv6",
+			ipFamilies: []string{IPFamilyIPv4, IPFamilyIPv6},
+			want:       true,
+		},
+		{
+			name:       "dual-stack IPv6+IPv4 (order independent)",
+			ipFamilies: []string{IPFamilyIPv6, IPFamilyIPv4},
+			want:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			i := Install{IPFamilies: tc.ipFamilies}
+			assert.Equal(t, tc.want, i.IsIPv6Enabled())
+		})
+	}
+}
+
+func TestInstall_IsDualStackEnabled(t *testing.T) {
+	testCases := []struct {
+		name       string
+		ipFamilies []string
+		want       bool
+	}{
+		{
+			name:       "nil IPFamilies is not dual-stack",
+			ipFamilies: nil,
+			want:       false,
+		},
+		{
+			name:       "empty IPFamilies is not dual-stack",
+			ipFamilies: []string{},
+			want:       false,
+		},
+		{
+			name:       "IPv4 only is not dual-stack",
+			ipFamilies: []string{IPFamilyIPv4},
+			want:       false,
+		},
+		{
+			name:       "IPv6 only is not dual-stack (IPv4 Family First)",
+			ipFamilies: []string{IPFamilyIPv6},
+			want:       false,
+		},
+		{
+			name:       "IPv4+IPv6 is dual-stack",
+			ipFamilies: []string{IPFamilyIPv4, IPFamilyIPv6},
+			want:       true,
+		},
+		{
+			name:       "IPv6+IPv4 is dual-stack (order independent)",
+			ipFamilies: []string{IPFamilyIPv6, IPFamilyIPv4},
+			want:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			i := Install{IPFamilies: tc.ipFamilies}
+			assert.Equal(t, tc.want, i.IsDualStackEnabled())
+		})
+	}
+}
