@@ -194,6 +194,17 @@ resources:
         clusterPodCIDR: {{ or .ClusterPodCIDR "10.52.0.0/16" }}
         clusterServiceCIDR: {{ or .ClusterServiceCIDR "10.53.0.0/16" }}
         clusterDNS: {{ or .ClusterDNS "10.53.0.10" }}
+      global:
+        # ipFamilyPolicy drives Service.spec.ipFamilyPolicy for the harvester,
+        # harvester-webhook, virt-api, virt-exportproxy, cdi-api, cdi-uploadproxy
+        # and cdi-prometheus-metrics Services. It follows how this node's
+        # IPFamilies were configured at install time (see Install.IsDualStackEnabled),
+        # so single-stack installs (IPv4-only, or any future IPv6-only) are left untouched.
+        {{- if .IsDualStackEnabled }}
+        ipFamilyPolicy: "PreferDualStack"
+        {{- else }}
+        ipFamilyPolicy: "SingleStack"
+        {{- end }}
 - apiVersion: management.cattle.io/v3
   kind: ManagedChart
   metadata:
@@ -234,3 +245,23 @@ resources:
       additionalArguments:
       - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=30m
       - --entryPoints.websecure.transport.respondingTimeouts.writeTimeout=30m
+      service:
+        spec:
+          {{- if .IsDualStackEnabled }}
+          ipFamilyPolicy: "PreferDualStack"
+          {{- else }}
+          ipFamilyPolicy: "SingleStack"
+          {{- end }}
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChartConfig
+  metadata:
+    name: rke2-metrics-server
+    namespace: kube-system
+  spec:
+    valuesContent: |-
+      service:
+        {{- if .IsDualStackEnabled }}
+        ipFamilyPolicy: "PreferDualStack"
+        {{- else }}
+        ipFamilyPolicy: "SingleStack"
+        {{- end }}

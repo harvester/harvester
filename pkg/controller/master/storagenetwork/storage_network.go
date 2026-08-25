@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -491,6 +492,20 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	return nil
 }
 
+// poolNameFromCIDR derives the Whereabouts IPPool Kubernetes object name from a
+// CIDR string. The name is the masked network address with the prefix length
+// appended via a dash. Colons in IPv6 addresses are replaced with dashes so the
+// result is a valid Kubernetes object name (e.g. "fd00::/64" → "fd00---64").
+func poolNameFromCIDR(cidr string) (string, error) {
+	_, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "", fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+	}
+	parts := strings.SplitN(network.String(), "/", 2)
+	addr := strings.ReplaceAll(parts[0], ":", "-")
+	return addr + "-" + parts[1], nil
+}
+
 func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -512,20 +527,36 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 		return fmt.Errorf("parsing value error %v", err)
 	}
 
-	ipprefix := strings.Split(config.Range, "/")
-	ippoolName := ipprefix[0] + "-" + ipprefix[1]
+	ippoolName, err := poolNameFromCIDR(config.Range)
+	if err != nil {
+		return fmt.Errorf("deriving IPv4 IPPool name: %w", err)
+	}
 
 	ippool, err := h.whereaboutsCNIIPPoolCache.Get(util.KubeSystemNamespace, ippoolName)
 	if err != nil {
 		return fmt.Errorf("wherabouts IPPool not found for pool %s error %v", ippoolName, err)
 	}
 
-	if len(ippool.Spec.Allocations) >= MinAllocatableIPAddrs {
+	allocated := len(ippool.Spec.Allocations)
+
+	if config.RangeV6 != "" {
+		v6PoolName, err := poolNameFromCIDR(config.RangeV6)
+		if err != nil {
+			return fmt.Errorf("deriving IPv6 IPPool name: %w", err)
+		}
+		v6Pool, err := h.whereaboutsCNIIPPoolCache.Get(util.KubeSystemNamespace, v6PoolName)
+		if err != nil {
+			return fmt.Errorf("whereabouts IPPool not found for IPv6 pool %s error %v", v6PoolName, err)
+		}
+		allocated += len(v6Pool.Spec.Allocations)
+	}
+
+	if allocated >= MinAllocatableIPAddrs {
 		return nil
 	}
 
 	return fmt.Errorf("whereabouts cni IP allocation failure for IPPool %s retrying again... required %d allocated %d",
-		ippoolName, MinAllocatableIPAddrs, len(ippool.Spec.Allocations))
+		ippoolName, MinAllocatableIPAddrs, allocated)
 }
 
 func (h *Handler) handleLonghornSettingPostConfig(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
