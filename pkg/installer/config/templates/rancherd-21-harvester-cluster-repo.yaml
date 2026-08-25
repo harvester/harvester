@@ -1,0 +1,23 @@
+resources:
+# Patches the ipFamilyPolicy of the harvester-cluster-repo Service (baked in statically at
+# /usr/share/rancher/rancherd/config.yaml.d/91-harvester-bootstrap-repo.yaml with no
+# ipFamilyPolicy set) to follow how this node's IPFamilies were configured at install time
+# (see Install.IsDualStackEnabled), so single-stack installs (IPv4-only, or any future
+# IPv6-only) are left untouched.
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: harvester-cluster-repo
+    namespace: cattle-system
+  spec:
+    {{- if .IsDualStackEnabled }}
+    ipFamilyPolicy: "PreferDualStack"
+    {{- else }}
+    ipFamilyPolicy: "SingleStack"
+    {{- end }}
+    selector:
+      app: harvester-cluster-repo
+    ports:
+      - protocol: TCP
+        port: 80
+        targetPort: 80

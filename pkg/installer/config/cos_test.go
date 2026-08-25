@@ -365,3 +365,52 @@ func TestConvertToCOS_IPv4OnlySysctl(t *testing.T) {
 		})
 	}
 }
+
+func TestBootstrapTemplates_IPFamilyPolicy(t *testing.T) {
+	testCases := []struct {
+		name       string
+		ipFamilies []string
+		want       string
+	}{
+		{
+			name:       "IPv4-only renders SingleStack",
+			ipFamilies: []string{IPFamilyIPv4},
+			want:       `ipFamilyPolicy: "SingleStack"`,
+		},
+		{
+			name:       "unset IPFamilies renders SingleStack",
+			ipFamilies: nil,
+			want:       `ipFamilyPolicy: "SingleStack"`,
+		},
+		{
+			name:       "IPv6-only renders SingleStack, not PreferDualStack (IPv4 Family First: IPv6-only is single-stack)",
+			ipFamilies: []string{IPFamilyIPv6},
+			want:       `ipFamilyPolicy: "SingleStack"`,
+		},
+		{
+			name:       "dual-stack IPv4+IPv6 renders PreferDualStack",
+			ipFamilies: []string{IPFamilyIPv4, IPFamilyIPv6},
+			want:       `ipFamilyPolicy: "PreferDualStack"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf, err := LoadHarvesterConfig(util.LoadFixture(t, "harvester-config.yaml"))
+			assert.NoError(t, err)
+			conf.Mode = ModeInstall
+			conf.Install.IPFamilies = tc.ipFamilies
+
+			// harvester/harvester-webhook Service and the rke2-ingress-nginx/
+			// rke2-metrics-server ManagedCharts are patched from this template.
+			harvesterYaml, err := render("rancherd-10-harvester.yaml", conf)
+			assert.NoError(t, err)
+			assert.Contains(t, harvesterYaml, tc.want)
+
+			// harvester-cluster-repo Service is patched from this template.
+			repoYaml, err := render("rancherd-21-harvester-cluster-repo.yaml", conf)
+			assert.NoError(t, err)
+			assert.Contains(t, repoYaml, tc.want)
+		})
+	}
+}

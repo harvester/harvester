@@ -201,11 +201,24 @@ type Install struct {
 	PersistentPartitionSize string               `json:"persistentPartitionSize,omitempty"`
 }
 
-// IsIPv6Enabled reports whether the install is configured for dual-stack
-// (IPv4+IPv6). It returns true when IPFamilies contains IPFamilyIPv6.
-// An empty or nil IPFamilies slice means IPv4-only and returns false.
+// IsIPv6Enabled reports whether IPv6 is part of this install's IPFamilies,
+// i.e. whether IPv6 addressing, NIC configuration and CIDR validation need
+// to be handled at all. It returns true for both dual-stack (IPv4+IPv6) and
+// any future IPv6-only single-stack installs. It does not by itself imply
+// dual-stack; use IsDualStackEnabled for that. An empty or nil IPFamilies
+// slice means IPv4-only and returns false.
 func (i *Install) IsIPv6Enabled() bool {
 	return slices.Contains(i.IPFamilies, IPFamilyIPv6)
+}
+
+// IsDualStackEnabled reports whether the install is configured for
+// dual-stack (both IPv4 and IPv6 present in IPFamilies). Unlike
+// IsIPv6Enabled, this returns false for a hypothetical IPv6-only
+// single-stack install, since that is single-stack, not dual-stack. Use
+// this (not IsIPv6Enabled) to decide whether a Service should request
+// ipFamilyPolicy: PreferDualStack.
+func (i *Install) IsDualStackEnabled() bool {
+	return slices.Contains(i.IPFamilies, IPFamilyIPv4) && slices.Contains(i.IPFamilies, IPFamilyIPv6)
 }
 
 type File struct {

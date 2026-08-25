@@ -38,7 +38,7 @@ const (
 	timeWaitSyncService  = "systemd-time-wait-sync"
 	rancherdBootstrapDir = "/etc/rancher/rancherd/config.yaml.d/"
 
-	bootstrapConfigCount                           = 6
+	bootstrapConfigCount                           = 7
 	defaultReplicaCount                            = 3
 	defaultGuaranteedEngineManagerCPU              = 12   // means percentage 12%
 	defaultGuaranteedReplicaManagerCPU             = 12   // means percentage 12%
@@ -791,6 +791,7 @@ func genBootstrapResources(config *HarvesterConfig) (map[string]string, error) {
 		"11-monitoring-crd.yaml",
 		"14-logging-crd.yaml",
 		"20-harvester-settings.yaml",
+		"21-harvester-cluster-repo.yaml",
 		"15-kubeovn-operator-crd.yaml",
 		"22-addons.yaml",
 	} {
