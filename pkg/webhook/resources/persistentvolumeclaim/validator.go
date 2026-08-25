@@ -281,6 +281,11 @@ func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim)
 }
 
 func (v *pvcValidator) isUpgradeImagePVC(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	// upgrade vm image is created in harvester-system namespace and so does all related resources, so only check the owner in harvester-system namespace
+	if pvc.Namespace != util.HarvesterSystemNamespaceName {
+		return false, nil
+	}
+
 	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != util.StorageClassLonghornStatic {
 		return false, nil
 	}
