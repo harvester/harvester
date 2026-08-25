@@ -1376,22 +1376,31 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			errMsg: "not allowed on",
 		},
 		{
-			name: "IPv6 /120 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 120>=16)",
+			name: "IPv6 CIDR in range field is rejected (use rangeV6 for dual-stack)",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"2001:db8::/120"}`,
 			},
-			errMsg: "IPv6 ranges are not supported",
+			errMsg: "range must be an IPv4 CIDR",
 		},
 		{
-			name: "IPv6 /64 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 64>=16)",
+			name: "IPv6-only (rangeV6 without range) is rejected — IPv4 Family First required",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "rangeV6":"2001:db8::/120"}`,
+			},
+			errMsg: "IPv6-only is not supported",
+		},
+		{
+			name: "IPv6 /64 CIDR in range field is rejected (use rangeV6 for dual-stack)",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"fd00::/64"}`,
 			},
-			errMsg: "IPv6 ranges are not supported",
+			errMsg: "range must be an IPv4 CIDR",
 		},
 		{
 			name: "fail to create storage-network with same vlan-id as VM Network when exclusive vlan is enabled",
@@ -2991,9 +3000,8 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 
 	select {
 	case err := <-done:
-		// If the To4() guard in checkNetworkRangeValid is active it rejects IPv6
-		// immediately — that is the correct protected behaviour, so the test passes.
-		if err != nil && strings.Contains(err.Error(), "IPv6") {
+		// checkNetworkRangeValid rejects IPv6 in the range field immediately.
+		if err != nil && strings.Contains(err.Error(), "range must be an IPv4 CIDR") {
 			t.Logf("PROTECTED: v.Update rejected IPv6 /64 immediately: %v", err)
 			return
 		}

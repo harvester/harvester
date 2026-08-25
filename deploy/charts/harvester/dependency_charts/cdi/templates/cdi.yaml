@@ -19,3 +19,14 @@ spec:
   workload:
   {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- $ipFamilyPolicy := ((.Values.global | default dict).ipFamilyPolicy) | default "SingleStack" }}
+  {{- $ipFamilyPatch := printf "{\"spec\":{\"ipFamilyPolicy\":\"%s\"}}" $ipFamilyPolicy }}
+  {{- $ipFamilyPatches := list
+        (dict "patch" $ipFamilyPatch "resourceName" "cdi-api" "resourceType" "Service" "type" "strategic")
+        (dict "patch" $ipFamilyPatch "resourceName" "cdi-uploadproxy" "resourceType" "Service" "type" "strategic")
+        (dict "patch" $ipFamilyPatch "resourceName" "cdi-prometheus-metrics" "resourceType" "Service" "type" "strategic")
+  }}
+  {{- $existingPatches := (.Values.spec.customizeComponents | default dict).patches | default list }}
+  customizeComponents:
+    patches:
+  {{- toYaml (concat $existingPatches $ipFamilyPatches) | nindent 4 }}

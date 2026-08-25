@@ -20,6 +20,8 @@ type Config struct {
 	ExclusiveVlan  bool     `json:"exclusiveVlan,omitempty"`
 	Range          string   `json:"range,omitempty"`
 	Exclude        []string `json:"exclude,omitempty"`
+	RangeV6        string   `json:"rangeV6,omitempty"`
+	ExcludeV6      []string `json:"excludeV6,omitempty"`
 }
 
 // Note: this data type should align with https://github.com/containernetworking/cni/blob/main/pkg/types/types.go#L64-L78
@@ -35,7 +37,16 @@ type BridgeConfig struct {
 
 // Note: this data type should align with https://github.com/k8snetworkplumbingwg/whereabouts/blob/master/pkg/types/types.go#L48-L75
 type IPAMConfig struct {
-	Type    string   `json:"type"`
+	Type     string               `json:"type"`
+	Range    string               `json:"range,omitempty"`    // legacy single-stack
+	Exclude  []string             `json:"exclude,omitempty"`  // legacy single-stack
+	IPRanges []RangeConfiguration `json:"ipRanges,omitempty"` // dual-stack (Whereabouts v0.9.3+)
+}
+
+// RangeConfiguration is one entry in the Whereabouts ipRanges dual-stack list.
+// It must be defined locally because the vendored Whereabouts package does not
+// export this type.
+type RangeConfiguration struct {
 	Range   string   `json:"range"`
 	Exclude []string `json:"exclude,omitempty"`
 }
@@ -51,15 +62,31 @@ func CreateBridgeConfig(config Config) BridgeConfig {
 		},
 	}
 	bridgeConfig.Bridge = config.ClusterNetwork + BridgeSuffix
-	bridgeConfig.IPAM.Range = config.Range
 
 	if config.Vlan == 0 {
 		config.Vlan = DefaultPVID
 	}
 	bridgeConfig.Vlan = int(config.Vlan)
 
-	if len(config.Exclude) > 0 {
-		bridgeConfig.IPAM.Exclude = config.Exclude
+	if config.RangeV6 != "" {
+		// Dual-stack: use the Whereabouts ipRanges list format.
+		// Both the IPv4 and IPv6 ranges are written; the flat range/exclude
+		// fields are left empty so the two formats are never mixed.
+		ipv4Entry := RangeConfiguration{Range: config.Range}
+		if len(config.Exclude) > 0 {
+			ipv4Entry.Exclude = config.Exclude
+		}
+		ipv6Entry := RangeConfiguration{Range: config.RangeV6}
+		if len(config.ExcludeV6) > 0 {
+			ipv6Entry.Exclude = config.ExcludeV6
+		}
+		bridgeConfig.IPAM.IPRanges = []RangeConfiguration{ipv4Entry, ipv6Entry}
+	} else {
+		// Single-stack: legacy flat range/exclude path.
+		bridgeConfig.IPAM.Range = config.Range
+		if len(config.Exclude) > 0 {
+			bridgeConfig.IPAM.Exclude = config.Exclude
+		}
 	}
 
 	return bridgeConfig
