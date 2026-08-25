@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicore "kubevirt.io/containerized-data-importer/pkg/common"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -212,11 +213,24 @@ func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim)
 		return false, nil
 	}
 
+	isUpgradeImagePVC, err := v.isUpgradeImagePVC(pvc)
+	if err != nil || isUpgradeImagePVC {
+		return isUpgradeImagePVC, err
+	}
+
+	return v.isUpgradeImageScratchPVC(pvc)
+}
+
+func (v *pvcValidator) isUpgradeImagePVC(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != util.StorageClassLonghornStatic {
+		return false, nil
+	}
+
 	for _, owner := range pvc.OwnerReferences {
 		// upgrade vm image will create 3 pvcs
 		// 1. image-xxxxx pvc (owner kind: DataVolume) with longhorn-static storage class, the owner here is the underlying data volume of upgrade vm image
 		// 2. prime-{uuid} pvc (owner kind: PersistentVolumeClaim) with longhorn-static storage class, the owner here is the image-xxxxx pvc
-		// 3. prime-{uuid}-scratch pvc (owner kind: Pod) with default storage class, generally harvester-longhorn, the owner here is the cdi importer/upload pod
+		// 3. prime-{uuid}-scratch pvc (owner kind: Pod), which can inherit longhorn-static from the data pvc when CDI scratchSpaceStorageClass is not set
 		// note that vm image and data volume and image-xxxxx pvc share the same name
 		if owner.Kind != util.DVObjectName && owner.Kind != util.PVCObjectName {
 			continue
@@ -236,6 +250,43 @@ func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim)
 	}
 
 	return false, nil
+}
+
+func (v *pvcValidator) isUpgradeImageScratchPVC(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	scratchPVCSuffix := "-" + cdicore.ScratchNameSuffix
+
+	// CDI creates scratch PVCs with the importer pod as the controller owner.
+	if v.pvcCache == nil || !strings.HasSuffix(pvc.Name, scratchPVCSuffix) || !isControlledByPod(pvc) {
+		return false, nil
+	}
+
+	dataPVCName := strings.TrimSuffix(pvc.Name, scratchPVCSuffix)
+	if dataPVCName == "" || dataPVCName == pvc.Name {
+		return false, nil
+	}
+
+	dataPVC, err := v.pvcCache.Get(pvc.Namespace, dataPVCName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return v.isUpgradeImagePVC(dataPVC)
+}
+
+func isControlledByPod(pvc *corev1.PersistentVolumeClaim) bool {
+	for _, owner := range pvc.OwnerReferences {
+		if owner.APIVersion == corev1.SchemeGroupVersion.String() &&
+			owner.Kind == "Pod" &&
+			owner.UID != "" &&
+			owner.Controller != nil &&
+			*owner.Controller {
+			return true
+		}
+	}
+	return false
 }
 
 // isManagedByKubeVirt checks if a PVC creation request is legitimately from KubeVirt.
