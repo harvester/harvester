@@ -44,6 +44,50 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pvc",
+					Namespace: util.HarvesterSystemNamespaceName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "cdi.kubevirt.io/v1beta1",
+							Kind:       util.DVObjectName,
+							Name:       "upgrade-image",
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
+				},
+			},
+			image:          newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
+			expectedResult: true,
+			expectError:    false,
+		},
+		{
+			name: "PVC owned by PVC with upgrade image annotation",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
+					Namespace: util.HarvesterSystemNamespaceName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "cdi.kubevirt.io/v1beta1",
+							Kind:       util.PVCObjectName,
+							Name:       "upgrade-image",
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
+				},
+			},
+			image:          newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
+			expectedResult: true,
+			expectError:    false,
+		},
+		{
+			name: "PVC owned by DataVolume with upgrade image annotation outside system namespace",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pvc",
 					Namespace: "default",
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -58,29 +102,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 				},
 			},
 			image:          newUpgradeImage("default", "upgrade-image"),
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "PVC owned by PVC with upgrade image annotation",
-			pvc: &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pvc",
-					Namespace: "default",
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "cdi.kubevirt.io/v1beta1",
-							Kind:       util.PVCObjectName,
-							Name:       "upgrade-image",
-						},
-					},
-				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
-				},
-			},
-			image:          newUpgradeImage("default", "upgrade-image"),
-			expectedResult: true,
+			expectedResult: false,
 			expectError:    false,
 		},
 		{
@@ -88,7 +110,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test-scratch",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -106,7 +128,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			dataPVC: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -119,7 +141,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
 				},
 			},
-			image:          newUpgradeImage("default", "upgrade-image"),
+			image:          newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
 			expectedResult: true,
 			expectError:    false,
 		},
@@ -128,7 +150,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test-scratch",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -146,7 +168,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			dataPVC: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
@@ -160,7 +182,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "other-scratch",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -178,7 +200,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			dataPVC: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -191,7 +213,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
 				},
 			},
-			image:          newUpgradeImage("default", "upgrade-image"),
+			image:          newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
 			expectedResult: false,
 			expectError:    false,
 		},
@@ -200,7 +222,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test-scratch",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -217,7 +239,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			dataPVC: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "v1",
@@ -230,7 +252,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
 				},
 			},
-			image:          newUpgradeImage("default", "upgrade-image"),
+			image:          newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
 			expectedResult: false,
 			expectError:    false,
 		},
@@ -239,7 +261,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pvc",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "cdi.kubevirt.io/v1beta1",
@@ -252,7 +274,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			image: &harvesterv1.VirtualMachineImage{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "normal-image",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 				},
 			},
 			expectedResult: false,
@@ -263,7 +285,7 @@ func TestIsBelongToUpgradeImage(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pvc",
-					Namespace: "default",
+					Namespace: util.HarvesterSystemNamespaceName,
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "cdi.kubevirt.io/v1beta1",
@@ -388,6 +410,45 @@ func TestCreate(t *testing.T) {
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "prime-test-scratch",
+					Namespace: util.HarvesterSystemNamespaceName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "v1",
+							Kind:       "Pod",
+							Name:       "importer-prime-test",
+							UID:        "pod-uid",
+							Controller: ptr.To(true),
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
+				},
+			},
+			dataPVC: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "prime-test",
+					Namespace: util.HarvesterSystemNamespaceName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "v1",
+							Kind:       util.PVCObjectName,
+							Name:       "upgrade-image",
+						},
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
+				},
+			},
+			image:       newUpgradeImage(util.HarvesterSystemNamespaceName, "upgrade-image"),
+			expectError: false,
+		},
+		{
+			name: "reject scratch PVC with reserved longhorn-static storage class outside system namespace",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "prime-test-scratch",
 					Namespace: "default",
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -419,8 +480,9 @@ func TestCreate(t *testing.T) {
 					StorageClassName: ptr.To(util.StorageClassLonghornStatic),
 				},
 			},
-			image:       newUpgradeImage("default", "upgrade-image"),
-			expectError: false,
+			image:         newUpgradeImage("default", "upgrade-image"),
+			expectError:   true,
+			errorContains: "reserved storage class",
 		},
 		{
 			name: "create PVC with reserved vmstate-persistence storage class",
