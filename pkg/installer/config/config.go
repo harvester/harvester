@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/imdario/mergo"
@@ -167,6 +168,12 @@ type Install struct {
 	ClusterPodCIDR     string `json:"clusterPodCidr,omitempty"`
 	ClusterServiceCIDR string `json:"clusterServiceCidr,omitempty"`
 
+	// IPFamilies defines the IP stack mode for this node using the same
+	// convention as Kubernetes ipFamilies: ["IPv4"] for single-stack IPv4
+	// or ["IPv4","IPv6"] for dual-stack IPv4-first.
+	// An empty or nil slice defaults to IPv4-only.
+	IPFamilies []string `json:"ipFamilies,omitempty"`
+
 	ForceEFI      bool     `json:"forceEfi,omitempty"`
 	Device        string   `json:"device,omitempty"`
 	ConfigURL     string   `json:"configUrl,omitempty"`
@@ -192,6 +199,13 @@ type Install struct {
 	Harvester               HarvesterChartValues `json:"harvester,omitempty"`
 	RawDiskImagePath        string               `json:"rawDiskImagePath,omitempty"`
 	PersistentPartitionSize string               `json:"persistentPartitionSize,omitempty"`
+}
+
+// IsIPv6Enabled reports whether the install is configured for dual-stack
+// (IPv4+IPv6). It returns true when IPFamilies contains IPFamilyIPv6.
+// An empty or nil IPFamilies slice means IPv4-only and returns false.
+func (i *Install) IsIPv6Enabled() bool {
+	return slices.Contains(i.IPFamilies, IPFamilyIPv6)
 }
 
 type File struct {
@@ -540,7 +554,8 @@ func GenerateRancherdConfig(config *HarvesterConfig) (*yipSchema.YipConfig, erro
 		return nil, err
 	}
 
-	if err := UpdateManagementInterfaceConfig(config.ManagementInterface, config.OS.DNSNameservers, NMConnectionPath, true); err != nil {
+	ipv6Enabled := config.Install.IsIPv6Enabled()
+	if err := UpdateManagementInterfaceConfig(config.ManagementInterface, config.OS.DNSNameservers, NMConnectionPath, true, ipv6Enabled); err != nil {
 		return nil, err
 	}
 

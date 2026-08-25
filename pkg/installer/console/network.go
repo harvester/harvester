@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -58,7 +59,7 @@ func checkDefaultRoute() (bool, error) {
 	return false, nil
 }
 
-func applyNetworks(network config.Network, hostname string) error {
+func applyNetworks(network config.Network, hostname string, ipv6Enabled bool) error {
 	if err := config.RestoreOriginalNetworkConfig(); err != nil {
 		return err
 	}
@@ -113,19 +114,11 @@ func applyNetworks(network config.Network, hostname string) error {
 		}
 	}
 
-	// enable IPv6 before applying NetworkManager profiles
-	for _, param := range []string{
-		config.SysctlDisableIPv6All,
-		config.SysctlDisableIPv6Default,
-		config.SysctlDisableIPv6Lo,
-	} {
-		// #nosec G204
-		if out, execErr := exec.Command("sysctl", "-w", fmt.Sprintf("%s=0", param)).CombinedOutput(); execErr != nil {
-			logrus.Warnf("Failed to enable IPv6 sysctl %s: %v (%s)", param, execErr, string(out))
-		}
+	if err := applyKernelIPv6(ipv6Enabled); err != nil {
+		return err
 	}
 
-	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true)
+	err = config.UpdateManagementInterfaceConfig(network, []string{}, config.NMConnectionPath, true, ipv6Enabled)
 	if err != nil {
 		return err
 	}
@@ -283,4 +276,71 @@ func filterNICSBySession(hwDeviceMap map[string]netlink.Link, links []netlink.Li
 		}
 	}
 	return nil
+}
+
+// applyKernelIPv6 enables (enabled=true) or disables (enabled=false) IPv6 in the
+// running kernel by writing the disable_ipv6 sysctls. Called at the cluster-CIDR
+// confirm step so the live installer session matches the chosen networking mode.
+// For dual-stack (enabled=true) any sysctl failure is returned as a hard error.
+// For IPv4-only (enabled=false) failures are logged as warnings only.
+func applyKernelIPv6(enabled bool) error {
+	value := "0"
+	if !enabled {
+		value = "1"
+	}
+	for _, param := range []string{
+		config.SysctlDisableIPv6All,
+		config.SysctlDisableIPv6Default,
+		config.SysctlDisableIPv6Lo,
+	} {
+		//nolint:gosec // G204: param and value are controlled internal strings
+		if out, execErr := exec.Command("sysctl", "-w", fmt.Sprintf("%s=%s", param, value)).CombinedOutput(); execErr != nil {
+			if enabled {
+				return fmt.Errorf("failed to enable IPv6 (%s): %v (%s)", param, execErr, string(out))
+			}
+			logrus.Warnf("Failed to disable IPv6 sysctl %s: %v (%s)", param, execErr, string(out))
+		}
+	}
+	return nil
+}
+
+// checkIPv6Address verifies that ifaceName has at least one non-link-local,
+// non-loopback IPv6 unicast address assigned. It polls for up to maxWait,
+// sleeping pollInterval between attempts, to allow time for SLAAC assignment.
+// Returns an error if no qualifying address is found within the deadline.
+func checkIPv6Address(ifaceName string, maxWait, pollInterval time.Duration) error {
+	deadline := time.Now().Add(maxWait)
+	for {
+		iface, err := net.InterfaceByName(ifaceName)
+		if err != nil {
+			return fmt.Errorf("interface %s not found: %w", ifaceName, err)
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return fmt.Errorf("failed to list addresses on %s: %w", ifaceName, err)
+		}
+		for _, a := range addrs {
+			var ip net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.To4() != nil {
+				continue // skip non-IPv6
+			}
+			if ip.IsLinkLocalUnicast() || ip.IsLoopback() {
+				continue // skip link-local and loopback
+			}
+			logrus.Infof("IPv6 address found on %s: %s", ifaceName, ip)
+			return nil
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(pollInterval)
+	}
+	return fmt.Errorf("no non-link-local IPv6 address found on interface %s after %s; "+
+		"ensure the network provides IPv6 via SLAAC or DHCPv6 before selecting dual-stack mode", ifaceName, maxWait)
 }
