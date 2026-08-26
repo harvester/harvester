@@ -14,6 +14,7 @@ compatibility for existing IPv4-only deployments.
 - [Motivation](#motivation)
   - [Goals](#goals)
   - [Non-goals](#non-goals)
+  - [Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack)
   - [Experimental Status](#experimental-status)
 - [Proposal](#proposal)
   - [User Stories](#user-stories)
@@ -217,6 +218,62 @@ a fully dual-stack deployment.
   below for completeness and will be executed against the environment provisioned by the
   IPv6-first HEP.
 
+- **Concurrent (simultaneous) IPv4+IPv6 operation of a single Longhorn data-engine
+  instance.** This is an upstream Longhorn limitation, not a Harvester design choice - see
+  [Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack). It is
+  out of scope for this HEP to fix and is not expected to be resolved by Longhorn's own
+  in-flight dual-stack work either.
+
+---
+
+### Known Gaps - Longhorn Storage Dual-Stack
+
+Longhorn is Harvester's default (and only in-tree) storage engine, so its own dual-stack
+maturity directly bounds what an administrator can actually achieve with the
+`storage-network`, `rwx-network`, and `vm-migration-network` changes in Story 8. This section
+records the current state, verified directly against the Longhorn source, so the gap is
+tracked rather than silently assumed to be covered by this HEP.
+
+**Two separate traffic paths, two separate gaps:**
+
+| Layer | What it is | Current state |
+|-------|------------|----------------|
+| Control plane | Kubernetes `Service` objects fronting `longhorn-manager` (`longhorn-backend`), the UI (`longhorn-frontend`), the admission/conversion webhook (`longhorn-admission-webhook`), and `longhorn-recovery-backend` | **Single-stack IPv4 today.** None of these Services set `ipFamilyPolicy`/`ipFamilies` in the upstream chart (`chart/templates/services.yaml`, `chart/templates/daemonset-sa.yaml`, `chart/templates/deployment-ui.yaml`), confirmed both in the `longhorn/longhorn` source and in the exact `longhorn-1.12.1` chart tarball Harvester currently vendors. Per Kubernetes semantics, an unset `ipFamilyPolicy` defaults to `SingleStack` and is **never** auto-promoted on a dual-stack cluster - this matches the live cluster output above, where `longhorn-admission-webhook`, `longhorn-backend`, `longhorn-frontend`, and `longhorn-recovery-backend` are `SingleStack [IPv4]` while Harvester's own `harvester`, `harvester-webhook`, `virt-api`, `cdi-api`, and `rke2-coredns` Services are already `PreferDualStack [IPv4 IPv6]`. |
+| Data plane | Engine <-> replica data traffic and Instance Manager gRPC control, which bypass Kubernetes Services entirely and run over Pod/node IPs or an optional dedicated Multus storage network | **Single address family at a time, cluster-wide - not concurrent dual-stack.** Upstream added single-stack IPv6 for V1 volumes in v1.10.0 ([longhorn/longhorn#2259](https://github.com/longhorn/longhorn/issues/2259)), single-stack IPv6 for V2 volumes in v1.12.0 ([longhorn/longhorn#10928](https://github.com/longhorn/longhorn/issues/10928)), and "dual-stack cluster" support in v1.12.0 ([longhorn/longhorn#11531](https://github.com/longhorn/longhorn/issues/11531)) - but that last feature only requires every node to use the **same** IP-family ordering (all IPv4-first or all IPv6-first); mixed ordering across nodes is explicitly unsupported and can break replica<->engine connectivity per the v1.12.0 changelog. None of this lets one Engine, Replica, EngineFrontend, or Backup instance serve both families **simultaneously**. | 
+
+**This gap will still exist after Longhorn's own dual-stack LEP ships.** Longhorn's proposed
+`preferred-data-engine-ip-family` design (a global `default`/`ipv4`/`ipv6` setting, tracked at
+[longhorn/longhorn#13050](https://github.com/longhorn/longhorn/issues/13050) and not yet merged
+as of this writing) formalizes and hardens the existing single-family-at-a-time model - it adds
+capability gating, an all-volumes-detached rollout gate, and strict fail-closed behavior on
+family mismatch. It explicitly does **not** add concurrent dual-family operation for a single
+instance; that remains off Longhorn's roadmap. In other words, closing today's control-plane
+Service gap and shipping that LEP both improve *which single family* Longhorn uses and
+*how cleanly* it's selected, but neither one makes Longhorn dual-stack in the sense the rest
+of this HEP uses the term (both families valid and routable to the same instance at the same time).
+
+**Impact on this HEP:** Story 8's `RangeV6`/`IPRanges` extension only teaches the Whereabouts
+CNI IPAM layer to hand out dual-stack IP attachments on `storage-network`, `rwx-network`, and
+`vm-migration-network`. It does not and cannot make Longhorn itself consume both families for
+a given replica or engine at once - Longhorn will still pick a single effective family for its
+own data-plane traffic (today via legacy primary-address selection; after [longhorn/longhorn#13050](https://github.com/longhorn/longhorn/issues/13050)
+ships, via the explicit `preferred-data-engine-ip-family` setting). Administrators dual-stacking
+these networks should be told, at the same experimental-warning surface used elsewhere in this
+HEP, that the underlying storage engine may still only use one of the two families for actual
+data traffic depending on the deployed Longhorn version and its configuration.
+
+**Recommended handling:**
+- Keep Story 8 experimental (already the case) and add this caveat to its UI tooltip / field
+  description text so administrators don't assume Longhorn data traffic becomes simultaneously
+  dual-stack the moment the CIDR pair is accepted.
+- Track the control-plane Service gap (`longhorn-backend`, `longhorn-frontend`,
+  `longhorn-admission-webhook`, `longhorn-recovery-backend` all `SingleStack`) as a follow-up:
+  either an upstream Longhorn chart PR adding a configurable `ipFamilyPolicy` value (mirroring
+  what Story 9 does for `node-disk-manager`), or a Harvester-side values override/patch on the
+  vendored Longhorn subchart in `deploy/charts/harvester/charts/longhorn-*.tgz`.
+- Do not represent Longhorn as dual-stack-complete in any user-facing documentation for this
+  HEP; link back to this section and to [longhorn/longhorn#2259](https://github.com/longhorn/longhorn/issues/2259), [#10928](https://github.com/longhorn/longhorn/issues/10928), [#11531](https://github.com/longhorn/longhorn/issues/11531), and [#13050](https://github.com/longhorn/longhorn/issues/13050) for status.
+
 ---
 
 ### Experimental Status
@@ -386,7 +443,13 @@ object names, so IPv6 CIDRs produce valid Kubernetes object names with no change
 the Harvester side — this resolves blocker E5. Administrators who supply only an IPv4 CIDR
 (the existing format) see no change in behavior.
 
-#### Story 9 — node-disk-manager webhook Service is reachable on both address families *(unconditional bug fix)*
+**Known limitation:** this only makes the IPAM/network-attachment layer dual-stack. Longhorn
+itself does not consume both families concurrently for a given engine or replica - see
+[Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack). The
+UI/field description for these three settings should carry that caveat alongside the existing
+experimental warning.
+
+#### Story 9 - node-disk-manager webhook Service is reachable on both address families *(unconditional bug fix)*
 
 **Before:** The `harvester-node-disk-manager-webhook` Service manifest
 (`deploy/charts/harvester-node-disk-manager/templates/webhook.yaml`) sets no `ipFamilyPolicy`.
@@ -759,6 +822,7 @@ require investigation or lab testing rather than code changes in Harvester.
 | E7 | Validate SLES 15 and Ubuntu 22.04 guests solicit DHCPv6 with `cloud-init dhcp6: true` | vm-dhcp-controller *(deprioritized)* | Boot test VMs; verify DHCPv6 Solicit captured | If guests do not solicit DHCPv6, the embedded `dhcpv6/server6` instance runs and listens but leases are never collected by VMs. IPv4 DHCP is completely unaffected. The dual-stack IPPool feature can still be merged — administrators who configure `spec.ipv6Config` will just not see IPv6 leases until the guest OS issue is resolved or documented as a prerequisite. |
 | E8 | Verify CNI (Canal) forwards DHCPv6 multicast `ff02::1:2` (port 547) to agent pod | vm-dhcp-controller *(deprioritized)* | `tcpdump -i eth1 port 547` on agent pod in lab cluster | If Canal drops DHCPv6 multicast, Solicit messages from VM guests never reach the controller. Same silent failure as E7 — IPv4 unaffected, IPv6 leases not delivered. If confirmed blocked, a CNI policy exception or unicast DHCPv6 workaround must be evaluated before declaring vm-dhcp-controller dual-stack complete. |
 | E9 | Verify `apiserver -> webhook` admission TLS handshake succeeds over both families once the `harvester-node-disk-manager-webhook` Service is dual-stack | node-disk-manager | Test on a live dual-stack cluster: confirm the existing DNS-name-based SAN (`harvester-node-disk-manager-webhook.<namespace>.svc`) issued by `dynamiclistener` validates for both the `ClusterIP` and `ClusterIPv6` addresses | If validation fails over one family, admission calls routed to that family time out; the `ipFamilyPolicy: PreferDualStack` change ships regardless since it degrades gracefully and does not affect existing IPv4-only clusters. |
+| E10 | **Not resolvable by this HEP - tracked as a known gap:** Longhorn's own Services (`longhorn-backend`, `longhorn-frontend`, `longhorn-admission-webhook`, `longhorn-recovery-backend`) are `SingleStack` (no `ipFamilyPolicy` in the vendored chart), and Longhorn's data-plane engine/replica traffic supports only one address family at a time (never concurrent IPv4+IPv6), even after Longhorn's own in-flight `preferred-data-engine-ip-family` LEP ([longhorn/longhorn#13050](https://github.com/longhorn/longhorn/issues/13050)) ships | harvester (core), Story 8 (`storage-network`/`rwx-network`/`vm-migration-network`) | See [Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack); no Harvester-side code change closes this within this HEP | Administrators who dual-stack `storage-network`/`rwx-network`/`vm-migration-network` will still see Longhorn's own data traffic and management Services settle on a single IP family; document this caveat in the Story 8 experimental warning rather than treating it as resolved. |
 
 
 
