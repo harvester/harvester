@@ -1,4 +1,4 @@
-FROM golang:1.26-bookworm AS builder
+FROM registry.suse.com/bci/golang:1.26 AS builder
 
 ARG CONTAINER_WORKDIR=/go/src/github.com/harvester/harvester
 
@@ -18,17 +18,19 @@ ARG CODECOV_VERSION=v0.8.0
 ARG CODECOV_SHA256_Linux=b37359013b48fbc3b0790d59fc474a52a260fb96e28e1b2c2ae001dc9b9cc996
 
 SHELL ["/bin/bash", "-c"]
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-    xz-utils \
+RUN zypper -n install \
+    xz \
     unzip \
     zstd \
-    squashfs-tools \
+    squashfs \
     xorriso \
     jq \
     mtools \
     dosfstools \
     patch \
-    && rm -rf /var/lib/apt/lists/*
+    rsync \
+    docker\
+    && zypper clean -a
 
 # install yq
 RUN GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.27.5
@@ -44,21 +46,6 @@ RUN mkdir /usr/tmp && \
     mv /usr/tmp/helm /usr/bin/helm
 
 # -- for make rules
-## install docker client
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    rsync \
-    && rm -rf /var/lib/apt/lists/*; \
-    \
-    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - >/dev/null; \
-    echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/debian buster stable" > /etc/apt/sources.list.d/docker.list; \
-    \
-    apt-get update -qq && apt-get install -y --no-install-recommends \
-    docker-ce=5:20.10.* \
-    && rm -rf /var/lib/apt/lists/*
 ## install golangci
 COPY --from=golangci/golangci-lint:v2.12.2-alpine@sha256:91b27804074a0bacea298707f016911e60cf0cdbc6c7bf5ccacb5f0606d18d60 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 
