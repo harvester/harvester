@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,8 +20,8 @@ const (
 var (
 	ServiceGVR              = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
 	PVCGVR                  = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"}
-	VirtualMachineImageGVR  = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachineimages"}
-	VirtualMachineBackupGVR = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachinebackups"}
+	VirtualMachineImageGVR  = v1beta1.SchemeGroupVersion.WithResource(v1beta1.VirtualMachineImageResourceName)
+	VirtualMachineBackupGVR = v1beta1.SchemeGroupVersion.WithResource(v1beta1.VirtualMachineBackupResourceName)
 )
 
 type ResourceAccessCheck struct {
