@@ -45,6 +45,9 @@ var (
 		// always run this when Harvester POD starts
 		settings.AdditionalGuestMemoryOverheadRatioName,
 		settings.TraefikDefaultTLSOptionsSettingName,
+		// The setting has no value until a user configures it, but it still needs to run so
+		// that a migration configuration set directly on the KubeVirt object is adopted.
+		settings.KubeVirtMigrationSettingName,
 	}
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
