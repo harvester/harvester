@@ -1,3 +1,4 @@
 registry.suse.com/suse/vmdp/vmdp:2.5.5
 docker.io/kubeovn/kube-ovn:v1.16.2
+docker.io/kubeovn/vpc-nat-gateway:v1.16.2
 registry.k8s.io/descheduler/descheduler:v0.36.0
