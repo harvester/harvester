@@ -8,7 +8,7 @@ description: |
 
 on:
   slash_command:
-    name: assess-upgrade
+    name: upgrade-risk
     events: [pull_request_comment, pull_request_review_comment]
   roles: [admin, maintainer]
   reaction: eyes
@@ -36,15 +36,15 @@ safe-outputs:
   noop:
     report-as-issue: false
 
+model: claude-sonnet-4.6
 engine:
   id: copilot
-  model: claude-sonnet-4.6
-
 timeout-minutes: 10
 ---
-# Component Upgrade Risk Profile
 
-Perform an upgrade risk assessment review on a pull request when a maintainer invokes `/assess-upgrade` in a PR conversation comment or inline review comment. This is a manually triggered workflow, and it is not automatically triggered on PR open or update. It does not respond to `/assess-upgrade` placed in the PR description body. Because it is triggered via comment events on the base repository, it runs in the base-repo context with full secrets and write access, so it works on PRs from forks as well as same-repo PRs.
+# Upgrade Risk
+
+Perform an upgrade risk assessment review on a pull request when a maintainer invokes `/upgrade-risk` in a PR conversation comment or inline review comment. This is a manually triggered workflow, and it is not automatically triggered on PR open or update. It does not respond to `/upgrade-risk` placed in the PR description body. Because it is triggered via comment events on the base repository, it runs in the base-repo context with full secrets and write access, so it works on PRs from forks as well as same-repo PRs.
 
 If you decide no review action is appropriate, call the `noop` tool with a message explaining why.
 
@@ -62,6 +62,7 @@ Helps maintainers make informed decisions about whether to proceed with a compon
 1. If a pull request is skipped, call the `noop` tool with a message explaining why.
 1. If a pull request changes any of the files listed in step 1, check if it bumps the version of any key components following instructions in the "About components upgrade" section. If not, skip risk assessment on the pull request, and call the `noop` tool with a message explaining why.
 1. If a pull request bumps the version of any key component, check the list of commits between the old version and the new version. See the "Determining change logs" section for instructions on how to determine the changelog.
+1. Check whether the upstream changes touch the component's packaging (Helm chart or deployment manifests) that we vendor into this repository. See the "Vendored Helm chart drift" section for instructions.
 1. Categorize the commits into three categories: new features, bug fixes, and build/test/docs changes. Then report the risk profile based on the rules provided in the "Risk profile assessment rules" section.
 1. Report the risk profile in the pull request comment. See the "Report Risk Profile" section for the report template.
 
@@ -201,6 +202,53 @@ index 73c5bae0f..7b9b7ace6 100644
 +RKE2_VERSION="v1.36.2+rke2r1"
 ```
 
+## Vendored Helm chart drift
+
+Harvester does not always consume a 3rd party component's Helm chart from its upstream chart repository. For several components we vendor a **copy** of the upstream chart (or a chart we hand-wrote from the upstream deployment manifests) under `deploy/charts/harvester/dependency_charts/<component>`. These vendored copies are **not** updated automatically when a component image tag is bumped, so an upstream release that changes the chart leaves our copy stale.
+
+This drift is easy to miss and can break the upgrade at deployment time (missing RBAC rules, renamed values keys, new/removed workloads, changed container args). Always check for it, and always surface it in the report.
+
+### Vendored charts and their upstream sources
+
+Component         | Vendored copy in this repository                              | Upstream path(s) to watch
+----------------- | ------------------------------------------------------------- | -------------------------
+kubevirt-operator | `deploy/charts/harvester/dependency_charts/kubevirt-operator` | `manifests/generated`, `manifests/release` in <https://github.com/kubevirt/kubevirt>
+kubevirt          | `deploy/charts/harvester/dependency_charts/kubevirt`          | `manifests/generated`, `manifests/release` in <https://github.com/kubevirt/kubevirt>
+cdi               | `deploy/charts/harvester/dependency_charts/cdi`               | `manifests/templates` in <https://github.com/kubevirt/containerized-data-importer>
+csi-snapshotter   | `deploy/charts/harvester/dependency_charts/csi-snapshotter`   | `client/config/crd`, `deploy/kubernetes/snapshot-controller` in <https://github.com/kubernetes-csi/external-snapshotter>
+whereabouts       | `deploy/charts/harvester/dependency_charts/whereabouts`       | `deployment/whereabouts-chart`, `doc/crds` in <https://github.com/k8snetworkplumbingwg/whereabouts>
+
+Longhorn, kube-vip and the `rancher/harvester`-prefixed components are pulled from remote chart repositories (see the `repository` field of each entry in `deploy/charts/harvester/Chart.yaml`), so they are **not** vendored and are not subject to this drift. Do not report chart drift for them.
+
+### How to detect the drift
+
+For each component the pull request bumps, diff the upstream paths from the table above between the old tag and the new tag, and list the files that changed:
+
+```sh
+# whereabouts chart + manifest changes between v0.9.0 and v0.10.0
+gh api repos/k8snetworkplumbingwg/whereabouts/compare/v0.9.0...v0.10.0 \
+  --jq '.files[].filename | select(startswith("deployment/whereabouts-chart/") or startswith("doc/crds/"))'
+
+# the pull requests that touched them, for linking in the report
+gh api repos/k8snetworkplumbingwg/whereabouts/compare/v0.9.0...v0.10.0 \
+  --jq '.commits[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
+```
+
+Note that the compare API truncates the `files` array at 300 entries. If the comparison is truncated, say so in the report rather than concluding there is no drift.
+
+When you find changed files, read the upstream diff (`gh api repos/OWNER/REPO/compare/OLD...NEW --jq '.files[] | select(.filename == "...") | .patch'`) and compare it against the corresponding file in our vendored copy to work out what our maintainers actually need to port. Concentrate on changes that alter deployed behaviour:
+
+* new, removed or renamed workloads (Deployment, DaemonSet, Job)
+* RBAC changes — added or removed rules in `ClusterRole`/`Role`, new `ServiceAccount`
+* new or renamed CRDs, and CRD schema changes
+* changed container args, env vars, probes, security contexts or resource requests
+* new, renamed or removed keys in the upstream chart's `values.yaml`, since Harvester's `deploy/charts/harvester/values.yaml` sets them
+* changes to the chart's `appVersion`, which tells us which image tag the upstream chart expects
+
+Ignore purely cosmetic upstream chart changes such as comment or whitespace edits, chart `description` wording, and README-only updates.
+
+Example: <https://github.com/k8snetworkplumbingwg/whereabouts/pull/700> moves the IP reconciler from a cron job in the DaemonSet into a standalone Deployment, touching `deployment/whereabouts-chart/templates/daemonset.yaml`, `deployment/whereabouts-chart/templates/reconciler.yaml` and `deployment/whereabouts-chart/values.yaml`. A whereabouts bump that includes that pull request requires maintainers to port the new `reconciler.yaml` template and the corresponding values into `deploy/charts/harvester/dependency_charts/whereabouts` — the image tag bump alone is not enough.
+
 ## Determining change logs
 
 The following table shows the remote repositories for the components we care about, and where to find the commits, changelog and release notes:
@@ -239,6 +287,7 @@ If you cannot find the changelog, release notes and commits for the component, r
 1. Critical or high severity security issues in the new version must be labeled as high risks
 1. Vulnerability (CVE) fixes are always good to have
 1. Call out dependency upgrades. For example, in `go.mod`. Label them as high risks if there are major version changes or known vulnerabilities in the new versions
+1. Upstream Helm chart or deployment manifest changes that are not mirrored in our vendored copy are high risk, because the component would be deployed with a stale chart. Treat added/removed workloads, RBAC changes, CRD changes and removed or renamed `values.yaml` keys as high risk; treat additive, defaulted `values.yaml` keys as medium risk
 1. Changes to build/test/docs are generally low risk and can be ignored
 
 ## Report Risk Profile
@@ -252,12 +301,13 @@ In the risk profile report, use hyperlinks to reference upstream pull requests a
 However, GitHub imposes a limit of 50 hyperlinks in a pull request comment. If the number of hyperlinks exceeded the allowed limit, our workflow would fail. One way to workaround this is to use hyperlinks in the following important sections only:
 
 * High-Risk Items
+* Helm Chart Drift
 * Bug Fixes Critical/High Priority
 * Security Advisories
 
 For less important items in the medium and low priority bug fixes, build/test/docs changes sections, providing just the pull request numbers without hyperlinks is acceptable.
 
-For fun, add some emojis to make the report more visually appealing and easier to scan. For example, you can use 🚨 for high-risk items, 🐛 for bug fixes, and 📚 for build/test/docs changes.
+For fun, add some emojis to make the report more visually appealing and easier to scan. For example, you can use 🚨 for high-risk items, ⎈ for Helm chart drift, 🐛 for bug fixes, and 📚 for build/test/docs changes.
 
 ### Risk Profile Template
 
@@ -269,12 +319,31 @@ This section should summarize the risk profile with the following information
 - the component name
 - the old version and the new versions
 - the risk profile (High/Medium/Low)
+- whether the vendored Helm chart needs to be updated (Yes/No/Not vendored)
 
 ## High-Risk Items (New Features/Behavioral Changes)
 
 * item 1 - can be commit message, issue number/title, a release note entry etc. if possible, identify the release version of this item.
 * item 2
 * ...
+
+## Helm Chart Drift
+
+Only include this section for components whose Helm chart we vendor under `deploy/charts/harvester/dependency_charts/`. See the "Vendored Helm chart drift" section.
+
+State up front whether the vendored chart needs to be updated. If the upstream chart and deployment manifests are unchanged between the two versions, say so in a single line and move on.
+
+If there is drift, name the vendored chart path maintainers must update, and for each upstream change list:
+
+* the upstream file that changed and the pull request that changed it, hyperlinked
+* what the change does, in one line
+* what maintainers need to port into the vendored copy, and whether `deploy/charts/harvester/values.yaml` also needs a matching change
+
+For example:
+
+> ⎈ **The vendored chart needs updating**: `deploy/charts/harvester/dependency_charts/whereabouts`
+>
+> * [#700](https://github.com/k8snetworkplumbingwg/whereabouts/pull/700) moves the IP reconciler out of the DaemonSet cron into a standalone Deployment (`deployment/whereabouts-chart/templates/reconciler.yaml`, `.../daemonset.yaml`, `.../values.yaml`). Port the new `reconciler.yaml` template and drop the reconciler cron from our `templates/daemonset.yaml`; the new `reconciler.*` values keys also need to be surfaced in `deploy/charts/harvester/values.yaml`.
 
 ## Bug Fixes
 
@@ -310,9 +379,13 @@ For each CVE, provide a link to the CVE details and a brief description of the v
 
 This section should make a recommendation on whether or not to proceed with upgrade, and provide justification for the recommendation.
 
+If the vendored Helm chart needs updating, call it out here as a blocker that must be done in the same pull request as the image tag bump.
+
 Provide a list of important things for maintainers to validate before/after upgrade.
 ```
 
 ## Maintenance
 
-If a pull request adds a new component that is not in the list of components we care about notify the maintainers to update the table in the `.github/workflows/component-upgrade-risk-profile.md` file.
+If a pull request adds a new component that is not in the list of components we care about notify the maintainers to update the table in the `.github/workflows/upgrade-risk.md` file.
+
+Likewise, if a component's chart is vendored under `deploy/charts/harvester/dependency_charts/` but is missing from the "Vendored charts and their upstream sources" table, or if the upstream path in that table no longer exists, notify the maintainers to update that table too.
