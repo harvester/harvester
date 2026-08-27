@@ -116,6 +116,64 @@ preserve_overcommit_config() {
   kubectl patch settings.harvesterhci.io "$setting_name" --type merge -p "$patch_json"
 }
 
+# Before the kubevirt-migration setting existed the cluster-wide migration configuration could
+# only be set on the KubeVirt object directly. Convert it into the setting, otherwise the
+# setting reports its default while the cluster runs something else, and the first edit of the
+# setting overwrites the whole migrations block and silently discards the configuration.
+# nodeDrainTaintKey and network are dropped, neither is configurable through this setting:
+# the former is used by the upgrade scripts, the latter is owned by vm-migration-network.
+convert_kubevirt_migration_to_harvester_setting() {
+  local setting_name="kubevirt-migration"
+
+  local migrations
+  migrations=$(kubectl get kubevirt kubevirt -n harvester-system -o json | jq -c '.spec.configuration.migrations // empty')
+  if [ -z "$migrations" ]; then
+    echo "KubeVirt has no migration configuration, skip converting $setting_name"
+    return 0
+  fi
+
+  local value
+  value=$(echo "$migrations" | jq -c 'del(.nodeDrainTaintKey, .network)')
+  if [ "$value" = "{}" ]; then
+    echo "KubeVirt migration configuration holds nothing convertible, skip converting $setting_name"
+    return 0
+  fi
+
+  local setting_json
+  if setting_json=$(kubectl get settings.harvesterhci.io "$setting_name" -o json 2>/dev/null); then
+    local current_value
+    current_value=$(echo "$setting_json" | jq -r '.value // empty')
+    if [ -n "$current_value" ]; then
+      echo "$setting_name already has a customized value, skip converting"
+      return 0
+    fi
+
+    echo "Converting the KubeVirt migration configuration into $setting_name: $value"
+    local patch_json
+    patch_json=$(jq -n --arg v "$value" '{"value": $v}')
+    # The webhook rejects the update while a VM migration is in progress. Do not fail the
+    # upgrade over it; the KubeVirt object keeps its configuration either way.
+    kubectl patch settings.harvesterhci.io "$setting_name" --type merge -p "$patch_json" || \
+      echo "Warning: failed to patch $setting_name, skipping conversion"
+    return 0
+  fi
+
+  # Upgrading from a release that predates the setting: create it with the value already set,
+  # so it is never observed holding the default while KubeVirt runs something else.
+  echo "Creating $setting_name from the KubeVirt migration configuration: $value"
+  local setting_file="$UPGRADE_TMP_DIR/$setting_name.yaml"
+  mkdir -p "$UPGRADE_TMP_DIR"
+  cat >"$setting_file" <<EOF
+apiVersion: harvesterhci.io/v1beta1
+kind: Setting
+metadata:
+  name: $setting_name
+value: '$value'
+EOF
+  kubectl apply -f "$setting_file" || echo "Warning: failed to create $setting_name, skipping conversion"
+  rm -f "$setting_file"
+}
+
 wait_managed_chart() {
   namespace=$1
   name=$2
@@ -1703,6 +1761,7 @@ migrate_longhorn_v1beta1_crds
 upgrade_harvester_cluster_repo
 ensure_ingress_class_name
 apply_extra_nonversion_manifests
+convert_kubevirt_migration_to_harvester_setting
 upgrade_harvester
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade

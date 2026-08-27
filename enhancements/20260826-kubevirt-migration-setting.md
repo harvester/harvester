@@ -94,31 +94,37 @@ untouched cluster describe the same behaviour.
 validates it. `pkg/controller/master/setting/kubevirt_migration.go` reconciles it against the
 `kubevirt` object in `harvester-system`.
 
-The reconcile has two paths, chosen by whether the setting has ever been configured. A setting
-counts as never configured when it has no `value` **and** no `harvesterhci.io/hash` annotation
-— the annotation is written by the setting controller after every successful sync, so its
-absence means no sync has ever completed.
+The controller always treats the Harvester setting as the source of truth:
 
-**Adopt** (never configured):
-
-1. If the KubeVirt object has no `spec.configuration.migrations`, do nothing. KubeVirt runs on
-   its own defaults, which the setting default already mirrors.
-2. Otherwise decode the setting default, overlay the fields the KubeVirt object sets, drop
-   `nodeDrainTaintKey` and `network`, and write the result to the setting's `value`.
-3. Do not write to the KubeVirt object.
-
-Because the adopted value is the default overlaid with the live configuration, the apply path
-that runs immediately afterwards is a no-op.
-
-**Apply** (configured, or configured and then cleared):
-
-1. Decode `value`, falling back to `default` when `value` was cleared.
+1. Decode `value`, falling back to `default` when `value` is empty.
 2. Preserve `network` from the KubeVirt object and clear `nodeDrainTaintKey`.
 3. Write the result to `spec.configuration.migrations` if it differs.
 
-The setting is listed in `bootstrapSettings` so that the syncer runs even while `value` is
-empty; this is what allows adoption to happen without a user touching the setting. It is safe
-because the adopt path never writes to the KubeVirt object.
+Conversion of a pre-existing configuration is handled once, on the upgrade path, rather than in
+the controller. This follows the precedent set by `additional-guest-memory-overhead-ratio`
+(#6438), which faced the same problem when it started managing a field that users could
+previously only set on the KubeVirt object.
+
+`convert_kubevirt_migration_to_harvester_setting` in `package/upgrade/upgrade_manifests.sh` runs
+before the Harvester chart is upgraded:
+
+1. Read `spec.configuration.migrations` from the KubeVirt object. If it is absent, stop —
+   KubeVirt runs on its own defaults, which the setting default already mirrors.
+2. Drop `nodeDrainTaintKey` and `network`, since the webhook rejects a value that carries them.
+   If nothing is left, stop.
+3. If the setting already holds a value, stop. The user has configured it and it wins.
+4. Otherwise write the result into the setting: patch it when it exists (upgrading from a
+   release that has the setting but never had a value), create it otherwise (upgrading from a
+   release that predates the setting).
+
+The KubeVirt object is never written by the conversion, so the upgrade cannot change the
+cluster's live migration behaviour. Once the controller comes up it applies the converted value,
+which is what the object already holds, so the first reconcile is a no-op.
+
+Keeping the conversion out of the controller is what lets the controller stay a plain
+setting-to-object reconciler. An in-controller adoption would have to write back to the setting
+it was invoked for, which races with the `Configured` condition update the setting controller
+performs right after every syncer returns.
 
 ### Validation
 
@@ -131,25 +137,30 @@ The webhook rejects a value that:
 
 ### Upgrade strategy
 
-No upgrade action is required. The setting is created empty by the upgrade, and the first
-reconcile adopts whatever is on the KubeVirt object.
+The conversion described above runs automatically, both when upgrading from a release that
+predates the setting and when upgrading a cluster that is already on a release with the setting
+but has never given it a value. It is idempotent and a no-op on a cluster that never customised
+the KubeVirt object.
 
-Administrators upgrading from a release without this setting should be aware that the setting
-becomes authoritative once it holds a value. Editing the KubeVirt object directly after that
-point is unsupported: the change will be overwritten the next time the setting is reconciled.
+Administrators should be aware that the setting becomes authoritative once it holds a value.
+Editing the KubeVirt object directly after that point is unsupported: the change will be
+overwritten the next time the setting is reconciled.
+
+The conversion is skipped, with a warning, if the webhook rejects the write because a VM
+migration is in progress. The KubeVirt object keeps its configuration either way, and the
+conversion will be retried on the next upgrade. The manual workaround below sets the value
+directly.
 
 ### Test plan
 
-Unit tests in `pkg/controller/master/setting/kubevirt_migration_test.go` cover:
+Unit tests in `pkg/controller/master/setting/kubevirt_migration_test.go` cover the reconcile:
 
-- An unconfigured setting adopts an existing KubeVirt migration configuration and leaves the
-  KubeVirt object untouched.
-- Adoption drops `nodeDrainTaintKey` and `network`.
-- An unconfigured setting against an unconfigured KubeVirt object writes nothing.
-- A configured setting is applied to the KubeVirt object, overriding what is there while
-  preserving `network`.
-- Clearing the value of a previously synced setting resets the KubeVirt object to the default
-  rather than re-adopting.
+- The value is applied to the KubeVirt object.
+- The value replaces the existing configuration but keeps `network`.
+- `nodeDrainTaintKey` is cleared.
+- A quantity value (`bandwidthPerMigration`) is applied.
+- An empty value falls back to the default.
+- The KubeVirt object is not updated when it is already in sync.
 
 Manual verification on an upgraded cluster:
 
@@ -171,6 +182,9 @@ kubectl get kubevirt -n harvester-system kubevirt \
 
 - `utilityVolumesTimeout`, present in the KubeVirt API, is not part of the setting default and
   is therefore not editable from the UI. A value already set on the KubeVirt object is carried
-  through adoption, but is dropped if the setting is later cleared.
+  through the conversion, but is dropped if the setting is later cleared.
+- The conversion only runs during an upgrade. A cluster that is already on a release with the
+  setting and has the mismatch today keeps it until its next upgrade; the manual workaround is
+  to set the value explicitly.
 - The setting is not reconciled when the KubeVirt object changes. A direct edit of
   `spec.configuration.migrations` is not reverted until the setting is next updated.

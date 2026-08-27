@@ -18,11 +18,10 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func newKubeVirtMigrationSetting(value string, annotations map[string]string) *harvesterv1.Setting {
+func newKubeVirtMigrationSetting(value string) *harvesterv1.Setting {
 	return &harvesterv1.Setting{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        settings.KubeVirtMigrationSettingName,
-			Annotations: annotations,
+			Name: settings.KubeVirtMigrationSettingName,
 		},
 		Default: settings.KubeVirtMigration.Default,
 		Value:   value,
@@ -43,8 +42,8 @@ func newKubeVirt(migrationConfiguration *kubevirtv1.MigrationConfiguration) *kub
 	}
 }
 
-// defaultMigrationConfiguration returns the setting default decoded into a struct, which is
-// what the KubeVirt object is expected to end up with once the setting is applied.
+// defaultMigrationConfiguration returns the setting default decoded into a struct, which is what
+// the KubeVirt object is expected to hold once a setting without a value is applied.
 func defaultMigrationConfiguration(t *testing.T) *kubevirtv1.MigrationConfiguration {
 	t.Helper()
 	migrationConfiguration := &kubevirtv1.MigrationConfiguration{}
@@ -55,6 +54,7 @@ func defaultMigrationConfiguration(t *testing.T) *kubevirtv1.MigrationConfigurat
 func TestSyncKubeVirtMigration(t *testing.T) {
 	var (
 		trueValue    = true
+		four         = uint32(4)
 		fortyGiB     = resource.MustParse("40Gi")
 		drainTaint   = "acme.io/drain"
 		migrationNet = "default/migration"
@@ -64,128 +64,73 @@ func TestSyncKubeVirtMigration(t *testing.T) {
 		setting  *harvesterv1.Setting
 		kubevirt *kubevirtv1.KubeVirt
 	}
-	type output struct {
-		// settingValue is the expected setting value after the sync. An empty string means
-		// the setting is expected to be left untouched.
-		settingValue *kubevirtv1.MigrationConfiguration
-		// kubevirtConfig is the expected KubeVirt migration configuration after the sync.
-		kubevirtConfig *kubevirtv1.MigrationConfiguration
-	}
 
 	var testCases = []struct {
 		name     string
 		given    input
-		expected output
+		expected *kubevirtv1.MigrationConfiguration
 	}{
 		{
-			// The regression this guards: on upgrade the setting is created empty while the
-			// KubeVirt object already carries a hand-made configuration. The setting must
-			// adopt it instead of reporting the defaults.
-			name: "unconfigured setting adopts the existing KubeVirt configuration",
+			name: "the value is applied to the KubeVirt object",
 			given: input{
-				setting: newKubeVirtMigrationSetting("", nil),
-				kubevirt: newKubeVirt(&kubevirtv1.MigrationConfiguration{
-					AllowAutoConverge: &trueValue,
-				}),
-			},
-			expected: output{
-				settingValue: func() *kubevirtv1.MigrationConfiguration {
-					c := defaultMigrationConfiguration(t)
-					c.AllowAutoConverge = &trueValue
-					return c
-				}(),
-				kubevirtConfig: &kubevirtv1.MigrationConfiguration{
-					AllowAutoConverge: &trueValue,
-				},
-			},
-		},
-		{
-			name: "adoption drops the fields owned elsewhere",
-			given: input{
-				setting: newKubeVirtMigrationSetting("", nil),
-				kubevirt: newKubeVirt(&kubevirtv1.MigrationConfiguration{
-					AllowAutoConverge:     &trueValue,
-					BandwidthPerMigration: &fortyGiB,
-					NodeDrainTaintKey:     &drainTaint,
-					Network:               &migrationNet,
-				}),
-			},
-			expected: output{
-				settingValue: func() *kubevirtv1.MigrationConfiguration {
-					c := defaultMigrationConfiguration(t)
-					c.AllowAutoConverge = &trueValue
-					c.BandwidthPerMigration = &fortyGiB
-					return c
-				}(),
-				kubevirtConfig: &kubevirtv1.MigrationConfiguration{
-					AllowAutoConverge:     &trueValue,
-					BandwidthPerMigration: &fortyGiB,
-					NodeDrainTaintKey:     &drainTaint,
-					Network:               &migrationNet,
-				},
-			},
-		},
-		{
-			// A pristine cluster runs on the KubeVirt defaults, which the setting default
-			// already mirrors, so there is nothing to adopt and nothing to write.
-			name: "unconfigured setting leaves an unconfigured KubeVirt object alone",
-			given: input{
-				setting:  newKubeVirtMigrationSetting("", nil),
+				setting:  newKubeVirtMigrationSetting(`{"parallelMigrationsPerCluster":4,"allowAutoConverge":true}`),
 				kubevirt: newKubeVirt(nil),
 			},
-			expected: output{
-				settingValue:   nil,
-				kubevirtConfig: nil,
+			expected: &kubevirtv1.MigrationConfiguration{
+				ParallelMigrationsPerCluster: &four,
+				AllowAutoConverge:            &trueValue,
 			},
 		},
 		{
-			name: "configured setting is applied to the KubeVirt object",
+			// The whole migrations block is replaced, so allowPostCopy is dropped. Only the
+			// network is carried over, it belongs to the vm-migration-network setting.
+			name: "the value replaces the existing configuration but keeps the network",
 			given: input{
-				setting:  newKubeVirtMigrationSetting(`{"parallelMigrationsPerCluster":4,"allowAutoConverge":true}`, nil),
-				kubevirt: newKubeVirt(nil),
-			},
-			expected: output{
-				settingValue: nil,
-				kubevirtConfig: func() *kubevirtv1.MigrationConfiguration {
-					four := uint32(4)
-					return &kubevirtv1.MigrationConfiguration{
-						ParallelMigrationsPerCluster: &four,
-						AllowAutoConverge:            &trueValue,
-					}
-				}(),
-			},
-		},
-		{
-			name: "configured setting overrides the existing KubeVirt configuration",
-			given: input{
-				setting: newKubeVirtMigrationSetting(`{"allowAutoConverge":true}`, nil),
+				setting: newKubeVirtMigrationSetting(`{"allowAutoConverge":true}`),
 				kubevirt: newKubeVirt(&kubevirtv1.MigrationConfiguration{
 					AllowPostCopy: &trueValue,
 					Network:       &migrationNet,
 				}),
 			},
-			expected: output{
-				settingValue: nil,
-				kubevirtConfig: &kubevirtv1.MigrationConfiguration{
-					AllowAutoConverge: &trueValue,
-					Network:           &migrationNet,
-				},
+			expected: &kubevirtv1.MigrationConfiguration{
+				AllowAutoConverge: &trueValue,
+				Network:           &migrationNet,
 			},
 		},
 		{
-			// Clearing the value of a setting that was configured before resets the KubeVirt
-			// object to the default, it does not re-adopt what is on the object.
-			name: "cleared value of a previously synced setting resets to the default",
+			// nodeDrainTaintKey is cleared so KubeVirt falls back to kubevirt.io/drain, which
+			// the upgrade scripts depend on.
+			name: "nodeDrainTaintKey is cleared",
 			given: input{
-				setting: newKubeVirtMigrationSetting("", map[string]string{util.AnnotationHash: "stale"}),
+				setting: newKubeVirtMigrationSetting(`{"allowAutoConverge":true}`),
+				kubevirt: newKubeVirt(&kubevirtv1.MigrationConfiguration{
+					NodeDrainTaintKey: &drainTaint,
+				}),
+			},
+			expected: &kubevirtv1.MigrationConfiguration{
+				AllowAutoConverge: &trueValue,
+			},
+		},
+		{
+			name: "a quantity value is applied",
+			given: input{
+				setting:  newKubeVirtMigrationSetting(`{"bandwidthPerMigration":"40Gi"}`),
+				kubevirt: newKubeVirt(nil),
+			},
+			expected: &kubevirtv1.MigrationConfiguration{
+				BandwidthPerMigration: &fortyGiB,
+			},
+		},
+		{
+			// Clearing the value resets the KubeVirt object to the setting default.
+			name: "an empty value falls back to the default",
+			given: input{
+				setting: newKubeVirtMigrationSetting(""),
 				kubevirt: newKubeVirt(&kubevirtv1.MigrationConfiguration{
 					AllowAutoConverge: &trueValue,
 				}),
 			},
-			expected: output{
-				settingValue:   nil,
-				kubevirtConfig: defaultMigrationConfiguration(t),
-			},
+			expected: defaultMigrationConfiguration(t),
 		},
 	}
 
@@ -203,19 +148,34 @@ func TestSyncKubeVirtMigration(t *testing.T) {
 
 			require.NoError(t, handler.syncKubeVirtMigration(tc.given.setting))
 
-			setting, err := clientset.HarvesterhciV1beta1().Settings().Get(context.TODO(), tc.given.setting.Name, metav1.GetOptions{})
+			kubevirt, err := clientset.KubevirtV1().KubeVirts(util.HarvesterSystemNamespaceName).
+				Get(context.TODO(), util.KubeVirtObjectName, metav1.GetOptions{})
 			require.NoError(t, err)
-			if tc.expected.settingValue == nil {
-				assert.Equal(t, tc.given.setting.Value, setting.Value, "setting value should not change")
-			} else {
-				actual := &kubevirtv1.MigrationConfiguration{}
-				require.NoError(t, json.Unmarshal([]byte(setting.Value), actual))
-				assert.Equal(t, tc.expected.settingValue, actual)
-			}
-
-			kubevirt, err := clientset.KubevirtV1().KubeVirts(util.HarvesterSystemNamespaceName).Get(context.TODO(), util.KubeVirtObjectName, metav1.GetOptions{})
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected.kubevirtConfig, kubevirt.Spec.Configuration.MigrationConfiguration)
+			assert.Equal(t, tc.expected, kubevirt.Spec.Configuration.MigrationConfiguration)
 		})
+	}
+}
+
+// TestSyncKubeVirtMigrationNoop covers the guard that keeps the syncer from writing to the
+// KubeVirt object on every resync.
+func TestSyncKubeVirtMigrationNoop(t *testing.T) {
+	setting := newKubeVirtMigrationSetting(settings.KubeVirtMigration.Default)
+	kubevirt := newKubeVirt(defaultMigrationConfiguration(t))
+
+	clientset := fake.NewSimpleClientset()
+	require.NoError(t, clientset.Tracker().Add(setting))
+	require.NoError(t, clientset.Tracker().Add(kubevirt))
+
+	handler := &Handler{
+		settings:            fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings),
+		kubeVirtConfig:      fakeclients.KubeVirtClient(clientset.KubevirtV1().KubeVirts),
+		kubeVirtConfigCache: fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
+	}
+
+	clientset.ClearActions()
+	require.NoError(t, handler.syncKubeVirtMigration(setting))
+
+	for _, action := range clientset.Actions() {
+		assert.NotEqual(t, "update", action.GetVerb(), "the KubeVirt object should not be updated when already in sync")
 	}
 }
