@@ -12,7 +12,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -49,7 +48,7 @@ var (
 			Namespace: svmbackup.Namespace,
 			Name:      fmt.Sprintf("%s-%s-%s", svmbackupPrefix, svmbackup.UID, timestamp1),
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 			Labels: map[string]string{
 				util.LabelSVMBackupUID:       string(svmbackup.UID),
@@ -75,7 +74,7 @@ var (
 			Namespace: svmbackup.Namespace,
 			Name:      fmt.Sprintf("%s-%s-%s", svmbackupPrefix, svmbackup.UID, timestamp2),
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 			Labels: map[string]string{
 				util.LabelSVMBackupUID:       string(svmbackup.UID),
@@ -93,7 +92,7 @@ var (
 			Namespace: svmbackup.Namespace,
 			Name:      fmt.Sprintf("%s-%s-%s", svmbackupPrefix, svmbackup.UID, timestamp3),
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 			Labels: map[string]string{
 				util.LabelSVMBackupUID:       string(svmbackup.UID),
@@ -111,7 +110,7 @@ var (
 			Namespace: svmbackup.Namespace,
 			Name:      fmt.Sprintf("%s-%s-%s", svmbackupPrefix, svmbackup.UID, timestampErr),
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 			Labels: map[string]string{
 				util.LabelSVMBackupUID:       string(svmbackup.UID),

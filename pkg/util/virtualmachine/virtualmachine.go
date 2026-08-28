@@ -13,7 +13,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
@@ -154,7 +153,7 @@ func CheckBlockRWXVolumeForVM(pvcCache v1.PersistentVolumeClaimCache, scCache ct
 	if volumeSupportRWXForVM(targetAccessMode, targetProvisioner) {
 		return nil
 	}
-	vms, err := vmCache.GetByIndex(indexeresutil.VMByNonShareablePVCIndex, ref.Construct(pvcNS, pvcName))
+	vms, err := vmCache.GetByIndex(indexeresutil.VMByNonShareablePVCIndex, util.NamespacedName(pvcNS, pvcName))
 	if err != nil {
 		return fmt.Errorf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByNonShareablePVCIndex, pvcNS, pvcName, err)
 	}

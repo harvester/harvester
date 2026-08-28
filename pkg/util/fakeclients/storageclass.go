@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	storagev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,7 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 
-	"github.com/harvester/harvester/pkg/ref"
+	storagev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/storage.k8s.io/v1"
+
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
@@ -82,7 +82,7 @@ func (c StorageClassCache) AddIndexer(_ string, _ generic.Indexer[*storagev1.Sto
 func (c StorageClassCache) GetByIndex(indexName, key string) ([]*storagev1.StorageClass, error) {
 	switch indexName {
 	case indexeresutil.StorageClassBySecretIndex:
-		secretNS, secretName := ref.Parse(key)
+		secretNS, secretName, _ := util.SplitNamespacedName(key)
 		scList, err := c().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return nil, err

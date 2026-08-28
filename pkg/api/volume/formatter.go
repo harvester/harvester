@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
@@ -55,7 +54,7 @@ func (f *volFormatter) Formatter(request *types.APIRequest, resource *types.RawR
 		resource.AddAction(request, actionSnapshot)
 	}
 
-	if vms, err := f.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(pvc.Namespace, pvc.Name)); err == nil && len(vms) == 0 {
+	if vms, err := f.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, util.NamespacedName(pvc.Namespace, pvc.Name)); err == nil && len(vms) == 0 {
 		resource.AddAction(request, actionDataMigration)
 	}
 }

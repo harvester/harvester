@@ -15,7 +15,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/driver"
@@ -215,7 +214,7 @@ func (lbr *LHRestoreOperation) ensureRestoreResourcesExist(
 
 func (lbr *LHRestoreOperation) getSourceRemoteBackup(vrr *harvesterv1.VolumeRemoteRestore) (*harvesterv1.VolumeRemoteBackup, error) {
 	fromRef := lbr.ro.GetFrom(vrr)
-	namespace, name := ref.Parse(fromRef)
+	namespace, name, _ := util.SplitNamespacedName(fromRef)
 
 	// If namespace is empty, use the same namespace as PVCRestore
 	if namespace == "" {

@@ -9,7 +9,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/common"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -45,7 +44,7 @@ func (h *backingImageHandler) OnChanged(_ string, bi *lhv1beta2.BackingImage) (*
 	if bi.Annotations[util.AnnotationImageID] == "" || len(bi.Status.DiskFileStatusMap) != 1 {
 		return nil, nil
 	}
-	namespace, name := ref.Parse(bi.Annotations[util.AnnotationImageID])
+	namespace, name, _ := util.SplitNamespacedName(bi.Annotations[util.AnnotationImageID])
 	vmi, err := h.vmiCache.Get(namespace, name)
 	if errors.IsNotFound(err) {
 		return nil, nil

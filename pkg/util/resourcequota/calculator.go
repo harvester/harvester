@@ -17,7 +17,6 @@ import (
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 )
@@ -279,7 +278,7 @@ func GetMemoryLimitsFromRancherNamespaceResourceQuota(nrq *v3.NamespaceResourceQ
 }
 
 func (c *Calculator) getVMPods(namespace, vmName string) ([]*corev1.Pod, error) {
-	return c.podCache.GetByIndex(indexeresutil.PodByVMNameIndex, ref.Construct(namespace, vmName))
+	return c.podCache.GetByIndex(indexeresutil.PodByVMNameIndex, util.NamespacedName(namespace, vmName))
 }
 
 func (c *Calculator) CheckStorageResourceQuota(vm *kubevirtv1.VirtualMachine, oldVM *kubevirtv1.VirtualMachine) error {

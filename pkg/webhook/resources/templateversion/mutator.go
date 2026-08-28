@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -45,7 +45,7 @@ func (m *templateVersionMutator) Create(_ *types.Request, newObj runtime.Object)
 		return nil, werror.NewInvalidError("TemplateId is empty", fieldTemplateID)
 	}
 
-	_, templateName := ref.Parse(templateID)
+	_, templateName, _ := util.SplitNamespacedName(templateID)
 
 	// Do not generate a name if there is a name.
 	if vmTemplVersion.Name != "" {

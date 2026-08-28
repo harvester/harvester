@@ -21,7 +21,6 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -84,7 +83,7 @@ func (h *backupBackingImageHandler) OnBackupBackingImageChange(_ string, backupB
 		return nil, err
 	}
 
-	vmImageNamespace, vmImageName := ref.Parse(backingImage.Annotations[util.AnnotationImageID])
+	vmImageNamespace, vmImageName, _ := util.SplitNamespacedName(backingImage.Annotations[util.AnnotationImageID])
 	if vmImageNamespace == "" || vmImageName == "" {
 		return nil, nil
 	}

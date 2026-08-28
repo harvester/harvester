@@ -10,7 +10,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -134,7 +134,7 @@ func (v *remoteRestoreValidator) Create(request *types.Request, newObj runtime.O
 	}
 
 	// Parse the backup reference (namespace/name format)
-	vrbNamespace, vrbName := ref.Parse(v.ro.GetFrom(vrr))
+	vrbNamespace, vrbName, _ := util.SplitNamespacedName(v.ro.GetFrom(vrr))
 	if vrbNamespace == "" {
 		vrbNamespace = v.ro.GetNamespace(vrr)
 	}

@@ -3,7 +3,6 @@ package indexeres
 import (
 	storagev1 "k8s.io/api/storage/v1"
 
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -21,6 +20,6 @@ func StorageClassBySecret(sc *storagev1.StorageClass) ([]string, error) {
 	secretNS := sc.Parameters[util.CSINodePublishSecretNamespaceKey]
 
 	return []string{
-		ref.Construct(secretNS, secretName),
+		util.NamespacedName(secretNS, secretName),
 	}, nil
 }

@@ -29,7 +29,6 @@ import (
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	harvesterServer "github.com/harvester/harvester/pkg/server/http"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -251,7 +250,7 @@ func (h *ActionHandler) cancelExpand(_ context.Context, pvcNamespace, pvcName st
 		return err
 	}
 
-	vms, err := h.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(pvcNamespace, pvcName))
+	vms, err := h.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, util.NamespacedName(pvcNamespace, pvcName))
 	if err != nil {
 		return fmt.Errorf("failed to get VMs by index: %s, PVC: %s/%s, err: %v", indexeresutil.VMByPVCIndex, pvcNamespace, pvcName, err)
 	}

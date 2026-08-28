@@ -12,7 +12,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	fakegenerated "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/image/common"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -67,7 +66,7 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 					Name:      testImageName,
 					Namespace: testNamespace,
 					Annotations: map[string]string{
-						util.AnnotationImageID: ref.Construct(testNamespace, testImageName),
+						util.AnnotationImageID: util.NamespacedName(testNamespace, testImageName),
 					},
 				},
 				Status: lhv1beta2.BackingImageStatus{
@@ -115,7 +114,7 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 					Name:      testImageName,
 					Namespace: testNamespace,
 					Annotations: map[string]string{
-						util.AnnotationImageID: ref.Construct(testNamespace, testImageName),
+						util.AnnotationImageID: util.NamespacedName(testNamespace, testImageName),
 					},
 				},
 				Status: lhv1beta2.BackingImageStatus{
@@ -132,7 +131,7 @@ func TestBackingImageHandler_OnChanged_RetryLimitExceeded(t *testing.T) {
 					Name:      testImageName,
 					Namespace: testNamespace,
 					Annotations: map[string]string{
-						util.AnnotationImageID: ref.Construct(testNamespace, testImageName),
+						util.AnnotationImageID: util.NamespacedName(testNamespace, testImageName),
 					},
 				},
 				Status: lhv1beta2.BackingImageStatus{

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -26,6 +25,8 @@ import (
 	validationutil "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -717,7 +718,7 @@ func objectNamespacedName(obj metav1.Object) string {
 	if obj.GetNamespace() == "" {
 		return obj.GetName()
 	}
-	return fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName())
+	return util.GetNamespacedName(obj)
 }
 
 func formatLVMBlocker(kind string, names []string) string {

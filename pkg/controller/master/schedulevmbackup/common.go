@@ -14,7 +14,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -110,7 +109,7 @@ func createVMBackup(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup
 			Name:      vmBackupName(svmbackup, timestamp),
 			Namespace: svmbackup.Namespace,
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 			Labels: map[string]string{
 				util.LabelSVMBackupUID:       string(svmbackup.UID),
