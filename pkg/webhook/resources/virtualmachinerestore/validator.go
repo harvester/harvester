@@ -21,7 +21,6 @@ import (
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -328,7 +327,7 @@ func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) 
 	sourceSpec := v.vmbr.GetSourceSpec(vmBackup)
 	for _, network := range sourceSpec.Spec.Template.Spec.Networks {
 		if network.Multus != nil {
-			namespace, name := ref.Parse(network.Multus.NetworkName)
+			namespace, name, _ := util.SplitNamespacedName(network.Multus.NetworkName)
 			_, err := v.networkAttachmentDefinitionsCache.Get(namespace, name)
 			if err != nil {
 				return fmt.Errorf("failed to get network attachment definition %s, err: %v", network.Multus.NetworkName, err)

@@ -10,7 +10,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -33,7 +32,7 @@ func (h *templateVersionHandler) OnChanged(_ string, tv *harvesterv1.VirtualMach
 		return nil, nil
 	}
 
-	ns, templateName := ref.Parse(tv.Spec.TemplateID)
+	ns, templateName, _ := util.SplitNamespacedName(tv.Spec.TemplateID)
 	template, err := h.templateCache.Get(ns, templateName)
 	if err != nil {
 		return nil, err
@@ -116,7 +115,7 @@ func (h *templateVersionHandler) isVMImagesReady(tv *harvesterv1.VirtualMachineT
 			continue
 		}
 
-		imageNs, imageName := ref.Parse(imageID)
+		imageNs, imageName, _ := util.SplitNamespacedName(imageID)
 		if image, err := h.vmImageCache.Get(imageNs, imageName); err != nil {
 			return false, err
 		} else if !harvesterv1.ImageImported.IsTrue(image) {

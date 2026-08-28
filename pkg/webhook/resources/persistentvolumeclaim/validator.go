@@ -20,7 +20,6 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -106,7 +105,7 @@ func (v *pvcValidator) Delete(request *types.Request, oldObj runtime.Object) err
 		}
 	}
 
-	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(oldPVC.Namespace, oldPVC.Name))
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, util.NamespacedName(oldPVC.Namespace, oldPVC.Name))
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, oldPVC.Namespace, oldPVC.Name, err))
 	}

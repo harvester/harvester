@@ -15,7 +15,6 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -401,7 +400,7 @@ func (ro *restoreOperator) GetFrom(vrr *harvesterv1.VolumeRemoteRestore) string 
 }
 
 func (ro *restoreOperator) GetSnapshotClassInfo(vrr *harvesterv1.VolumeRemoteRestore) (*settings.CSIDriverInfo, error) {
-	vrbNamespace, vrbName := ref.Parse(ro.GetFrom(vrr))
+	vrbNamespace, vrbName, _ := util.SplitNamespacedName(ro.GetFrom(vrr))
 	vrb, err := ro.vrbCache.Get(vrbNamespace, vrbName)
 	if err != nil {
 		return nil, err

@@ -13,7 +13,7 @@ import (
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	harvestertype "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/indexeres"
-	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type VMBackupClient func(string) harvestertype.VirtualMachineBackupInterface
@@ -79,7 +79,7 @@ func (c VMBackupCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1beta1.
 func (c VMBackupCache) GetByIndex(indexName, key string) ([]*harvesterv1beta1.VirtualMachineBackup, error) {
 	switch indexName {
 	case indexeres.VMBackupBySourceVMNameIndex:
-		vmNamespace, _ := ref.Parse(key)
+		vmNamespace, _, _ := util.SplitNamespacedName(key)
 		backupList, err := c(vmNamespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return nil, err

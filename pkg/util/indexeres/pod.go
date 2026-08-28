@@ -3,7 +3,6 @@ package indexeres
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -16,5 +15,5 @@ func PodByVMName(obj *corev1.Pod) ([]string, error) {
 	if !ok {
 		return nil, nil
 	}
-	return []string{ref.Construct(obj.Namespace, vmName)}, nil
+	return []string{util.NamespacedName(obj.Namespace, vmName)}, nil
 }

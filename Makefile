@@ -89,7 +89,7 @@ DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
 	gen-version-env gen-version-env-debug build-installer \
-	check-images
+	check-images fix
 
 
 # ---- Directories ----
@@ -126,6 +126,13 @@ validate: gen-version-env
 validate-ci: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target validate-ci
+
+
+# ---- Format Go code ----
+fix:
+	$(BANNER)
+	@echo "Formatting Go files ..."
+	@go fmt ./...
 
 
 # ---- Test ----

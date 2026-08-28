@@ -6,7 +6,6 @@ import (
 	"github.com/harvester/go-common/ds"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 )
 
@@ -25,7 +24,7 @@ func VMByPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 
 	for _, volume := range obj.Spec.Template.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
-			results = append(results, ref.Construct(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
+			results = append(results, util.NamespacedName(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
 		}
 	}
 
@@ -50,7 +49,7 @@ func vmSourcePVCsFromAnnotation(obj *kubevirtv1.VirtualMachine) []string {
 	var results []string
 	for _, entry := range entries {
 		if entry.Name != "" {
-			results = append(results, ref.Construct(obj.Namespace, entry.Name))
+			results = append(results, util.NamespacedName(obj.Namespace, entry.Name))
 		}
 	}
 	return results
@@ -70,7 +69,7 @@ func VMByHotplugPVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 	var results []string
 	for _, volume := range obj.Spec.Template.Spec.Volumes {
 		if isVolumeHotplugged(volume) {
-			results = append(results, ref.Construct(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
+			results = append(results, util.NamespacedName(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
 		}
 	}
 	return results, nil
@@ -95,7 +94,7 @@ func VMByNonShareablePVC(obj *kubevirtv1.VirtualMachine) ([]string, error) {
 		if volume.PersistentVolumeClaim != nil &&
 			volume.PersistentVolumeClaim.ClaimName != "" &&
 			slices.Contains(nonShareableDisks, volume.Name) {
-			results = append(results, ref.Construct(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
+			results = append(results, util.NamespacedName(obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
 		}
 	}
 	return results, nil

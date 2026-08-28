@@ -11,7 +11,6 @@ import (
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
@@ -39,7 +38,7 @@ func getPVCProvisioner(pvc *corev1.PersistentVolumeClaim, scCache ctlstoragev1.S
 }
 
 func isOnlineExpandNeeded(pvc *corev1.PersistentVolumeClaim, vmCache ctlkv1.VirtualMachineCache) (bool, error) {
-	indexKey := ref.Construct(pvc.Namespace, pvc.Name)
+	indexKey := util.NamespacedName(pvc.Namespace, pvc.Name)
 	vms, err := vmCache.GetByIndex(indexeresutil.VMByPVCIndex, indexKey)
 	if err != nil {
 		return false, werror.NewInternalError(fmt.Sprintf("failed to get VMs by index: %s, PVC: %s/%s, err: %s", indexeresutil.VMByPVCIndex, pvc.Namespace, pvc.Name, err))
@@ -61,7 +60,7 @@ func isHotpluggedFilesystemPVC(pvc *corev1.PersistentVolumeClaim, vmCache ctlkv1
 	}
 
 	// Check if the PVC is hotplugged to any VM
-	vms, err := vmCache.GetByIndex(indexeresutil.VMByHotplugPVCIndex, ref.Construct(pvc.Namespace, pvc.Name))
+	vms, err := vmCache.GetByIndex(indexeresutil.VMByHotplugPVCIndex, util.NamespacedName(pvc.Namespace, pvc.Name))
 	if err != nil {
 		return false, werror.NewInternalError(err.Error())
 	}

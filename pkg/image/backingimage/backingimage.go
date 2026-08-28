@@ -23,7 +23,6 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/common"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -120,7 +119,7 @@ func (bib *Backend) createBackingImage(vmi *harvesterv1.VirtualMachineImage) err
 			Name:      biName,
 			Namespace: util.LonghornSystemNamespaceName,
 			Annotations: map[string]string{
-				util.AnnotationImageID: ref.Construct(vmio.GetNamespace(vmi), vmio.GetName(vmi)),
+				util.AnnotationImageID: util.NamespacedName(vmio.GetNamespace(vmi), vmio.GetName(vmi)),
 			},
 		},
 		Spec: lhv1beta2.BackingImageSpec{

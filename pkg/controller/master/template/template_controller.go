@@ -5,7 +5,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 // templateHandler sets status.Version to template objects
@@ -22,7 +22,7 @@ func (h *templateHandler) OnChanged(_ string, tp *harvesterv1.VirtualMachineTemp
 	}
 
 	copyTp := tp.DeepCopy()
-	templateID := ref.Construct(copyTp.Namespace, copyTp.Name)
+	templateID := util.NamespacedName(copyTp.Namespace, copyTp.Name)
 
 	latestVersion, latestVersionObj, err := getTemplateLatestVersion(copyTp.Namespace, templateID, h.templateVersions)
 	if err != nil {
@@ -36,7 +36,7 @@ func (h *templateHandler) OnChanged(_ string, tp *harvesterv1.VirtualMachineTemp
 	//set the first version as the default version
 	defaultVersionID := copyTp.Spec.DefaultVersionID
 	if defaultVersionID == "" && latestVersion == 1 {
-		defaultVersionID = ref.Construct(latestVersionObj.Namespace, latestVersionObj.Name)
+		defaultVersionID = util.NamespacedName(latestVersionObj.Namespace, latestVersionObj.Name)
 		if tp.Spec.DefaultVersionID != defaultVersionID {
 			copyTp.Spec.DefaultVersionID = defaultVersionID
 			if _, err = h.templates.Update(copyTp); err != nil {
@@ -48,7 +48,7 @@ func (h *templateHandler) OnChanged(_ string, tp *harvesterv1.VirtualMachineTemp
 
 	defaultVersion := copyTp.Status.DefaultVersion
 	if defaultVersionID != "" {
-		versionNs, versionName := ref.Parse(defaultVersionID)
+		versionNs, versionName, _ := util.SplitNamespacedName(defaultVersionID)
 		version, err := h.templateVersionCache.Get(versionNs, versionName)
 		if err != nil {
 			return nil, err

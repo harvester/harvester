@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	utilHelm "github.com/harvester/harvester/pkg/util/helm"
 )
@@ -48,7 +47,7 @@ func createCronJob(h *svmbackupHandler, svmbackup *harvesterv1.ScheduleVMBackup)
 			Name:      cronJobName(svmbackup),
 			Namespace: cronJobNamespace,
 			Annotations: map[string]string{
-				util.AnnotationSVMBackupID: ref.Construct(svmbackup.Namespace, svmbackup.Name),
+				util.AnnotationSVMBackupID: util.NamespacedName(svmbackup.Namespace, svmbackup.Name),
 			},
 		},
 		Spec: batchv1.CronJobSpec{

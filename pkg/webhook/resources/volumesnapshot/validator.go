@@ -13,7 +13,6 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
@@ -76,7 +75,7 @@ func (v *volumeSnapshotValidator) Create(_ *types.Request, newObj runtime.Object
 	}
 
 	pvcName := *newVolumeSnapshot.Spec.Source.PersistentVolumeClaimName
-	attachedVMs, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newVolumeSnapshot.Namespace, pvcName))
+	attachedVMs, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, util.NamespacedName(newVolumeSnapshot.Namespace, pvcName))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return werror.NewInternalError(fmt.Sprintf("failed to get VM by PVC %s/%s, err: %s", newVolumeSnapshot.Namespace, pvcName, err))
 	}
@@ -98,7 +97,7 @@ func (v *volumeSnapshotValidator) Create(_ *types.Request, newObj runtime.Object
 		return werror.NewInternalError(fmt.Sprintf("failed to get resource quota %s/%s, err: %s", newVolumeSnapshot.Namespace, util.DefaultResourceQuotaName, err))
 	}
 
-	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, ref.Construct(newVolumeSnapshot.Namespace, *newVolumeSnapshot.Spec.Source.PersistentVolumeClaimName))
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, util.NamespacedName(newVolumeSnapshot.Namespace, *newVolumeSnapshot.Spec.Source.PersistentVolumeClaimName))
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return werror.NewInternalError(fmt.Sprintf("failed to get VM by PVC %s/%s, err: %s", newVolumeSnapshot.Namespace, *newVolumeSnapshot.Spec.Source.PersistentVolumeClaimName, err))

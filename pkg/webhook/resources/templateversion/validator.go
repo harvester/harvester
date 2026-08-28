@@ -10,7 +10,6 @@ import (
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
-	"github.com/harvester/harvester/pkg/ref"
 	"github.com/harvester/harvester/pkg/util"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -55,7 +54,7 @@ func (v *templateVersionValidator) Create(_ *types.Request, newObj runtime.Objec
 		return werror.NewInvalidError("TemplateId is empty", fieldTemplateID)
 	}
 
-	templateNs, templateName := ref.Parse(templateID)
+	templateNs, templateName, _ := util.SplitNamespacedName(templateID)
 	if vmTemplVersion.Namespace != templateNs {
 		return werror.NewInvalidError("Template version and template should reside in the same namespace", "metadata.namespace")
 	}
@@ -67,7 +66,7 @@ func (v *templateVersionValidator) Create(_ *types.Request, newObj runtime.Objec
 	keyPairIDs := vmTemplVersion.Spec.KeyPairIDs
 	if len(keyPairIDs) > 0 {
 		for i, kp := range keyPairIDs {
-			keyPairNs, keyPairName := ref.Parse(kp)
+			keyPairNs, keyPairName, _ := util.SplitNamespacedName(kp)
 			_, err := v.keypairs.Get(keyPairNs, keyPairName)
 			if err != nil {
 				message := fmt.Sprintf("KeyPairID %s is invalid, %v", v, err)
@@ -119,13 +118,13 @@ func (v *templateVersionValidator) Delete(request *types.Request, oldObj runtime
 		return err
 	}
 
-	templNs, templName := ref.Parse(version.Spec.TemplateID)
+	templNs, templName, _ := util.SplitNamespacedName(version.Spec.TemplateID)
 	vt, err := v.templateCache.Get(templNs, templName)
 	if err != nil {
 		return err
 	}
 
-	vresionID := ref.Construct(vmTemplVersion.Namespace, vmTemplVersion.Name)
+	vresionID := util.NamespacedName(vmTemplVersion.Namespace, vmTemplVersion.Name)
 	if vt.Spec.DefaultVersionID == vresionID {
 		return werror.NewBadRequest("Cannot delete the default templateVersion")
 	}
