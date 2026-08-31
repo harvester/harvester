@@ -26,6 +26,8 @@ Maintainers will not start reviewing your PR until the first set of AI-generated
 
 Reviewers may ask questions about your AI-assisted code, and if you cannot explain why a change was made, the PR will be closed.
 
+When responding to discussions in issues and pull requests, participants must independently validate any AI-assisted feedback before posting it. AI can be used for private brainstorming and investigation, but its output must not be posted until they are verified. If the feedback cannot be verified, it shouldn't be posted as a review comment.
+
 When addressing review feedback from the maintainers, you must do so without relying on AI tools. Reviewers want to engage directly with you, not with generated responses. If you do not engage directly with reviewers, the PR will be closed.
 
 ## Contribute to Harvester Documentation
