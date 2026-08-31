@@ -14,9 +14,9 @@ which is unsupported, invisible in the UI, and easy to lose.
 The `kubevirt-migration` setting makes those tunables a first-class Harvester setting. The
 setting is the source of truth: whatever it holds is written to the KubeVirt object.
 
-On a cluster that already customised the KubeVirt object, the setting **adopts** the existing
-configuration the first time it is reconciled, so that the setting reports what the cluster is
-actually running rather than silently reverting it to the defaults.
+On a cluster that already customised the KubeVirt object, the upgrade **converts** the existing
+configuration into the setting, so that the setting reports what the cluster is actually running
+rather than silently reverting it to the defaults the next time it is saved.
 
 ### Related Issues
 
@@ -60,9 +60,13 @@ the setting is created empty and the UI renders the default. The two disagree, a
 time anybody saves the setting — even to change an unrelated field — auto-converge is silently
 turned off.
 
-**After**: On the first reconcile after the upgrade the setting adopts the live configuration,
-so it reports `allowAutoConverge: true`. Nothing about the cluster's migration behaviour
-changes, and a later edit of an unrelated field no longer discards it.
+**After**: The upgrade converts the live configuration into the setting, so it reports
+`allowAutoConverge: true`. Nothing about the cluster's migration behaviour changes, and a later
+edit of an unrelated field no longer discards it.
+
+The conversion ships in a release later than v1.7.0, so it cannot help a cluster taking the
+v1.6.x → v1.7.x hop, which is exactly the hop that introduces the mismatch. See
+[Known limitations](#known-limitations) for the workaround.
 
 ### User Experience In Detail
 
@@ -140,7 +144,8 @@ The webhook rejects a value that:
 The conversion described above runs automatically, both when upgrading from a release that
 predates the setting and when upgrading a cluster that is already on a release with the setting
 but has never given it a value. It is idempotent and a no-op on a cluster that never customised
-the KubeVirt object.
+the KubeVirt object. It cannot cover the v1.6.x → v1.7.x upgrade itself, see
+[Known limitations](#known-limitations).
 
 Administrators should be aware that the setting becomes authoritative once it holds a value.
 Editing the KubeVirt object directly after that point is unsupported: the change will be
@@ -180,11 +185,35 @@ kubectl get kubevirt -n harvester-system kubevirt \
 
 ### Known limitations
 
+#### The v1.6.x → v1.7.x upgrade is not covered
+
+The setting was introduced in v1.7.0 with no conversion. The conversion added here ships in a
+later release, and `upgrade_manifests.sh` is taken from the release being upgraded *to*, so the
+v1.6.x → v1.7.x upgrade — the one that creates the mismatch — never runs it.
+
+A cluster that takes that hop is left with the KubeVirt object holding the customised
+configuration and the setting holding nothing. The behaviour does not change, and the conversion
+still repairs the cluster on its next upgrade to a release that carries it, **provided the
+setting has not been saved in the meantime**. If it has, the customisation is already gone and
+the conversion correctly declines to touch a setting that now holds a value.
+
+The workaround is to create the setting by hand before upgrading to v1.7.x, which is documented
+as the knowledge base article *Preserving a manually configured KubeVirt live migration
+configuration*. It runs the same logic as
+`convert_kubevirt_migration_to_harvester_setting` as a standalone script, reads the KubeVirt
+object and writes only the setting, and is a no-op on a cluster that never customised the
+object.
+
+The `kubevirt-migration` entry added to the Harvester documentation links to that article and
+warns that the whole value is applied on save.
+
+#### Other limitations
+
 - `utilityVolumesTimeout`, present in the KubeVirt API, is not part of the setting default and
   is therefore not editable from the UI. A value already set on the KubeVirt object is carried
   through the conversion, but is dropped if the setting is later cleared.
 - The conversion only runs during an upgrade. A cluster that is already on a release with the
-  setting and has the mismatch today keeps it until its next upgrade; the manual workaround is
-  to set the value explicitly.
+  setting and has the mismatch today keeps it until its next upgrade; the manual workaround
+  above sets the value immediately.
 - The setting is not reconciled when the KubeVirt object changes. A direct edit of
   `spec.configuration.migrations` is not reverted until the setting is next updated.
