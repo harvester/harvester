@@ -47,7 +47,7 @@ tolerations:
 affinity: {}
 
 reconciler:
-  logLevel: debug
+  logLevel: error
   resources:
     requests:
       cpu: "100m"
