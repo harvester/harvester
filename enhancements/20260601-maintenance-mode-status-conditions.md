@@ -11,6 +11,7 @@ This enhancement makes the standard Kubernetes `Node.status.conditions` list the
 - https://github.com/harvester/harvester/issues/9022
 - Reference PR (initial, annotation-mirroring approach): https://github.com/harvester/harvester/pull/9041
 - Related: https://github.com/harvester/harvester/issues/8985, https://github.com/harvester/harvester/issues/8966
+- https://jira.suse.com/browse/SURE-11693
 
 ## Motivation
 
@@ -19,6 +20,7 @@ Right now only a small set of annotations is set on the node resource when maint
 - give administrators and the UI a first-class, observable lifecycle (with `lastTransitionTime` / `lastHeartbeatTime`)
 - attach a human-readable message that is surfaced in the `Hosts` view when maintenance mode fails
 - stop overloading annotations with state that properly belongs in `status`
+- introduce a reliable, time-bounded evacuation cycle where stuck VM migrations can be automatically timed out and escalated, resolving permanent hangs during node drains (especially in heterogeneous mixed-CPU clusters)
 
 ### Goals
 
@@ -143,6 +145,11 @@ As a Harvester administrator, if maintenance mode cannot be enabled I want a cle
 #### Story 3: Clearing a maintenance mode error
 As a Harvester administrator, when maintenance mode has failed and I decide not to proceed right now, I want a `Clear Maintenance Mode Error` action to reset the node's condition back to a clean state without having to successfully complete or otherwise toggle maintenance mode.
 
+#### Story 4: Automated evacuation timeout for stuck VM migrations
+As a Harvester administrator, when a VM live migration gets permanently stuck in a non-terminal phase (such as `Scheduling` due to CPU incompatibilities in heterogeneous clusters or resource shortages on target hosts) during a node drain, I want the maintenance process to automatically time out after a configurable period. 
+- If I initiated a **Force Drain**, Harvester should automatically abort the stuck migrations and force-shutdown/restart the VMs on available hosts.
+- If I initiated a **Standard Drain**, Harvester should transition the maintenance status to `Error` and list the exact stuck VMs in the UI message, rather than hanging indefinitely.
+
 ### User Experience In Detail
 
 1. The user opens the `Hosts` page and selects `Enable Maintenance Mode` for a node (optionally ticking `Force`).
@@ -260,8 +267,13 @@ Existing actions `enableMaintenanceMode` / `disableMaintenanceMode` keep their s
 **`maintain-controller.OnNodeChanged`:**
 
 4. Reconcile nodes whose `MaintenanceMode` condition reason is `Evacuating`:
-   - If any `VirtualMachineInstance` is still on the node, requeue and wait.
-   - Otherwise restart VMs labelled `ShutdownAndRestartAfterEnable` that were shut down for this node, then set the condition to `status: True`, `reason: Completed`.
+   - If any `VirtualMachineInstance` (VMI) remains on the node, check if the elapsed time since `lastTransitionTime` (when entering the `Evacuating` state) exceeds the configurable evacuation timeout threshold (e.g., `15m`).
+   - **When the evacuation timeout is reached:**
+     - **Force Drain (`drain-forced: true`):** Harvester automatically resolves the deadlock. It deletes active `VirtualMachineInstanceMigration` (VMIM) resources to abort stuck migrations, and triggers a force-shutdown of the blocking VMIs so they can cold-restart on other nodes immediately.
+     - **Standard Drain (`drain-forced: false`):** Harvester prioritizes workload safety over maintenance speed. It transitions the node condition to `status: False`, `reason: Error`, and populates the `message` with the list of blocking VMs to surface the issue in the UI.
+     - Once the timeout action is executed, stop and return.
+   - **When the timeout is not yet reached:** Requeue the node and wait.
+   - If no VMIs remain on the node, restart any VMs labeled `ShutdownAndRestartAfterEnable` that were shut down for this node, and set the condition to `status: True`, `reason: Completed`.
 
 **Disable (API handler):** remove the `MaintenanceMode` condition, uncordon the node, remove the drain taint, and remove any remaining drain annotations.
 
