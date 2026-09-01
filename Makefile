@@ -43,7 +43,7 @@ MK_DOCKER_PULL            ?= --pull
 CODECOV_TOKEN             ?=
 # Default addons git ref (branch or tag) consumed by scripts/prepare-addons and Docker builds.
 # Override HARVESTER_ADDONS_VERSION to pin a branch/specific RC/release (e.g. v1.9 or v1.9.0-rc6).
-HARVESTER_ADDONS_VERSION  ?= v1.9
+HARVESTER_ADDONS_VERSION  ?= v1.9.0-rc7
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
 RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
