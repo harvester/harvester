@@ -26,10 +26,10 @@ func NewValidator(
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
 	sar authorizationv1client.SubjectAccessReviewInterface) types.Validator {
 
-	vmiv := common.GetVMIValidator(vmiCache, scCache, podCache, pvcCache, vmTemplateVersionCache, vmBackupCache, sar)
+	vmiv := common.GetVMIValidator(vmiCache, scCache, pvcCache, vmTemplateVersionCache, vmBackupCache, sar)
 	validators := map[v1beta1.VMIBackend]backend.Validator{
-		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv),
-		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv),
+		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv, vmiv, vmiv),
+		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv, podCache),
 	}
 
 	return &virtualMachineImageValidator{
