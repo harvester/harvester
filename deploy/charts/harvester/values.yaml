@@ -134,11 +134,11 @@ kubevirt:
 cdi:
   enabled: true
   containers:
-    version: &cdiVersion 1.65.0-3.4
+    version: &cdiVersion 1.65.0
     operator:
       image:
         repository: registry.suse.com/suse/sles/16.0/cdi-operator
-        tag: 1.65.0-3.7
+        tag: *cdiVersion
     controller:
       image:
         repository: registry.suse.com/suse/sles/16.0/cdi-controller
