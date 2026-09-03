@@ -585,9 +585,11 @@ kube-vip:
   enabled: false
   image:
     repository: rancher/mirrored-kube-vip-kube-vip-iptables
-    # Updated to the latest image tag as of 2026.08.14 (kube-vip chart 0.11.0 default is v1.2.2)
-    # Always check this field if kube-vip sub-chart version is bumped to avoid accidentally/silently downgrading the image tag
-    tag: v1.2.3
+    # Workaround: Harvester requires kube-vip v1.1.2 due to breaking changes introduced in v1.2.0+.
+    # Ref: https://github.com/harvester/harvester/issues/11574
+    # Note: Keep the Helm chart at v0.11.0; only override the image tag to v1.1.2.
+    # CAUTION: Always verify this field when upgrading the sub-chart to prevent accidental image bumps.
+    tag: v1.1.2
   nodeSelector:
     node-role.kubernetes.io/control-plane: "true"
   # https://github.com/kube-vip/kube-vip/blob/main/pkg/kubevip/config_envvar.go
