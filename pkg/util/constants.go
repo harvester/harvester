@@ -249,6 +249,17 @@ const (
 
 	HarvesterInstallCordonedLabel               = prefix + "/install-cordoned"
 	HarvesterInstallCordonedProcessedAnnotation = prefix + "/install-cordoned-processed"
+
+	// AnnotationKubectlRestartedAt matches the annotation set by 'kubectl rollout restart'.
+	// Defined locally as upstream Kubernetes does not export a public constant for it.
+	AnnotationKubectlRestartedAt = "kubectl.kubernetes.io/restartedAt"
+
+	// Besides standard Kubernetes annotations (e.g., kubectl.kubernetes.io/restartedAt),
+	// we track Harvester-specific metadata to preserve historical context and observability,
+	// as standard keys can easily be overwritten by other controllers or manual operations.
+	AnnotationHarvesterRestartedBy   = prefix + "/restartedBy"
+	AnnotationHarvesterRestartedAt   = prefix + "/restartedAt"
+	AnnotationHarvesterRestartReason = prefix + "/restartReason"
 )
 
 var (
