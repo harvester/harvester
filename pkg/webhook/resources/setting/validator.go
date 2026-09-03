@@ -1133,8 +1133,20 @@ func (v *settingValidator) validateNetworkHelper(name, value string) (*networkut
 		v.checkVCSpansAllNodes,
 	}
 
+	// IPv4 Family First: reject configurations that supply an IPv6 range without an IPv4 range.
+	if config.RangeV6 != "" && config.Range == "" {
+		return nil, fmt.Errorf("IPv6-only is not supported; a primary IPv4 range is required (IPv4 Family First)")
+	}
+
 	for _, validate := range commonValidators {
 		if err := validate(&config); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate the IPv6 range and its excludes when dual-stack is configured.
+	if config.RangeV6 != "" {
+		if err := v.checkNetworkRangeValidV6(&config); err != nil {
 			return nil, err
 		}
 	}
@@ -1926,7 +1938,7 @@ func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) er
 	}
 
 	if network.IP.To4() == nil {
-		return fmt.Errorf("IPv6 ranges are not supported for network settings")
+		return fmt.Errorf("range must be an IPv4 CIDR; use rangeV6 for dual-stack IPv6 (IPv4 Family First)")
 	}
 
 	prefixLen, _ := network.Mask.Size()
@@ -1938,6 +1950,53 @@ func (v *settingValidator) checkNetworkRangeValid(config *networkutil.Config) er
 		return err
 	}
 
+	return nil
+}
+
+// checkNetworkRangeValidV6 validates the IPv6 range and its exclude entries
+// in a dual-stack config. It is called only when config.RangeV6 is non-empty.
+func (v *settingValidator) checkNetworkRangeValidV6(config *networkutil.Config) error {
+	// IPv4 Family First: an IPv4 range must be present whenever an IPv6 range is configured.
+	// IPv6-only configurations are not supported.
+	if config.Range == "" {
+		return fmt.Errorf("IPv6-only is not supported; a primary IPv4 range is required (IPv4 Family First)")
+	}
+	ip, network, err := net.ParseCIDR(config.RangeV6)
+	if err != nil {
+		return fmt.Errorf("invalid rangeV6: %w", err)
+	}
+	if !network.IP.Equal(ip) {
+		return fmt.Errorf("rangeV6 must be a subnet CIDR, got host address %v", ip)
+	}
+	if network.IP.To4() != nil {
+		return fmt.Errorf("rangeV6 must be an IPv6 CIDR")
+	}
+	return validateIncludeExcludeRangesV6(config)
+}
+
+// validateIncludeExcludeRangesV6 checks that each entry in config.ExcludeV6 is
+// a valid IPv6 CIDR that overlaps with and is more specific than config.RangeV6.
+func validateIncludeExcludeRangesV6(config *networkutil.Config) error {
+	includePrefix, err := netip.ParsePrefix(config.RangeV6)
+	if err != nil {
+		return err
+	}
+	includePrefix = includePrefix.Masked()
+
+	for _, excludeStr := range config.ExcludeV6 {
+		excludePrefix, err := netip.ParsePrefix(excludeStr)
+		if err != nil {
+			return fmt.Errorf("invalid IPv6 exclude range %q: %w", excludeStr, err)
+		}
+		excludePrefix = excludePrefix.Masked()
+
+		if !includePrefix.Overlaps(excludePrefix) {
+			return fmt.Errorf("IPv6 exclude range %s does not overlap include range %s", excludeStr, config.RangeV6)
+		}
+		if excludePrefix.Bits() <= includePrefix.Bits() {
+			return fmt.Errorf("IPv6 exclude range %s must be more specific than include range %s", excludeStr, config.RangeV6)
+		}
+	}
 	return nil
 }
 
@@ -1970,7 +2029,12 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 		minAllocatableIPAddrs += rwxExtraIPs // add extra IPs for RWX workloads, as in checkRWXNetworkRangeValid
 	}
 
-	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	var count int
+	if config.RangeV6 != "" {
+		count, err = webhookUtil.GetUsableIPAddressesCountDualStack(config.Range, config.RangeV6, config.Exclude, config.ExcludeV6)
+	} else {
+		count, err = webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	}
 	if err != nil {
 		return err
 	}
@@ -1990,7 +2054,12 @@ func (v *settingValidator) checkVMMigrationNetworkRangeValid(config *networkutil
 		return err
 	}
 
-	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	var count int
+	if config.RangeV6 != "" {
+		count, err = webhookUtil.GetUsableIPAddressesCountDualStack(config.Range, config.RangeV6, config.Exclude, config.ExcludeV6)
+	} else {
+		count, err = webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	}
 	if err != nil {
 		return err
 	}
@@ -2010,7 +2079,12 @@ func (v *settingValidator) checkRWXNetworkRangeValid(config *networkutil.Config)
 		return err
 	}
 
-	count, err := webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	var count int
+	if config.RangeV6 != "" {
+		count, err = webhookUtil.GetUsableIPAddressesCountDualStack(config.Range, config.RangeV6, config.Exclude, config.ExcludeV6)
+	} else {
+		count, err = webhookUtil.GetUsableIPAddressesCount(config.Range, config.Exclude)
+	}
 	if err != nil {
 		return err
 	}
@@ -2044,11 +2118,20 @@ func (v *settingValidator) countNonWitnessNodes() (int, error) {
 // checkNetworkOverlap checks that the c1 config does not have overlapping usable IP addresses
 // with any config in the c2 map. Nil configs are skipped, so if a peer setting does not
 // exist yet (e.g. during fresh install), its overlap check is safely bypassed.
+// When c1 carries a dual-stack config (RangeV6 != ""), arithmetic prefix overlap
+// detection is used for both IPv4 and IPv6 ranges; otherwise the existing
+// map-enumeration path (IPv4 only) is preserved unchanged.
 func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
 	if c1 == nil {
 		return nil
 	}
 
+	// Dual-stack: use arithmetic prefix overlap detection to avoid enumeration.
+	if c1.RangeV6 != "" {
+		return checkNetworkOverlapWithArithmetic(c1Name, c1, c2)
+	}
+
+	// IPv4-only: existing map-enumeration path (unchanged).
 	c1UsableIPs, err := webhookUtil.GetUsableIPAddresses(c1.Range, c1.Exclude)
 	if err != nil {
 		return err
@@ -2069,6 +2152,66 @@ func checkNetworkOverlap(c1Name string, c1 *networkutil.Config, c2 map[string]*n
 		}
 	}
 	return nil
+}
+
+// checkNetworkOverlapWithArithmetic uses netip prefix arithmetic to detect
+// overlapping usable IP addresses. It handles both IPv4 and IPv6 ranges and
+// correctly excludes ranges that are fully covered by the union of both sides'
+// exclude lists.
+func checkNetworkOverlapWithArithmetic(c1Name string, c1 *networkutil.Config, c2 map[string]*networkutil.Config) error {
+	for name, config := range c2 {
+		if config == nil {
+			continue
+		}
+		if c1.Range != "" && config.Range != "" {
+			if err := checkPrefixOverlap(c1Name, name, c1.Range, c1.Exclude, config.Range, config.Exclude); err != nil {
+				return err
+			}
+		}
+		if c1.RangeV6 != "" && config.RangeV6 != "" {
+			if err := checkPrefixOverlap(c1Name, name, c1.RangeV6, c1.ExcludeV6, config.RangeV6, config.ExcludeV6); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// checkPrefixOverlap returns an error if the two CIDR ranges have usable IP
+// addresses in common after accounting for both sides' exclude lists.
+// An overlap is permitted when the intersection of the two ranges is fully
+// covered by the union of their exclude ranges.
+func checkPrefixOverlap(c1Name, c2Name, c1Range string, c1Excludes []string, c2Range string, c2Excludes []string) error {
+	c1Prefix, err := netip.ParsePrefix(c1Range)
+	if err != nil {
+		return err
+	}
+	c1Prefix = c1Prefix.Masked()
+
+	c2Prefix, err := netip.ParsePrefix(c2Range)
+	if err != nil {
+		return err
+	}
+	c2Prefix = c2Prefix.Masked()
+
+	if !c1Prefix.Overlaps(c2Prefix) {
+		return nil
+	}
+
+	// The intersection is the more specific (higher bits) of the two prefixes.
+	intersection := c1Prefix
+	if c2Prefix.Bits() > c1Prefix.Bits() {
+		intersection = c2Prefix
+	}
+
+	// Overlap is permitted if the intersection is fully covered by the union
+	// of both sides' exclude ranges.
+	allExcludes := append(c1Excludes, c2Excludes...)
+	if webhookUtil.IsCoveredByPrefixes(intersection, allExcludes) {
+		return nil
+	}
+
+	return fmt.Errorf("%s: the network configuration is overlapped with %s", c1Name, c2Name)
 }
 
 func validateDefaultVMTerminationGracePeriodSecondsHelper(value string) error {
