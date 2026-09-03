@@ -1,8 +1,14 @@
 versions:
+- name: v1.8.2
+  minUpgradableVersion: v1.7.0
 - name: v1.8.1
   minUpgradableVersion: v1.7.0
 - name: v1.8.0
   minUpgradableVersion: v1.7.0
+- name: v1.7.3
+  minUpgradableVersion: v1.6.0
+- name: v1.7.2
+  minUpgradableVersion: v1.6.0
 - name: v1.7.1
   minUpgradableVersion: v1.6.0
 - name: v1.7.0
