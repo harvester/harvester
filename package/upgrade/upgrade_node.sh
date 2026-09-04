@@ -248,7 +248,8 @@ check_migrations_phase() {
         warnings=$(kubectl -n "${vmi_namespace}" events --for=virtualmachineinstancemigration/"${vmim}" --types=warning -ojsonpath='{.items[*].reason}' 2>/dev/null)
         if [ ! -z "${warnings}" ]; then
           if echo "${warnings}" | grep -i -q "failedmigration"; then
-            echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, reasons: ${warnings}"
+            failure_reason=$(kubectl -n "${vmi_namespace}" get vmim "${vmim}" -ojsonpath='{.status.migrationState.failureReason}' 2>/dev/null)
+            echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, warnings: ${warnings}, failure reason: ${failure_reason}"
             virtctl -n "${vmi_namespace}" stop "${vmi_name}" || true # don't fail upgrade if virtctl failed
           fi
         fi
