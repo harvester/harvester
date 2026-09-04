@@ -36,7 +36,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
-	k8svolumehelpers "k8s.io/cloud-provider/volume/helpers"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtmultus "kubevirt.io/kubevirt/pkg/network/multus"
@@ -355,13 +354,10 @@ func (h *vmActionHandler) insertCdRomVolume(ctx context.Context, userInfo k8suse
 		return err
 	}
 
-	imgSize := max(vmImage.Status.VirtualSize, vmImage.Status.Size)
-	// round up to GiB for UI
-	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	storageSize, err := util.GetImageDiskSizeQuantity(vmImage)
 	if err != nil {
 		return err
 	}
-	storageSize := resource.NewQuantity(imgSizeRoundUp*k8svolumehelpers.GiB, resource.BinarySI)
 
 	newPvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
