@@ -14,12 +14,17 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 )
 
-const backingimagePrefix = "vmi"
+const (
+	backingimagePrefix = "vmi"
+
+	imageStorageClassPrefix = "longhorn"
+)
 
 func backingImageLegacyName(image *harvesterv1.VirtualMachineImage) string {
 	return fmt.Sprintf("%s-%s", image.Namespace, image.Name)
@@ -63,6 +68,47 @@ func GetRestoreSCName(image *harvesterv1.VirtualMachineImage) (string, bool) {
 
 	scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
 	return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+}
+
+// GetImageStorageClassName returns the name of the StorageClass that backs a
+// VirtualMachineImage.
+//
+// The name is derived exclusively from the image's namespace and name, both of
+// which are part of the object the user submits. This makes the StorageClass
+// name predictable before the object exists, so declarative tooling (GitOps,
+// Terraform, CAPI templates) can reference it in the same apply that creates
+// the image.
+//
+// StorageClasses are cluster scoped while VirtualMachineImages are namespaced,
+// so the namespace has to be part of the name to keep two identically named
+// images in different namespaces from colliding (harvester/harvester#5165).
+//
+// StorageClass names are DNS subdomains, so the 253 character limit applies
+// here, not Longhorn's 40 character limit for its own resources.
+func GetImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
+	return lhutil.AutoCorrectName(
+		fmt.Sprintf("%s-%s-%s", imageStorageClassPrefix, image.Namespace, image.Name),
+		validation.DNS1123SubdomainMaxLength,
+	)
+}
+
+// GetLegacyImageStorageClassName returns the StorageClass name used by
+// Harvester v1.7.x and earlier. It is only used to look up StorageClasses that
+// already exist; new StorageClasses are never created with this name because it
+// is not unique across namespaces.
+func GetLegacyImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
+	return fmt.Sprintf("%s-%s", imageStorageClassPrefix, image.Name)
+}
+
+// GetUIDImageStorageClassName returns the UID based StorageClass name used by
+// Harvester v1.8.x. It is only used to look up StorageClasses that already
+// exist; new StorageClasses are never created with this name because the UID is
+// not known until the API server has admitted the VirtualMachineImage.
+func GetUIDImageStorageClassName(image *harvesterv1.VirtualMachineImage) string {
+	return lhutil.AutoCorrectName(
+		fmt.Sprintf("lh-%s", image.UID),
+		lhdatastore.NameMaximumLength,
+	)
 }
 
 func getBackingImageByNames(

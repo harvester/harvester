@@ -17,8 +17,6 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
-	lhdatastore "github.com/longhorn/longhorn-manager/datastore"
-	lhutil "github.com/longhorn/longhorn-manager/util"
 )
 
 const (
@@ -196,13 +194,15 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 	}
 
 	restoreSCName, hasRestoreSCName := util.GetRestoreSCName(vmi)
-	scName := lhutil.AutoCorrectName(
-		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
-		lhdatastore.NameMaximumLength,
-	)
-	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
+	scName := util.GetImageStorageClassName(vmi)
+	// The UID based name was used by Harvester v1.8.x and the unqualified name
+	// by v1.7.x and earlier. Both are resolved so that images created on those
+	// versions keep working after an upgrade, but neither is ever used to name a
+	// newly created storage class.
+	uidSCName := util.GetUIDImageStorageClassName(vmi)
+	legacySCName := util.GetLegacyImageStorageClassName(vmi)
 
-	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName); existingSCName != "" {
+	if existingSCName := vmio.getSCByNames(restoreSCName, scName, uidSCName, legacySCName); existingSCName != "" {
 		return existingSCName
 	}
 
@@ -211,10 +211,10 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 		return restoreSCName
 	}
 
-	// If neither a storage class with the new naming nor with the old naming
-	// exists, then return the new name. This allows the GetStorageClassName
-	// method to be used to generate the name of the storage class to be used
-	// during creation.
+	// No storage class exists yet for this image, so return the name a new one
+	// has to be created with. It is derived from the image's namespace and name
+	// only, which means callers can compute it from the image spec alone,
+	// before the object is submitted to the API server.
 	return scName
 }
 
