@@ -38,7 +38,7 @@ func TestGetStorageClassName(t *testing.T) {
 			ex: output{name: "foobar"},
 		},
 		{
-			desc: "StoageClass lh-$UID",
+			desc: "existing v1.8.x lh-$UID StorageClass is reused",
 			in: input{
 				storageclasses: []*storagev1.StorageClass{
 					{
@@ -49,8 +49,9 @@ func TestGetStorageClassName(t *testing.T) {
 				},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend: harvesterv1.VMIBackendBackingImage,
@@ -60,7 +61,7 @@ func TestGetStorageClassName(t *testing.T) {
 			ex: output{name: "lh-abcdefghi-jklmno-pqrstu-123456"},
 		},
 		{
-			desc: "StoageClass longhorn-$NAME",
+			desc: "existing v1.7.x longhorn-$NAME StorageClass is reused",
 			in: input{
 				storageclasses: []*storagev1.StorageClass{
 					{
@@ -71,8 +72,9 @@ func TestGetStorageClassName(t *testing.T) {
 				},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend: harvesterv1.VMIBackendBackingImage,
@@ -82,20 +84,88 @@ func TestGetStorageClassName(t *testing.T) {
 			ex: output{name: "longhorn-image-foobar"},
 		},
 		{
-			desc: "StoageClass not found",
+			desc: "no StorageClass exists yet, name is derived from namespace and name",
 			in: input{
 				storageclasses: []*storagev1.StorageClass{},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend: harvesterv1.VMIBackendBackingImage,
 					},
 				},
 			},
-			ex: output{name: "lh-abcdefghi-jklmno-pqrstu-123456"},
+			ex: output{name: "longhorn-default-image-foobar"},
+		},
+		{
+			desc: "name for a new image does not depend on the UID",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "image-foobar",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend: harvesterv1.VMIBackendBackingImage,
+					},
+				},
+			},
+			ex: output{name: "longhorn-default-image-foobar"},
+		},
+		{
+			desc: "identically named image in another namespace gets a distinct name",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "longhorn-default-image-foobar",
+						},
+					},
+				},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "other",
+						Name:      "image-foobar",
+						UID:       "fedcba987-onmlkj-utsrqp-654321",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend: harvesterv1.VMIBackendBackingImage,
+					},
+				},
+			},
+			ex: output{name: "longhorn-other-image-foobar"},
+		},
+		{
+			desc: "namespaced name is preferred over a colliding v1.7.x name",
+			in: input{
+				storageclasses: []*storagev1.StorageClass{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "longhorn-image-foobar",
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "longhorn-other-image-foobar",
+						},
+					},
+				},
+				vmi: &harvesterv1.VirtualMachineImage{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "other",
+						Name:      "image-foobar",
+						UID:       "fedcba987-onmlkj-utsrqp-654321",
+					},
+					Spec: harvesterv1.VirtualMachineImageSpec{
+						Backend: harvesterv1.VMIBackendBackingImage,
+					},
+				},
+			},
+			ex: output{name: "longhorn-other-image-foobar"},
 		},
 		{
 			desc: "Restore StorageClass from backingImage URL parameter when none exists",
@@ -103,8 +173,9 @@ func TestGetStorageClassName(t *testing.T) {
 				storageclasses: []*storagev1.StorageClass{},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend:    harvesterv1.VMIBackendBackingImage,
@@ -127,8 +198,9 @@ func TestGetStorageClassName(t *testing.T) {
 				},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend:    harvesterv1.VMIBackendBackingImage,
@@ -156,8 +228,9 @@ func TestGetStorageClassName(t *testing.T) {
 				},
 				vmi: &harvesterv1.VirtualMachineImage{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "image-foobar",
-						UID:  "abcdefghi-jklmno-pqrstu-123456",
+						Namespace: "default",
+						Name:      "image-foobar",
+						UID:       "abcdefghi-jklmno-pqrstu-123456",
 					},
 					Spec: harvesterv1.VirtualMachineImageSpec{
 						Backend:    harvesterv1.VMIBackendBackingImage,
