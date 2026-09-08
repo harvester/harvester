@@ -19,6 +19,7 @@ import (
 	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -77,7 +78,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
+						drainhelper.DrainAnnotation: "true",
 					},
 				},
 			},
@@ -119,10 +120,8 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node2",
-						Annotations: map[string]string{
-							util.MaintainStatusAnnotationKey: util.MaintainStatusComplete,
-						},
 					},
+					Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue, Reason: util.NodeConditionReasonCompleted}}},
 				},
 			},
 			expectedError: true,
@@ -170,7 +169,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
+						drainhelper.DrainAnnotation: "true",
 					},
 				},
 			},
@@ -183,10 +182,8 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node2",
-						Annotations: map[string]string{
-							util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
-						},
 					},
+					Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue, Reason: util.NodeConditionReasonDraining}}},
 				},
 			},
 			expectedError: true,
@@ -202,7 +199,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
+						drainhelper.DrainAnnotation: "true",
 					},
 				},
 			},

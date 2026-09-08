@@ -3,12 +3,13 @@ package node
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/config"
 	v1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -18,6 +19,8 @@ import (
 
 const (
 	maintainNodeControllerName = "maintain-node-controller"
+	requeueDelay               = 10 * time.Second
+	logMaxRemainingVMs         = 5
 )
 
 // maintainNodeHandler updates maintenance status of a node in its annotations, so that we can tell whether the node is
@@ -28,6 +31,7 @@ type maintainNodeHandler struct {
 	virtualMachineClient        v1.VirtualMachineClient
 	virtualMachineCache         v1.VirtualMachineCache
 	virtualMachineInstanceCache v1.VirtualMachineInstanceCache
+	enqueueAfter                func(string, time.Duration)
 }
 
 // MaintainRegister registers the node controller
@@ -41,6 +45,7 @@ func MaintainRegister(ctx context.Context, management *config.Management, _ conf
 		virtualMachineClient:        vms,
 		virtualMachineCache:         vms.Cache(),
 		virtualMachineInstanceCache: vmis.Cache(),
+		enqueueAfter:                nodes.EnqueueAfter,
 	}
 
 	nodes.OnChange(ctx, maintainNodeControllerName, maintainNodeHandler.OnNodeChanged)
@@ -54,7 +59,9 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if node == nil || node.DeletionTimestamp != nil {
 		return node, nil
 	}
-	if maintenanceStatus, ok := node.Annotations[util.MaintainStatusAnnotationKey]; !ok || maintenanceStatus != util.MaintainStatusRunning {
+	condition := util.GetMaintenanceModeCondition(node)
+
+	if !util.IsMaintenanceModeCondition(condition, corev1.ConditionTrue, util.NodeConditionReasonEvacuating) {
 		return node, nil
 	}
 
@@ -63,62 +70,53 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if err != nil {
 		return node, err
 	}
+
 	if len(vmiList) != 0 {
+		// Get the names of the remaining VMs, but limit the number of
+		// names logged to avoid excessive log output.
+		vmNames := make([]string, 0, logMaxRemainingVMs)
+		for i, vmi := range vmiList {
+			if i < logMaxRemainingVMs {
+				vmNames = append(vmNames, util.GetNamespacedName(vmi))
+			} else {
+				vmNames = append(vmNames, fmt.Sprintf("... and %d more", len(vmiList)-logMaxRemainingVMs))
+				break
+			}
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"node":         node.Name,
+			"remainingVMs": len(vmiList),
+			"vms":          strings.Join(vmNames, ", "),
+		}).Info("Waiting for VMs to leave node before completing maintenance mode")
+
+		if h.enqueueAfter != nil {
+			h.enqueueAfter(node.Name, requeueDelay)
+		}
+
 		return node, nil
 	}
 
 	// Restart those VMs that have been labeled to be shut down before
 	// maintenance mode and that should be restarted when the node has
 	// successfully switched into maintenance mode.
-	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterEnable}.AsSelector()
-	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
-	if err != nil {
-		return node, fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
-	}
-	for _, vm := range vmList {
-		// Make sure that this VM was shut down as part of the maintenance
-		// mode of the given node.
-		if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
-			continue
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"namespace":           vm.Namespace,
-			"virtualmachine_name": vm.Name,
-		}).Info("restarting the VM that was temporary shut down for maintenance mode")
-
-		// Update the run strategy of the VM to start it and remove the
-		// annotation that was previously set when the node went into
-		// maintenance mode.
-		// Get the running strategy that is stored in the annotation of the
-		// VM when it is shut down. Note, in general this is automatically
-		// patched by the VM mutator in general.
-		runStrategy := kubevirtv1.VirtualMachineRunStrategy(vm.Annotations[util.AnnotationRunStrategy])
-		if runStrategy == "" {
-			runStrategy = kubevirtv1.RunStrategyRerunOnFailure
-		}
-		vmCopy := vm.DeepCopy()
-		vmCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{runStrategy}[0]
-		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
-		_, err = h.virtualMachineClient.Update(vmCopy)
-		if err != nil {
-			return node, fmt.Errorf("failed to start VM %s/%s: %w", vm.Namespace, vm.Name, err)
-		}
+	if err := util.RestartMaintenanceModeVMsOnNode(h.virtualMachineClient, h.virtualMachineCache, node.Name, util.MaintainModeStrategyShutdownAndRestartAfterEnable); err != nil {
+		return node, err
 	}
 
-	toUpdate := node.DeepCopy()
-	toUpdate.Annotations[util.MaintainStatusAnnotationKey] = util.MaintainStatusComplete
-	return h.nodes.Update(toUpdate)
+	return util.TransitionMaintenanceModeCondition(h.nodes, node.Name,
+		corev1.ConditionTrue, util.NodeConditionReasonEvacuating,
+		corev1.ConditionTrue, util.NodeConditionReasonCompleted, util.MaintenanceModeMessageCompleted)
 }
 
 // OnNodeRemoved Ensure that all "harvesterhci.io/maintain-mode-strategy-node-name"
 // annotations on VMs are removed that are referencing this node.
 func (h *maintainNodeHandler) OnNodeRemoved(_ string, node *corev1.Node) (*corev1.Node, error) {
-	if node == nil || node.DeletionTimestamp == nil || node.Annotations == nil {
+	if node == nil || node.DeletionTimestamp == nil {
 		return node, nil
 	}
 
-	if _, ok := node.Annotations[util.MaintainStatusAnnotationKey]; !ok {
+	if !util.IsMaintenanceModeEngaged(node) {
 		return node, nil
 	}
 

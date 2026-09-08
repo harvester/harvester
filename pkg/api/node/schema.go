@@ -72,6 +72,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 					Input: "maintenanceModeInput",
 				},
 				disableMaintenanceModeAction: {},
+				clearMaintenanceModeAction:   {},
 				cordonAction:                 {},
 				uncordonAction:               {},
 				listUnhealthyVM:              {},
@@ -86,6 +87,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 			s.ActionHandlers = map[string]http.Handler{
 				enableMaintenanceModeAction:  nodeHandler,
 				disableMaintenanceModeAction: nodeHandler,
+				clearMaintenanceModeAction:   nodeHandler,
 				cordonAction:                 nodeHandler,
 				uncordonAction:               nodeHandler,
 				listUnhealthyVM:              nodeHandler,

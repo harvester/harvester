@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +62,7 @@ func Test_defaultDrainHelper(t *testing.T) {
 	cfg := &rest.Config{
 		Host: "localhost",
 	}
-	dh, err := defaultDrainHelper(context.TODO(), cfg)
+	dh, err := defaultDrainHelper(context.TODO(), cfg, 0)
 	assert.NoError(err, "expected no error during generation of node helper")
 	assert.NotNil(dh, "expected to get a valid drain client")
 	assert.True(dh.IgnoreAllDaemonSets, "expected drain helper to ignore daemonsets")
@@ -69,6 +70,13 @@ func Test_defaultDrainHelper(t *testing.T) {
 	assert.True(dh.DeleteEmptyDirData, "expected to skip deletion of empty data directory")
 	assert.True(dh.Force, "expected force to be set")
 	assert.Equal(defaultSkipPodLabels, dh.PodSelector, "expected drain handler pod labels to match const")
+	assert.Equal(time.Duration(0), dh.Timeout, "expected drain helper timeout to be 0 when context has no deadline")
+
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dhWithTimeout, err := defaultDrainHelper(ctxWithTimeout, cfg, 2*time.Minute)
+	assert.NoError(err)
+	assert.Equal(2*time.Minute, dhWithTimeout.Timeout, "expected drain helper timeout to match context deadline")
 }
 
 func Test_meetsControlPlaneRequirementsHA(t *testing.T) {
@@ -87,9 +95,7 @@ func Test_failsControlPlaneRequirementsHA(t *testing.T) {
 	assert := require.New(t)
 	clientset := fake.NewSimpleClientset(testNode, cpNode1, cpNode2, cpNode3)
 
-	cpNode1.Annotations = map[string]string{
-		util.MaintainStatusAnnotationKey: util.MaintainStatusRunning,
-	}
+	util.SetMaintenanceModeCondition(cpNode1, corev1.ConditionTrue, util.NodeConditionReasonCompleted, "Maintenance mode enabled")
 
 	nodeCache := fakeclients.NodeCache(clientset.CoreV1().Nodes)
 	nodeClient := fakeclients.NodeClient(clientset.CoreV1().Nodes)
