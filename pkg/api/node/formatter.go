@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/norman/httperror"
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
@@ -21,7 +20,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -41,6 +39,7 @@ const (
 	drainKey                     = "kubevirt.io/drain"
 	enableMaintenanceModeAction  = "enableMaintenanceMode"
 	disableMaintenanceModeAction = "disableMaintenanceMode"
+	clearMaintenanceModeAction   = "clearMaintenanceMode"
 	cordonAction                 = "cordon"
 	uncordonAction               = "uncordon"
 	listUnhealthyVM              = "listUnhealthyVM"
@@ -72,14 +71,41 @@ func Formatter(request *types.APIRequest, resource *types.RawResource) {
 	resource.AddAction(request, enableCPUManager)
 	resource.AddAction(request, disableCPUManager)
 
-	if resource.APIObject.Data().String("metadata", "annotations", util.MaintainStatusAnnotationKey) != "" {
-		resource.AddAction(request, disableMaintenanceModeAction)
-		resource.AddAction(request, powerAction)
-	} else {
-		resource.AddAction(request, enableMaintenanceModeAction)
+	node := &corev1.Node{}
+	if err := convert.ToObj(resource.APIObject.Data(), node); err != nil {
+		logrus.Errorf("Failed to decode node %s from raw resource: %v", resource.ID, err)
+		return
 	}
 
-	if resource.APIObject.Data().Bool("spec", "unschedulable") {
+	condition := util.GetMaintenanceModeCondition(node)
+	intentCleanupComplete := !drainhelper.HasDrainRequest(node) && !drainhelper.IsForcedDrainRequested(node)
+
+	if condition == nil {
+		// No MaintenanceMode condition exists, so no maintenance attempt is active
+		// or failed and the node can enter maintenance mode.
+		resource.AddAction(request, enableMaintenanceModeAction)
+	} else {
+		switch {
+		case util.IsMaintenanceModeCondition(condition, corev1.ConditionFalse, util.NodeConditionReasonError):
+			// MaintenanceMode=False/Error means validation failed before Draining
+			// began. No drain side effects exist, so the error can be cleared.
+			if intentCleanupComplete {
+				resource.AddAction(request, clearMaintenanceModeAction)
+			}
+		case util.IsMaintenanceModeCondition(condition, corev1.ConditionTrue, util.NodeConditionReasonError):
+			// MaintenanceMode=True/Error means Draining timed out after side effects
+			// may have occurred. The node remains maintenance-protected, so the error
+			// can be disabled, but never cleared or retried directly.
+			resource.AddAction(request, disableMaintenanceModeAction)
+		case util.IsMaintenanceModeDrainComplete(condition):
+			// MaintenanceMode=True/Evacuating or True/Completed means DrainNode
+			// finished successfully. The node can be disabled or used for power actions.
+			resource.AddAction(request, disableMaintenanceModeAction)
+			resource.AddAction(request, powerAction)
+		}
+	}
+
+	if node.Spec.Unschedulable {
 		resource.AddAction(request, "uncordon")
 	} else {
 		resource.AddAction(request, "cordon")
@@ -116,6 +142,8 @@ func (h ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBod
 		return nil, h.enableMaintenanceMode(req, toUpdate)
 	case disableMaintenanceModeAction:
 		return nil, h.disableMaintenanceMode(name)
+	case clearMaintenanceModeAction:
+		return nil, h.clearMaintenanceMode(name)
 	case cordonAction:
 		return nil, h.cordonUncordonNode(toUpdate, cordonAction, true)
 	case uncordonAction:
@@ -182,13 +210,18 @@ func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, 
 }
 
 func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Node) error {
-	// api based test runs enableMaintenanceMode directly, and addition of maintenance possible
-	// ensures that enableMaintenanceMode cannot be called in environment where this may not be possible
-	err := h.maintenancePossible(node)
+	node, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
+	condition := util.GetMaintenanceModeCondition(node)
 
+	if condition != nil {
+		return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be enabled in the current state")
+	}
+
+	// API-based tests run enableMaintenanceMode directly. The maintenance-possible
+	// action ensures it cannot be called where maintenance mode is not possible.
 	var maintenanceInput MaintenanceModeInput
 	if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
 		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
@@ -204,13 +237,13 @@ func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Nod
 			return err
 		}
 
-		if nodeObj.Annotations == nil {
-			nodeObj.Annotations = make(map[string]string)
+		liveCondition := util.GetMaintenanceModeCondition(nodeObj)
+
+		if liveCondition != nil {
+			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be enabled in the current state")
 		}
-		nodeObj.Annotations[drainhelper.DrainAnnotation] = "true"
-		if maintenanceInput.Force == "true" {
-			nodeObj.Annotations[drainhelper.ForcedDrain] = "true"
-		}
+
+		drainhelper.SetDrainRequest(nodeObj, maintenanceInput.Force == "true")
 		_, err = h.nodeClient.Update(nodeObj)
 		return err
 	})
@@ -219,7 +252,17 @@ func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Nod
 type maintenanceModeUpdateFunc func(node *corev1.Node)
 
 func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
-	disableMaintaenanceModeFunc := func(node *corev1.Node) {
+	node, err := h.nodeClient.Get(nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	condition := util.GetMaintenanceModeCondition(node)
+
+	if !util.CanDisableMaintenanceMode(condition) {
+		return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be disabled in the current state")
+	}
+
+	disableMaintenanceModeFunc := func(node *corev1.Node) {
 		node.Spec.Unschedulable = false
 		for i, taint := range node.Spec.Taints {
 			if taint.Key == drainKey {
@@ -227,12 +270,10 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 				break
 			}
 		}
-		delete(node.Annotations, drainhelper.DrainAnnotation)
-		delete(node.Annotations, drainhelper.ForcedDrain)
-		delete(node.Annotations, util.MaintainStatusAnnotationKey)
+		drainhelper.ClearDrainRequest(node)
 	}
 
-	err := h.retryMaintenanceModeUpdate(nodeName, disableMaintaenanceModeFunc, "disable")
+	err = h.retryMaintenanceModeUpdate(nodeName, disableMaintenanceModeFunc)
 	if err != nil {
 		return err
 	}
@@ -240,68 +281,61 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 	// Restart those VMs that have been labeled to be shut down before
 	// maintenance mode and that should be restarted when the maintenance
 	// mode has been disabled again.
-	node, err := h.nodeCache.Get(nodeName)
-	if err != nil {
+	if err := util.RestartMaintenanceModeVMsOnNode(h.virtualMachineClient, h.virtualMachineCache, nodeName, util.MaintainModeStrategyShutdownAndRestartAfterDisable); err != nil {
 		return err
 	}
-	selector := labels.Set{util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable}.AsSelector()
-	vmList, err := h.virtualMachineCache.List(node.Namespace, selector)
-	if err != nil {
-		return fmt.Errorf("failed to list VMs with labels %s: %w", selector.String(), err)
-	}
-	for _, vm := range vmList {
-		// Make sure that this VM was shut down as part of the maintenance
-		// mode of the given node.
-		if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != nodeName {
-			continue
-		}
 
-		logrus.WithFields(logrus.Fields{
-			"namespace":           vm.Namespace,
-			"virtualmachine_name": vm.Name,
-		}).Info("restarting the VM that was shut down in maintenance mode")
+	return h.removeMaintenanceModeCondition(nodeName, false)
+}
 
-		err := h.virtSubresourceRestClient.Put().Namespace(vm.Namespace).Resource("virtualmachines").SubResource("start").Name(vm.Name).Do(h.ctx).Error()
-		if err != nil {
-			return fmt.Errorf("failed to start VM %s/%s: %w", vm.Namespace, vm.Name, err)
-		}
+func (h ActionHandler) clearMaintenanceMode(nodeName string) error {
+	return h.removeMaintenanceModeCondition(nodeName, true)
+}
 
-		// Remove the annotation that was previously set when the node
-		// went into maintenance mode.
-		vmCopy := vm.DeepCopy()
-		delete(vmCopy.Annotations, util.AnnotationMaintainModeStrategyNodeName)
-		_, err = h.virtualMachineClient.Update(vmCopy)
+func (h ActionHandler) removeMaintenanceModeCondition(nodeName string, preCheckErrorOnly bool) error {
+	logrus.WithFields(logrus.Fields{
+		"node":              nodeName,
+		"preCheckErrorOnly": preCheckErrorOnly,
+	}).Info("Removing node maintenance mode condition")
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		node, err := h.nodeClient.Get(nodeName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
-	}
+		condition := util.GetMaintenanceModeCondition(node)
+		if condition == nil {
+			return nil
+		}
 
-	return nil
+		if preCheckErrorOnly && (drainhelper.HasDrainRequest(node) || drainhelper.IsForcedDrainRequested(node)) {
+			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode error cannot be cleared until the previous request is cleaned up")
+		}
+		if preCheckErrorOnly && !util.IsMaintenanceModeCondition(condition, corev1.ConditionFalse, util.NodeConditionReasonError) {
+			return httperror.NewAPIError(httperror.InvalidAction, "Only a maintenance mode pre-check error can be cleared")
+		}
+		if !preCheckErrorOnly && (!util.CanDisableMaintenanceMode(condition) || drainhelper.HasDrainRequest(node)) {
+			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode disable state changed")
+		}
+
+		node = node.DeepCopy()
+		util.RemoveMaintenanceModeCondition(node)
+		_, err = h.nodeClient.UpdateStatus(node)
+		return err
+	})
 }
 
-func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc maintenanceModeUpdateFunc, actionName string) error {
-	maxTry := 3
-	for i := 0; i < maxTry; i++ {
-		node, err := h.nodeCache.Get(nodeName)
+func (h ActionHandler) retryMaintenanceModeUpdate(nodeName string, updateFunc maintenanceModeUpdateFunc) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		node, err := h.nodeClient.Get(nodeName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		toUpdate := node.DeepCopy()
 		updateFunc(toUpdate)
-		if reflect.DeepEqual(node, toUpdate) {
-			return nil
-		}
 		_, err = h.nodeClient.Update(toUpdate)
-		if err == nil || !apierrors.IsConflict(err) {
-			return err
-		}
-		// after last try, do not sleep, return asap.
-		if i < maxTry-1 {
-			time.Sleep(2 * time.Second)
-		}
-	}
-
-	return fmt.Errorf("failed to %s maintenance mode on node:%s", actionName, nodeName)
+		return err
+	})
 }
 
 func (h ActionHandler) listUnhealthyVM(rw http.ResponseWriter, node *corev1.Node) error {
@@ -379,6 +413,16 @@ func (h ActionHandler) powerActionPossible(rw http.ResponseWriter, node string) 
 }
 
 func (h ActionHandler) powerAction(node *corev1.Node, operation string) error {
+	liveNode, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	condition := util.GetMaintenanceModeCondition(liveNode)
+	if !util.IsMaintenanceModeDrainComplete(condition) {
+		return httperror.NewAPIError(httperror.InvalidAction, "Power actions are unavailable in the current maintenance mode state")
+	}
+	node = liveNode
+
 	if !slice.ContainsString(possiblePowerActions, operation) {
 		return fmt.Errorf("operation %s is not a valid power opreation. valid values need to be in %v", operation, possiblePowerActions)
 	}

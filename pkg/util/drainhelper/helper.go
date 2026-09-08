@@ -29,11 +29,9 @@ const (
 	//https://longhorn.io/docs/1.3.1/volumes-and-nodes/maintenance/#updating-the-node-os-or-container-runtime
 	defaultSkipPodLabels      = "app!=csi-attacher,app!=csi-provisioner,kubevirt.io!=hotplug-disk"
 	defaultGracePeriodSeconds = 180
-	defaultTimeOut            = 240 * time.Second
 	DrainAnnotation           = "harvesterhci.io/drain-requested"
 	ForcedDrain               = "harvesterhci.io/drain-forced"
 	defaultSingleCPCount      = 1
-	defaultHACPCount          = 3
 )
 
 var (
@@ -42,7 +40,7 @@ var (
 	errHAControlPlaneNode     = fmt.Errorf("%w: another controlplane is already in maintenance mode, cannot place current node in maintenance mode", ErrNodeDrainNotPossible)
 )
 
-func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, error) {
+func defaultDrainHelper(ctx context.Context, cfg *rest.Config, timeout time.Duration) (*drain.Helper, error) {
 	logger := logrus.New()
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -58,13 +56,20 @@ func defaultDrainHelper(ctx context.Context, cfg *rest.Config) (*drain.Helper, e
 		Force:               true,
 		Out:                 logger.Writer(),
 		ErrOut:              logger.Writer(),
-		Timeout:             defaultTimeOut,
+		Timeout:             timeout,
 		AdditionalFilters:   []drain.PodFilter{maintainModeStrategyFilter},
 	}, nil
 }
 
+// DrainNode cordons and drains node without an overall timeout.
 func DrainNode(ctx context.Context, cfg *rest.Config, node *corev1.Node) error {
-	d, err := defaultDrainHelper(ctx, cfg)
+	return DrainNodeWithTimeout(ctx, cfg, node, 0)
+}
+
+// DrainNodeWithTimeout cordons and drains node with timeout used by kubectl's
+// drain helper. The context still controls the actual overall deadline.
+func DrainNodeWithTimeout(ctx context.Context, cfg *rest.Config, node *corev1.Node, timeout time.Duration) error {
+	d, err := defaultDrainHelper(ctx, cfg, timeout)
 	if err != nil {
 		return fmt.Errorf("unable to create node drain helper: %v", err)
 	}
@@ -136,14 +141,19 @@ func DrainPossible(nodeCache ctlcorev1.NodeCache, node *corev1.Node) error {
 
 	var availableNodes int
 	for _, v := range nodeMap {
-		_, ok := v.Annotations[util.MaintainStatusAnnotationKey]
-		logrus.Debugf("nodeName: %s,  annotation present: %v", v.Name, ok)
-		if !ok {
+		if v.Name == node.Name {
+			continue
+		}
+		engaged := util.IsMaintenanceModeEngaged(v)
+		logrus.Debugf("nodeName: %s, maintenance engaged: %v", v.Name, engaged)
+		if !engaged && !v.Spec.Unschedulable {
 			availableNodes++
 		}
 	}
 
-	if availableNodes != defaultHACPCount {
+	// The drain candidate is excluded above, so every remaining control-plane
+	// or etcd node must be available to preserve the cluster quorum.
+	if availableNodes != len(nodeMap)-1 {
 		return errHAControlPlaneNode
 	}
 
