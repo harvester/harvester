@@ -200,6 +200,28 @@ func Test_validateSupportBundleTimeout(t *testing.T) {
 	}
 }
 
+func TestValidateMaintenanceModeDrainTimeout(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "disabled", value: "0"},
+		{name: "positive", value: "15"},
+		{name: "negative", value: "-1", wantErr: true},
+		{name: "not an integer", value: "1.5", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateMaintenanceModeDrainTimeout(&v1beta1.Setting{Default: "15", Value: test.value})
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func Test_validateSupportBundleExpiration(t *testing.T) {
 	tests := []struct {
 		name        string

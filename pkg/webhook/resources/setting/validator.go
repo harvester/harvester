@@ -114,6 +114,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 	settings.LHIMResourcesSettingName:                          validateLHIMResources,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateLonghornV2DataEngineMemorySize,
+	settings.MaintenanceModeDrainTimeoutSettingName:            validateMaintenanceModeDrainTimeout,
 }
 
 type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -137,6 +138,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateUpdateLonghornV2DataEngineMemorySize,
+	settings.MaintenanceModeDrainTimeoutSettingName:            validateUpdateMaintenanceModeDrainTimeout,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -767,7 +769,7 @@ func validateUpdateVipPoolsConfig(_ *types.Request, _ *v1beta1.Setting, newSetti
 	return validateVipPoolsConfig(newSetting)
 }
 
-func validateSupportBundleTimeoutHelper(value string) error {
+func validateOptionalNonNegativeInteger(value string) error {
 	if value == "" {
 		return nil
 	}
@@ -777,17 +779,17 @@ func validateSupportBundleTimeoutHelper(value string) error {
 		return err
 	}
 	if i < 0 {
-		return fmt.Errorf("timeout can't be negative")
+		return fmt.Errorf("value can't be negative")
 	}
 	return nil
 }
 
 func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
-	if err := validateSupportBundleTimeoutHelper(setting.Default); err != nil {
+	if err := validateOptionalNonNegativeInteger(setting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
 
-	if err := validateSupportBundleTimeoutHelper(setting.Value); err != nil {
+	if err := validateOptionalNonNegativeInteger(setting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
@@ -795,6 +797,20 @@ func validateSupportBundleTimeout(setting *v1beta1.Setting) error {
 
 func validateUpdateSupportBundleTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateSupportBundleTimeout(newSetting)
+}
+
+func validateMaintenanceModeDrainTimeout(setting *v1beta1.Setting) error {
+	if err := validateOptionalNonNegativeInteger(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+	if err := validateOptionalNonNegativeInteger(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func validateUpdateMaintenanceModeDrainTimeout(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateMaintenanceModeDrainTimeout(newSetting)
 }
 
 func validateSupportBundleExpirationHelper(value string) error {

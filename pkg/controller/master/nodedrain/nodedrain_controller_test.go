@@ -4,15 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -282,6 +287,134 @@ func Test_listVMI(t *testing.T) {
 	assert.NoError(err, "expected no error")
 	assert.Len(vmiList, 1, "expected to find only 1 vmi")
 	assert.Contains(vmiList, failingVM, "expected to find failingVM only")
+}
+
+func TestOnNodeChangeCreatesValidatingCondition(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{drainhelper.DrainAnnotation: "true"}}}
+	clientset := fake.NewSimpleClientset(node)
+	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes)}
+
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	condition := util.GetMaintenanceModeCondition(updated)
+	require.NotNil(t, condition)
+	require.Equal(t, corev1.ConditionTrue, condition.Status)
+	require.Equal(t, util.NodeConditionReasonValidating, condition.Reason)
+	require.Contains(t, updated.Annotations, drainhelper.DrainAnnotation)
+}
+
+func TestOnNodeChangeTerminatesExpiredDrain(t *testing.T) {
+	require.NoError(t, settings.MaintenanceModeDrainTimeout.Set("1"))
+	t.Cleanup(func() { _ = settings.MaintenanceModeDrainTimeout.Set("15") })
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{
+			drainhelper.DrainAnnotation: "true",
+			drainhelper.ForcedDrain:     "true",
+		}},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
+			Reason: util.NodeConditionReasonDraining, LastTransitionTime: metav1.NewTime(time.Now().Add(-2 * time.Minute)),
+		}}},
+	}
+	clientset := fake.NewSimpleClientset(node)
+	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes), context: context.Background()}
+
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	condition := util.GetMaintenanceModeCondition(updated)
+	require.NotNil(t, condition)
+	require.Equal(t, corev1.ConditionTrue, condition.Status)
+	require.Equal(t, util.NodeConditionReasonError, condition.Reason)
+	require.Contains(t, condition.Message, "node-1 after 1 minutes")
+	require.NotContains(t, updated.Annotations, drainhelper.DrainAnnotation)
+	require.NotContains(t, updated.Annotations, drainhelper.ForcedDrain)
+}
+
+func TestForcedDrainStopsMaintainModeStrategyVMs(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-1",
+			Annotations: map[string]string{
+				drainhelper.DrainAnnotation: "true",
+				drainhelper.ForcedDrain:     "true",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:               util.NodeConditionTypeMaintenanceMode,
+				Status:             corev1.ConditionTrue,
+				Reason:             util.NodeConditionReasonDraining,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		},
+	}
+
+	runningStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-1",
+			Namespace: "default",
+			Labels: map[string]string{
+				util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			RunStrategy: &runningStrategy,
+		},
+	}
+	vmi := &kubevirtv1.VirtualMachineInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-1",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubevirtv1.NodeNameLabel:       node.Name,
+				util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "kubevirt.io/v1",
+					Kind:       "VirtualMachine",
+					Name:       vm.Name,
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset(node, vm, vmi)
+	var stoppedVMs []string
+	handler := &ControllerHandler{
+		nodes:                        fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		nodeCache:                    fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		virtualMachineClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineCache:          fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineInstanceCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+		virtualMachineInstanceClient: fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+		longhornVolumeCache:          fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:         fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		context:                      context.Background(),
+		drainNode: func(ctx context.Context, cfg *rest.Config, n *corev1.Node, timeout time.Duration) error {
+			return nil
+		},
+	}
+
+	// Override findAndStopVM behavior by checking actual update on VM
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updatedVM, err := clientset.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.Background(), vm.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	// VM must be stopped (RunStrategyHalted)
+	require.Equal(t, kubevirtv1.RunStrategyHalted, *updatedVM.Spec.RunStrategy)
+	// VM with restart strategy must be annotated for restart even under force
+	require.Equal(t, node.Name, updatedVM.Annotations[util.AnnotationMaintainModeStrategyNodeName])
+	_ = stoppedVMs
 }
 
 const vmiListString = `
