@@ -196,13 +196,21 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 	}
 
 	restoreSCName, hasRestoreSCName := util.GetRestoreSCName(vmi)
+
 	scName := lhutil.AutoCorrectName(
 		fmt.Sprintf("lh-%s", vmio.GetUID(vmi)),
 		lhdatastore.NameMaximumLength,
 	)
+
+	var scNameOverride string
+	var scNameOverrideFromAnnotation bool
+	if vmi.Annotations != nil {
+		scNameOverride, scNameOverrideFromAnnotation = vmi.Annotations[util.AnnotationHarvesterVMImageStorageClassNameOverride]
+	}
+
 	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
 
-	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName); existingSCName != "" {
+	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName, scNameOverride); existingSCName != "" {
 		return existingSCName
 	}
 
@@ -215,6 +223,9 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 	// exists, then return the new name. This allows the GetStorageClassName
 	// method to be used to generate the name of the storage class to be used
 	// during creation.
+	if scNameOverrideFromAnnotation {
+		return scNameOverride
+	}
 	return scName
 }
 

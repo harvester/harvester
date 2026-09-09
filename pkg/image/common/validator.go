@@ -305,6 +305,18 @@ func (v *vmiValidator) SCParametersConsistency(oldVMI, newVMI *v1beta1.VirtualMa
 	if !reflect.DeepEqual(oldVMI.Spec.StorageClassParameters, newVMI.Spec.StorageClassParameters) {
 		return werror.NewInvalidError("storageClassParameters of the VM Image cannot be modified", "spec.storageClassParameters")
 	}
+
+	var oldOverrideSCName, newOverrideSCName string
+	if val, ok := oldVMI.Annotations[util.AnnotationHarvesterVMImageStorageClassNameOverride]; ok {
+		oldOverrideSCName = val
+	}
+	if val, ok := newVMI.Annotations[util.AnnotationHarvesterVMImageStorageClassNameOverride]; ok {
+		newOverrideSCName = val
+	}
+	if oldOverrideSCName != newOverrideSCName {
+		return werror.NewInvalidError("storage class name override cannot be modified", util.AnnotationHarvesterVMImageStorageClassNameOverride)
+	}
+
 	return nil
 }
 

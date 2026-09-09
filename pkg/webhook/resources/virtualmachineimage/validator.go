@@ -28,7 +28,7 @@ func NewValidator(
 
 	vmiv := common.GetVMIValidator(vmiCache, scCache, podCache, pvcCache, vmTemplateVersionCache, vmBackupCache, sar)
 	validators := map[v1beta1.VMIBackend]backend.Validator{
-		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv),
+		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv, scCache),
 		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv),
 	}
 
