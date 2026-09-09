@@ -8,7 +8,13 @@ nodeName: {{ .Hostname }}
 token: {{ printf "%q" .Token }}
 kubernetesVersion: {{ .RuntimeVersion }}
 rancherVersion: {{ .RancherVersion }}
+{{- if and .PrimeBuild .SystemDefaultRegistry }}
+systemDefaultRegistry: {{ .SystemDefaultRegistry }}
+runtimeInstallerImage: {{ .SystemDefaultRegistry }}/rancher/system-agent-installer-rke2:{{ .RuntimeVersion | replace "+" "-" }}
+rancherInstallerImage: {{ .SystemDefaultRegistry }}/rancher/system-agent-installer-rancher:{{ .RancherVersion }}
+{{- else }}
 rancherInstallerImage: rancher/system-agent-installer-rancher:{{ .RancherVersion }}
+{{- end }}
 labels:
  - harvesterhci.io/managed=true
 {{ if .Install.Cordoned }} - harvesterhci.io/install-cordoned=true
@@ -18,3 +24,13 @@ extraConfig:
   - rke2-snapshot-controller
   - rke2-snapshot-controller-crd
   - rke2-snapshot-validation-webhook
+{{- if and .PrimeBuild .SystemDefaultRegistry }}
+  system-default-registry: {{ .SystemDefaultRegistry }}
+{{- end }}
+
+rancherValues:
+  image:
+    tag: {{ .RancherVersion }}
+{{- if and .PrimeBuild .SystemDefaultRegistry }}
+  systemDefaultRegistry: {{ .SystemDefaultRegistry }}
+{{- end }}
