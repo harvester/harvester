@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 cd "${1}" || exit
 source ./scripts/version
@@ -37,3 +37,158 @@ echo "Replace the Harvester image repo to ${REPO}"
 replace_harvester_image_repo '.containers.apiserver.image.repository'
 replace_harvester_image_repo '.webhook.image.repository'
 replace_harvester_image_repo '.upgrade.image.repository'
+
+replace_longhorn_image_registry()
+{
+  local chart_value_file_path=./deploy/charts/harvester/values.yaml
+  local registry="${SUSE_STORAGE_REGISTRY}"
+
+  echo "Replace the Longhorn image registry with ${registry}"
+  yq e -i '.longhorn.global.imageRegistry = "'"${registry}"'"' "${chart_value_file_path}"
+}
+
+# Swaps the Longhorn dependency in the Harvester chart for the SUSE Storage chart tag pinned in
+# build.yaml, verifying the downloaded chart's own version matches the Longhorn version it replaces.
+replace_longhorn_chart_with_suse_storage()
+{
+  local chart_dir=./deploy/charts/harvester
+  local chart_file=${chart_dir}/Chart.yaml
+  local charts_dir=${chart_dir}/charts
+  local dependency_charts_dir=${chart_dir}/dependency_charts
+  local build_file=./build.yaml
+  local longhorn_version
+  local suse_storage_chart_tag
+  local suse_storage_chart_version
+  local chart_registry="${SUSE_STORAGE_REGISTRY}"
+
+  longhorn_version=$(yq e '.dependencies[] | select(.name == "longhorn") | .version' "${chart_file}")
+  if [[ -z "${longhorn_version}" || "${longhorn_version}" == "null" ]]; then
+    echo "Failed to find the Longhorn chart version in ${chart_file}" >&2
+    return 1
+  fi
+
+  suse_storage_chart_tag=$(yq e '.prime.suse-storage.chart.tag' "${build_file}")
+  if [[ -z "${suse_storage_chart_tag}" || "${suse_storage_chart_tag}" == "null" ]]; then
+    echo "Failed to find the SUSE Storage chart tag in ${build_file}" >&2
+    return 1
+  fi
+
+  echo "Replace the Longhorn chart ${longhorn_version} with SUSE Storage ${suse_storage_chart_tag}..."
+  helm pull "oci://${chart_registry}/charts/suse-storage" \
+    --version "${suse_storage_chart_tag}" \
+    --untar \
+    --untardir "${dependency_charts_dir}" || return 1
+
+  suse_storage_chart_version=$(yq e '.version' "${dependency_charts_dir}/suse-storage/Chart.yaml")
+  if [[ "${suse_storage_chart_version}" != "${longhorn_version}" ]]; then
+    echo "SUSE Storage chart version ${suse_storage_chart_version} does not match the Longhorn chart version ${longhorn_version}" >&2
+    return 1
+  fi
+
+  SUSE_STORAGE_VERSION="${suse_storage_chart_version}" yq e -i '
+    .dependencies = (
+      [.dependencies[] | select(.name != "longhorn")] +
+      [{
+        "name": "suse-storage",
+        "alias": "longhorn",
+        "version": strenv(SUSE_STORAGE_VERSION),
+        "repository": "file://dependency_charts/suse-storage",
+        "condition": "longhorn.enabled"
+      }]
+    )
+  ' "${chart_file}" || return 1
+
+  helm dependency update "${chart_dir}" || return 1
+  cat "${chart_file}"
+
+  rm -f "${charts_dir}/longhorn-${longhorn_version}.tgz"
+}
+
+# Expands the supported registry placeholders in an image repository from build.yaml.
+expand_image_registry_placeholders()
+{
+  local repository=$1
+  local path=$2
+  local build_file=$3
+
+  repository="${repository//\$\{HARVESTER_PRIME_REGISTRY\}/${HARVESTER_PRIME_REGISTRY}}"
+  repository="${repository//\$\{RANCHER_REGISTRY\}/${RANCHER_REGISTRY}}"
+  repository="${repository//\$\{SUSE_STORAGE_REGISTRY\}/${SUSE_STORAGE_REGISTRY}}"
+  if [[ "${repository}" == *'${'* || "${repository}" == /* ]]; then
+    echo "Failed to resolve registry placeholder in repository for ${path} in ${build_file}" >&2
+    return 1
+  fi
+
+  echo "${repository}"
+}
+
+replace_harvester_image()
+{
+  local index=$1
+  local chart_value_file_path=$2
+  local build_file=$3
+  local path repository tag old_repo old_tag
+
+  path=$(yq e ".prime.images[${index}].path" "${build_file}")
+  repository=$(yq e ".prime.images[${index}].repository" "${build_file}")
+  tag=$(yq e ".prime.images[${index}].tag" "${build_file}")
+
+  if [[ -z "${path}" || "${path}" == "null" ]]; then
+    echo "Failed to find 'path' for prime.images[${index}] in ${build_file}" >&2
+    return 1
+  fi
+  if [[ -z "${repository}" || "${repository}" == "null" ]]; then
+    echo "Failed to find 'repository' for prime.images[${index}] (${path}) in ${build_file}" >&2
+    return 1
+  fi
+  if ! repository=$(expand_image_registry_placeholders "${repository}" "${path}" "${build_file}"); then
+    return 1
+  fi
+
+  old_repo=$(yq e "${path}.repository" "${chart_value_file_path}")
+  if [[ -z "${old_repo}" || "${old_repo}" == "null" ]]; then
+    echo "Failed to find ${path}.repository in ${chart_value_file_path}" >&2
+    return 1
+  fi
+
+  echo "Replace ${old_repo} with ${repository}"
+  yq e -i "${path}"'.repository = "'"${repository}"'"' "${chart_value_file_path}"
+
+  if [[ -z "${tag}" || "${tag}" == "null" ]]; then
+    return
+  fi
+
+  old_tag=$(yq e "${path}.tag" "${chart_value_file_path}")
+  if [[ -z "${old_tag}" || "${old_tag}" == "null" ]]; then
+    echo "Failed to find ${path}.tag in ${chart_value_file_path}" >&2
+    return 1
+  fi
+
+  echo "Replace tag ${old_tag} with ${tag}"
+  yq e -i "${path}"'.tag = "'"${tag}"'"' "${chart_value_file_path}"
+}
+
+# Rewrites image repositories (and optionally tags) in the Harvester chart values.yaml
+# according to the prime.images table in build.yaml.
+replace_harvester_image_registry()
+{
+  local chart_value_file_path=./deploy/charts/harvester/values.yaml
+  local build_file=./build.yaml
+
+  local count
+  count=$(yq e '.prime.images | length' "${build_file}")
+  if [[ -z "${count}" || "${count}" == "null" ]]; then
+    count=0
+  fi
+
+  local i
+  for ((i = 0; i < count; i++)); do
+    replace_harvester_image "${i}" "${chart_value_file_path}" "${build_file}" || return 1
+  done
+}
+
+if [[ "${PRIME_BUILD:-}" == "true" ]]; then
+  replace_longhorn_image_registry
+  replace_longhorn_chart_with_suse_storage
+  replace_harvester_image_registry
+fi
