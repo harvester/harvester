@@ -38,6 +38,13 @@ func backingImageName(image *harvesterv1.VirtualMachineImage) string {
 }
 
 func defaultBackingImageName(image *harvesterv1.VirtualMachineImage) string {
+	// when a virtualmachine image contains the annotation util.AnnotationHarvesterVMImageStorageClassNameOverride, the backing image name will be overridden to the value of annotation.
+	// this then flows in storage class definitions and subsequent restore operations, and the backing image will not follow the vmi-UUID naming convention.
+	if image.Annotations != nil {
+		if name, ok := image.Annotations[AnnotationHarvesterVMImageStorageClassNameOverride]; ok {
+			return lhutil.AutoCorrectName(name, lhdatastore.NameMaximumLength)
+		}
+	}
 	return lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength)
 }
 
@@ -65,8 +72,15 @@ func GetRestoreSCName(image *harvesterv1.VirtualMachineImage) (string, bool) {
 		return "", false
 	}
 
-	scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
-	return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+	// when a virtualmachine image contains the annotation util.AnnotationHarvesterVMImageStorageClassNameOverride, the backing image name will be overridden to the value of annotation.
+	// in such a scenario the backing image will not follow the vmi-UUID naming convention, and the storage class name will be derived from the backing image name instead of the vmi-UUID.
+
+	if strings.HasPrefix(biName, backingimagePrefix+"-") {
+		scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
+		return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+	}
+
+	return lhutil.AutoCorrectName(biName, lhdatastore.NameMaximumLength), true
 }
 
 func getBackingImageByNames(
