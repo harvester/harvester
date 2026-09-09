@@ -223,7 +223,7 @@ func TestHarvesterTokenRendering(t *testing.T) {
 			Token:          testCase.token,
 			RancherVersion: "v0.0.0-fake", // Necessary to prevent rendering failed
 		}
-		content, err := render("rancherd-config.yaml", conf)
+		content, err := renderRancherdConfig(&conf)
 		assert.Nil(t, err)
 		t.Log("Rendered content:")
 		t.Log(content)
@@ -236,6 +236,130 @@ func TestHarvesterTokenRendering(t *testing.T) {
 		assert.Nil(t, err)
 
 		assert.Equal(t, loadedConf["token"].(string), testCase.token)
+	}
+}
+
+func TestRancherdConfigRendering(t *testing.T) {
+	oldPrimeBuild := PrimeBuild
+	t.Cleanup(func() {
+		PrimeBuild = oldPrimeBuild
+	})
+
+	testCases := []struct {
+		name                    string
+		primeBuild              string
+		systemDefaultRegistry   string
+		expectRegistryOverrides bool
+	}{
+		{
+			name: "community build without registry",
+		},
+		{
+			name:                    "community build ignores leftover registry",
+			systemDefaultRegistry:   "prime.invalid/containers",
+			expectRegistryOverrides: false,
+		},
+		{
+			name:                    "false is a community build",
+			primeBuild:              "false",
+			systemDefaultRegistry:   "prime.invalid/containers",
+			expectRegistryOverrides: false,
+		},
+		{
+			name:                    "prime build uses configured registry",
+			primeBuild:              "true",
+			systemDefaultRegistry:   "prime.invalid/containers",
+			expectRegistryOverrides: true,
+		},
+		{
+			name:       "prime build without registry uses unqualified installer image",
+			primeBuild: "true",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			PrimeBuild = testCase.primeBuild
+			conf := &HarvesterConfig{
+				RuntimeVersion:        "v1.2.3+rke2r1",
+				RancherVersion:        "v2.3.4",
+				SystemDefaultRegistry: testCase.systemDefaultRegistry,
+			}
+
+			content, err := renderRancherdConfig(conf)
+			require.NoError(t, err)
+
+			loadedConf := map[string]interface{}{}
+			require.NoError(t, yaml.Unmarshal([]byte(content), &loadedConf))
+
+			rancherValues, ok := loadedConf["rancherValues"].(map[string]interface{})
+			require.True(t, ok)
+			rancherImage, ok := rancherValues["image"].(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, "v2.3.4", rancherImage["tag"])
+
+			if !testCase.expectRegistryOverrides {
+				assert.NotContains(t, loadedConf, "systemDefaultRegistry")
+				assert.NotContains(t, loadedConf, "runtimeInstallerImage")
+				assert.NotContains(t, rancherValues, "systemDefaultRegistry")
+				assert.Equal(t, "rancher/system-agent-installer-rancher:v2.3.4", loadedConf["rancherInstallerImage"])
+
+				extraConfig, ok := loadedConf["extraConfig"].(map[string]interface{})
+				require.True(t, ok)
+				assert.NotContains(t, extraConfig, "system-default-registry")
+				return
+			}
+
+			assert.Equal(t, "prime.invalid/containers", loadedConf["systemDefaultRegistry"])
+			assert.Equal(t, "prime.invalid/containers/rancher/system-agent-installer-rke2:v1.2.3-rke2r1", loadedConf["runtimeInstallerImage"])
+			assert.Equal(t, "prime.invalid/containers/rancher/system-agent-installer-rancher:v2.3.4", loadedConf["rancherInstallerImage"])
+
+			extraConfig, ok := loadedConf["extraConfig"].(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, "prime.invalid/containers", extraConfig["system-default-registry"])
+
+			assert.Equal(t, "prime.invalid/containers", rancherValues["systemDefaultRegistry"])
+		})
+	}
+}
+
+func TestSystemDefaultRegistryBuildDefault(t *testing.T) {
+	oldPrimeBuild := PrimeBuild
+	oldSystemDefaultRegistry := SystemDefaultRegistry
+	t.Cleanup(func() {
+		PrimeBuild = oldPrimeBuild
+		SystemDefaultRegistry = oldSystemDefaultRegistry
+	})
+
+	SystemDefaultRegistry = "prime.invalid/containers"
+	testCases := []struct {
+		name             string
+		primeBuild       string
+		expectedRegistry string
+	}{
+		{
+			name: "unset build flavor ignores build-time registry",
+		},
+		{
+			name:       "false build flavor ignores build-time registry",
+			primeBuild: "false",
+		},
+		{
+			name:             "prime build uses build-time registry",
+			primeBuild:       "true",
+			expectedRegistry: "prime.invalid/containers",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			PrimeBuild = testCase.primeBuild
+			conf := &HarvesterConfig{}
+
+			setConfigDefaultValues(conf)
+
+			assert.Equal(t, testCase.expectedRegistry, conf.SystemDefaultRegistry)
+		})
 	}
 }
 
