@@ -26,7 +26,7 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/suse/sles/16.0/virt-operator
-        tag: &kubevirtVersion 1.8.4
+        tag: &kubevirtVersion 1.8.4-9.1
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
@@ -49,8 +49,8 @@ kubevirt-operator:
     ## we will have it with kubevirt v1.8.4, so we can remove this override then.
     libguestfs: # introduced from kubevirt v0.44.0
       image:
-        repository: registry.suse.com/suse/sles/15.7/libguestfs-tools
-        tag: 1.7.4-150700.3.36.1
+        repository: registry.suse.com/suse/sles/16.0/libguestfs-tools
+        tag: *kubevirtVersion
 
 ## Specify the parameters to override the sub-chart.
 ##
