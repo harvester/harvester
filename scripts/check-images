@@ -5,7 +5,89 @@ TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 SCRIPTS_DIR="${TOP_DIR}/scripts"
 # get the defined rancher version
 source ${SCRIPTS_DIR}/version-rancher
+source ${SCRIPTS_DIR}/lib/image
 cd ${TOP_DIR}
+
+check_registryless_image_list() {
+  local fname=$1
+  local image first_component
+
+  while IFS= read -r image || [[ -n "${image}" ]]; do
+    image=${image%$'\r'}
+    [[ -z "${image}" || "${image}" == \#* ]] && continue
+    if [[ "${image}" == /* || "${image}" != */* ]]; then
+      echo "Error: registry-less image must include a namespace: ${image}" >&2
+      exit 1
+    fi
+    first_component=${image%%/*}
+    if [[ "${first_component}" == *.* || "${first_component}" == *:* || "${first_component}" == "localhost" ]]; then
+      echo "Error: ${fname} contains a registry-qualified image: ${image}" >&2
+      exit 1
+    fi
+  done < "${fname}"
+}
+
+check_image_inventories() {
+  local monitoring=${SCRIPTS_DIR}/images/monitoring-images.txt
+  local rancher=${SCRIPTS_DIR}/images/rancher-images.txt
+  local rancherd=${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt
+  local duplicates
+
+  check_registryless_image_list "${monitoring}"
+  check_registryless_image_list "${rancher}"
+  check_registryless_image_list "${rancherd}"
+
+  duplicates=$(sort "${monitoring}" "${rancher}" | uniq -d)
+  if [[ -n "${duplicates}" ]]; then
+    echo "Error: images are duplicated across monitoring and Rancher inventories:" >&2
+    echo "${duplicates}" >&2
+    exit 1
+  fi
+
+  local test_dir prime_registry
+  test_dir=$(mktemp -d)
+  render_image_list "${monitoring}" "docker.io" "${test_dir}/community.txt"
+  if grep -Ev '^docker\.io/' "${test_dir}/community.txt"; then
+    echo "Error: community image rendering produced a non-docker.io image" >&2
+    rm -rf "${test_dir}"
+    exit 1
+  fi
+
+  prime_registry=$(MK_PRIME_BUILD=true MK_RANCHER_PRIME_REGISTRY=prime.invalid/containers resolve_registry rancher)
+  render_image_list "${rancher}" "${prime_registry}" "${test_dir}/prime.txt"
+  if grep -Ev '^prime\.invalid/containers/' "${test_dir}/prime.txt"; then
+    echo "Error: Prime image rendering produced an unexpected registry" >&2
+    rm -rf "${test_dir}"
+    exit 1
+  fi
+
+  # Monitoring falls back to the Rancher Prime registry when no dedicated
+  # MK_MONITORING_REGISTRY is set...
+  local monitoring_fallback
+  monitoring_fallback=$(MK_PRIME_BUILD=true MK_RANCHER_PRIME_REGISTRY=prime.invalid/containers MK_MONITORING_REGISTRY= resolve_registry monitoring)
+  if [[ "${monitoring_fallback}" != "prime.invalid/containers" ]]; then
+    echo "Error: monitoring registry did not fall back to the Rancher Prime registry (got '${monitoring_fallback}')" >&2
+    rm -rf "${test_dir}"
+    exit 1
+  fi
+
+  # ...but a dedicated MK_MONITORING_REGISTRY must take priority over the fallback.
+  local monitoring_dedicated
+  monitoring_dedicated=$(MK_PRIME_BUILD=true MK_RANCHER_PRIME_REGISTRY=prime.invalid/containers MK_MONITORING_REGISTRY=prime.invalid/monitoring resolve_registry monitoring)
+  if [[ "${monitoring_dedicated}" != "prime.invalid/monitoring" ]]; then
+    echo "Error: MK_MONITORING_REGISTRY was not honored (got '${monitoring_dedicated}')" >&2
+    rm -rf "${test_dir}"
+    exit 1
+  fi
+
+  if MK_PRIME_BUILD=true MK_RANCHER_PRIME_REGISTRY=prime.invalid/containers/ resolve_registry rancher >/dev/null 2>&1; then
+    echo "Error: a Rancher registry with a trailing slash was accepted" >&2
+    rm -rf "${test_dir}"
+    exit 1
+  fi
+
+  rm -rf "${test_dir}"
+}
 
 duplicated_image_check() {
   local fname=$1
@@ -155,6 +237,7 @@ check_rancher_images() {
 
 echo "Check images to ensure they are aligned"
 
+check_image_inventories
 check_rancher_version
 
 check_rancher_images

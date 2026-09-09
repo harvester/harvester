@@ -15,6 +15,13 @@ source ${SCRIPTS_DIR}/version-rancher
 source ${SCRIPTS_DIR}/version-rke2
 
 RKE2_VERSION_NORMALIZED=$(echo "${RKE2_VERSION}" | tr '+' '-')
+RANCHER_IMAGE_REGISTRY=$(resolve_registry rancher)
+
+# Fail fast on every registry category this build will need, rather than
+# partway through pulling and caching images.
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+    resolve_registry harvester >/dev/null || exit 1
+fi
 
 harvester_chart_path="${TOP_DIR}/deploy/charts/harvester"
 
@@ -31,8 +38,12 @@ prepare_rancherd_bundle() {
     local list_file="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.txt"
     local archive="${BUNDLE_DIR}/rancherd/images/rancherd-bootstrap-images-${VERSION}.tar.zst"
 
+    local expanded_list
+    expanded_list=$(mktemp)
     sed "s,\$RKE2_VERSION,${RKE2_VERSION_NORMALIZED},g; s,\$RANCHER_VERSION,${RANCHER_VERSION},g" \
-        "${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt" > "${list_file}"
+        "${SCRIPTS_DIR}/images/rancherd-bootstrap-images.txt" > "${expanded_list}"
+    render_image_list "${expanded_list}" "${RANCHER_IMAGE_REGISTRY}" "${list_file}"
+    rm -f "${expanded_list}"
 
     local key
     key=$(cache_hash "${list_file}")
@@ -46,7 +57,7 @@ prepare_rancher_bundle() {
     local list_file="${BUNDLE_DIR}/harvester/images-lists/rancher-images-${RANCHER_VERSION}.txt"
     local archive="${BUNDLE_DIR}/harvester/images/rancher-images-${RANCHER_VERSION}.tar.zst"
 
-    cp "${SCRIPTS_DIR}/images/rancher-images.txt" "${list_file}"
+    render_image_list "${SCRIPTS_DIR}/images/rancher-images.txt" "${RANCHER_IMAGE_REGISTRY}" "${list_file}"
 
     local key
     key=$(cache_hash "${list_file}")
@@ -55,11 +66,37 @@ prepare_rancher_bundle() {
     add_image_list_to_metadata "common" "${BUNDLE_DIR}" "${list_file}" "${archive}"
 }
 
+prepare_monitoring_bundle() {
+    echo "Preparing monitoring images..."
+    local list_file="${BUNDLE_DIR}/harvester/images-lists/monitoring-images-${VERSION}.txt"
+    local archive="${BUNDLE_DIR}/harvester/images/monitoring-images-${VERSION}.tar.zst"
+
+    render_image_list "${SCRIPTS_DIR}/images/monitoring-images.txt" "$(resolve_registry monitoring)" "${list_file}"
+
+    local key
+    key=$(cache_hash "${list_file}")
+    cache_pull_and_save "monitoring" "${key}" "${list_file}" "${archive}"
+
+    add_image_list_to_metadata "common" "${BUNDLE_DIR}" "${list_file}" "${archive}"
+}
+
 prepare_rke2_tarball_bundle() {
-    # Download pre-built RKE2 core tarball from GitHub release and cache it.
-    # Not using cache_pull_and_save — the upstream provides a ready-made tarball.
-    # Cache path: ${IMAGE_CACHE_ROOT}/rke2/${rke2_ver}/
+    # Community builds download and cache the pre-built upstream RKE2 archive.
+    # Prime builds rewrite the upstream inventory, pull the resolved references,
+    # and create a matching archive instead of shipping mismatched image names.
     local rke2_ver="$1" rke2_url="$2" rke2_list="$3" rke2_archive="$4"
+
+    if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        local upstream_list key
+        upstream_list=$(mktemp)
+        get_url "${rke2_url}/rke2-images.linux-${ARCH}.txt" "${upstream_list}"
+        rewrite_image_list_registry "${upstream_list}" "${RANCHER_IMAGE_REGISTRY}" "${rke2_list}"
+        rm -f "${upstream_list}"
+
+        key=$(cache_hash "${rke2_list}")
+        cache_pull_and_save "rke2-prime" "${key}" "${rke2_list}" "${rke2_archive}"
+        return
+    fi
 
     local rke2_cache_dir="${IMAGE_CACHE_ROOT}/rke2/${rke2_ver}"
     if [[ -z "${MK_IMAGE_CACHE_BYPASS:-}" ]] \
@@ -84,9 +121,19 @@ prepare_rke2_multus_bundle() {
     # Filter upstream Multus image list, then docker pull + save via cache.
     local rke2_ver="$1" rke2_url="$2" multus_list="$3" multus_archive="$4"
 
-    save_image_list "rke2-images-multus" \
-        "${rke2_url}/rke2-images-multus.linux-${ARCH}.txt" \
-        "${multus_list}"
+    if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        local upstream_list
+        upstream_list=$(mktemp)
+        save_image_list "rke2-images-multus" \
+            "${rke2_url}/rke2-images-multus.linux-${ARCH}.txt" \
+            "${upstream_list}"
+        rewrite_image_list_registry "${upstream_list}" "${RANCHER_IMAGE_REGISTRY}" "${multus_list}"
+        rm -f "${upstream_list}"
+    else
+        save_image_list "rke2-images-multus" \
+            "${rke2_url}/rke2-images-multus.linux-${ARCH}.txt" \
+            "${multus_list}"
+    fi
     local key
     key=$(cache_hash "${multus_list}")
     cache_pull_and_save "multus" "${key}" "${multus_list}" "${multus_archive}"
@@ -95,14 +142,21 @@ prepare_rke2_multus_bundle() {
 prepare_rke2_bundle() {
     echo "Preparing RKE2 images..."
     local rke2_ver="${RKE2_VERSION_NORMALIZED}"
-    local rke2_url="${RKE2_IMAGE_REPO}${RKE2_VERSION}"
+    # Percent-encode "+" — Some CDN (CloudFront/S3) decodes a literal "+" in
+    # the path as a space, causing 404s on rke2r1-style versions.
+    local rke2_url="${RKE2_IMAGE_REPO}${RKE2_VERSION//+/%2B}"
     local rke2_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images.linux-${ARCH}-${rke2_ver}.txt"
     local rke2_archive="${BUNDLE_DIR}/harvester/images/rke2-images.linux-${ARCH}-${rke2_ver}.tar.zst"
     local multus_list="${BUNDLE_DIR}/harvester/images-lists/rke2-images-multus.linux-${ARCH}-${rke2_ver}.txt"
     local multus_archive="${BUNDLE_DIR}/harvester/images/rke2-images-multus.linux-${ARCH}-${rke2_ver}.tar.zst"
 
-    prepare_rke2_tarball_bundle "${rke2_ver}" "${rke2_url}" "${rke2_list}" "${rke2_archive}"
-    prepare_rke2_multus_bundle  "${rke2_ver}" "${rke2_url}" "${multus_list}" "${multus_archive}"
+    local rke2_cache_key="${rke2_ver}"
+    if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        rke2_cache_key="${rke2_cache_key}-prime"
+    fi
+
+    prepare_rke2_tarball_bundle "${rke2_cache_key}" "${rke2_url}" "${rke2_list}" "${rke2_archive}"
+    prepare_rke2_multus_bundle  "${rke2_cache_key}" "${rke2_url}" "${multus_list}" "${multus_archive}"
 
     add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${rke2_list}"   "${rke2_archive}"
     add_image_list_to_metadata "rke2" "${BUNDLE_DIR}" "${multus_list}" "${multus_archive}"
@@ -191,6 +245,7 @@ mkdir -p "${BUNDLE_DIR}/harvester/images" "${BUNDLE_DIR}/harvester/images-lists"
 
 prepare_rancherd_bundle
 prepare_rancher_bundle
+prepare_monitoring_bundle
 prepare_rke2_bundle
 prepare_harvester_bundle
 prepare_extra_bundle
