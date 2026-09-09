@@ -1,0 +1,64 @@
+#!/bin/bash
+set -eu
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/image"
+
+readonly usage="Usage: $0 VERSION_INFO_PATH"
+
+if [[ $# -ne 1 ]]; then
+    echo "${usage}" >&2
+    exit 1
+fi
+
+version_info_path="$1"
+if [[ ! -f "${version_info_path}" ]]; then
+    echo "ERROR: version_info file not found: ${version_info_path}" >&2
+    exit 1
+fi
+
+# A Prime build must resolve Harvester images from a registry supplied by CI.
+if [[ "${PRIME_BUILD:-}" == "true" && -z "${HARVESTER_PRIME_REGISTRY:-}" ]]; then
+    echo "ERROR: HARVESTER_PRIME_REGISTRY is required when PRIME_BUILD=true" >&2
+    exit 1
+fi
+
+# A regular build needs no changes, even when a registry happens to be present.
+if [[ "${PRIME_BUILD:-}" != "true" ]]; then
+    exit 0
+fi
+
+prime_registry=$(validate_registry "${HARVESTER_PRIME_REGISTRY}" HARVESTER_PRIME_REGISTRY)
+
+temp_file=$(mktemp "${version_info_path}.tmp.XXXXXX")
+cleanup() {
+    rm -f "${temp_file}"
+}
+trap cleanup EXIT
+
+replaced=0
+while IFS= read -r line || [[ -n "${line}" ]]; do
+    key="${line%%=*}"
+    value="${line#*=}"
+
+    case "${key}" in
+        VM_IMPORT_CONTROLLER_IMAGE_REPOSITORY|\
+        PCIDEVICES_CONTROLLER_IMAGE_REPOSITORY|\
+        HARVESTER_SEEDER_IMAGE_REPOSITORY|\
+        NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY|\
+        HARVESTER_EVENTROUTER_IMAGE_REPOSITORY)
+            if [[ "${value}" == '"rancher/'* ]]; then
+                suffix="${value#\"rancher/}"
+                line="${key}=\"${prime_registry}/harvester/${suffix}"
+                replaced=$((replaced + 1))
+            fi
+            ;;
+    esac
+
+    printf '%s\n' "${line}" >> "${temp_file}"
+done < "${version_info_path}"
+
+chmod --reference="${version_info_path}" "${temp_file}"
+mv "${temp_file}" "${version_info_path}"
+trap - EXIT
+
+echo "Updated ${replaced} add-on image repositories for HARVESTER_PRIME_REGISTRY=${prime_registry}"
