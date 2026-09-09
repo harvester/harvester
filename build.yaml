@@ -1,0 +1,44 @@
+prime:
+  suse-storage:
+    chart:
+      tag: 1.12.1-1.1
+
+  # Image overrides applied to deploy/charts/harvester/values.yaml by
+  # scripts/patch-harvester's replace_harvester_image_registry when PRIME_BUILD=true.
+  #   path       — yq path to the image node; <path>.repository must already exist in values.yaml
+  #   repository — target repository; registry placeholders are expanded from the env
+  #   tag        — optional; the tag already in values.yaml is kept when omitted
+  images:
+    - path: .cdi.containers.hook.image
+      repository: ${RANCHER_REGISTRY}/rancher/kuberlr-kubectl
+      tag: v8.1.2
+    - path: .harvester-network-controller.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-network-controller
+    - path: .harvester-network-controller.helper.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-network-helper
+    - path: .harvester-network-controller.webhook.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-network-webhook
+    - path: .harvester-networkfs-manager.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-networkfs-manager
+    - path: .harvester-node-disk-manager.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-node-disk-manager
+    - path: .harvester-node-disk-manager.webhook.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-node-disk-manager-webhook
+    - path: .csi-snapshotter.image
+      repository: ${RANCHER_REGISTRY}/rancher/hardened-snapshot-controller
+      tag: v8.6.0-build20260819
+    - path: .harvester-load-balancer.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-load-balancer
+    - path: .harvester-load-balancer.webhook.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-load-balancer-webhook
+    - path: .kube-vip.image
+      repository: ${RANCHER_REGISTRY}/rancher/mirrored-kube-vip-kube-vip-iptables
+    # - path: .support-bundle-kit.image
+    #   repository: ${HARVESTER_PRIME_REGISTRY}/harvester/support-bundle-kit
+    - path: .whereabouts.image
+      repository: ${RANCHER_REGISTRY}/rancher/hardened-whereabouts
+      tag: v0.9.4-build20260819
+    - path: .harvester-node-manager.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-node-manager
+    - path: .harvester-node-manager.webhook.image
+      repository: ${HARVESTER_PRIME_REGISTRY}/harvester/harvester-node-manager-webhook
