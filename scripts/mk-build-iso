@@ -7,6 +7,14 @@ MK_REPO_ID="${MK_REPO_ID:?MK_REPO_ID is required}"
 
 CONTAINER_NAME="harvester-iso-builder-run-${MK_REPO_ID}"
 
+docker_config_args=()
+if [[ -n "${MK_DOCKER_CLI_CONFIG:-}" ]]; then
+    docker_config_args=(
+        -v "${MK_DOCKER_CLI_CONFIG}:/run/docker/config.json:ro"
+        --env DOCKER_CONFIG=/run/docker
+    )
+fi
+
 docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 cleanup() { docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -16,6 +24,7 @@ docker run --privileged ${MK_DOCKER_RUN_OPTS_TTY} \
     --name ${CONTAINER_NAME} \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "${MK_IMAGE_CACHE_VOLUME}:/image-caches" \
+    "${docker_config_args[@]}" \
     --env MK_REPO_ID="$MK_REPO_ID" \
     ${RKE2_IMAGE_REPO:+--env RKE2_IMAGE_REPO="$RKE2_IMAGE_REPO"} \
     ${USE_LOCAL_IMAGES:+--env USE_LOCAL_IMAGES="$USE_LOCAL_IMAGES"} \
@@ -26,6 +35,10 @@ docker run --privileged ${MK_DOCKER_RUN_OPTS_TTY} \
     ${MK_IMAGE_CACHE_BYPASS:+--env MK_IMAGE_CACHE_BYPASS="$MK_IMAGE_CACHE_BYPASS"} \
     ${MK_IMAGE_CACHE_MAX_ITEMS:+--env MK_IMAGE_CACHE_MAX_ITEMS="$MK_IMAGE_CACHE_MAX_ITEMS"} \
     ${MK_IMAGE_CACHE_VERIFY:+--env MK_IMAGE_CACHE_VERIFY="$MK_IMAGE_CACHE_VERIFY"} \
+    ${MK_PRIME_BUILD:+--env MK_PRIME_BUILD="$MK_PRIME_BUILD"} \
+    ${MK_HARVESTER_PRIME_REGISTRY:+--env MK_HARVESTER_PRIME_REGISTRY="$MK_HARVESTER_PRIME_REGISTRY"} \
+    ${MK_RANCHER_PRIME_REGISTRY:+--env MK_RANCHER_PRIME_REGISTRY="$MK_RANCHER_PRIME_REGISTRY"} \
+    ${MK_MONITORING_REGISTRY:+--env MK_MONITORING_REGISTRY="$MK_MONITORING_REGISTRY"} \
     ${MK_ISO_BUILDER_IMAGE} \
     ./scripts/build-iso
 
