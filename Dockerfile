@@ -99,9 +99,14 @@ COPY --from=build /go/src/github.com/harvester/harvester/bin/ /bin/
 # context (copied in via `base`'s `COPY . .`), so the ISO build is hermetic.
 FROM base AS generate-addons
 ARG MK_REPO_ID
+ARG PRIME_BUILD
+ENV PRIME_BUILD=${PRIME_BUILD}
+ARG HARVESTER_PRIME_REGISTRY
+ENV HARVESTER_PRIME_REGISTRY=${HARVESTER_PRIME_REGISTRY}
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+    ./scripts/prepare-addons-prime ./addons/version_info && \
     mkdir -p /dist/prepare-addons/addons-manifests /dist/prepare-addons/addons-templates && \
     go run ./cmd/addon-generator -validate && \
     go run ./cmd/addon-generator -generateAddons -path /dist/prepare-addons/addons-manifests && \
@@ -196,6 +201,12 @@ COPY --from=generate /go/src/github.com/harvester/harvester/pkg/generated /pkg/g
 # ---- build-installer ----
 FROM base AS build-installer
 ARG MK_REPO_ID
+ARG PRIME_BUILD
+ENV PRIME_BUILD=${PRIME_BUILD}
+ARG MK_RANCHER_PRIME_REGISTRY
+ENV MK_RANCHER_PRIME_REGISTRY=${MK_RANCHER_PRIME_REGISTRY}
+
+COPY --from=generate-addons /go/src/github.com/harvester/harvester/addons/version_info addons/version_info
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
@@ -216,23 +227,44 @@ COPY scripts/lib/ scripts/lib/
 
 # ---- prepare-addons-charts ----
 FROM bundle-builder AS prepare-addons-charts
+ARG PRIME_BUILD
+ENV MK_PRIME_BUILD=${PRIME_BUILD}
+ARG MK_RANCHER_PRIME_REGISTRY
+ENV MK_RANCHER_PRIME_REGISTRY=${MK_RANCHER_PRIME_REGISTRY}
+ARG MK_MONITORING_REGISTRY
+ENV MK_MONITORING_REGISTRY=${MK_MONITORING_REGISTRY}
 
-COPY addons/ addons/
+COPY --from=generate-addons /go/src/github.com/harvester/harvester/addons/ addons/
 COPY --from=generate-addons /dist/prepare-addons/addons-templates/ addons-templates/
 
-COPY scripts/images/rancher-images.txt scripts/images/rancher-images.txt
+COPY scripts/images/monitoring-images.txt scripts/images/monitoring-images.txt
 COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
 RUN bash scripts/prepare-addons-charts
 
 
 # ---- prepare-harvester-charts ----
 FROM bundle-builder AS prepare-harvester-charts
+ARG PRIME_BUILD
+ENV PRIME_BUILD=${PRIME_BUILD}
+ARG HARVESTER_PRIME_REGISTRY
+ENV HARVESTER_PRIME_REGISTRY=${HARVESTER_PRIME_REGISTRY}
+ARG MK_RANCHER_PRIME_REGISTRY
+ENV RANCHER_REGISTRY=${MK_RANCHER_PRIME_REGISTRY}
+ARG SUSE_STORAGE_REGISTRY
+ENV SUSE_STORAGE_REGISTRY=${SUSE_STORAGE_REGISTRY}
 
 COPY deploy/ deploy/
+COPY build.yaml build.yaml
 COPY scripts/prepare-harvester-charts scripts/prepare-harvester-charts
 COPY scripts/patch-harvester scripts/patch-harvester
 COPY scripts/version scripts/.version_env scripts/
-RUN bash scripts/prepare-harvester-charts
+RUN mkdir -p /run/docker
+ARG MK_DOCKER_CLI_CONFIG
+RUN --mount=type=secret,id=docker_cli_config,target=/run/docker/config.json \
+    : "${MK_DOCKER_CLI_CONFIG}" && \
+    DOCKER_CONFIG=/run/docker \
+    HELM_REGISTRY_CONFIG=/run/docker/config.json \
+    bash scripts/prepare-harvester-charts
 
 
 # ---- check-images ----
@@ -240,7 +272,7 @@ FROM bundle-builder AS check-images
 
 COPY scripts/check-images scripts/check-images
 COPY scripts/version-rancher scripts/version-rancher
-COPY scripts/images/rancher-images.txt scripts/images/rancherd-bootstrap-images.txt scripts/images/
+COPY scripts/images/monitoring-images.txt scripts/images/rancher-images.txt scripts/images/rancherd-bootstrap-images.txt scripts/images/
 RUN bash scripts/check-images
 
 
@@ -254,7 +286,7 @@ COPY --from=prepare-harvester-charts /go/src/github.com/harvester/harvester/depl
 COPY --from=prepare-harvester-charts /dist/chart-tarballs/* /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
 COPY --from=prepare-addons-charts /dist/charts/*.tgz /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
 
-COPY addons/ addons/
+COPY --from=generate-addons /go/src/github.com/harvester/harvester/addons/ addons/
 COPY scripts/ scripts/
 COPY package/upgrade-matrix.yaml package/upgrade-matrix.yaml
 COPY package/harvester-os/ package/harvester-os/
