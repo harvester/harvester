@@ -15,6 +15,7 @@ compatibility for existing IPv4-only deployments.
   - [Goals](#goals)
   - [Non-goals](#non-goals)
   - [Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack)
+  - [Known Gaps - Rancher Service Dual-Stack](#known-gaps--rancher-service-dual-stack)
   - [Experimental Status](#experimental-status)
 - [Proposal](#proposal)
   - [User Stories](#user-stories)
@@ -83,6 +84,7 @@ IPv6 configuration enforcement.
 - https://github.com/harvester/harvester/issues/11472 — node-disk-manager
 - https://github.com/harvester/harvester/issues/11471 — node-manager
 - https://github.com/harvester/harvester/issues/11473 — networkfs-manager
+- https://github.com/harvester/harvester/issues/11614 — adopt Rancher dual-stack Service support (blocked on rancher/rancher#57124)
 
 ---
 
@@ -224,6 +226,14 @@ a fully dual-stack deployment.
   out of scope for this HEP to fix and is not expected to be resolved by Longhorn's own
   in-flight dual-stack work either.
 
+- **Dual-stack exposure of Rancher's own management-cluster Services
+  (`rancher`, `rancher-internal`, `rancher-webhook`, and related Fleet/CAPI Services).** This
+  is an upstream Rancher chart limitation, not a Harvester design choice - see
+  [Known Gaps - Rancher Service Dual-Stack](#known-gaps--rancher-service-dual-stack). It is out
+  of scope for this HEP to fix and depends on [rancher/rancher#57124](https://github.com/rancher/rancher/issues/57124)
+  shipping upstream; adoption on the Harvester side is tracked separately at
+  [harvester/harvester#11614](https://github.com/harvester/harvester/issues/11614).
+
 ---
 
 ### Known Gaps - Longhorn Storage Dual-Stack
@@ -278,6 +288,52 @@ data traffic depending on the deployed Longhorn version and its configuration.
   vendored Longhorn subchart in `deploy/charts/harvester/charts/longhorn-*.tgz`.
 - Do not represent Longhorn as dual-stack-complete in any user-facing documentation for this
   HEP; link back to this section and to [longhorn/longhorn#2259](https://github.com/longhorn/longhorn/issues/2259), [#10928](https://github.com/longhorn/longhorn/issues/10928), [#11531](https://github.com/longhorn/longhorn/issues/11531), and [#13050](https://github.com/longhorn/longhorn/issues/13050) for status.
+
+---
+
+### Known Gaps - Rancher Service Dual-Stack
+
+Harvester registers with and is managed through Rancher, so Rancher's own Kubernetes `Service`
+objects sit on the same dual-stack management cluster as Harvester's. This section records the
+current state, verified directly against a live dual-stack cluster and the upstream Rancher
+chart source, so the gap is tracked rather than silently assumed to be covered by this HEP.
+
+**Rancher exposes no dual-stack configuration knob, and its Services default to single-stack:**
+Rancher's chart (`chart/templates/service.yaml`, `chart/values.yaml` in
+[rancher/rancher](https://github.com/rancher/rancher)) sets no `ipFamilyPolicy` and exposes no
+values.yaml field to set one. Per Kubernetes semantics, an unset `ipFamilyPolicy` defaults to
+`SingleStack` and is **never** auto-promoted on a dual-stack cluster. A live dual-stack cluster
+confirms this:
+
+| Service | Owner | `ipFamilyPolicy` | `ipFamilies` |
+|---------|-------|-------------------|--------------|
+| `rancher`, `rancher-internal`, `rancher-webhook` | Rancher | `SingleStack` | `[IPv4]` |
+| `capi-webhook-service`, `gitjob`, `monitoring-fleet-controller`, `monitoring-gitjob`, `imperative-api-extension` | Fleet/CAPI (Rancher-managed) | `SingleStack` | `[IPv4]` |
+| `harvester`, `harvester-webhook`, `virt-api`, `cdi-api`, `rke2-coredns`, `harvester-cluster-repo` | Harvester (this HEP's Priority/1 chart adoptions) | `PreferDualStack` | `[IPv4 IPv6]` |
+
+**This gap is upstream and outside Harvester's control.** Unlike the Priority/1 `charts` adoption
+in this HEP, which patches Harvester-owned chart templates directly, Rancher's chart is not
+vendored or overridable by Harvester in a supportable way — Rancher is a separate management
+plane that Harvester registers into, not a Harvester subchart. Closing it requires Rancher to
+add an `ipFamilyPolicy` value to its own chart, tracked upstream at
+[rancher/rancher#57124](https://github.com/rancher/rancher/issues/57124) (open, not yet merged
+as of this writing). Harvester's adoption of that value once available is tracked at
+[harvester/harvester#11614](https://github.com/harvester/harvester/issues/11614).
+
+**Impact on this HEP:** None of this HEP's stories change Rancher's own Services. This gap does
+not block dual-stack adoption for Harvester's own components (Priority/0 through Priority/2 all
+proceed independently of Rancher's Service configuration), but it does mean the management
+plane's `rancher`/`rancher-internal`/`rancher-webhook` Services stay reachable over IPv4 only
+even on a fully dual-stack Harvester cluster until Rancher ships the fix.
+
+**Recommended handling:**
+- Do not represent Rancher's management Services as dual-stack in any user-facing documentation
+  for this HEP; link back to this section and to
+  [rancher/rancher#57124](https://github.com/rancher/rancher/issues/57124) for status.
+- Once `rancher/rancher#57124` ships an `ipFamilyPolicy` value, bump the vendored Rancher chart
+  version reference on the Harvester side and verify the Services above move to
+  `PreferDualStack` per [harvester/harvester#11614](https://github.com/harvester/harvester/issues/11614);
+  no Harvester-side code change is otherwise required.
 
 ---
 
@@ -830,6 +886,7 @@ require investigation or lab testing rather than code changes in Harvester.
 | E8 | Verify CNI (Canal) forwards DHCPv6 multicast `ff02::1:2` (port 547) to agent pod | vm-dhcp-controller *(deprioritized)* | `tcpdump -i eth1 port 547` on agent pod in lab cluster | If Canal drops DHCPv6 multicast, Solicit messages from VM guests never reach the controller. Same silent failure as E7 — IPv4 unaffected, IPv6 leases not delivered. If confirmed blocked, a CNI policy exception or unicast DHCPv6 workaround must be evaluated before declaring vm-dhcp-controller dual-stack complete. |
 | E9 | Verify `apiserver -> webhook` admission TLS handshake succeeds over both families once the `harvester-node-disk-manager-webhook` Service is dual-stack | node-disk-manager | Test on a live dual-stack cluster: confirm the existing DNS-name-based SAN (`harvester-node-disk-manager-webhook.<namespace>.svc`) issued by `dynamiclistener` validates for both the `ClusterIP` and `ClusterIPv6` addresses | If validation fails over one family, admission calls routed to that family time out; the `ipFamilyPolicy: PreferDualStack` change ships regardless since it degrades gracefully and does not affect existing IPv4-only clusters. |
 | E10 | **Not resolvable by this HEP - tracked as a known gap:** Longhorn's own Services (`longhorn-backend`, `longhorn-frontend`, `longhorn-admission-webhook`, `longhorn-recovery-backend`) are `SingleStack` (no `ipFamilyPolicy` in the vendored chart), and Longhorn's data-plane engine/replica traffic supports only one address family at a time (never concurrent IPv4+IPv6), even after Longhorn's own in-flight `preferred-data-engine-ip-family` LEP ([longhorn/longhorn#13050](https://github.com/longhorn/longhorn/issues/13050)) ships. RWX is not affected: the Share Manager pod's NFS server already serves both families simultaneously in Longhorn v1.12 ([longhorn/longhorn#13900](https://github.com/longhorn/longhorn/issues/13900#issuecomment-5448339754)). | harvester (core), Story 8 (`storage-network`/`vm-migration-network`) | See [Known Gaps - Longhorn Storage Dual-Stack](#known-gaps--longhorn-storage-dual-stack); no Harvester-side code change closes this within this HEP | Administrators who dual-stack `storage-network`/`vm-migration-network` will still see Longhorn's own data traffic and management Services settle on a single IP family; document this caveat in the Story 8 experimental warning rather than treating it as resolved. |
+| E11 | **Not resolvable by this HEP - tracked as a known gap:** Rancher's own management Services (`rancher`, `rancher-internal`, `rancher-webhook`, and related Fleet/CAPI Services) are `SingleStack`, and Rancher's chart exposes no `ipFamilyPolicy` value to change that. | N/A — outside Harvester repos; management plane only | See [Known Gaps - Rancher Service Dual-Stack](#known-gaps--rancher-service-dual-stack); tracked upstream at [rancher/rancher#57124](https://github.com/rancher/rancher/issues/57124), adoption tracked at [harvester/harvester#11614](https://github.com/harvester/harvester/issues/11614) | The Rancher management plane stays IPv4-only reachable even on a fully dual-stack Harvester cluster until Rancher ships the chart fix; no Harvester-side workaround exists since the chart is not vendored or overridable by Harvester. |
 
 
 
