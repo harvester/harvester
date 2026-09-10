@@ -134,8 +134,8 @@ github.com/cisco-open/operator-tools/pkg/typeoverride
 github.com/cisco-open/operator-tools/pkg/types
 github.com/cisco-open/operator-tools/pkg/utils
 github.com/cisco-open/operator-tools/pkg/volume
-# github.com/containerd/containerd v1.7.33 => github.com/containerd/containerd v1.7.33
-## explicit; go 1.24.0
+# github.com/containerd/containerd v1.7.35 => github.com/containerd/containerd v1.7.35
+## explicit; go 1.25.0
 github.com/containerd/containerd/archive/compression
 github.com/containerd/containerd/content
 github.com/containerd/containerd/content/local
@@ -2783,7 +2783,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/goyaml.v3
-# github.com/containerd/containerd => github.com/containerd/containerd v1.7.33
+# github.com/containerd/containerd => github.com/containerd/containerd v1.7.35
 # github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible
 # github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible
 # github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
