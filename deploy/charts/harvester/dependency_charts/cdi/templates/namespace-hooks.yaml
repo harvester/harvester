@@ -48,7 +48,7 @@ spec:
         - name: {{ template "cdi.namespaceHook.name" . }}
           securityContext:
             {{- toYaml .Values.hookSecurityContext | nindent 12 }}
-          image: {{ .Values.hookImage }}
+          image: {{ .Values.containers.hook.image.repository }}:{{ .Values.containers.hook.image.tag }}
           args:
             - label
             - namespace
