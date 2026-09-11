@@ -1,6 +1,6 @@
 module github.com/harvester/harvester
 
-go 1.26
+go 1.26.0
 
 replace (
 	github.com/cilium/ebpf => github.com/cilium/ebpf v0.7.0
@@ -117,7 +117,7 @@ require (
 	github.com/urfave/cli/v3 v3.4.1
 	github.com/vishvananda/netlink v1.3.1
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
