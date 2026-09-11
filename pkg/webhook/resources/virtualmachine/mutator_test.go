@@ -218,6 +218,25 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},
 		{
+			name: "explicit requests are honored and not overwritten by overcommit",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU:    *resource.NewMilliQuantity(1000, resource.DecimalSI),
+					v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 30)), resource.BinarySI), // 1Gi
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU:    *resource.NewMilliQuantity(250, resource.DecimalSI),
+					v1.ResourceMemory: *resource.NewQuantity(int64(512<<20), resource.BinarySI), // 512Mi
+				},
+			},
+			memory: nil,
+			patchOps: []string{
+				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
+				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
+			},
+			setting: "",
+		},
+		{
 			name: "replace old guest memory",
 			resourceReq: kubevirtv1.ResourceRequirements{
 				Limits: map[v1.ResourceName]resource.Quantity{
@@ -386,7 +405,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 
 			vm := createTestVM(tc.resourceReq, tc.cpu, tc.memory, annotations, "", "", nil)
 
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(nil, vm)
 
 			if expectError {
 				assert.NotNil(t, err)
@@ -413,6 +432,64 @@ func TestPatchResourceOvercommit(t *testing.T) {
 	for _, tc := range tests4 {
 		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "guest memory is under the minimum requirement")
 	}
+}
+
+// TestPatchResourceOvercommitOnUpdate covers the Update path, where the admitted
+// object's requests may simply be carrying over a value this mutator computed on a
+// prior admission rather than something the caller just set. It must keep recomputing
+// a carried-over request when limits change (matching pre-fix behavior), while still
+// honoring a request the caller actually changed in this admission.
+func TestPatchResourceOvercommitOnUpdate(t *testing.T) {
+	setting := &harvesterv1.Setting{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "overcommit-config",
+		},
+		Default: `{"cpu":200,"memory":400,"storage":800}`,
+	}
+
+	newCPUVM := func(limitMilli, requestMilli int64) *kubevirtv1.VirtualMachine {
+		resourceReq := kubevirtv1.ResourceRequirements{
+			Limits: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceCPU: *resource.NewMilliQuantity(limitMilli, resource.DecimalSI),
+			},
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceCPU: *resource.NewMilliQuantity(requestMilli, resource.DecimalSI),
+			},
+		}
+		return createTestVM(resourceReq, nil, nil, nil, "", "", nil)
+	}
+
+	t.Run("carried-over request is still recomputed when the limit shrinks", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(setting.DeepCopy())
+		assert.Nil(t, err)
+		createDefaultKubeVirt(clientset)
+		mutator := setupTestMutator(clientset)
+
+		oldVM := newCPUVM(2000, 1000) // limit 2000m, request 1000m (200% overcommit)
+		newVM := newCPUVM(500, 1000)  // limit lowered to 500m, request left untouched by the caller
+
+		actual, err := mutator.(*vmMutator).patchResourceOvercommit(oldVM, newVM)
+		assert.Nil(t, err)
+		assert.Equal(t, []string{
+			`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests/cpu", "value": "250m"}`,
+		}, actual)
+	})
+
+	t.Run("explicitly changed request is honored, not recomputed", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset()
+		err := clientset.Tracker().Add(setting.DeepCopy())
+		assert.Nil(t, err)
+		createDefaultKubeVirt(clientset)
+		mutator := setupTestMutator(clientset)
+
+		oldVM := newCPUVM(2000, 1000) // limit 2000m, request 1000m (200% overcommit)
+		newVM := newCPUVM(2000, 300)  // caller explicitly set a different request
+
+		actual, err := mutator.(*vmMutator).patchResourceOvercommit(oldVM, newVM)
+		assert.Nil(t, err)
+		assert.Equal(t, []string(nil), actual)
+	})
 }
 
 func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testing.T) {
@@ -580,7 +657,7 @@ func TestPatchResourceOvercommitWithAdditionalGuestMemoryOverheadRatio(t *testin
 			mutator := setupTestMutator(clientset)
 			vm := createTestVM(tc.resourceReq, nil, tc.memory, annotations, "", "", nil)
 
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(nil, vm)
 			assert.Nil(t, err, tc.name)
 			assert.Equal(t, tc.patchOps, actual)
 		})
@@ -647,7 +724,7 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 	assert.Nil(t, err)
 	createDefaultKubeVirt(clientset)
 	mutator := setupTestMutator(clientset)
-	actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+	actual, err := mutator.(*vmMutator).patchResourceOvercommit(nil, vm)
 	assert.Nil(t, err)
 	assert.Equal(t,
 		[]string{
@@ -750,7 +827,7 @@ func TestPatchResourceOvercommitWithARMArchitecture(t *testing.T) {
 				fakeclients.KubeVirtCache(clientset.KubevirtV1().KubeVirts),
 				fakeclients.KubeovnSubnetCache(clientset.KubeovnV1().Subnets))
 
-			actual, err := mutator.(*vmMutator).patchResourceOvercommit(vm)
+			actual, err := mutator.(*vmMutator).patchResourceOvercommit(nil, vm)
 			assert.Nil(t, err, tc.name)
 
 			hasMaxSocketsPatch := slices.Contains(actual, `{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`)
