@@ -14,7 +14,7 @@ replace (
 	// github.com/google/cel-go
 	// github.com/google/gnostic-models
 
-	github.com/containerd/containerd => github.com/containerd/containerd v1.7.33
+	github.com/containerd/containerd => github.com/containerd/containerd v1.7.35
 	github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible // oras dep requires a replace is set
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
@@ -170,7 +170,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/containerd/containerd v1.7.33 // indirect
+	github.com/containerd/containerd v1.7.35 // indirect
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
