@@ -51,7 +51,14 @@ var (
 	cfg              *rest.Config
 	scaled           *config.Scaled
 	scheme           = runtime.NewScheme()
-	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
+	crdList          = []string{
+		"./manifest/helmcharts-crd.yaml",
+		"./manifest/helmchartconfigs-crd.yaml",
+		"./manifest/app-crd.yaml",
+		"./manifest/ranchersettings-crd.yaml",
+		"./manifest/clusterrepos-crd.yaml",
+		"../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml",
+	}
 )
 
 func TestAPI(t *testing.T) {
@@ -62,7 +69,7 @@ func TestAPI(t *testing.T) {
 	ginkgo.RunSpecs(t, "api suite")
 }
 
-var _ = ginkgo.BeforeSuite(func() {
+var _ = ginkgo.BeforeSuite(ginkgo.NodeTimeout(10*time.Minute), func(ctx ginkgo.SpecContext) {
 	testCtx, testCtxCancel = context.WithCancel(context.Background())
 	var err error
 
@@ -86,6 +93,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 	err = applyObj(crds)
 	dsl.MustNotError(err)
+
+	ginkgo.By("wait 5 seconds for crds to be applied")
+	time.Sleep(time.Second * 5)
 
 	err = helmv1.AddToScheme(scheme)
 	dsl.MustNotError(err)
@@ -121,12 +131,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	testCtx, scaled, err = config.SetupScaled(testCtx, cfg, factoryOpts)
 	dsl.MustNotError(err)
 
+	ginkgo.By("start controllers")
 	err = startControllers(testCtx, kubeConfig, factoryOpts)
 	dsl.MustNotError(err)
-
+	ginkgo.By("harvester test cluster is ready")
 })
 
-var _ = ginkgo.AfterSuite(func() {
+var _ = ginkgo.AfterSuite(ginkgo.NodeTimeout(5*time.Minute), func(ctx ginkgo.SpecContext) {
 
 	testCtx.Done()
 	ginkgo.By("tearing down test cluster")
@@ -169,12 +180,10 @@ func applyObj(obj []apiextensionsv1.CustomResourceDefinition) error {
 }
 
 func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlharvesterv1.FactoryOptions) error {
-
 	// to speed up testing, override default backofflimit for jobs
 	harvesterv1.DefaultJobBackOffLimit = 1
 
 	harvesterFactory, err := ctlharvesterv1.NewFactoryFromConfigWithOptions(restConfig, opts)
-
 	if err != nil {
 		return err
 	}
@@ -233,8 +242,11 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 	}
 
 	for !batch.Batch().V1().Job().Informer().HasSynced() {
+		logrus.Infof("the job informer is not ready yet, keep waiting")
 		time.Sleep(5 * time.Second)
 	}
+
+	logrus.Infof("all controllers are stared, test cases could be run")
 
 	return nil
 }
