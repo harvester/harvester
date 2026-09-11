@@ -17,6 +17,7 @@ package ext
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ var (
 // the time that it is invoked.
 //
 // There is also the possibility to rename the fields of native structs by setting the `cel` tag
-// for fields you want to override. In order to enable this feature, pass in the `EnableStructTag`
+// for fields you want to override. In order to enable this feature, pass in the `ParseStructTags(true)`
 // option. Here is an example to see it in action:
 //
 // ```go
@@ -98,7 +99,9 @@ var (
 func NativeTypes(args ...any) cel.EnvOption {
 	return func(env *cel.Env) (*cel.Env, error) {
 		nativeTypes := make([]any, 0, len(args))
-		tpOptions := nativeTypeOptions{}
+		tpOptions := nativeTypeOptions{
+			version: math.MaxUint32,
+		}
 
 		for _, v := range args {
 			switch v := v.(type) {
@@ -128,6 +131,14 @@ func NativeTypes(args ...any) cel.EnvOption {
 // NativeTypesOption is a functional interface for configuring handling of native types.
 type NativeTypesOption func(*nativeTypeOptions) error
 
+// NativeTypesVersion sets the native types version support for native extensions functions.
+func NativeTypesVersion(version uint32) NativeTypesOption {
+	return func(opts *nativeTypeOptions) error {
+		opts.version = version
+		return nil
+	}
+}
+
 // NativeTypesFieldNameHandler is a handler for mapping a reflect.StructField to a CEL field name.
 // This can be used to override the default Go struct field to CEL field name mapping.
 type NativeTypesFieldNameHandler = func(field reflect.StructField) string
@@ -143,7 +154,7 @@ func fieldNameByTag(structTagToParse string) func(field reflect.StructField) str
 				// https://pkg.go.dev/encoding/xml#Marshal
 				// https://pkg.go.dev/encoding/json#Marshal
 				// https://pkg.go.dev/go.mongodb.org/mongo-driver/bson#hdr-Structs
-				// https://pkg.go.dev/gopkg.in/yaml.v2#Marshal
+				// https://pkg.go.dev/go.yaml.in/yaml/v3#Marshal
 				name := splits[0]
 				return name
 			}
@@ -153,11 +164,18 @@ func fieldNameByTag(structTagToParse string) func(field reflect.StructField) str
 	}
 }
 
+func isSkippedFieldName(name string) bool {
+	return name == "" || name == "-"
+}
+
 type nativeTypeOptions struct {
 	// fieldNameHandler controls how CEL should perform struct field renames.
 	// This is most commonly used for switching to parsing based off the struct field tag,
 	// such as "cel" or "json".
 	fieldNameHandler NativeTypesFieldNameHandler
+
+	// version is the native types library version.
+	version uint32
 }
 
 // ParseStructTags configures if native types field names should be overridable by CEL struct tags.
@@ -272,9 +290,13 @@ func toFieldName(fieldNameHandler NativeTypesFieldNameHandler, f reflect.StructF
 func (tp *nativeTypeProvider) FindStructFieldNames(typeName string) ([]string, bool) {
 	if t, found := tp.nativeTypes[typeName]; found {
 		fieldCount := t.refType.NumField()
-		fields := make([]string, fieldCount)
+		fields := make([]string, 0, fieldCount)
 		for i := 0; i < fieldCount; i++ {
-			fields[i] = toFieldName(tp.options.fieldNameHandler, t.refType.Field(i))
+			fieldName := toFieldName(tp.options.fieldNameHandler, t.refType.Field(i))
+			if isSkippedFieldName(fieldName) {
+				continue
+			}
+			fields = append(fields, fieldName)
 		}
 		return fields, true
 	}
@@ -329,7 +351,7 @@ func (tp *nativeTypeProvider) NewValue(typeName string, fields map[string]ref.Va
 		}
 		fieldVal, err := val.ConvertToNative(refFieldDef.Type)
 		if err != nil {
-			return types.NewErr(err.Error())
+			return types.NewErrFromString(err.Error())
 		}
 		refField := refVal.FieldByIndex(refFieldDef.Index)
 		refFieldVal := reflect.ValueOf(fieldVal)
@@ -420,10 +442,18 @@ func convertToCelType(refType reflect.Type) (*cel.Type, bool) {
 		if refType == timestampType {
 			return cel.TimestampType, true
 		}
+		if refType.Implements(refValType) {
+			emptyCelVal := reflect.New(refType).Elem().Interface().(ref.Val)
+			return emptyCelVal.Type().(*cel.Type), true
+		}
 		return cel.ObjectType(
 			fmt.Sprintf("%s.%s", simplePkgAlias(refType.PkgPath()), refType.Name()),
 		), true
 	case reflect.Pointer:
+		if refType.Implements(refValType) {
+			emptyCelVal := reflect.New(refType.Elem()).Interface().(ref.Val)
+			return emptyCelVal.Type().(*cel.Type), true
+		}
 		if refType.Implements(pbMsgInterfaceType) {
 			pbMsg := reflect.New(refType.Elem()).Interface().(protoreflect.ProtoMessage)
 			return cel.ObjectType(string(pbMsg.ProtoReflect().Descriptor().FullName())), true
@@ -436,7 +466,7 @@ func convertToCelType(refType reflect.Type) (*cel.Type, bool) {
 func (tp *nativeTypeProvider) newNativeObject(val any, refValue reflect.Value) ref.Val {
 	valType, err := newNativeType(tp.options.fieldNameHandler, refValue.Type())
 	if err != nil {
-		return types.NewErr(err.Error())
+		return types.NewErrFromString(err.Error())
 	}
 	return &nativeObj{
 		Adapter:  tp,
@@ -487,6 +517,9 @@ func (o *nativeObj) ConvertToNative(typeDesc reflect.Type) (any, error) {
 				continue
 			}
 			fieldName := toFieldName(o.valType.fieldNameHandler, fieldType)
+			if isSkippedFieldName(fieldName) {
+				continue
+			}
 			fieldCELVal := o.NativeToValue(fieldValue.Interface())
 			fieldJSONVal, err := fieldCELVal.ConvertToNative(jsonValueType)
 			if err != nil {
@@ -594,8 +627,13 @@ func newNativeTypes(fieldNameHandler NativeTypesFieldNameHandler, rawType reflec
 	alreadySeen := make(map[string]struct{})
 	var iterateStructMembers func(reflect.Type)
 	iterateStructMembers = func(t reflect.Type) {
+		if t.Implements(reflect.TypeFor[ref.Val]()) {
+			// skip this field since it's a CEL ref.Val instance.
+			return
+		}
 		if k := t.Kind(); k == reflect.Pointer || k == reflect.Slice || k == reflect.Array || k == reflect.Map {
-			t = t.Elem()
+			iterateStructMembers(t.Elem())
+			return
 		}
 		if t.Kind() != reflect.Struct {
 			return
@@ -640,7 +678,9 @@ func newNativeType(fieldNameHandler NativeTypesFieldNameHandler, rawType reflect
 		for idx := 0; idx < refType.NumField(); idx++ {
 			field := refType.Field(idx)
 			fieldName := toFieldName(fieldNameHandler, field)
-
+			if isSkippedFieldName(fieldName) {
+				continue
+			}
 			if _, found := fieldNames[fieldName]; found {
 				return nil, fmt.Errorf("invalid field name `%s` in struct `%s`: %w", fieldName, refType.Name(), errDuplicatedFieldName)
 			} else {
@@ -710,6 +750,10 @@ func (t *nativeType) Value() any {
 // fieldByName returns the corresponding reflect.StructField for the give name either by matching
 // field tag or field name.
 func (t *nativeType) fieldByName(fieldName string) (reflect.StructField, bool) {
+	if isSkippedFieldName(fieldName) {
+		return reflect.StructField{}, false
+	}
+
 	if t.fieldNameHandler == nil {
 		return t.refType.FieldByName(fieldName)
 	}
@@ -776,7 +820,8 @@ func isSupportedType(refType reflect.Type) bool {
 }
 
 var (
-	pbMsgInterfaceType = reflect.TypeOf((*protoreflect.ProtoMessage)(nil)).Elem()
-	timestampType      = reflect.TypeOf(time.Now())
-	durationType       = reflect.TypeOf(time.Nanosecond)
+	pbMsgInterfaceType = reflect.TypeFor[protoreflect.ProtoMessage]()
+	refValType         = reflect.TypeFor[ref.Val]()
+	timestampType      = reflect.TypeFor[time.Time]()
+	durationType       = reflect.TypeFor[time.Duration]()
 )

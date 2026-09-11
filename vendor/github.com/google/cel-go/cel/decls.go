@@ -142,8 +142,23 @@ func Constant(name string, t *Type, v ref.Val) EnvOption {
 
 // Variable creates an instance of a variable declaration with a variable name and type.
 func Variable(name string, t *Type) EnvOption {
+	return VariableWithDoc(name, t, "")
+}
+
+// VariableWithDoc creates an instance of a variable declaration with a variable name, type, and doc string.
+func VariableWithDoc(name string, t *Type, doc string) EnvOption {
 	return func(e *Env) (*Env, error) {
-		e.variables = append(e.variables, decls.NewVariable(name, t))
+		e.variables = append(e.variables, decls.NewVariableWithDoc(name, t, doc))
+		return e, nil
+	}
+}
+
+// VariableDecls configures a set of fully defined cel.VariableDecl instances in the environment.
+func VariableDecls(vars ...*decls.VariableDecl) EnvOption {
+	return func(e *Env) (*Env, error) {
+		for _, v := range vars {
+			e.variables = append(e.variables, v)
+		}
 		return e, nil
 	}
 }
@@ -183,19 +198,51 @@ func Function(name string, opts ...FunctionOpt) EnvOption {
 		if err != nil {
 			return nil, err
 		}
-		if existing, found := e.functions[fn.Name()]; found {
-			fn, err = existing.Merge(fn)
-			if err != nil {
-				return nil, err
+		return FunctionDecls(fn)(e)
+	}
+}
+
+// OverloadSelector selects an overload associated with a given function when it returns true.
+//
+// Used in combination with the FunctionDecl.Subset method.
+type OverloadSelector = decls.OverloadSelector
+
+// IncludeOverloads defines an OverloadSelector which allow-lists a set of overloads by their ids.
+func IncludeOverloads(overloadIDs ...string) OverloadSelector {
+	return decls.IncludeOverloads(overloadIDs...)
+}
+
+// ExcludeOverloads defines an OverloadSelector which deny-lists a set of overloads by their ids.
+func ExcludeOverloads(overloadIDs ...string) OverloadSelector {
+	return decls.ExcludeOverloads(overloadIDs...)
+}
+
+// FunctionDecls provides one or more fully formed function declarations to be added to the environment.
+func FunctionDecls(funcs ...*decls.FunctionDecl) EnvOption {
+	return func(e *Env) (*Env, error) {
+		var err error
+		for _, fn := range funcs {
+			if existing, found := e.functions[fn.Name()]; found {
+				fn, err = existing.Merge(fn)
+				if err != nil {
+					return nil, err
+				}
 			}
+			e.functions[fn.Name()] = fn
 		}
-		e.functions[fn.Name()] = fn
 		return e, nil
 	}
 }
 
 // FunctionOpt defines a functional  option for configuring a function declaration.
 type FunctionOpt = decls.FunctionOpt
+
+// FunctionDocs provides a general usage documentation for the function.
+//
+// Use OverloadExamples to provide example usage instructions for specific overloads.
+func FunctionDocs(docs ...string) FunctionOpt {
+	return decls.FunctionDocs(docs...)
+}
 
 // SingletonUnaryBinding creates a singleton function definition to be used for all function overloads.
 //
@@ -270,6 +317,11 @@ func MemberOverload(overloadID string, args []*Type, resultType *Type, opts ...O
 // OverloadOpt is a functional option for configuring a function overload.
 type OverloadOpt = decls.OverloadOpt
 
+// OverloadExamples configures an example of how to invoke the overload.
+func OverloadExamples(docs ...string) OverloadOpt {
+	return decls.OverloadExamples(docs...)
+}
+
 // UnaryBinding provides the implementation of a unary overload. The provided function is protected by a runtime
 // type-guard which ensures runtime type agreement between the overload signature and runtime argument types.
 func UnaryBinding(binding functions.UnaryOp) OverloadOpt {
@@ -286,6 +338,38 @@ func BinaryBinding(binding functions.BinaryOp) OverloadOpt {
 // type-guard which ensures runtime type agreement between the overload signature and runtime argument types.
 func FunctionBinding(binding functions.FunctionOp) OverloadOpt {
 	return decls.FunctionBinding(binding)
+}
+
+// LateFunctionBinding indicates that the function has a binding which is not known at compile time.
+// This is useful for functions which have side-effects or are not deterministically computable.
+func LateFunctionBinding() OverloadOpt {
+	return decls.LateFunctionBinding()
+}
+
+// AsyncBinding provides the implementation of an asynchronous overload. The provided function
+// is called in its own goroutine with the provided context. The function should block until
+// the result is available, and the framework manages goroutine and channel lifecycle.
+//
+// This follows the same pattern used by gRPC-Go and other major Go frameworks where user
+// code is synchronous and the framework manages concurrency.
+//
+// Context contract: the function MUST return promptly once its context is cancelled. The
+// framework cannot forcibly terminate the goroutine running the function, so a function that
+// ignores cancellation will leak its goroutine and hold a concurrency slot (see
+// AsyncMaxConcurrency) until it returns on its own. For functions that may hang or that are not
+// under your control, wrap them with async.TimeoutBinding to bound their runtime.
+func AsyncBinding(fn functions.BlockingAsyncOp) OverloadOpt {
+	return decls.AsyncBinding(fn)
+}
+
+// SingletonAsyncBinding creates a singleton async function definition from a blocking function,
+// to be used with all function overloads. The provided function is called in its own goroutine
+// with the provided context.
+//
+// Note, this approach works well if operand is expected to have a specific trait which it implements,
+// e.g. traits.ContainerType. Otherwise, prefer per-overload async bindings.
+func SingletonAsyncBinding(fn functions.BlockingAsyncOp, traits ...int) FunctionOpt {
+	return decls.SingletonAsyncBinding(fn, traits...)
 }
 
 // OverloadIsNonStrict enables the function to be called with error and unknown argument values.

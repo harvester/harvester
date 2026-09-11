@@ -257,7 +257,7 @@ func formatLiteral(c ref.Val) string {
 	case types.Bool:
 		return fmt.Sprintf("%t", v)
 	case types.Bytes:
-		return fmt.Sprintf("b\"%s\"", string(v))
+		return fmt.Sprintf("b%s", strconv.Quote(string(v)))
 	case types.Double:
 		return fmt.Sprintf("%v", float64(v))
 	case types.Int:
@@ -311,4 +311,19 @@ func (w *debugWriter) removeIndent() {
 
 func (w *debugWriter) String() string {
 	return w.buffer.String()
+}
+
+type idAdorner struct{}
+
+func (a *idAdorner) GetMetadata(elem any) string {
+	e, isExpr := elem.(ast.Expr)
+	if !isExpr {
+		return ""
+	}
+	return fmt.Sprintf("@id:%d ", e.ID())
+}
+
+// ToDebugStringWithIDs returns a string representation with AST node IDs.
+func ToDebugStringWithIDs(e ast.Expr) string {
+	return ToAdornedDebugString(e, &idAdorner{})
 }

@@ -268,14 +268,17 @@ func makeMatcher(locale string) (language.Matcher, error) {
 
 type stringFormatter struct{}
 
+// String implements formatStringInterpolator.String.
 func (c *stringFormatter) String(arg ref.Val, locale string) (string, error) {
 	return FormatString(arg, locale)
 }
 
+// Decimal implements formatStringInterpolator.Decimal.
 func (c *stringFormatter) Decimal(arg ref.Val, locale string) (string, error) {
 	return formatDecimal(arg, locale)
 }
 
+// Fixed implements formatStringInterpolator.Fixed.
 func (c *stringFormatter) Fixed(precision *int) func(ref.Val, string) (string, error) {
 	if precision == nil {
 		precision = new(int)
@@ -307,6 +310,7 @@ func (c *stringFormatter) Fixed(precision *int) func(ref.Val, string) (string, e
 	}
 }
 
+// Scientific implements formatStringInterpolator.Scientific.
 func (c *stringFormatter) Scientific(precision *int) func(ref.Val, string) (string, error) {
 	if precision == nil {
 		precision = new(int)
@@ -337,6 +341,7 @@ func (c *stringFormatter) Scientific(precision *int) func(ref.Val, string) (stri
 	}
 }
 
+// Binary implements formatStringInterpolator.Binary.
 func (c *stringFormatter) Binary(arg ref.Val, locale string) (string, error) {
 	switch arg.Type() {
 	case types.IntType:
@@ -358,6 +363,7 @@ func (c *stringFormatter) Binary(arg ref.Val, locale string) (string, error) {
 	}
 }
 
+// Hex implements formatStringInterpolator.Hex.
 func (c *stringFormatter) Hex(useUpper bool) func(ref.Val, string) (string, error) {
 	return func(arg ref.Val, locale string) (string, error) {
 		fmtStr := "%x"
@@ -388,6 +394,7 @@ func (c *stringFormatter) Hex(useUpper bool) func(ref.Val, string) (string, erro
 	}
 }
 
+// Octal implements formatStringInterpolator.Octal.
 func (c *stringFormatter) Octal(arg ref.Val, locale string) (string, error) {
 	switch arg.Type() {
 	case types.IntType:
@@ -403,11 +410,13 @@ func (c *stringFormatter) Octal(arg ref.Val, locale string) (string, error) {
 
 // stringFormatValidator implements the cel.ASTValidator interface allowing for static validation
 // of string.format calls.
-type stringFormatValidator struct{}
+type stringFormatValidator struct {
+	maxPrecision int
+}
 
 // Name returns the name of the validator.
 func (stringFormatValidator) Name() string {
-	return "cel.lib.ext.validate.functions.string.format"
+	return "cel.validator.string_format"
 }
 
 // Configure implements the ASTValidatorConfigurer interface and augments the list of functions to skip
@@ -420,7 +429,7 @@ func (stringFormatValidator) Configure(config cel.MutableValidatorConfig) error 
 
 // Validate parses all literal format strings and type checks the format clause against the argument
 // at the corresponding ordinal within the list literal argument to the function, if one is specified.
-func (stringFormatValidator) Validate(env *cel.Env, _ cel.ValidatorConfig, a *ast.AST, iss *cel.Issues) {
+func (v stringFormatValidator) Validate(env *cel.Env, _ cel.ValidatorConfig, a *ast.AST, iss *cel.Issues) {
 	root := ast.NavigateAST(a)
 	formatCallExprs := ast.MatchDescendants(root, matchConstantFormatStringWithListLiteralArgs(a))
 	for _, e := range formatCallExprs {
@@ -432,9 +441,9 @@ func (stringFormatValidator) Validate(env *cel.Env, _ cel.ValidatorConfig, a *as
 			ast:  a,
 		}
 		// use a placeholder locale, since locale doesn't affect syntax
-		_, err := parseFormatString(formatStr, formatCheck, formatCheck, "en_US")
+		_, err := parseFormatString(formatStr, formatCheck, formatCheck, "en_US", v.maxPrecision)
 		if err != nil {
-			iss.ReportErrorAtID(getErrorExprID(e.ID(), err), err.Error())
+			iss.ReportErrorAtID(getErrorExprID(e.ID(), err), "%v", err)
 			continue
 		}
 		seenArgs := formatCheck.argsRequested
@@ -504,6 +513,7 @@ type stringFormatChecker struct {
 	ast           *ast.AST
 }
 
+// String implements formatStringInterpolator.String.
 func (c *stringFormatChecker) String(arg ref.Val, locale string) (string, error) {
 	formatArg := c.args[c.currArgIndex]
 	valid, badID := c.verifyString(formatArg)
@@ -513,6 +523,7 @@ func (c *stringFormatChecker) String(arg ref.Val, locale string) (string, error)
 	return "", nil
 }
 
+// Decimal implements formatStringInterpolator.Decimal.
 func (c *stringFormatChecker) Decimal(arg ref.Val, locale string) (string, error) {
 	id := c.args[c.currArgIndex].ID()
 	valid := c.verifyTypeOneOf(id, types.IntType, types.UintType)
@@ -522,6 +533,7 @@ func (c *stringFormatChecker) Decimal(arg ref.Val, locale string) (string, error
 	return "", nil
 }
 
+// Fixed implements formatStringInterpolator.Fixed.
 func (c *stringFormatChecker) Fixed(precision *int) func(ref.Val, string) (string, error) {
 	return func(arg ref.Val, locale string) (string, error) {
 		id := c.args[c.currArgIndex].ID()
@@ -534,6 +546,7 @@ func (c *stringFormatChecker) Fixed(precision *int) func(ref.Val, string) (strin
 	}
 }
 
+// Scientific implements formatStringInterpolator.Scientific.
 func (c *stringFormatChecker) Scientific(precision *int) func(ref.Val, string) (string, error) {
 	return func(arg ref.Val, locale string) (string, error) {
 		id := c.args[c.currArgIndex].ID()
@@ -545,6 +558,7 @@ func (c *stringFormatChecker) Scientific(precision *int) func(ref.Val, string) (
 	}
 }
 
+// Binary implements formatStringInterpolator.Binary.
 func (c *stringFormatChecker) Binary(arg ref.Val, locale string) (string, error) {
 	id := c.args[c.currArgIndex].ID()
 	valid := c.verifyTypeOneOf(id, types.IntType, types.UintType, types.BoolType)
@@ -554,6 +568,7 @@ func (c *stringFormatChecker) Binary(arg ref.Val, locale string) (string, error)
 	return "", nil
 }
 
+// Hex implements formatStringInterpolator.Hex.
 func (c *stringFormatChecker) Hex(useUpper bool) func(ref.Val, string) (string, error) {
 	return func(arg ref.Val, locale string) (string, error) {
 		id := c.args[c.currArgIndex].ID()
@@ -565,6 +580,7 @@ func (c *stringFormatChecker) Hex(useUpper bool) func(ref.Val, string) (string, 
 	}
 }
 
+// Octal implements formatStringInterpolator.Octal.
 func (c *stringFormatChecker) Octal(arg ref.Val, locale string) (string, error) {
 	id := c.args[c.currArgIndex].ID()
 	valid := c.verifyTypeOneOf(id, types.IntType, types.UintType)
@@ -574,6 +590,7 @@ func (c *stringFormatChecker) Octal(arg ref.Val, locale string) (string, error) 
 	return "", nil
 }
 
+// Arg implements formatListArgs.Arg.
 func (c *stringFormatChecker) Arg(index int64) (ref.Val, error) {
 	c.argsRequested++
 	c.currArgIndex = index
@@ -582,6 +599,7 @@ func (c *stringFormatChecker) Arg(index int64) (ref.Val, error) {
 	return types.Int(0), nil
 }
 
+// Size implements formatListArgs.Size.
 func (c *stringFormatChecker) Size() int64 {
 	return int64(len(c.args))
 }
@@ -686,10 +704,12 @@ func newFormatError(id int64, msg string, args ...any) error {
 	}
 }
 
+// Error implements error.
 func (e formatError) Error() string {
 	return e.msg
 }
 
+// Is implements errors.Is.
 func (e formatError) Is(target error) bool {
 	return e.msg == target.Error()
 }
@@ -699,6 +719,7 @@ type stringArgList struct {
 	args traits.Lister
 }
 
+// Arg implements formatListArgs.Arg.
 func (c *stringArgList) Arg(index int64) (ref.Val, error) {
 	if index >= c.args.Size().Value().(int64) {
 		return nil, fmt.Errorf("index %d out of range", index)
@@ -706,6 +727,7 @@ func (c *stringArgList) Arg(index int64) (ref.Val, error) {
 	return c.args.Get(types.Int(index)), nil
 }
 
+// Size implements formatListArgs.Size.
 func (c *stringArgList) Size() int64 {
 	return c.args.Size().Value().(int64)
 }
@@ -758,7 +780,7 @@ type formatListArgs interface {
 
 // parseFormatString formats a string according to the string.format syntax, taking the clause implementations
 // from the provided FormatCallback and the args from the given FormatList.
-func parseFormatString(formatStr string, callback formatStringInterpolator, list formatListArgs, locale string) (string, error) {
+func parseFormatString(formatStr string, callback formatStringInterpolator, list formatListArgs, locale string, maxPrecision int) (string, error) {
 	i := 0
 	argIndex := 0
 	var builtStr strings.Builder
@@ -782,7 +804,7 @@ func parseFormatString(formatStr string, callback formatStringInterpolator, list
 				if int64(argIndex) >= list.Size() {
 					return "", fmt.Errorf("index %d out of range", argIndex)
 				}
-				numRead, val, refErr := parseAndFormatClause(formatStr[i:], argAny, callback, list, locale)
+				numRead, val, refErr := parseAndFormatClause(formatStr[i:], argAny, callback, list, locale, maxPrecision)
 				if refErr != nil {
 					return "", refErr
 				}
@@ -806,9 +828,9 @@ func parseFormatString(formatStr string, callback formatStringInterpolator, list
 
 // parseAndFormatClause parses the format clause at the start of the given string with val, and returns
 // how many characters were consumed and the substituted string form of val, or an error if one occurred.
-func parseAndFormatClause(formatStr string, val ref.Val, callback formatStringInterpolator, list formatListArgs, locale string) (int, string, error) {
+func parseAndFormatClause(formatStr string, val ref.Val, callback formatStringInterpolator, list formatListArgs, locale string, maxPrecision int) (int, string, error) {
 	i := 1
-	read, formatter, err := parseFormattingClause(formatStr[i:], callback)
+	read, formatter, err := parseFormattingClause(formatStr[i:], callback, maxPrecision)
 	i += read
 	if err != nil {
 		return -1, "", newParseFormatError("could not parse formatting clause", err)
@@ -821,9 +843,9 @@ func parseAndFormatClause(formatStr string, val ref.Val, callback formatStringIn
 	return i, valStr, nil
 }
 
-func parseFormattingClause(formatStr string, callback formatStringInterpolator) (int, clauseImpl, error) {
+func parseFormattingClause(formatStr string, callback formatStringInterpolator, maxPrecision int) (int, clauseImpl, error) {
 	i := 0
-	read, precision, err := parsePrecision(formatStr[i:])
+	read, precision, err := parsePrecision(formatStr[i:], maxPrecision)
 	i += read
 	if err != nil {
 		return -1, nil, fmt.Errorf("error while parsing precision: %w", err)
@@ -850,7 +872,7 @@ func parseFormattingClause(formatStr string, callback formatStringInterpolator) 
 	}
 }
 
-func parsePrecision(formatStr string) (int, *int, error) {
+func parsePrecision(formatStr string, maxPrecision int) (int, *int, error) {
 	i := 0
 	if formatStr[i] != '.' {
 		return i, nil, nil
@@ -871,6 +893,9 @@ func parsePrecision(formatStr string) (int, *int, error) {
 	if err != nil {
 		return -1, nil, fmt.Errorf("error while converting precision to integer: %w", err)
 	}
+	if maxPrecision > 0 && precision > maxPrecision {
+		return -1, nil, fmt.Errorf("precision %d exceeds maximum allowed precision %d", precision, maxPrecision)
+	}
 	return i, &precision, nil
 }
 
@@ -887,14 +912,17 @@ func newParseFormatError(msg string, wrapped error) error {
 	return parseFormatError{msg: msg, wrapped: wrapped}
 }
 
+// Error implements error.
 func (e parseFormatError) Error() string {
 	return fmt.Sprintf("%s: %s", e.msg, e.wrapped.Error())
 }
 
+// Is implements errors.Is.
 func (e parseFormatError) Is(target error) bool {
 	return e.Error() == target.Error()
 }
 
+// Is implements errors.Unwrap.
 func (e parseFormatError) Unwrap() error {
 	return e.wrapped
 }
