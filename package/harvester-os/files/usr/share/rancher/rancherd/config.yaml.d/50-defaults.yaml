@@ -2,7 +2,7 @@ rancherValues:
   image:
     pullPolicy: IfNotPresent
     repository: rancher/rancher
-    tag: v2.15.0
+    tag: v2.15.1
   noDefaultAdmin: false
   features: multi-cluster-management=false,multi-cluster-management-agent=false,managed-system-upgrade-controller=false,crt-token-ttl-rotation=false
   useBundledSystemChart: true
@@ -20,4 +20,4 @@ rancherValues:
     # https://github.com/harvester/harvester/issues/11338
     - name: CATTLE_TLS_INTERNAL_CN_ALLOWED_SERVICES
       value: "kube-system/rke2-traefik"
-rancherInstallerImage: rancher/system-agent-installer-rancher:v2.15.0
+rancherInstallerImage: rancher/system-agent-installer-rancher:v2.15.1
