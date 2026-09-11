@@ -396,6 +396,12 @@ func (v *upgradeValidator) checkNodes(upgrade *v1beta1.Upgrade) error {
 	}
 
 	for _, node := range nodes {
+		// Maintenance must be resolved before an upgrade. This includes a
+		// False/Error pre-check result, which the user must clear explicitly.
+		if condition := util.GetMaintenanceModeCondition(node); condition != nil {
+			return werror.NewBadRequest(fmt.Sprintf("node %s has maintenance mode state %s/%s; disable or clear maintenance mode before upgrading", node.Name, condition.Status, condition.Reason))
+		}
+
 		for _, condition := range node.Status.Conditions {
 			if condition.Type == corev1.NodeReady {
 				if condition.Status != corev1.ConditionTrue {

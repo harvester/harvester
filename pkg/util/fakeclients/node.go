@@ -64,8 +64,8 @@ func (c NodeClient) List(metav1.ListOptions) (*v1.NodeList, error) {
 	panic("implement me")
 }
 
-func (c NodeClient) UpdateStatus(*v1.Node) (*v1.Node, error) {
-	panic("implement me")
+func (c NodeClient) UpdateStatus(node *v1.Node) (*v1.Node, error) {
+	return c().UpdateStatus(context.TODO(), node, metav1.UpdateOptions{})
 }
 
 func (c NodeClient) Watch(metav1.ListOptions) (watch.Interface, error) {
