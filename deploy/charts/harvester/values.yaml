@@ -4,6 +4,29 @@
 ###########################################################################
 ###########################################################################
 
+## Global values are passed down as-is to every sub-chart (Helm built-in
+## `global` mechanism), so a single source of truth can drive the IP family
+## mode across the harvester, kubevirt and cdi Services without needing to
+## touch every sub-chart's values individually.
+##
+global:
+  ## Controls the `ipFamilyPolicy` set on Services owned by this chart
+  ## (harvester, harvester-webhook) as well as on the KubeVirt/CDI-managed
+  ## Services (virt-api, virt-exportproxy, cdi-api, cdi-uploadproxy,
+  ## cdi-prometheus-metrics) via customizeComponents patches.
+  ##
+  ## Valid values (same as Kubernetes Service.spec.ipFamilyPolicy):
+  ##   - SingleStack      (default; matches historical/IPv4-only behavior)
+  ##   - PreferDualStack  (safe on IPv4-only clusters too; degrades automatically)
+  ##   - RequireDualStack
+  ##
+  ## The installer sets this based on how the cluster's IPFamilies were
+  ## configured (single-stack IPv4 vs. dual-stack IPv4+IPv6), so this should
+  ## not be hand-edited for a running installation; it is overridden via the
+  ## ManagedChart `values` from pkg/installer/config/templates/rancherd-10-harvester.yaml.
+  ##
+  ipFamilyPolicy: SingleStack
+
 ## Specify to enable the sub-chart group or not,
 ## view more detail from: https://helm.sh/docs/topics/charts/#tags-and-condition-resolution.
 ##
@@ -121,6 +144,9 @@ kubevirt:
           resourceName: virt-handler
           resourceType: DaemonSet
           type: strategic
+        ## NB: additional Service ipFamilyPolicy patches (virt-api, virt-exportproxy) are
+        ## appended dynamically by dependency_charts/kubevirt/templates/kubevirt.yaml,
+        ## driven by the top-level `global.ipFamilyPolicy` value below.
 
     workloadUpdateStrategy:
       workloadUpdateMethods:
@@ -189,6 +215,9 @@ cdi:
     workload:
       nodeSelector:
         kubernetes.io/os: linux
+    ## NB: Service ipFamilyPolicy patches (cdi-api, cdi-uploadproxy, cdi-prometheus-metrics)
+    ## are appended dynamically by dependency_charts/cdi/templates/cdi.yaml,
+    ## driven by the top-level `global.ipFamilyPolicy` value below.
 
 ###########################################################################
 ###########################################################################
