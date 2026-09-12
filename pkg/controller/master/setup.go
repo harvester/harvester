@@ -22,6 +22,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
+	"github.com/harvester/harvester/pkg/controller/master/sharemanager"
 	"github.com/harvester/harvester/pkg/controller/master/storageclass"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/controller/master/supportbundle"
@@ -59,6 +60,7 @@ var registerFuncs = []registerFunc{
 	pvc.Register,
 	rancher.Register,
 	resourcequota.Register,
+	sharemanager.Register,
 	schedulevmbackup.Register,
 	setting.Register,
 	storageclass.Register,
