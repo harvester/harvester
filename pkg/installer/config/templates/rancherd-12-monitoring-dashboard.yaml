@@ -96,7 +96,7 @@ resources:
             "steppedLine": false,
             "targets": [
               {
-                "expr": "topk(${count}, (avg(rate(kubevirt_vmi_vcpu_seconds_total[5m])) by (domain, name)) / 1000)",
+                "expr": "topk(${count}, avg(rate(kubevirt_vmi_vcpu_seconds_total[5m])) by (domain, name))",
                 "instant": false,
                 "interval": "",
                 "legendFormat": "{{name}}",
@@ -903,7 +903,7 @@ resources:
             "pluginVersion": "7.5.8",
             "targets": [
               {
-                "expr": "sum(avg(rate(kubevirt_vmi_vcpu_seconds_total{namespace=\"$namespace\", name=\"$vm\"}[5m])) by (domain, name)) / 1000",
+                "expr": "sum(avg(rate(kubevirt_vmi_vcpu_seconds_total{namespace=\"$namespace\", name=\"$vm\"}[5m])) by (domain, name))",
                 "format": "time_series",
                 "instant": false,
                 "interval": "",
