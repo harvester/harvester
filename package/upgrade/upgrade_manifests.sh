@@ -782,16 +782,24 @@ clean_capi_legacy_webhooks() {
 upgrade_rancher() {
   echo "Upgrading Rancher"
 
-  mkdir -p $UPGRADE_TMP_DIR/images
-  mkdir -p $UPGRADE_TMP_DIR/rancher
+  mkdir -p "$UPGRADE_TMP_DIR/images"
+  mkdir -p "$UPGRADE_TMP_DIR/rancher"
 
   # Download rancher system agent install image from upgrade repo
-  download_image_archives_from_repo "agent" $UPGRADE_TMP_DIR/images
+  download_image_archives_from_repo "agent" "$UPGRADE_TMP_DIR/images"
+
+  local rancher_installer_image="rancher/system-agent-installer-rancher:$REPO_RANCHER_VERSION"
+  if [[ -n "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" ]]; then
+    rancher_installer_image="$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY/$rancher_installer_image"
+    echo "Using Prime Rancher images from $REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY"
+  else
+    echo "Using community Rancher images"
+  fi
 
   # Extract the Rancher chart and helm binary
-  wharfie --images-dir $UPGRADE_TMP_DIR/images rancher/system-agent-installer-rancher:$REPO_RANCHER_VERSION $UPGRADE_TMP_DIR/rancher
+  wharfie --images-dir "$UPGRADE_TMP_DIR/images" "$rancher_installer_image" "$UPGRADE_TMP_DIR/rancher"
 
-  cd $UPGRADE_TMP_DIR/rancher
+  cd "$UPGRADE_TMP_DIR/rancher"
 
   ./helm get values rancher -n cattle-system -o yaml >values.yaml
   echo "Rancher values:"
@@ -810,9 +818,19 @@ upgrade_rancher() {
     imageMode="new"
   fi
 
-  if [[ "$RANCHER_CURRENT_VERSION" == "$REPO_RANCHER_VERSION" ]]; then
+  local RANCHER_CURRENT_SYSTEM_DEFAULT_REGISTRY
+  RANCHER_CURRENT_SYSTEM_DEFAULT_REGISTRY=$(yq e '.systemDefaultRegistry // ""' values.yaml)
+
+  local rancher_registry_matches="true"
+  if [[ -n "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" ]] &&
+     [[ "$RANCHER_CURRENT_SYSTEM_DEFAULT_REGISTRY" != "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" ]]; then
+    rancher_registry_matches="false"
+  fi
+
+  if [[ "$RANCHER_CURRENT_VERSION" == "$REPO_RANCHER_VERSION" ]] &&
+     [[ "$rancher_registry_matches" == "true" ]]; then
     clean_capi_legacy_webhooks
-    echo "Skip update Rancher. The version is already $RANCHER_CURRENT_VERSION"
+    echo "Skip update Rancher. The version and registry are already configured for the target release."
     return
   fi
 
@@ -851,6 +869,10 @@ upgrade_rancher() {
   fi
 
   REPO_RANCHER_VERSION=$REPO_RANCHER_VERSION yq -e e '.image.tag = strenv(REPO_RANCHER_VERSION)' values.yaml -i
+  if [[ -n "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" ]]; then
+    REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY=$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY \
+      yq -e e '.systemDefaultRegistry = strenv(REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY)' values.yaml -i
+  fi
 
   clean_capi_legacy_webhooks
   echo "Rancher patch file to be run via helm upgrade"
