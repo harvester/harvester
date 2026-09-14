@@ -48,6 +48,10 @@ HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
 cd ${PACKAGE_HARVESTER_OS_DIR}
 
 PRETTY_NAME="Harvester ${VERSION}"
+SERVER_FLAVOR=community
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  SERVER_FLAVOR=prime
+fi
 
 cat > harvester-release.yaml <<EOF
 harvester: ${HARVESTER_VERSION}
@@ -61,6 +65,7 @@ loggingChart: ${LOGGING_VERSION}
 loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}
 kubevirt: ${HARVESTER_KUBEVIRT_VERSION}
 minUpgradableVersion: '${HARVESTER_MIN_UPGRADABLE_VERSION}'
+serverFlavor: ${SERVER_FLAVOR}
 EOF
 
 if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
