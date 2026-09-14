@@ -4,14 +4,26 @@ set -e
 
 cd $(dirname $0)/..
 
-echo "Running dirty check"
+echo "Running code generation and dependency check"
 
 go generate
 go mod tidy
 
-if [ -n "$DIRTY" ]; then
-    echo Git is dirty
+if ! command -v git &>/dev/null; then
+    echo "ERROR: 'git' command not found. Git is required to run this validation." >&2
+    exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    echo "ERROR: Not inside a valid Git work tree. A Git repository is required." >&2
+    exit 1
+fi
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "ERROR: Generation or dependency updates resulted in uncommitted or modified files."
+    echo "Hint: Run 'make generate' locally and commit the resulting changes."
     git status
     git diff
     exit 1
 fi
+
