@@ -15,9 +15,11 @@ import (
 
 func TestGetBackingImageNameRestoreFromURL(t *testing.T) {
 	const (
-		imageUID               = "faec4fac-4330-46c7-b6fb-314288a012cd"
-		restoredBackingImage   = "vmi-06791a48-8d0d-4895-999b-28296f0e1c10"
-		restoreBackingImageURL = "s3://mybucket@pcloud/?backingImage=" + restoredBackingImage
+		imageUID                           = "faec4fac-4330-46c7-b6fb-314288a012cd"
+		restoredBackingImage               = "vmi-06791a48-8d0d-4895-999b-28296f0e1c10"
+		backingImageName                   = "my-custom-storage-class"
+		restoreBackingImageURL             = "s3://mybucket@pcloud/?backingImage=" + restoredBackingImage
+		restoreBackingImageURLWithOverride = "s3://mybucket@pcloud/?backingImage=" + backingImageName
 	)
 
 	tests := []struct {
@@ -69,6 +71,37 @@ func TestGetBackingImageNameRestoreFromURL(t *testing.T) {
 				},
 			},
 			expected: "vmi-" + imageUID,
+		},
+		{
+			name: "download image with backingImage name",
+			vmi: &harvesterv1.VirtualMachineImage{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "image-zxhcn",
+					Namespace: "default",
+					UID:       imageUID,
+				},
+				Spec: harvesterv1.VirtualMachineImageSpec{
+					SourceType:       harvesterv1.VirtualMachineImageSourceTypeDownload,
+					URL:              restoreBackingImageURL,
+					BackingImageName: backingImageName,
+				},
+			},
+			expected: backingImageName,
+		},
+		{
+			name: "restore image uses backingImage from url with custom backing image name",
+			vmi: &harvesterv1.VirtualMachineImage{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "image-zxhcn",
+					Namespace: "default",
+					UID:       imageUID,
+				},
+				Spec: harvesterv1.VirtualMachineImageSpec{
+					SourceType: harvesterv1.VirtualMachineImageSourceTypeRestore,
+					URL:        restoreBackingImageURLWithOverride,
+				},
+			},
+			expected: backingImageName,
 		},
 	}
 

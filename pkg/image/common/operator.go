@@ -202,7 +202,7 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 	)
 	legacySCName := fmt.Sprintf("longhorn-%s", vmi.Name)
 
-	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName); existingSCName != "" {
+	if existingSCName := vmio.getSCByNames(restoreSCName, scName, legacySCName, vmi.Spec.BackingImageName); existingSCName != "" {
 		return existingSCName
 	}
 
@@ -211,6 +211,10 @@ func (vmio *vmiOperator) GetStorageClassName(vmi *harvesterv1.VirtualMachineImag
 		return restoreSCName
 	}
 
+	// if backingImageName is provided, then we return backingImageName
+	if vmi.Spec.BackingImageName != "" {
+		return vmi.Spec.BackingImageName
+	}
 	// If neither a storage class with the new naming nor with the old naming
 	// exists, then return the new name. This allows the GetStorageClassName
 	// method to be used to generate the name of the storage class to be used
