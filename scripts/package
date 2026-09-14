@@ -24,7 +24,12 @@ fi
 rm -rf ./harvester
 cp ../bin/harvester .
 
-BUILD_ARGS="--build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH}"
+SERVER_FLAVOR=community
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  SERVER_FLAVOR=prime
+fi
+
+BUILD_ARGS="--build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH} --build-arg SERVER_FLAVOR=${SERVER_FLAVOR}"
 if [ -n "${HARVESTER_UI_VERSION}" ]; then
   BUILD_ARGS="${BUILD_ARGS} --build-arg HARVESTER_UI_VERSION=${HARVESTER_UI_VERSION}"
 fi

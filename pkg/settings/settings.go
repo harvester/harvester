@@ -20,6 +20,7 @@ var (
 	AdditionalCA                           = NewSetting(AdditionalCASettingName, "")
 	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, `{"url":"","insecureSkipTLSVerify":false}`)
+	ServerFlavor                           = NewSetting(ServerFlavorSettingName, ServerFlavorCommunity)
 	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
@@ -63,7 +64,7 @@ var (
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion            = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers                        = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings               = []string{ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
+	WhiteListedSettings               = []string{ServerFlavorSettingName, ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
 	UpgradeConfigSet                  = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}},"restoreVM": false, "logReadyTimeout": "5"}`)
 	MaxHotplugRatio                   = NewSetting(MaxHotplugRatioSettingName, "4")
 	VMMigrationNetwork                = NewSetting(VMMigrationNetworkSettingName, "")
@@ -114,6 +115,7 @@ const (
 	ClusterRegistrationURLSettingName                 = "cluster-registration-url"
 	AutoDiskProvisionPathsSettingName                 = "auto-disk-provision-paths"
 	APIUIVersionSettingName                           = "api-ui-version"
+	ServerFlavorSettingName                           = "server-flavor"
 	ServerVersionSettingName                          = "server-version"
 	UpgradableVersionsSettingName                     = "upgradable-versions"
 	UpgradeCheckerEnabledSettingName                  = "upgrade-checker-enabled"
@@ -127,6 +129,8 @@ const (
 	KubeVirtMigrationSettingName                      = "kubevirt-migration"
 	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 	TraefikDefaultTLSOptionsSettingName               = "traefik-default-tls-options"
+	ServerFlavorCommunity                             = "community"
+	ServerFlavorPrime                                 = "prime"
 
 	// settings have `default` and `value` string used in many places, replace them with const
 	KeywordDefault = "default"
