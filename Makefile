@@ -194,6 +194,9 @@ generate-openapi: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-openapi-output --output type=local,dest=$(ROOT)
 
+generate:
+	$(BANNER)
+	$(DOCKER_BUILD) --target generate-output --output type=local,dest=$(ROOT)
 
 # ---- Cache addons repo and generate addons manifests ---
 prepare-addons:
