@@ -11,6 +11,7 @@ const (
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
 	AdditionalCASecretName              = "harvester-additional-ca"
 	AdditionalCAFileName                = "additional-ca.pem"
+	AnnotationValueTrue                 = "true"
 	AnnotationMigrationTarget           = prefix + "/migrationTargetNodeName"
 	AnnotationMigrationUID              = prefix + "/migrationUID"
 	AnnotationMigrationState            = prefix + "/migrationState"

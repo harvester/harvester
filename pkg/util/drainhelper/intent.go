@@ -1,6 +1,10 @@
 package drainhelper
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/harvester/harvester/pkg/util"
+)
 
 // HasDrainRequest reports whether the node has an active maintenance drain request.
 func HasDrainRequest(node *corev1.Node) bool {
@@ -20,10 +24,10 @@ func SetDrainRequest(node *corev1.Node, forced bool) {
 		node.Annotations = make(map[string]string)
 	}
 
-	node.Annotations[DrainAnnotation] = "true"
+	node.Annotations[DrainAnnotation] = util.AnnotationValueTrue
 
 	if forced {
-		node.Annotations[ForcedDrain] = "true"
+		node.Annotations[ForcedDrain] = util.AnnotationValueTrue
 	} else {
 		delete(node.Annotations, ForcedDrain)
 	}
