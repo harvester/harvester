@@ -51,7 +51,7 @@ var (
 	cfg              *rest.Config
 	scaled           *config.Scaled
 	scheme           = runtime.NewScheme()
-	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml"}
+	crdList          = []string{"./manifest/helm-crd.yaml", "./manifest/app-crd.yaml", "./manifest/ranchersettings-crd.yaml", "./manifest/clusterrepos-crd.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_addons.yaml", "../../../deploy/charts/harvester-crd/templates/harvesterhci.io_virtualmachineimages.yaml"}
 )
 
 func TestAPI(t *testing.T) {

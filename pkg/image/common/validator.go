@@ -48,6 +48,7 @@ type VMIValidator interface {
 	VMTemplateVersionOccupation(vmi *v1beta1.VirtualMachineImage) error
 	PVCOccupation(vmi *v1beta1.VirtualMachineImage) error
 	VMBackupOccupation(vmi *v1beta1.VirtualMachineImage) error
+	CheckSCExists(vmi *v1beta1.VirtualMachineImage) error
 }
 
 type vmiValidator struct {
@@ -77,6 +78,7 @@ func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 		vmBackupCache:          vmBackupCache,
 	}
 	vmiv.podCache.AddIndexer(util.IndexPodByPVC, util.IndexPodByPVCFunc)
+	vmiv.vmiCache.AddIndexer(util.IndexVMIByBackingImageName, util.IndexVMIByBackingImageNameFunc)
 	return vmiv
 }
 
@@ -437,4 +439,33 @@ func (v *vmiValidator) SCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage
 		return werror.NewInvalidError("storageClassName cannot be modified", "spec.targetStorageClassName")
 	}
 	return nil
+}
+
+// CheckSCExists checks if StorageClass referenced by the VirtualMachineImage is
+// * referred another VirtualMachineImage object
+// * already exists as a storageclass
+// this is needed as a VMImage object may have been submitted and longhorn is yet to process
+// this helps avoid unexpected behaviour when a storageclass may be pointing to an incorrect VirtualMachineImage.
+func (v *vmiValidator) CheckSCExists(vmi *v1beta1.VirtualMachineImage) error {
+	vmiObjs, err := v.vmiCache.GetByIndex(util.IndexVMIByBackingImageName, vmi.Spec.BackingImageName)
+	if err != nil {
+		return err
+	}
+	if len(vmiObjs) > 0 {
+		return werror.NewInvalidError(fmt.Sprintf("storageClassName is already referred by another VirtualMachineImage: %v", vmiObjs[0].Name), "spec.targetStorageClassName")
+	}
+
+	// check if StorageClass referred to by BackingImageName already exists
+	// return error if that is the case
+	_, err = v.scCache.Get(vmi.Spec.BackingImageName)
+
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// StorageClass does not exist, return nil
+			return nil
+		}
+		return err
+	}
+
+	return werror.NewInvalidError(fmt.Sprintf("storageClassName already exists: %v", vmi.Spec.BackingImageName), "spec.targetStorageClassName")
 }

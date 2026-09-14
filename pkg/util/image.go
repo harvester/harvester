@@ -38,6 +38,12 @@ func backingImageName(image *harvesterv1.VirtualMachineImage) string {
 }
 
 func defaultBackingImageName(image *harvesterv1.VirtualMachineImage) string {
+	// if vmimage object has backingImage specified then we use that
+	// length check is not needed as the apiserver validation already checks
+	// its valid RFC 1123 subdomain format and less than 40 characters long.
+	if image.Spec.BackingImageName != "" {
+		return image.Spec.BackingImageName
+	}
 	return lhutil.AutoCorrectName(backingImageName(image), lhdatastore.NameMaximumLength)
 }
 
@@ -64,9 +70,15 @@ func GetRestoreSCName(image *harvesterv1.VirtualMachineImage) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	// when a virtualmachine image spec contains BackingImageName the backing image name will be overridden to the specified value.
+	// in such a scenario the backing image will not follow the vmi-UUID naming convention, and the storage class name will be derived from the backing image name instead of the vmi-UUID.
 
-	scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
-	return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+	if strings.HasPrefix(biName, backingimagePrefix+"-") {
+		scSuffix := strings.TrimPrefix(biName, backingimagePrefix+"-")
+		return lhutil.AutoCorrectName(fmt.Sprintf("lh-%s", scSuffix), lhdatastore.NameMaximumLength), true
+	}
+
+	return lhutil.AutoCorrectName(biName, lhdatastore.NameMaximumLength), true
 }
 
 func getBackingImageByNames(

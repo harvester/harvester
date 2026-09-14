@@ -4441,6 +4441,13 @@ func schema_pkg_apis_harvesterhciio_v1beta1_VirtualMachineImageSpec(ref common.R
 							Format:      "",
 						},
 					},
+					"backingImageName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The VM Image will store the data volume in the target storage class. we limit length to 40 to offload length check to apiserver",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"displayName", "sourceType"},
 			},
