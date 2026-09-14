@@ -9045,6 +9045,9 @@
               "cdi"
             ]
           },
+          "backingImageName": {
+            "type": "string"
+          },
           "checksum": {
             "type": "string",
             "default": ""

@@ -31,6 +31,8 @@ type VirtualMachineImage struct {
 	Status VirtualMachineImageStatus `json:"status,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:rule="has(self.backingImageName) ? self.backend == 'backingimage' : true", message="BackingImageName can only be set when Backend is backingimage"
+// +kubebuilder:validation:XValidation:rule="has(self.backingImageName) == has(oldSelf.backingImageName)", message="backingImageName cannot be added or removed after creation"
 type VirtualMachineImageSpec struct {
 	// +optional
 	// +kubebuilder:default=backingimage
@@ -76,6 +78,16 @@ type VirtualMachineImageSpec struct {
 	// +optional
 	// +kubebuilder:validation:Optional
 	TargetStorageClassName string `json:"targetStorageClassName,omitempty"`
+
+	// The VM Image will store the data volume in the target storage class.
+	// we limit length to 40 to offload length check to apiserver
+	// +optional
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf", message="This field is immutable and cannot be changed"
+	// +kubebuilder:validation:XValidation:rule="self.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",message="backingImageName must be a lowercase RFC 1123 subdomain (e.g. 'my-name')."
+	// +kubebuilder:validation:MaxLength=40
+	// +kubebuilder:validation:MinLength=2
+	BackingImageName string `json:"backingImageName,omitempty"`
 }
 
 type VirtualMachineImageSecurityParameters struct {

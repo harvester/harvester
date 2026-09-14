@@ -62,6 +62,19 @@ spec:
                 - backingimage
                 - cdi
                 type: string
+              backingImageName:
+                description: |-
+                  The VM Image will store the data volume in the target storage class.
+                  we limit length to 40 to offload length check to apiserver
+                maxLength: 40
+                minLength: 2
+                type: string
+                x-kubernetes-validations:
+                - message: This field is immutable and cannot be changed
+                  rule: self == oldSelf
+                - message: backingImageName must be a lowercase RFC 1123 subdomain
+                    (e.g. 'my-name').
+                  rule: self.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
               checksum:
                 type: string
               description:
@@ -115,6 +128,12 @@ spec:
             - displayName
             - sourceType
             type: object
+            x-kubernetes-validations:
+            - message: BackingImageName can only be set when Backend is backingimage
+              rule: 'has(self.backingImageName) ? self.backend == ''backingimage''
+                : true'
+            - message: backingImageName cannot be added or removed after creation
+              rule: has(self.backingImageName) == has(oldSelf.backingImageName)
           status:
             properties:
               appliedUrl:

@@ -20,6 +20,11 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 		return err
 	}
 
+	// ensure backingImage is not already in use if one is provided
+	if err := biv.vmiv.CheckSCExists(vmi); err != nil {
+		return err
+	}
+
 	if err := biv.vmiv.SCConsistency(nil, vmi); err != nil {
 		return err
 	}

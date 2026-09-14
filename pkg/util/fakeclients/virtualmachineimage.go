@@ -120,7 +120,7 @@ func (c VirtualMachineImageCache) List(namespace string, selector labels.Selecto
 	return result, err
 }
 func (c VirtualMachineImageCache) AddIndexer(_ string, _ generic.Indexer[*harvesterv1.VirtualMachineImage]) {
-	panic("implement me")
+	// no op
 }
 func (c VirtualMachineImageCache) GetByIndex(key, scName string) ([]*harvesterv1.VirtualMachineImage, error) {
 	var vmimages []*harvesterv1.VirtualMachineImage
@@ -144,6 +144,18 @@ func (c VirtualMachineImageCache) GetByIndex(key, scName string) ([]*harvesterv1
 					continue
 				}
 				if sc == scName {
+					vmimages = append(vmimages, &vm)
+				}
+			}
+		}
+	case util.IndexVMIByBackingImageName:
+		for _, ns := range testingNS {
+			vmList, err := c(ns).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return nil, err
+			}
+			for _, vm := range vmList.Items {
+				if vm.Spec.BackingImageName != "" {
 					vmimages = append(vmimages, &vm)
 				}
 			}
