@@ -853,7 +853,7 @@ func TestUpgradeValidator_checkNodes_MaintenanceMode(t *testing.T) {
 			upgrade := &harvesterv1.Upgrade{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						util.AnnotationSkipGarbageCollectionThresholdCheck: "true",
+						util.AnnotationSkipGarbageCollectionThresholdCheck: util.AnnotationValueTrue,
 					},
 				},
 			}

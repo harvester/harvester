@@ -29,6 +29,8 @@ func TestMaintenanceModeConditionHelpers(t *testing.T) {
 	node := &corev1.Node{}
 	assert.Nil(t, GetMaintenanceModeCondition(node))
 	assert.False(t, IsMaintenanceModeEngaged(node))
+	assert.False(t, CanNodeDisableMaintenanceMode(node))
+	assert.False(t, IsNodeMaintenanceModeDrainComplete(node))
 	assert.False(t, RemoveMaintenanceModeCondition(node))
 
 	assert.True(t, SetMaintenanceModeCondition(node, corev1.ConditionFalse, NodeConditionReasonError, "failed"))
@@ -36,15 +38,19 @@ func TestMaintenanceModeConditionHelpers(t *testing.T) {
 	assert.False(t, IsMaintenanceModeEngaged(node))
 	assert.True(t, IsMaintenanceModeCondition(condition, corev1.ConditionFalse, NodeConditionReasonError))
 	assert.False(t, CanDisableMaintenanceMode(condition))
+	assert.False(t, CanNodeDisableMaintenanceMode(node))
 
 	assert.True(t, SetMaintenanceModeCondition(node, corev1.ConditionTrue, NodeConditionReasonError, "timed out"))
 	condition = GetMaintenanceModeCondition(node)
 	assert.True(t, IsMaintenanceModeEngaged(node))
 	assert.True(t, CanDisableMaintenanceMode(condition))
+	assert.True(t, CanNodeDisableMaintenanceMode(node))
 	assert.False(t, IsMaintenanceModeDrainComplete(condition))
+	assert.False(t, IsNodeMaintenanceModeDrainComplete(node))
 
 	assert.True(t, SetMaintenanceModeCondition(node, corev1.ConditionTrue, NodeConditionReasonCompleted, "complete"))
 	assert.True(t, IsMaintenanceModeDrainComplete(GetMaintenanceModeCondition(node)))
+	assert.True(t, IsNodeMaintenanceModeDrainComplete(node))
 	assert.True(t, RemoveMaintenanceModeCondition(node))
 	assert.Nil(t, GetMaintenanceModeCondition(node))
 }

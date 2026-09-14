@@ -80,11 +80,23 @@ func CanDisableMaintenanceMode(condition *corev1.NodeCondition) bool {
 		NodeConditionReasonEvacuating, NodeConditionReasonCompleted, NodeConditionReasonError)
 }
 
+// CanNodeDisableMaintenanceMode reports whether the node's maintenance phase supports
+// an explicit disable operation.
+func CanNodeDisableMaintenanceMode(node *corev1.Node) bool {
+	return CanDisableMaintenanceMode(GetMaintenanceModeCondition(node))
+}
+
 // IsMaintenanceModeDrainComplete reports whether DrainNode completed. It is
 // true while post-drain VM handling runs and after maintenance is completed.
 func IsMaintenanceModeDrainComplete(condition *corev1.NodeCondition) bool {
 	return IsMaintenanceModeCondition(condition, corev1.ConditionTrue,
 		NodeConditionReasonEvacuating, NodeConditionReasonCompleted)
+}
+
+// IsNodeMaintenanceModeDrainComplete reports whether DrainNode completed for the node.
+// It is true while post-drain VM handling runs and after maintenance is completed.
+func IsNodeMaintenanceModeDrainComplete(node *corev1.Node) bool {
+	return IsMaintenanceModeDrainComplete(GetMaintenanceModeCondition(node))
 }
 
 // SetMaintenanceModeCondition updates node's MaintenanceMode condition and

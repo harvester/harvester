@@ -74,7 +74,7 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 	if len(vmiList) != 0 {
 		// Get the names of the remaining VMs, but limit the number of
 		// names logged to avoid excessive log output.
-		vmNames := make([]string, 0, logMaxRemainingVMs)
+		vmNames := make([]string, 0, logMaxRemainingVMs+1)
 		for i, vmi := range vmiList {
 			if i < logMaxRemainingVMs {
 				vmNames = append(vmNames, util.GetNamespacedName(vmi))
@@ -90,9 +90,7 @@ func (h *maintainNodeHandler) OnNodeChanged(_ string, node *corev1.Node) (*corev
 			"vms":          strings.Join(vmNames, ", "),
 		}).Info("Waiting for VMs to leave node before completing maintenance mode")
 
-		if h.enqueueAfter != nil {
-			h.enqueueAfter(node.Name, requeueDelay)
-		}
+		h.enqueueAfter(node.Name, requeueDelay)
 
 		return node, nil
 	}

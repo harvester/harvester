@@ -290,7 +290,7 @@ func Test_listVMI(t *testing.T) {
 }
 
 func TestOnNodeChangeCreatesValidatingCondition(t *testing.T) {
-	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{drainhelper.DrainAnnotation: "true"}}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{drainhelper.DrainAnnotation: util.AnnotationValueTrue}}}
 	clientset := fake.NewSimpleClientset(node)
 	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes)}
 
@@ -312,8 +312,8 @@ func TestOnNodeChangeTerminatesExpiredDrain(t *testing.T) {
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{
-			drainhelper.DrainAnnotation: "true",
-			drainhelper.ForcedDrain:     "true",
+			drainhelper.DrainAnnotation: util.AnnotationValueTrue,
+			drainhelper.ForcedDrain:     util.AnnotationValueTrue,
 		}},
 		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
 			Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
@@ -342,8 +342,8 @@ func TestForcedDrainStopsMaintainModeStrategyVMs(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-1",
 			Annotations: map[string]string{
-				drainhelper.DrainAnnotation: "true",
-				drainhelper.ForcedDrain:     "true",
+				drainhelper.DrainAnnotation: util.AnnotationValueTrue,
+				drainhelper.ForcedDrain:     util.AnnotationValueTrue,
 			},
 		},
 		Status: corev1.NodeStatus{

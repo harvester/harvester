@@ -139,7 +139,7 @@ func (h ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBod
 	toUpdate := node.DeepCopy()
 	switch action {
 	case enableMaintenanceModeAction:
-		return nil, h.enableMaintenanceMode(req, toUpdate)
+		return nil, h.enableMaintenanceMode(req, name)
 	case disableMaintenanceModeAction:
 		return nil, h.disableMaintenanceMode(name)
 	case clearMaintenanceModeAction:
@@ -216,36 +216,23 @@ func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, 
 	return err
 }
 
-func (h ActionHandler) enableMaintenanceMode(req *http.Request, node *corev1.Node) error {
-	node, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	condition := util.GetMaintenanceModeCondition(node)
-
-	if condition != nil {
-		return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be enabled in the current state")
-	}
-
-	// API-based tests run enableMaintenanceMode directly. The maintenance-possible
-	// action ensures it cannot be called where maintenance mode is not possible.
+func (h ActionHandler) enableMaintenanceMode(req *http.Request, nodeName string) error {
 	var maintenanceInput MaintenanceModeInput
 	if err := json.NewDecoder(req.Body).Decode(&maintenanceInput); err != nil {
 		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Sprintf("Failed to decode request body: %v ", err))
 	}
 
 	if maintenanceInput.Force == "true" {
-		logrus.Infof("forced drain requested for node %s", node.Name)
+		logrus.Infof("forced drain requested for node %s", nodeName)
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nodeObj, err := h.nodeClient.Get(node.Name, metav1.GetOptions{})
+		nodeObj, err := h.nodeClient.Get(nodeName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
 		liveCondition := util.GetMaintenanceModeCondition(nodeObj)
-
 		if liveCondition != nil {
 			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be enabled in the current state")
 		}
@@ -263,9 +250,8 @@ func (h ActionHandler) disableMaintenanceMode(nodeName string) error {
 	if err != nil {
 		return err
 	}
-	condition := util.GetMaintenanceModeCondition(node)
 
-	if !util.CanDisableMaintenanceMode(condition) {
+	if !util.CanNodeDisableMaintenanceMode(node) {
 		return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode cannot be disabled in the current state")
 	}
 
@@ -319,7 +305,7 @@ func (h ActionHandler) removeMaintenanceModeCondition(nodeName string, preCheckE
 			return httperror.NewAPIError(httperror.InvalidAction, "Only a maintenance mode pre-check error can be cleared")
 		}
 		if !preCheckErrorOnly && (!util.CanDisableMaintenanceMode(condition) || drainhelper.HasDrainRequest(node)) {
-			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode disable state changed")
+			return httperror.NewAPIError(httperror.InvalidAction, "Maintenance mode state was modified concurrently, please refresh and check the node status")
 		}
 
 		node = node.DeepCopy()
@@ -421,8 +407,7 @@ func (h ActionHandler) powerAction(node *corev1.Node, operation string) error {
 	if err != nil {
 		return err
 	}
-	condition := util.GetMaintenanceModeCondition(liveNode)
-	if !util.IsMaintenanceModeDrainComplete(condition) {
+	if !util.IsNodeMaintenanceModeDrainComplete(liveNode) {
 		return httperror.NewAPIError(httperror.InvalidAction, "Power actions are unavailable in the current maintenance mode state")
 	}
 	node = liveNode

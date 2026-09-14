@@ -23,6 +23,7 @@ func TestMaintainNodeCompletesEvacuation(t *testing.T) {
 		nodes:                       fakeclients.NodeClient(clientset.CoreV1().Nodes),
 		virtualMachineCache:         fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+		enqueueAfter:                func(string, time.Duration) {},
 	}
 
 	_, err := handler.OnNodeChanged(node.Name, node)

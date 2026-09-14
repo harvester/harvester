@@ -78,7 +78,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						drainhelper.DrainAnnotation: "true",
+						drainhelper.DrainAnnotation: util.AnnotationValueTrue,
 					},
 				},
 			},
@@ -169,7 +169,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						drainhelper.DrainAnnotation: "true",
+						drainhelper.DrainAnnotation: util.AnnotationValueTrue,
 					},
 				},
 			},
@@ -199,7 +199,7 @@ func TestValidateCordonAndMaintenanceMode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Annotations: map[string]string{
-						drainhelper.DrainAnnotation: "true",
+						drainhelper.DrainAnnotation: util.AnnotationValueTrue,
 					},
 				},
 			},
