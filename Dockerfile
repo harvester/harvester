@@ -181,6 +181,22 @@ FROM scratch AS generate-openapi-output
 COPY --from=generate-openapi /go/src/github.com/harvester/harvester/api/openapi-spec/swagger.json /api/openapi-spec/swagger.json
 COPY --from=generate-openapi /go/src/github.com/harvester/harvester/scripts/known-api-rule-violations.txt /scripts/known-api-rule-violations.txt
 
+# ---- generate ----
+FROM base AS generate
+ARG MK_REPO_ID
+
+RUN git config --global user.email "ci@example.com" && \
+    git config --global user.name "ci" && \
+    git init 2>/dev/null && git add . && git commit -q -m "commit for validate-ci"
+
+RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+    go generate 
+
+# ---- generate-output ----
+FROM scratch AS generate-output
+COPY --from=generate /go/src/github.com/harvester/harvester/pkg/apis /pkg/apis
+COPY --from=generate /go/src/github.com/harvester/harvester/pkg/generated /pkg/generated
 
 # ---- build-installer ----
 FROM base AS build-installer
