@@ -34,6 +34,7 @@ detect_repo()
   REPO_OS_VERSION="${REPO_OS_PRETTY_NAME#Harvester }"
   REPO_RKE2_VERSION=$(yq -e e '.kubernetes' $release_file)
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
+  REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY=$(yq e '.rancherSystemDefaultRegistry // ""' $release_file)
   REPO_MONITORING_CHART_VERSION=$(yq -e e '.monitoringChart' $release_file)
   REPO_LOGGING_CHART_VERSION=$(yq -e e '.loggingChart' $release_file)
   REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION=$(yq -e e '.loggingChartHarvesterEventRouter' $release_file)
@@ -69,6 +70,16 @@ detect_repo()
 
   if [ -z "$REPO_RANCHER_VERSION" ]; then
     echo "[ERROR] Fail to get Rancher version from upgrade repo."
+    exit 1
+  fi
+
+  if [[ "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" == *://* ]]; then
+    echo "[ERROR] rancherSystemDefaultRegistry must not include a URL scheme."
+    exit 1
+  fi
+
+  if [[ "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" == */ ]]; then
+    echo "[ERROR] rancherSystemDefaultRegistry must not end with '/'."
     exit 1
   fi
 
