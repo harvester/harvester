@@ -495,7 +495,7 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 // poolNameFromCIDR derives the Whereabouts IPPool Kubernetes object name from a
 // CIDR string. The name is the masked network address with the prefix length
 // appended via a dash. Colons in IPv6 addresses are replaced with dashes so the
-// result is a valid Kubernetes object name (e.g. "fd00::/64" → "fd00---64").
+// result is a valid Kubernetes object name (e.g. "fd00::/64" -> "fd00---64").
 func poolNameFromCIDR(cidr string) (string, error) {
 	_, network, err := net.ParseCIDR(cidr)
 	if err != nil {
