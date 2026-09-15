@@ -171,20 +171,30 @@ volume's replica controllers report `trtype=RDMA`.
 
 ### API changes
 
-- **Harvester `storage-network` setting** gains a `mode` and interface binding.
-  Current value: `{"vlan","clusterNetwork","range","exclude"}`. Extended (draft):
+- **Harvester `storage-network` setting** gains a `mode`; the interface binding
+  is *not* a new field. Current value: `{"vlan","clusterNetwork","range","exclude"}`.
+  Extended (draft):
 
   ```json
   {
     "mode": "rdma",
     "transport": "macvlan",        // macvlan | ipvlan | host-device | sriov
-    "clusterNetwork": "",           // optional; empty in bridgeless mode
-    "masterInterface": "enp1s0f0np0", // the RoCE PF (or bond) to bind onto
+    "clusterNetwork": "storage-rdma", // same field as today; per-node uplink
+                                       // still resolved via VlanConfig
     "vlan": 0,
     "range": "10.25.0.0/24",
     "exclude": ["10.25.0.1"]
   }
   ```
+
+  `clusterNetwork` stays a logical name, not a literal interface — a global
+  literal interface name breaks the moment the RoCE NIC has a different device
+  name on some nodes (mixed hardware, different PCIe enumeration). Reusing
+  `clusterNetwork` means the per-node uplink is resolved exactly the way it is
+  today, via one or more `VlanConfig` (`network.harvesterhci.io/v1beta1`)
+  objects scoped by `spec.nodeSelector`, so node A can carry the RDMA NIC as
+  `eno1` and node B as `enp3s0f0` under the same `clusterNetwork`. No new field,
+  no new per-node config surface.
 
   **Open design question — maintainer input requested:** extend this setting
   with a mode, or introduce a dedicated CRD in the style of `HostNetworkConfig`
@@ -226,15 +236,23 @@ host enablement (C), Longhorn transport selection (D), and capability discovery
 **(A) Bridgeless network attachment (NAD).**
 The storage-network controller today synthesizes a `type: "bridge"` NAD over
 `<clusterNetwork>-br` with Whereabouts IPAM (`pkg/util/network/common.go`,
-`CreateBridgeConfig`). Add a sibling builder that, in `rdma` mode, emits a
-bridgeless NAD. **Primary:** `macvlan` or `ipvlan` with `master:
-<masterInterface>` (the RoCE PF), which makes the pod interface (`lhnet1`) a real
-child of the PF so a RoCEv2 GID exists for the pod IP — validated on the
-reference homelab (ipvlan L2). **Alternatives:** `host-device` (moves the whole
-PF into the pod — cleanest native GID, but *exclusive*: the host and any future
-frontend consumer lose that PF while the pod holds it — see Dual-port below); or
-a `sriov` NAD referencing a VF resource. Whereabouts IPAM is reused unchanged in
-all cases.
+`CreateBridgeConfig`); the bridge builder never touches a literal interface
+name, only the `clusterNetwork`-derived bridge name — the per-node uplink NIC
+is resolved separately via `VlanConfig`. Add a sibling builder that, in `rdma`
+mode, emits a bridgeless NAD the same way: it resolves the `clusterNetwork`'s
+per-node uplink (via the existing `VlanConfig`/`nodeSelector` mechanism) and
+uses that as the `master`, instead of hard-coding an interface name in the
+setting. **Primary:** `macvlan` or `ipvlan` with `master: <uplink>`, which makes
+the pod interface (`lhnet1`) a real child of the PF so a RoCEv2 GID exists for
+the pod IP — validated on the reference homelab (ipvlan L2). **Alternatives:**
+`host-device` (moves the whole PF into the pod — cleanest native GID, but
+*exclusive*: the host and any future frontend consumer lose that PF while the
+pod holds it — see Dual-port below); or a `sriov` NAD referencing a VF
+resource. Whereabouts IPAM is reused unchanged in all cases — it is chained
+purely as the `ipam` plugin in the NAD config and is independent of the main
+CNI type, so it works identically whether the main plugin is `bridge`,
+`macvlan`, `ipvlan`, `host-device`, or `sriov`; confirmed on the homelab with an
+ipvlan-over-PF NAD.
 
 Rationale for bridgeless: Harvester's Linux bridge is fundamental to the
 *cluster-network* model because it is the substrate for VM VLAN trunking
