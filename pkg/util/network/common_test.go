@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,29 +54,32 @@ func TestCreateBridgeConfig(t *testing.T) {
 				Range:          "10.0.0.0/24",
 				Exclude:        []string{"10.0.0.1/32"},
 				RangeV6:        "fd00::/120",
-				ExcludeV6:      []string{"fd00::1/128"},
+				RangeV6Start:   "fd00::10",
+				RangeV6End:     "fd00::20",
 			},
 			wantBridge: "mgmt" + BridgeSuffix,
 			wantVlan:   DefaultPVID,
 			wantIPRanges: []RangeConfiguration{
 				{Range: "10.0.0.0/24", Exclude: []string{"10.0.0.1/32"}},
-				{Range: "fd00::/120", Exclude: []string{"fd00::1/128"}},
+				{Range: "fd00::/120", RangeStart: net.ParseIP("fd00::10"), RangeEnd: net.ParseIP("fd00::20")},
 			},
-			jsonContains:    []string{`"ipRanges"`},
+			jsonContains:    []string{`"ipRanges"`, `"range_start":"fd00::10"`, `"range_end":"fd00::20"`},
 			jsonNotContains: []string{`"ipam":{"type":"whereabouts","range"`},
 		},
 		{
-			name: "dual-stack without excludes emits ipRanges with no exclude fields",
+			name: "dual-stack without ipv4 excludes emits no exclude field on the ipv4 entry",
 			cfg: Config{
 				ClusterNetwork: "mgmt",
 				Range:          "10.1.0.0/24",
 				RangeV6:        "fd01::/112",
+				RangeV6Start:   "fd01::10",
+				RangeV6End:     "fd01::20",
 			},
 			wantBridge: "mgmt" + BridgeSuffix,
 			wantVlan:   DefaultPVID,
 			wantIPRanges: []RangeConfiguration{
 				{Range: "10.1.0.0/24"},
-				{Range: "fd01::/112"},
+				{Range: "fd01::/112", RangeStart: net.ParseIP("fd01::10"), RangeEnd: net.ParseIP("fd01::20")},
 			},
 			jsonNotContains: []string{`"exclude"`},
 		},

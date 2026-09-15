@@ -1,7 +1,9 @@
 package util
 
 import (
+	"fmt"
 	"math"
+	"math/big"
 	"net"
 	"net/netip"
 )
@@ -50,10 +52,13 @@ func GetUsableIPAddressesCount(includeRange string, excludeRange []string) (int,
 }
 
 // GetUsableIPAddressesCountDualStack returns the total usable IP count across
-// an IPv4 range and an IPv6 range. Either range may be empty.
+// an IPv4 range and an IPv6 start/end window. Either may be empty.
 // IPv4 uses the existing map-enumeration path (unchanged).
-// IPv6 uses arithmetic counting to avoid OOM on large ranges.
-func GetUsableIPAddressesCountDualStack(v4Range string, v6Range string, v4Exclude []string, v6Exclude []string) (int, error) {
+// IPv6 is a named, explicit, contiguous window (RangeStart/RangeEnd), so its
+// count is exact arithmetic (end - start + 1) rather than CIDR+exclude
+// enumeration/bisection - see the discussion on why IPv6 doesn't need the
+// IPv4-style exclude-list carving.
+func GetUsableIPAddressesCountDualStack(v4Range string, v6Start string, v6End string, v4Exclude []string) (int, error) {
 	total := 0
 	if v4Range != "" {
 		count, err := GetUsableIPAddressesCount(v4Range, v4Exclude)
@@ -62,8 +67,8 @@ func GetUsableIPAddressesCountDualStack(v4Range string, v6Range string, v4Exclud
 		}
 		total += count
 	}
-	if v6Range != "" {
-		count, err := getUsableIPAddressesCountArithmetic(v6Range, v6Exclude)
+	if v6Start != "" && v6End != "" {
+		count, err := ipv6RangeCount(v6Start, v6End)
 		if err != nil {
 			return 0, err
 		}
@@ -72,105 +77,35 @@ func GetUsableIPAddressesCountDualStack(v4Range string, v6Range string, v4Exclud
 	return total, nil
 }
 
-// getUsableIPAddressesCountArithmetic counts usable IPs using prefix arithmetic,
-// avoiding enumeration. Safe for large IPv6 ranges.
-func getUsableIPAddressesCountArithmetic(includeRange string, excludeRange []string) (int, error) {
-	netPrefix, err := netip.ParsePrefix(includeRange)
+// ipv6RangeCount returns the number of addresses in the inclusive range
+// [start, end], computed as 128-bit arithmetic to avoid overflow on large
+// windows. Callers are expected to have already validated start <= end.
+func ipv6RangeCount(startStr, endStr string) (int, error) {
+	start, err := netip.ParseAddr(startStr)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid rangeV6Start: %w", err)
 	}
-	netPrefix = netPrefix.Masked()
-
-	maxBits := 32
-	if netPrefix.Addr().Is6() {
-		maxBits = 128
+	end, err := netip.ParseAddr(endStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid rangeV6End: %w", err)
 	}
-	hostBits := maxBits - netPrefix.Bits()
+	if start.Compare(end) > 0 {
+		return 0, fmt.Errorf("rangeV6Start %s must not be after rangeV6End %s", startStr, endStr)
+	}
 
-	// Guard: hostBits >= 63 would overflow int on 64-bit systems.
-	// Return MaxInt unless a single exclude covers the entire range.
-	if hostBits >= 63 {
-		for _, exStr := range excludeRange {
-			exPrefix, parseErr := netip.ParsePrefix(exStr)
-			if parseErr != nil {
-				continue
-			}
-			if exPrefix.Masked() == netPrefix {
-				return 0, nil
-			}
-		}
+	startBytes := start.As16()
+	endBytes := end.As16()
+	diff := new(big.Int).Sub(new(big.Int).SetBytes(endBytes[:]), new(big.Int).SetBytes(startBytes[:]))
+	diff.Add(diff, big.NewInt(1))
+	if !diff.IsInt64() || diff.Int64() > math.MaxInt {
 		return math.MaxInt, nil
 	}
-
-	total := 1 << uint(hostBits)
-
-	// Remove reserved addresses.
-	reservedNet := netPrefix.Addr()
-	hasBroadcast := netPrefix.Addr().Is4()
-	var reservedBroadcast netip.Addr
-	if hasBroadcast {
-		reservedBroadcast = lastAddrInPrefixNetip(netPrefix)
-		total -= 2 // network + broadcast
-	} else {
-		total-- // network address only; IPv6 has no broadcast
-	}
-
-	if total < 0 {
-		total = 0
-	}
-
-	// Subtract each exclude range that is fully contained within the include range,
-	// adjusting for reserved addresses already subtracted above.
-	for _, exStr := range excludeRange {
-		exPrefix, parseErr := netip.ParsePrefix(exStr)
-		if parseErr != nil {
-			return 0, parseErr
-		}
-		exPrefix = exPrefix.Masked()
-		if netPrefix.Bits() <= exPrefix.Bits() && netPrefix.Contains(exPrefix.Addr()) {
-			exHostBits := maxBits - exPrefix.Bits()
-			exCount := 1 << uint(exHostBits)
-			// Avoid double-counting the reserved addresses already removed above.
-			if exPrefix.Contains(reservedNet) {
-				exCount--
-			}
-			if hasBroadcast && exPrefix.Contains(reservedBroadcast) {
-				exCount--
-			}
-			if exCount > 0 {
-				total -= exCount
-			}
-		}
-	}
-
-	if total < 0 {
-		total = 0
-	}
-	return total, nil
-}
-
-// lastAddrInPrefixNetip returns the last address in a prefix
-// (broadcast for IPv4; last unicast for IPv6).
-func lastAddrInPrefixNetip(p netip.Prefix) netip.Addr {
-	if p.Addr().Is4() {
-		b := p.Addr().As4()
-		hostBits := 32 - p.Bits()
-		for i := 0; i < hostBits; i++ {
-			b[3-i/8] |= 1 << uint(i%8)
-		}
-		return netip.AddrFrom4(b)
-	}
-	b := p.Addr().As16()
-	hostBits := 128 - p.Bits()
-	for i := 0; i < hostBits; i++ {
-		b[15-i/8] |= 1 << uint(i%8)
-	}
-	return netip.AddrFrom16(b)
+	return int(diff.Int64()), nil
 }
 
 // rightHalfPrefix returns the "right half" of a prefix by setting
 // the first free bit to 1 and increasing the prefix length by 1.
-// Example: 10.0.0.0/24 → 10.0.0.128/25.
+// Example: 10.0.0.0/24 -> 10.0.0.128/25.
 func rightHalfPrefix(p netip.Prefix) netip.Prefix {
 	bits := p.Bits()
 	if p.Addr().Is4() {
@@ -250,7 +185,7 @@ func getIPAddressesFromSubnet(ipNetSubnets []string, include bool) (ipAddrList m
 }
 
 // getLastAddress returns the last address in the subnet (broadcast for IPv4;
-// last unicast address for IPv6 — but callers must not exclude it for IPv6).
+// last unicast address for IPv6 - but callers must not exclude it for IPv6).
 // net.ParseCIDR guarantees len(ipNet.IP) == len(ipNet.Mask), so no padding is needed.
 func getLastAddress(ipNet *net.IPNet) net.IP {
 	ip := ipNet.IP
