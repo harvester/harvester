@@ -1,0 +1,111 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: kubeovn-operator
+  namespace: kube-system
+spec:
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  version: "<< .KUBEOVN_OPERATOR_CHART_VERSION >>"
+  chart: kubeovn-operator
+  {{- if and .Addons .Addons.kubeovn_operator }}
+  enabled: {{ .Addons.kubeovn_operator.Enabled }}
+  {{- else }}
+  enabled: false
+  {{- end }}
+  valuesContent: |
+    fullnameOverride: harvester-kubeovn-operator
+    enableConfiguration: true
+    configurationSpec:
+      components:
+        OVSDBConTimeout: 3
+        OVSDBInactivityTimeout: 10
+        checkGateway: true
+        enableANP: false
+        enableBindLocalIP: true
+        enableExternalVPC: true
+        enableIC: false
+        enableKeepVMIP: true
+        enableLB: true
+        enableLBSVC: false
+        enableLiveMigrationOptimize: true
+        enableNATGateway: true
+        enableNP: true
+        enableOVNIPSec: false
+        enableTProxy: false
+        hardwareOffload: false
+        logicalGateway: false
+        lsCtSkipOstLportIPS: true
+        lsDnatModDlDst: true
+        secureServing: false
+        setVLANTxOff: false
+        u2oInterconnection: false
+      ipv4:
+        joinCIDR: 100.64.0.0/16
+        pingerExternalAddress: 1.1.1.1
+        pingerExternalDomain: google.com.
+        podCIDR: 10.54.0.0/16
+        podGateway: 10.54.0.1
+        serviceCIDR: 10.55.0.0/16
+      kubeOvnCNI:
+        requests:
+          cpu: "100m"
+          memory: "100Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+      kubeOvnController:
+        requests:
+          cpu: "200m"
+          memory: "200Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+      kubeOvnMonitor:
+        requests:
+          cpu: "200m"
+          memory: "200Mi"
+        limits:
+          cpu: "200m"
+          memory: "200Mi"
+      kubeOvnPinger:
+        requests:
+          cpu: "100m"
+          memory: "100Mi"
+        limits:
+          cpu: "200m"
+          memory: "400Mi"
+      networking:
+        defaultSubnet: ovn-default
+        defaultVPC: ovn-cluster
+        enableECMP: false
+        enableEIPSNAT: true
+        enableMetrics: true
+        enableSSL: false
+        networkType: geneve
+        nodeSubnet: join
+        ovnLeaderProbeInterval: 5
+        ovnNorthdNThreads: 1
+        ovnNorthdProbeInterval: 5000
+        ovnRemoteOpenflowInterval: 10
+        ovnRemoteProbeInterval: 10000
+        probeInterval: 180000
+        nodeLocalDNSIPS: ""
+      ovnCentral:
+        requests:
+          cpu: "300m"
+          memory: "200Mi"
+        limits:
+          cpu: "3"
+          memory: "4Gi"
+      ovnDir: /etc/origin/ovn
+      ovsOVN:
+        limits:
+          cpu: "2"
+          memory: "1000Mi"
+        requests:
+          cpu: "200m"
+          memory: "200Mi"
+      performance:
+        gcInterval: 360
+        inspectInterval: 20
+        ovsVSCtlConcurrency: 100

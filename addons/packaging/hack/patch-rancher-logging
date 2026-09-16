@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Note: this file and function are used by the ISO builder (in the Harvester repo) to patch the chart.
+# Do not delete this file or function, even if the function appears to do nothing, to avoid breaking the ISO builder.
+# Patch contents change from version to version, so keeping the file and function stable is important.
+
+patch_rancher_logging_chart()
+{
+  local chart_dir=$1 #${CHARTS_DIR}
+  local logging_version=$2 #LOGGING_VERSION
+  local pkg_logging_path=$3 #${PKG_PATCH_LOGGING_PATH}
+  local cwd=$(pwd)
+
+  if [ ! -d "${pkg_logging_path}/${logging_version}" ]; then
+    echo "NOTE: there is no related path: ${pkg_logging_path}/${logging_version} to patch, SKIP"
+    return 0
+  fi
+
+  cd ${chart_dir}
+  tar zxf rancher-logging-${logging_version}.tgz --warning=no-timestamp
+
+  echo "patch rancher logging rke2 configmap.yaml, daemonset.yaml"
+  cp -f ${pkg_logging_path}/${logging_version}/configmap.yaml ./rancher-logging/templates/loggings/rke2/configmap.yaml
+  cp -f ${pkg_logging_path}/${logging_version}/daemonset.yaml ./rancher-logging/templates/loggings/rke2/daemonset.yaml
+  grep "harvester-patch" ./rancher-logging/templates/loggings/rke2/configmap.yaml || true
+  grep "harvester-patch" ./rancher-logging/templates/loggings/rke2/daemonset.yaml || true
+
+  echo "patch rancher logging eventtailer"
+  cp -f ${pkg_logging_path}/${logging_version}/eventtailer.yaml ./rancher-logging/templates/logging/eventtailer.yaml
+  grep "harvester-patch" ./rancher-logging/templates/logging/eventtailer.yaml || true
+
+  echo "patch rancher logging kube-audit fluentbitagent"
+  cp -f ${pkg_logging_path}/${logging_version}/fluentbitagent.yaml ./rancher-logging/templates/loggings/kube-audit/fluentbitagent.yaml
+  grep "harvester-patch" ./rancher-logging/templates/loggings/kube-audit/fluentbitagent.yaml || true
+
+  echo "patch rancher logging _helpers.tpl"
+  cp -f ${pkg_logging_path}/${logging_version}/_helpers.tpl ./rancher-logging/templates/_helpers.tpl
+  grep "harvester-patch" ./rancher-logging/templates/_helpers.tpl || true
+
+  # remove existing chart
+  rm ${chart_dir}/rancher-logging-${logging_version}.tgz
+
+  # helm pack new
+  helm package rancher-logging
+  rm -rf rancher-logging
+  echo "finish patch ranch-logging chart"
+  cd $cwd
+}

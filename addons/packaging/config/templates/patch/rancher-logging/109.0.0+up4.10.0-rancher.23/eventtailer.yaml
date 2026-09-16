@@ -1,0 +1,15 @@
+{{- with $.Values.eventTailer }}
+# patch to ./templates/logging/eventtailer.yaml
+# harvester-patch to import the event tailer feature
+apiVersion: logging-extensions.banzaicloud.io/v1alpha1
+kind: EventTailer
+metadata:
+  name: {{ .name | default "harvester-default-event-tailer" }}
+  namespace: {{ .namespace | default "cattle-logging-system" }}
+spec:
+  controlNamespace: {{ .controlNamespace | default "cattle-logging-system" }}
+{{- with .workloadOverrides }}
+  workloadOverrides:
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}

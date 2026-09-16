@@ -1,0 +1,85 @@
+{{- if .Values.additionalLoggingSources.rke2.enabled }}
+{{- $individualValues := .Values.additionalLoggingSources.rke2.fluentbit -}}
+# harvester-patch to ./templates/loggings/rke2/daemonset.yaml
+# when harvester-installer makes ISO, the original file is replaced
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+  namespace: {{ include "logging-operator.namespace" . }}
+spec:
+  selector:
+    matchLabels:
+      name: {{ .Release.Name }}-rke2-journald-aggregator
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/loggings/rke2/configmap.yaml") . | sha256sum }}
+      name: "{{ .Release.Name }}-rke2-journald-aggregator"
+      namespace: {{ include "logging-operator.namespace" . }}
+      labels:
+        name: {{ .Release.Name }}-rke2-journald-aggregator
+    spec:
+      containers:
+        - name: fluentbit
+          image: "{{ template "logging-operator.fluentbitImage" . }}"
+          {{- include "logging-operator.individualFluentbit" $individualValues | nindent 10 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          {{- if .Values.global.seLinux.enabled }}
+            seLinuxOptions:
+              type: rke_logreader_t
+          {{- end }}
+          volumeMounts:
+            - mountPath: /fluent-bit/etc/
+              name: config
+            - mountPath: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+              name: journal
+              readOnly: true
+            - mountPath: "/var/lib/rancher/rke2/agent/logs"
+              name: kubelet
+              readOnly: true
+            - mountPath: /etc/machine-id
+              name: machine-id
+              readOnly: true
+            - mountPath: "/var/log/audit/audit.log" # harvester-patch
+              name: rke2-audit
+              readOnly: true
+      {{- with .Values.dnsConfig }}
+      dnsConfig:  {{- toYaml . | nindent 8 }}
+      {{- end }}
+      tolerations: {{ include "customTolerations" . | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      serviceAccountName: "{{ .Release.Name }}-rke2-journald-aggregator"
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ .Release.Name }}-rke2"
+        - name: journal
+          hostPath:
+            path: {{ .Values.systemdLogPath | default "/var/log/journal" }}
+        - name: kubelet
+          hostPath:
+            path: "/var/lib/rancher/rke2/agent/logs"
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+        - name: rke2-audit  # harvester-patch
+          hostPath:
+            path: "/var/log/audit/audit.log"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ .Release.Name }}-rke2-journald-aggregator"
+  namespace: {{ include "logging-operator.namespace" . }}
+{{- end }}
