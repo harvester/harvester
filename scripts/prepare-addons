@@ -1,36 +1,29 @@
 #!/bin/bash
-# pull addon repo to a docker image and generate addons manifests
-# addon source and manifests are copied to dist/prepare-addons
+# Validate and generate addon manifests from the in-tree addons/ directory.
+#
+# Prior to the addon-repository-consolidation, this cloned
+# github.com/harvester/addons. Addons now live in-tree, but generation still
+# runs in the repository's Docker build environment so host Go tooling is not
+# required.
 set -e
 
 TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
-REMOTE_URL="https://github.com/harvester/addons.git"
-ADDONS_BRANCH=${HARVESTER_ADDONS_VERSION:-v1.9}
+# Generation must describe the current metadata exactly. Remove previous
+# output first so an addon that was renamed, retired, or moved to standalone
+# cannot leak into a later upgrade bundle.
+rm -rf "${TOP_DIR}/dist/prepare-addons"
+mkdir -p "${TOP_DIR}/dist"
 
-echo "Checking remote addons commit for branch '$ADDONS_BRANCH'..."
-REMOTE_SHA=$(git ls-remote "$REMOTE_URL" "refs/heads/$ADDONS_BRANCH" | cut -f1)
-REMOTE_SHA="${REMOTE_SHA}"
-echo "Remote commit sha: $REMOTE_SHA"
-
-docker build \
-    --progress="$MK_DOCKER_PROGRESS" \
-   	--build-arg MK_REPO_ID \
-    --build-arg MK_HOST_ARCH \
-    --build-arg ADDONS_BRANCH="$ADDONS_BRANCH" \
-    --build-arg REMOTE_SHA="$REMOTE_SHA" \
-    --tag "$MK_ADDONS_IMAGE" \
-    --target prepare-addons \
-   	-f "$TOP_DIR/Dockerfile" "$TOP_DIR"
-
-echo "Extracting prepare-addons outputs..."
-id=$(docker create "${MK_ADDONS_IMAGE}")
-cleanup() { docker rm -f "${id}" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
-
-mkdir -p "$TOP_DIR/dist"
-if [ -e "$TOP_DIR/dist/prepare-addons" ]; then
-    rm -rf "$TOP_DIR/dist/prepare-addons"
+docker_pull_args=()
+if [ -n "${MK_DOCKER_PULL:-}" ]; then
+    docker_pull_args+=("${MK_DOCKER_PULL}")
 fi
 
-docker cp "${id}:/dist/prepare-addons/" "${TOP_DIR}/dist/prepare-addons/"
+docker build "${docker_pull_args[@]}" \
+    --progress="${MK_DOCKER_PROGRESS:-plain}" \
+    --build-arg MK_REPO_ID \
+    --build-arg MK_HOST_ARCH \
+    --target generate-addons-output \
+    --output "type=local,dest=${TOP_DIR}/dist" \
+    -f "${TOP_DIR}/Dockerfile" "${TOP_DIR}"

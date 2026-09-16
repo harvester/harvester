@@ -14,7 +14,7 @@ then
 fi
 
 source ${SCRIPTS_DIR}/lib/addon
-addons_path=${TOP_DIR}/../addons
+addons_path=${TOP_DIR}/addons
 load_addon_env ${addons_path}
 
 MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
