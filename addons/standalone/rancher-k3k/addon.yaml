@@ -1,0 +1,29 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rancher-k3k
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: rancher-k3k
+  namespace: rancher-k3k
+  labels:
+    addon.harvesterhci.io/experimental: "true"
+spec:
+  enabled: false
+  repo: https://charts.harvesterhci.io
+  version: "1.10.0-dev.0"
+  chart: rancher-k3k
+  valuesContent: |-
+    certManagerVersion: "v1.20.2"
+    rancher:
+      hostname: ""
+      version: "v2.14.0"
+      replicas: 1
+      bootstrapPassword: "password"
+    k3kCluster:
+      servers: 1
+      version: v1.35.4-k3s1
+      storageClassName: "harvester-longhorn"

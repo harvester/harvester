@@ -1,0 +1,3 @@
+name: rancher-k3k
+namespace: rancher-k3k
+stage: experimental
