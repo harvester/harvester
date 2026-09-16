@@ -33,7 +33,6 @@ MK_SYSTEM_ID := $(strip $(shell \
 
 # User might have several repos in a host. Distinguish each by using the abs path of the repo
 MK_REPO_ID                := $(shell printf '%s' "$(ROOT)$(MK_SYSTEM_ID)" | sha256sum | cut -c1-8)
-MK_ADDONS_IMAGE           := harvester-addons:$(MK_REPO_ID)
 MK_ISO_BUILDER_IMAGE      := harvester-iso-builder:$(MK_REPO_ID)
 MK_TEST_INTEGRATION_IMAGE := harvester-test-integration:$(MK_REPO_ID)
 MK_DOCKER_PROGRESS        ?= plain
@@ -41,9 +40,6 @@ MK_DOCKER_PULL            ?= --pull
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
-# Default addons git ref (branch or tag) consumed by scripts/prepare-addons and Docker builds.
-# Override HARVESTER_ADDONS_VERSION to pin a branch/specific RC/release (e.g. v1.9 or v1.9.0-rc6).
-HARVESTER_ADDONS_VERSION  ?= main
 HARVESTER_UI_VERSION      ?=
 HARVESTER_UI_PLUGIN_BUNDLED_VERSION ?=
 RKE2_IMAGE_REPO           ?= https://github.com/rancher/rke2/releases/download/
@@ -66,10 +62,10 @@ MK_IMAGE_CACHE_MAX_ITEMS  ?= 5
 # set to 0 to skip sha256 integrity check before using cached tarball (default: 1)
 MK_IMAGE_CACHE_VERIFY     ?=
 
-export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_REPO_ID MK_ADDONS_IMAGE MK_ISO_BUILDER_IMAGE
+export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_REPO_ID MK_ISO_BUILDER_IMAGE
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
 export RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
-export CODECOV_TOKEN HARVESTER_ADDONS_VERSION
+export CODECOV_TOKEN
 export DISABLE_BUILD_NET_INSTALL_ISO
 export MK_IMAGE_CACHE_VOLUME MK_IMAGE_CACHE_BYPASS MK_IMAGE_CACHE_MAX_ITEMS MK_IMAGE_CACHE_VERIFY
 
@@ -136,11 +132,10 @@ fix:
 
 
 # ---- Test ----
-test: gen-version-env prepare-addons
+test: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) $(if $(CODECOV_TOKEN),--secret id=codecov_token_$(MK_REPO_ID)$(comma)env=CODECOV_TOKEN --no-cache-filter=test) \
-	    --target test \
-	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION)
+	    --target test
 
 
 # ---- Test integration ----
@@ -155,15 +150,14 @@ test-integration: gen-version-env package-harvester-webhook
 
 
 # ---- Compile harvester-installer binary ----
-build-installer: prepare-addons | $(ROOT)/bin
+build-installer: | $(ROOT)/bin
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-installer-output \
-	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
 	    --output type=local,dest=$(ROOT)
 
 
 # ---- Validate image list consistency ----
-check-images: prepare-addons gen-version-env
+check-images: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target check-images
 
@@ -205,7 +199,7 @@ generate:
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-output --output type=local,dest=$(ROOT)
 
-# ---- Cache addons repo and generate addons manifests ---
+# ---- Generate addon manifests from the in-tree addons directory ---
 prepare-addons:
 	$(BANNER)
 	$(ROOT)/scripts/prepare-addons
@@ -215,7 +209,6 @@ prepare-addons:
 build-iso: gen-version-env build-installer check-images
 	$(BANNER)
 	$(DOCKER_BUILD) --target build-iso \
-	    --build-arg ADDONS_BRANCH=$(HARVESTER_ADDONS_VERSION) \
 	    -t $(MK_ISO_BUILDER_IMAGE)
 	$(ROOT)/scripts/mk-build-iso
 
@@ -232,7 +225,6 @@ clean:
 
 clean-all: clean
 	$(BANNER)
-	@docker rmi -f $(MK_ADDONS_IMAGE) || true
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
 
 # ---- Image cache management ----

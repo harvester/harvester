@@ -116,7 +116,7 @@ prepare_harvester_bundle() {
     non_cacheable_list="${BUNDLE_DIR}/harvester/images-lists/harvester-non-cacheable-images-${VERSION}.txt"
     cacheable_archive="${BUNDLE_DIR}/harvester/images/harvester-images-${VERSION}.tar.zst"
 
-    load_addon_env "${TOP_DIR}/../addons"
+    load_addon_env "${TOP_DIR}/addons"
 
     collect_harvester_image_list "${all_images}"
 

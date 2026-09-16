@@ -67,7 +67,7 @@ make package-all      # build all container images
 make validate         # run linters
 make validate-ci      # dirty-check (go generate + go mod tidy)
 make build-iso        # build the Harvester ISO
-make prepare-addons   # fetch and cache addons repo + generate manifests
+make prepare-addons   # validate in-tree addons and generate manifests
 make generate-manifest  # regenerate CRD manifest templates
 make generate-openapi   # regenerate OpenAPI/Swagger spec
 ```
