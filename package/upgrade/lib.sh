@@ -346,6 +346,63 @@ install_addon()
   kubectl apply -f /usr/local/share/addons/${name}.yaml -n $namespace
 }
 
+# Synchronize labels derived from addons/<name>/metadata.yaml onto an existing
+# Addon. The packaged manifests are the source of truth after generation.
+# Unrelated labels are preserved; stale stage/deprecation labels are removed.
+sync_addon_labels()
+{
+  local name=$1
+  local namespace=$2
+  local manifest=$3
+
+  if ! kubectl get addons.harvesterhci.io "$name" -n "$namespace" >/dev/null 2>&1; then
+    echo "addon $namespace/$name is not present, skip label synchronization"
+    return 0
+  fi
+
+  local manifest_labels
+  manifest_labels=$(yq -o=json -I=0 '.metadata.labels // {}' "$manifest")
+
+  local patch
+  patch=$(jq -n --argjson labels "$manifest_labels" '
+    def managed_label:
+      . == "addon.harvesterhci.io/experimental" or
+      . == "addon.harvesterhci.io/preview" or
+      . == "addon.harvesterhci.io/ga" or
+      . == "addon.harvesterhci.io/deprecated";
+
+    {
+      metadata: {
+        labels: ({
+          "addon.harvesterhci.io/experimental": null,
+          "addon.harvesterhci.io/preview": null,
+          "addon.harvesterhci.io/ga": null,
+          "addon.harvesterhci.io/deprecated": null
+        } + ($labels | with_entries(select(.key | managed_label))))
+      }
+    }
+  ')
+
+  echo "Synchronizing metadata-derived labels for addon $namespace/$name"
+  kubectl patch addons.harvesterhci.io "$name" -n "$namespace" --type merge -p "$patch"
+}
+
+sync_addon_labels_from_manifests()
+{
+  local addons_dir=${1:-/usr/local/share/addons}
+  local manifest
+
+  for manifest in "$addons_dir"/*.yaml; do
+    [ -e "$manifest" ] || continue
+
+    local name
+    local namespace
+    name=$(yq -e '.metadata.name' "$manifest")
+    namespace=$(yq -e '.metadata.namespace' "$manifest")
+    sync_addon_labels "$name" "$namespace" "$manifest"
+  done
+}
+
 wait_for_addons_crd()
 {
   item_count=$(kubectl get customresourcedefinitions addons.harvesterhci.io -o  jsonpath='{.metadata.name}' || true)
