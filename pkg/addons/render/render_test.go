@@ -31,8 +31,9 @@ func repoAddonsDir(t *testing.T) string {
 // addon against a golden snapshot captured from the pre-migration standalone
 // harvester/addons repo (same pkg/templates/rancherd-22-addons.yaml +
 // version_info). The Addon resources must be deeply equal modulo derived
-// stage/deprecated labels (see stripDerivedLabels), so the comparison focuses
-// on content the directory split itself must not change.
+// stage/deprecated labels (see stripDerivedLabels): those are an intentional,
+// separately-tracked change (the "ga"/"preview" labels didn't exist pre-
+// migration), not something the directory split itself should affect.
 func TestGenerateAddonsMatchesGolden(t *testing.T) {
 	addonsDir := repoAddonsDir(t)
 	versionFile := filepath.Join(addonsDir, "version_info")
@@ -110,6 +111,32 @@ func stripDerivedLabels(res map[string]interface{}) {
 	}
 }
 
+// TestGenerateAddonsAppliesGALabel confirms the one intentional divergence
+// from the pre-migration golden output: GA-stage built-in addons now carry
+// an explicit "ga" label (they carried none before).
+func TestGenerateAddonsAppliesGALabel(t *testing.T) {
+	addonsDir := repoAddonsDir(t)
+	versionFile := filepath.Join(addonsDir, "version_info")
+	destDir := t.TempDir()
+
+	if err := GenerateAddons(addonsDir, destDir, versionFile); err != nil {
+		t.Fatalf("GenerateAddons failed: %v", err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(destDir, "vm-import-controller.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var res map[string]interface{}
+	if err := yaml.Unmarshal(contents, &res); err != nil {
+		t.Fatal(err)
+	}
+	labels := extractResourceLabels(res)
+	if labels["addon.harvesterhci.io/ga"] != "true" {
+		t.Errorf("expected vm-import-controller to carry the ga label, got labels: %v", labels)
+	}
+}
+
 func TestValidateRealAddonsDir(t *testing.T) {
 	addonsDir := repoAddonsDir(t)
 	if errs := Validate(addonsDir); len(errs) > 0 {
@@ -184,7 +211,7 @@ func TestGenerateTemplatesMatchesGolden(t *testing.T) {
 	// Render both templates with representative bootstrap data before
 	// comparing their resource sets. This exercises runtime-only branches
 	// such as .Vip and addon enablement while allowing the directory split to
-	// reorder resources.
+	// reorder resources and add metadata-derived stage labels.
 	bootstrapData := map[string]interface{}{
 		"Vip": "192.0.2.1",
 		"Addons": map[string]interface{}{

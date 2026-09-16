@@ -9,9 +9,14 @@ func TestDeriveLabels(t *testing.T) {
 		want map[string]string
 	}{
 		{
-			name: "ga stage produces no label yet",
+			name: "ga stage",
 			meta: &Metadata{Stage: StageGA},
-			want: map[string]string{},
+			want: map[string]string{"addon.harvesterhci.io/ga": "true"},
+		},
+		{
+			name: "preview stage",
+			meta: &Metadata{Stage: StagePreview},
+			want: map[string]string{"addon.harvesterhci.io/preview": "true"},
 		},
 		{
 			name: "experimental stage",
