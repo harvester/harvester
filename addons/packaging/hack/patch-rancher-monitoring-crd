@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Note: this file and function are used by the ISO builder (in the Harvester repo) to patch the chart.
+# Do not delete this file or function, even if the function appears to do nothing, to avoid breaking the ISO builder.
+# Patch contents change from version to version, so keeping the file and function stable is important.
+
+patch_rancher_monitoring_crd_chart()
+{
+  local chart_dir=$1 #${CHARTS_DIR}
+  local monitoring_version=$2 #MONITORING_VERSION
+  local pkg_monitoring_crd_path=$3 #${PKG_PATCH_MONITORING_PATH}
+  local cwd=$(pwd)
+
+  if [ ! -d "${pkg_monitoring_crd_path}/${monitoring_version}" ]; then
+    echo "NOTE: there is no related path: ${pkg_monitoring_crd_path}/${monitoring_version} to patch, SKIP"
+    return 0
+  fi
+
+  echo "There is no patch for rancher-monitoring-crd version ${monitoring_version}"
+}
