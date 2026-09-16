@@ -1,0 +1,4 @@
+name: rancher-monitoring
+namespace: cattle-monitoring-system
+stage: ga
+builtIn: true

@@ -1,0 +1,89 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: rancher-monitoring
+  namespace: cattle-monitoring-system
+spec:
+  chart: rancher-monitoring
+  enabled: false
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  valuesContent: |
+    rancherMonitoring:
+      enabled: false
+    kube-state-metrics:
+      metricLabelsAllowlist:
+        - 'nodes=[*]'
+    alertmanager:
+      enabled: true
+      config:
+        global:
+          resolve_timeout: 5m
+      service:
+        port: 9093
+      alertmanagerSpec:
+        retention: 120h
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: harvester-longhorn
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+        resources:
+          limits:
+            memory: 600Mi
+            cpu: 1000m
+          requests:
+            memory: 100Mi
+            cpu: 100m
+    grafana:
+      persistence:
+        enabled: true
+        size: 2Gi
+        storageClassName: harvester-longhorn
+        type: pvc
+        accessModes:
+        - ReadWriteOnce
+      resources:
+        limits:
+          cpu: 200m
+          memory: 500Mi
+        requests:
+          cpu: 100m
+          memory: 200Mi
+    prometheus:
+      service:
+        port: 9090
+      prometheusSpec:
+        evaluationInterval: 1m
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2500Mi
+          requests:
+            cpu: 750m
+            memory: 1750Mi
+        retention: 5d
+        retentionSize: 50GiB
+        scrapeInterval: 1m
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 50Gi
+              storageClassName: harvester-longhorn
+              volumeMode: Filesystem
+    prometheus-node-exporter:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 180Mi
+        requests:
+          cpu: 100m
+          memory: 30Mi
+  version: 109.0.3+up80.9.1-rancher.14

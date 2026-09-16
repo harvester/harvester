@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Called by the Harvester ISO installer to check the rancher-monitoring and rancher-logging claimed images are included in the ISO builder image list.
+# Arguments:
+#   $1: Path to the definition file containing images to check (e.g., monitoring-logging-chart-images-list.txt)
+#   $2: Path to the target image list file (e.g. on the ISO builder image lists) to check against
+
+# Example Usage:
+# check_rancher_monitoring_logging_images_from_file "addons/scripts/hack/monitoring-logging-chart-images-list.txt" "path/to/target_file.txt"
+
+check_rancher_monitoring_logging_images_from_file() {
+    local def_file="$1"
+    local target_file="$2"
+
+    if [[ ! -f "${def_file}" ]]; then
+        echo "ERROR: Image definition file '${def_file}' not found." >&2
+        return 1
+    fi
+
+    if [[ ! -f "${target_file}" ]]; then
+        echo "ERROR: Target file '${target_file}' not found." >&2
+        return 1
+    fi
+
+    local missing_count=0
+
+    # Read the definition file line by line
+    # 1. Strip trailing carriage returns (CRLF handling)
+    # 2. Remove leading/trailing whitespace
+    # 3. Skip empty lines and lines starting with '#'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # 1. Strip the trailing carriage return (CRLF handling)
+        line=${line%$'\r'}
+
+        # 2. Strip leading and trailing whitespace using native read
+        read -r line <<< "$line"
+
+        # Skip comments and empty lines
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        # check against the target file
+        if ! grep -qxF -- "${line}" "${target_file}"; then
+            echo "FAIL: Image [${line}] not found in ${target_file}" >&2
+            missing_count=$((missing_count + 1))
+        else
+            echo "OK:   Image [${line}] is present"
+        fi
+    done < "${def_file}"
+
+    if (( missing_count > 0 )); then
+        echo "Validation failed: ${missing_count} image(s) missing." >&2
+        return 1
+    fi
+
+    echo "All images successfully checked!"
+    return 0
+}

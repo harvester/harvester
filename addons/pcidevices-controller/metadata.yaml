@@ -1,0 +1,4 @@
+name: pcidevices-controller
+namespace: harvester-system
+stage: ga
+builtIn: true

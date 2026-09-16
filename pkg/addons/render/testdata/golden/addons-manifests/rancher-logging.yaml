@@ -1,0 +1,61 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: rancher-logging
+  namespace: cattle-logging-system
+spec:
+  chart: rancher-logging
+  enabled: false
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  valuesContent: |
+    systemdLogPath: /var/log/journal
+    disablePvc: true
+    additionalLoggingSources:
+      rke2:
+        enabled: true
+      kubeAudit:
+        enabled: true
+        auditFilename: "audit.log"
+        pathPrefix: "/var/lib/rancher/rke2/server/logs/"
+        loggingRef: "harvester-kube-audit-log-ref"
+        fluentbit:
+          logTag: kube-audit
+          tolerations:
+          - key: node-role.kubernetes.io/controlplane
+            value: "true"
+            effect: NoSchedule
+          - key: node-role.kubernetes.io/etcd
+            value: "true"
+            effect: NoExecute
+    fluentd:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 800Mi
+        requests:
+          cpu: 100m
+          memory: 200Mi
+    fluentbit:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 50m
+          memory: 50Mi
+    eventTailer:
+      name: harvester-default
+      namespace: cattle-logging-system
+      controlNamespace: cattle-logging-system
+      workloadOverrides:
+        containers:
+        - image: rancher/harvester-eventrouter:master-head
+          name: event-tailer
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 20m
+              memory: 20Mi
+  version: 109.0.0+up4.10.0-rancher.23
