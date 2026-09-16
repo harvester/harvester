@@ -8,17 +8,28 @@ load_addon_env() {
   fi
   
   source ${addon_path}/version_info
-  source ${addon_path}/scripts/hack/patch-rancher-monitoring
-  source ${addon_path}/scripts/hack/patch-rancher-logging
-  source ${addon_path}/scripts/hack/patch-rancher-monitoring-crd
+  source ${addon_path}/packaging/hack/patch-rancher-monitoring
+  source ${addon_path}/packaging/hack/patch-rancher-logging
+  source ${addon_path}/packaging/hack/patch-rancher-monitoring-crd
+
+  # compose full "repository:tag" image references from the addon's
+  # separate _IMAGE_REPOSITORY/_IMAGE_TAG version_info fields, for callers
+  # that need a single pullable image reference (e.g. scripts/lib/
+  # harvester-image-list, scripts/build-installer).
+  VM_IMPORT_CONTROLLER_IMAGE="${VM_IMPORT_CONTROLLER_IMAGE_REPOSITORY}:${VM_IMPORT_CONTROLLER_IMAGE_TAG}"
+  PCIDEVICES_CONTROLLER_IMAGE="${PCIDEVICES_CONTROLLER_IMAGE_REPOSITORY}:${PCIDEVICES_CONTROLLER_IMAGE_TAG}"
+  HARVESTER_SEEDER_IMAGE="${HARVESTER_SEEDER_IMAGE_REPOSITORY}:${HARVESTER_SEEDER_IMAGE_TAG}"
+  HARVESTER_EVENTROUTER_FULL_TAG="${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}"
+  KUBEOVN_OPERATOR_IMAGE="${KUBEOVN_OPERATOR_IMAGE_REPOSITORY}:${KUBEOVN_OPERATOR_IMAGE_TAG}"
+  DESCHEDULER_IMAGE="${DESCHEDULER_IMAGE_REPOSITORY}:${DESCHEDULER_IMAGE_TAG}"
 
   # load addon specific image check script and image list file, if they exist
   # set global variables to default values first
   MONITORING_LOGGING_ADDON_IMAGE_FILE=""
   MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC=""
 
-  local addon_check_chart_images_file="${addon_path}/scripts/hack/check-monitoring-logging-chart-images"
-  local addon_image_file="${addon_path}/scripts/hack/monitoring-logging-chart-images-list.txt"
+  local addon_check_chart_images_file="${addon_path}/packaging/hack/check-monitoring-logging-chart-images"
+  local addon_image_file="${addon_path}/packaging/hack/monitoring-logging-chart-images-list.txt"
   # hard-coded function name, as the function is defined in the check-monitoring-logging-chart-images script
   local internal_func_name="check_rancher_monitoring_logging_images_from_file"
 

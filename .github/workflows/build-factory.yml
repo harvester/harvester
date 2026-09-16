@@ -37,7 +37,6 @@ jobs:
         TAG_NAME="${{ inputs.tag }}"
         echo "HARVESTER_UI_VERSION=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_UI_PLUGIN_BUNDLED_VERSION=$TAG_NAME" >> $GITHUB_ENV
-        echo "HARVESTER_ADDONS_VERSION=$TAG_NAME" >> $GITHUB_ENV
 
     # Build binaries
     - name: Run make ci
@@ -258,7 +257,6 @@ jobs:
         TAG_NAME="${{ inputs.tag }}"
         echo "HARVESTER_UI_VERSION=$TAG_NAME" >> $GITHUB_ENV
         echo "HARVESTER_UI_PLUGIN_BUNDLED_VERSION=$TAG_NAME" >> $GITHUB_ENV
-        echo "HARVESTER_ADDONS_VERSION=$TAG_NAME" >> $GITHUB_ENV
 
     - name: build-iso
       if: ${{ startsWith(github.ref, 'refs/heads/') }}
