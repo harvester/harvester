@@ -1,0 +1,99 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: rancher-monitoring
+  namespace: cattle-monitoring-system
+spec:
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  version: "<< .RANCHER_MONITORING_CHART_VERSION >>"
+  chart: rancher-monitoring
+  {{- if and .Addons .Addons.rancher_monitoring }}
+  enabled: {{ .Addons.rancher_monitoring.Enabled }}
+  {{- else }}
+  enabled: false
+  {{- end }}
+  valuesContent: |
+    rancherMonitoring:
+      enabled: false
+    kube-state-metrics:
+      metricLabelsAllowlist:
+        - 'nodes=[*]'
+    alertmanager:
+      enabled: true
+      config:
+        global:
+          resolve_timeout: 5m
+      service:
+        port: 9093
+      alertmanagerSpec:
+        {{- if .Vip }}
+        externalUrl: "https://{{ .Vip }}/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-alertmanager:9093/proxy/"
+        {{- end }}
+        retention: 120h
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: harvester-longhorn
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+        resources:
+          limits:
+            memory: 600Mi
+            cpu: 1000m
+          requests:
+            memory: 100Mi
+            cpu: 100m
+    grafana:
+      persistence:
+        enabled: true
+        size: 2Gi
+        storageClassName: harvester-longhorn
+        type: pvc
+        accessModes:
+        - ReadWriteOnce
+      resources:
+        limits:
+          cpu: 200m
+          memory: 500Mi
+        requests:
+          cpu: 100m
+          memory: 200Mi
+    prometheus:
+      service:
+        port: 9090
+      prometheusSpec:
+        evaluationInterval: 1m
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2500Mi
+          requests:
+            cpu: 750m
+            memory: 1750Mi
+        retention: 5d
+        retentionSize: 50GiB
+        scrapeInterval: 1m
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 50Gi
+              storageClassName: harvester-longhorn
+              volumeMode: Filesystem
+        {{- if .Vip }}
+        externalUrl: "https://{{ .Vip }}/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-prometheus:9090/proxy/"
+        {{- end }}
+    prometheus-node-exporter:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 180Mi
+        requests:
+          cpu: 100m
+          memory: 30Mi

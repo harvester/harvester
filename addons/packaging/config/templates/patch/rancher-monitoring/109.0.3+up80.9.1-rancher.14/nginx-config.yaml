@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-nginx-proxy-config
+  namespace: {{ template "grafana.namespace" . }}
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+data:
+  nginx.conf: |-
+    worker_processes      auto;
+    error_log             /dev/stdout warn;
+    pid                   /var/cache/nginx/nginx.pid;
+
+    events {
+       worker_connections 1024;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      log_format    main '[$time_local - $status] $remote_addr - $remote_user $request ($http_referer)';
+
+      proxy_connect_timeout       10;
+      proxy_read_timeout          180;
+      proxy_send_timeout          5;
+      proxy_buffering             off;
+      proxy_cache_path            /var/cache/nginx/cache levels=1:2 keys_zone=my_zone:100m inactive=1d max_size=10g;
+
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+      }
+
+      server {
+        listen          8080;
+        access_log      off;
+
+        gzip            on;
+        gzip_min_length 1k;
+        gzip_comp_level 2;
+        gzip_types      text/plain application/javascript application/x-javascript text/css application/xml text/javascript image/jpeg image/gif image/png;
+        gzip_vary       on;
+        gzip_disable    "MSIE [1-6]\.";
+
+        proxy_set_header Host $host;
+
+        location /api/dashboards {
+          proxy_pass     http://localhost:3000;
+        }
+
+        location /api/search {
+          proxy_pass     http://localhost:3000;
+
+          sub_filter_types application/json;
+          sub_filter_once off;
+        }
+
+        location /api/live/ {
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_set_header Host $http_host;
+          proxy_pass http://localhost:3000;
+        }
+
+        location / {
+          proxy_cache         my_zone;
+          proxy_cache_valid   200 302 1d;
+          proxy_cache_valid   301 30d;
+          proxy_cache_valid   any 5m;
+          proxy_cache_bypass  $http_cache_control;
+          add_header          X-Proxy-Cache $upstream_cache_status;
+          add_header          Cache-Control "public";
+
+          proxy_pass     http://localhost:3000/;
+
+          sub_filter_once off;
+
+          #sub_filter '"appSubUrl":""' '"appSubUrl":"/api/v1/namespaces/{{ template "grafana.namespace" . }}/services/http:{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/proxy"';
+
+          sub_filter '"appSubUrl":""' $final_appSubUrl;
+
+          sub_filter ':"/avatar/' ':"avatar/';
+
+          if ($request_filename ~ .*\.(?:js|css|jpg|jpeg|gif|png|ico|cur|gz|svg|svgz|mp4|ogg|ogv|webm)$) {
+            expires             90d;
+          }
+
+          {{- if .Values.ingress.enabled }}
+             {{- if eq .Values.global.cattle.clusterId "local" }}
+             rewrite ^/api/v1/namespaces/{{ template "grafana.namespace" . }}/services/http:{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/proxy/public/plugins/(.*)$ /public/plugins/$1 break;
+             {{- else }}
+             rewrite ^/k8s/clusters/{{ .Values.global.cattle.clusterId }}/api/v1/namespaces/{{ template "grafana.namespace" . }}/services/http:{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/proxy/public/plugins/(.*)$ /public/plugins/$1 break;
+             {{- end }}
+          {{- end }}
+
+          rewrite ^/k8s/clusters/.*/proxy(.*) /$1 break;
+
+        }
+      }
+
+      map $http_referer $final_appSubUrl {
+        ~.*/k8s/clusters/(c-.+)/api/v1/namespaces/cattle-monitoring-system/.*      '"appSubUrl":"/k8s/clusters/$1/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        ~.*/dashboard/c/(c-.+)/.*     '"appSubUrl":"/k8s/clusters/$1/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        ~.*/dashboard/harvester/c/(c-.+)/harvesterhci.io.addon/cattle-monitoring-system/.* '"appSubUrl":"/k8s/clusters/$1/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        ~.*/dashboard/harvester/c/(c-.+)/kubevirt.io.virtualmachine/.*/.* '"appSubUrl":"/k8s/clusters/$1/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        ~.*/dashboard/harvester/c/(c-.+)/.*      '"appSubUrl":"/k8s/clusters/$1/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        ~.*/api/v1/namespaces/cattle-monitoring-system/.*    '"appSubUrl":"/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+        default '"appSubUrl":"/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-grafana:80/proxy"';
+      }
+
+    }
