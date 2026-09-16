@@ -12,9 +12,6 @@ const labelPrefix = "addon.harvesterhci.io/"
 // rendered manifest, based solely on metadata.yaml. Labels are additive:
 // hand-authored labels that aren't part of this derived set (e.g. a
 // human-readable displayName) are left untouched by callers.
-//
-// NOTE: the "ga" and "preview" stage labels are intentionally not derived
-// yet; see stageLabel below.
 func DeriveLabels(meta *Metadata) map[string]string {
 	labels := map[string]string{}
 	if key, ok := stageLabel(meta.Stage); ok {
@@ -26,16 +23,17 @@ func DeriveLabels(meta *Metadata) map[string]string {
 	return labels
 }
 
-// stageLabel returns the derived label key for a stage, if one is currently
-// defined. Only "experimental" is derived today (it mirrors the label addons
-// already carried by hand before consolidation); "preview" and "ga" labels
-// are added in a follow-up change once the migration-equivalence gate has
-// verified the directory split renders identically to the pre-migration
-// output.
+// stageLabel returns the derived label key for a stage. Every stage carries
+// an explicit label so the UI can positively display GA rather than infer it
+// from the absence of other labels.
 func stageLabel(stage Stage) (string, bool) {
 	switch stage {
 	case StageExperimental:
 		return labelPrefix + "experimental", true
+	case StagePreview:
+		return labelPrefix + "preview", true
+	case StageGA:
+		return labelPrefix + "ga", true
 	default:
 		return "", false
 	}
