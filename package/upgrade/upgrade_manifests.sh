@@ -1391,6 +1391,10 @@ upgrade_addons()
   upgrade_nvidia_driver_toolkit_addon
 
   manage_kubeovn
+
+  # Synchronize the metadata-derived stage/deprecation labels from every
+  # manifest after all addon-specific upgrade paths complete.
+  sync_addon_labels_from_manifests
 }
 
 reuse_vlan_cn() {
@@ -1686,14 +1690,6 @@ annotate_management_cluster_provisioning_administrated() {
   kubectl annotate clusters.management.cattle.io local provisioning.cattle.io/administrated=true --overwrite
 }
 
-# Harvester v1.9.x marks harvester-seeder addon as GA
-# We need to remove the experimental label for the harvester-seeder addon
-# this is already being done for new installs via addon packaging
-promote_addons() {
-  echo "promoting addon harvester-seeder"
-  kubectl label -n harvester-system addons.harvester harvester-seeder  "addon.harvesterhci.io/experimental-"
-}
-
 wait_repo
 detect_repo
 detect_upgrade
@@ -1722,6 +1718,5 @@ upgrade_addons
 upgrade_harvester_csi_rbac
 # wait fleet bundles upto 90 seconds
 wait_for_fleet_bundles 9
-promote_addons
 # ingress will be swapped during the pre drain stage but we can apply traefik default config here
 patch_rke2_traefik_config
