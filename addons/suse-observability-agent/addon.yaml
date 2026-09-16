@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: suse-observability
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: suse-observability-agent
+  namespace: suse-observability
+  labels:
+    addon.harvesterhci.io/experimental: "true"
+spec:
+  enabled: false
+  repo: https://charts.rancher.com/server-charts/prime/suse-observability
+  version: 1.2.14
+  chart: suse-observability-agent
+  valuesContent: |
+    stackstate:
+      apiKey:
+      cluster:
+        name:
+      url:

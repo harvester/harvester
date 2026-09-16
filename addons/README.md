@@ -45,6 +45,12 @@ derived from `metadata.yaml` by the generator; hand-written label drift fails CI
 | [harvester-seeder](harvester-seeder/README.md) | ga | yes |
 | [kubeovn-operator](kubeovn-operator/README.md) | experimental | yes |
 | [descheduler](descheduler/README.md) | experimental | yes |
+| [harvester-csi-driver-lvm](harvester-csi-driver-lvm/README.md) | experimental | no |
+| [harvester-upgrade-manager](harvester-upgrade-manager/README.md) | experimental | no |
+| [harvester-vm-dhcp-controller](harvester-vm-dhcp-controller/README.md) | experimental | no |
+| [rancher-k3k](rancher-k3k/README.md) | experimental | no |
+| [rancher-vcluster](rancher-vcluster/README.md) | experimental | no |
+| [suse-observability-agent](suse-observability-agent/README.md) | experimental | no |
 
 ## Other files
 
