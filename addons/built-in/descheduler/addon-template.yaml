@@ -1,0 +1,69 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: descheduler
+  namespace: kube-system
+  labels:
+    addon.harvesterhci.io/displayName: "virtual-machine-auto-balance"
+spec:
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  version: "<< .DESCHEDULER_CHART_VERSION >>"
+  chart: descheduler
+  {{- if and .Addons .Addons.descheduler }}
+  enabled: {{ .Addons.descheduler.Enabled }}
+  {{- else }}
+  enabled: false
+  {{- end }}
+  valuesContent: |
+    kind: Deployment
+    image:
+      repository: << .DESCHEDULER_IMAGE_REPOSITORY >>
+      pullPolicy: IfNotPresent
+    deschedulingInterval: 5m
+    replicas: 1
+    cmdOptions:
+      v: 3
+      feature-gates: EvictionsInBackground=true
+    deschedulerPolicy:
+      maxNoOfPodsToEvictPerNode: 5
+      profiles:
+      - name: default
+        pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            ignorePvcPods: false
+            evictLocalStoragePods: true
+            labelSelector:
+              matchExpressions:
+                - key: "kubevirt.io"
+                  operator: "In"
+                  values:
+                    - "virt-launcher"
+        - name: LowNodeUtilization
+          args:
+            evictableNamespaces:
+              exclude:
+              - cattle-dashboards
+              - cattle-fleet-clusters-system
+              - cattle-fleet-local-system
+              - cattle-fleet-system
+              - cattle-logging-system
+              - cattle-monitoring-system
+              - cattle-provisioning-capi-system
+              - cattle-system
+              - fleet-local
+              - harvester-system
+              - kube-system
+              - local
+              - longhorn-system
+            thresholds:
+              cpu: 30
+              memory: 30
+            targetThresholds:
+              cpu: 50
+              memory: 50
+        plugins:
+          balance:
+            enabled:
+            - LowNodeUtilization

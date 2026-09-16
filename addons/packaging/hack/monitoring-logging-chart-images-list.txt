@@ -1,0 +1,95 @@
+# This file tracks the images used by rancher-monitoring and rancher-logging charts.
+# It serves two primary purposes:
+#
+# (1) Bumping Process Support:
+#     Acts as a reference when bumping Helm charts. By cross-checking the charts
+#     against this file, developers can easily identify if images were updated,
+#     removed, renamed, or added. This is especially helpful for contributors
+#     unfamiliar with these specific charts who need to safely bump them.
+#
+# (2) Validation:
+#     Cross-referenced against `harvester/harvester/scripts/images/rancher-images.txt`
+#     to guarantee all image updates are properly propagated there.
+#     Note: Like the target file, this is a plain text file, but it supports inline
+#     comments. All comments, blank lines, and whitespace are automatically
+#     stripped by the script during validation.
+
+# ==========================================
+# Images used by rancher-logging chart
+# Version: 109.0.0+up4.10.0-rancher.23
+# ==========================================
+
+# Used by rancher-logging-crd chart
+
+# Used by rancher-logging chart
+
+# changed: false; old value:
+docker.io/rancher/mirrored-fluent-fluent-bit:3.1.8
+
+# changed: false; old value:
+docker.io/rancher/mirrored-kube-logging-fluentd:v1.16-4.10-full
+
+# changed: false; old value:
+docker.io/rancher/mirrored-kube-logging-logging-operator:4.10.0
+
+# changed: false; old value:
+docker.io/rancher/mirrored-kube-logging-config-reloader:v0.0.6
+
+# ==========================================
+# Images used by rancher-monitoring chart
+# Version: 109.0.3+up80.9.1-rancher.14
+# ==========================================
+
+# Used by rancher-monitoring-crd chart
+
+# changed: true; old value: v6.0.0
+#  also patch rancher-monitoring to use v7.1.1 instead of v7.1.0
+docker.io/rancher/kuberlr-kubectl:v7.1.1
+
+# Used by rancher-monitoring chart
+
+# changed: true; old value: 12.1.1-2.2
+docker.io/rancher/appco-grafana:12.3.1-1.12
+
+# changed: true; old value: // newly added
+docker.io/rancher/mirrored-jkroepke-kube-webhook-certgen:1.7.4
+
+# removed
+# docker.io/rancher/mirrored-ingress-nginx-kube-webhook-certgen:v1.6.2
+# docker.io/rancher/mirrored-ingress-nginx-kube-webhook-certgen:v1.6.7
+
+# changed: true; old value: 1.30.7-11.3
+docker.io/rancher/appco-k8s-sidecar:2.1.2-1.10
+
+# changed: true; old value: 2.17.0-10.7
+docker.io/rancher/appco-kube-state-metrics:2.17.0-10.14
+
+# changed: false; old value:
+docker.io/rancher/mirrored-library-busybox:1.37.0
+
+# changed: false; old value:
+docker.io/rancher/mirrored-library-nginx:1.29.1-alpine
+
+# changed: false; old value:
+docker.io/rancher/mirrored-prometheus-adapter-prometheus-adapter:v0.12.0
+
+# changed: true; old value: 0.28.1-12.7
+docker.io/rancher/appco-alertmanager:0.30.0-12.16
+
+# changed: true; old value: 1.9.1-11.3
+docker.io/rancher/appco-node-exporter:1.10.2-14.3
+
+# changed: true; old value: v0.80.1
+docker.io/rancher/mirrored-prometheus-operator-prometheus-config-reloader:v0.87.1
+
+# changed: true; old value: v0.85.0
+docker.io/rancher/mirrored-prometheus-operator-prometheus-operator:v0.87.1
+
+# changed: true; old value: v0.85.0
+docker.io/rancher/mirrored-prometheus-operator-admission-webhook:v0.87.1
+
+# changed: true; old value: v3.5.0
+docker.io/rancher/prom-prometheus:v3.8.1
+
+# changed: true; old value: v6.0.0, chart value: v7.1.0, but it is replaced to v7.1.1 by patch
+# docker.io/rancher/kuberlr-kubectl:v7.1.0
