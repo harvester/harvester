@@ -1,0 +1,13 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: harvester-vm-dhcp-controller
+  namespace: harvester-system
+  labels:
+    addon.harvesterhci.io/experimental: "true"
+spec:
+  enabled: false
+  repo: https://charts.harvesterhci.io
+  version: 1.10.0-dev.0
+  chart: harvester-vm-dhcp-controller
+  valuesContent: ""

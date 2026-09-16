@@ -101,11 +101,11 @@ Check out the [Component Maintainers](https://github.com/harvester/harvester/wik
 
 #### Experimental
 
-- harvester/experimental-addons/harvester-csi-driver-lvm ([Document](https://docs.harvesterhci.io/latest/advanced/addons/lvm-local-storage))
+- harvester/harvester/addons/standalone/harvester-csi-driver-lvm ([Document](https://docs.harvesterhci.io/latest/advanced/addons/lvm-local-storage))
   - CSI driver that supports local path provisioning through LVM.
-- harvester/experimental-addons/vm-dhcp-controller ([Document](https://docs.harvesterhci.io/latest/advanced/addons/managed-dhcp))
+- harvester/harvester/addons/standalone/harvester-vm-dhcp-controller ([Document](https://docs.harvesterhci.io/latest/advanced/addons/managed-dhcp))
   - A managed DHCP service for virtual machines running on Harvester.
-- harvester/experimental-addons/rancher-vcluster ([Document](https://docs.harvesterhci.io/latest/advanced/addons/rancher-vcluster))
+- harvester/harvester/addons/standalone/rancher-vcluster ([Document](https://docs.harvesterhci.io/latest/advanced/addons/rancher-vcluster))
   - Runs Rancher Manager as a workload on the underlying Harvester cluster, implemented using vcluster. It's one way to start a Rancher service and use [Rancher Integration](https://docs.harvesterhci.io/latest/rancher/rancher-integration) with Harvester.
 
 
