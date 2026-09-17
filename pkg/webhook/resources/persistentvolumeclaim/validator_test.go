@@ -390,14 +390,11 @@ func TestCreate(t *testing.T) {
 	tests := []struct {
 		name          string
 		pvc           *corev1.PersistentVolumeClaim
-<<<<<<< HEAD
 		dataPVC       *corev1.PersistentVolumeClaim
 		image         *harvesterv1.VirtualMachineImage
-=======
 		sc            *storagev1.StorageClass
 		bi            *longhorn.BackingImage
 		sarDenied     bool
->>>>>>> 078ed05 (test: add test cases)
 		expectError   bool
 		errorContains string
 	}{
@@ -640,29 +637,17 @@ func TestCreate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
-<<<<<<< HEAD
-<<<<<<< HEAD
 			if tc.image != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.image))
 			}
 			if tc.dataPVC != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.dataPVC))
 			}
-
-			validator := &pvcValidator{
-				pvcCache:   fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
-				imageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
-=======
-			validator := &pvcValidator{
-				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
->>>>>>> 7c0f1fd (feat: check lh sc when creating pvc)
-=======
 			if tc.sc != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.sc))
 			}
 			if tc.bi != nil {
 				assert.NoError(t, clientset.Tracker().Add(tc.bi))
->>>>>>> 078ed05 (test: add test cases)
 			}
 
 			var sar = allowedFakeSAR
@@ -670,6 +655,8 @@ func TestCreate(t *testing.T) {
 				sar = denyFakeSAR
 			}
 			validator := &pvcValidator{
+				pvcCache:          fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+				imageCache:        fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 				scCache:           fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 				backingImageCache: fakeclients.BackingImageCache(clientset.LonghornV1beta2().BackingImages),
 				sar:               sar,
