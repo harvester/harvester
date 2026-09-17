@@ -156,6 +156,33 @@ type: secret
 data:
   networkdata: ""
   userdata: I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlczoKICAtIHFlbXUtZ3Vlc3QtYWdlbnQKcnVuY21kOgogIC0gLSBzeXN0ZW1jdGwKICAgIC0gZW5hYmxlCiAgICAtIC0tbm93CiAgICAtIHFlbXUtZ3Vlc3QtYWdlbnQuc2VydmljZQo=
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: windows-image-template-userdata
+  namespace: {{ .Namespace }}
+  labels:
+    harvesterhci.io/cloud-init-template: harvester
+type: secret
+stringData:
+  networkdata: ""
+  userdata: |
+    #cloud-config
+    # Consumed by Cloudbase-Init inside a prepared Windows image on the first
+    # boot of every VM cloned from it. The hostname is taken from the NoCloud
+    # metadata (the VM name), so it is not set here. Edit this before creating
+    # the VM to add local users, groups and first-boot commands, for example:
+    #
+    # users:
+    #   - name: tux
+    #     password: <change-me>
+    #     groups: [Administrators]
+    # runcmd:
+    #   - powershell.exe -Command "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
+    #
+    # UTC matches the emulated RTC this template configures (clock.utc).
+    set_timezone: UTC
 `
 
 	initBaseTemplates = `
@@ -222,6 +249,14 @@ metadata:
   namespace: {{ .Namespace }}
 spec:
   description: Windows 11 VM (4 vCPU, 8 GiB RAM, 64 GiB rootdisk). Boots from an uploaded Windows 11 ISO with the VMDP virtio-driver container attached. Enables UEFI + Secure Boot + vTPM (required by Windows 11 Setup), balanced Hyper-V enlightenments, and a virtio-blk rootdisk.
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplate
+metadata:
+  name: windows-image-template
+  namespace: {{ .Namespace }}
+spec:
+  description: Windows VM from a prepared (sysprepped) Windows image (4 vCPU, 16 GiB RAM, 64 GiB rootdisk). Boots straight from a qcow2/raw Windows image that already has the virtio drivers and a cloud-init agent such as Cloudbase-Init baked in, so there is no install ISO and no VMDP driver CD-ROM to attach -- you pick the image on the Volume tab. Enables balanced Hyper-V enlightenments, a virtio-blk rootdisk, a virtio NIC and a cloud-init disk for first-boot personalization.
 `
 
 	// windows default resource request refer to windows server docs https://docs.microsoft.com/en-us/windows-server/get-started-19/sys-reqs-19
@@ -1152,5 +1187,121 @@ spec:
               image: registry.suse.com/suse/vmdp/vmdp:2.5.5
               imagePullPolicy: IfNotPresent
             name: virtio-container-disk
+---
+apiVersion: harvesterhci.io/v1beta1
+kind: VirtualMachineTemplateVersion
+metadata:
+  annotations:
+    harvesterhci.io/default-userdata-secret: windows-image-template-userdata
+  name: windows-image-optimized
+  namespace: {{ .Namespace }}
+spec:
+  templateId: {{ .Namespace }}/windows-image-template
+  vm:
+    metadata:
+      labels:
+        harvesterhci.io/os: windows
+      annotations:
+        harvesterhci.io/reservedMemory: 256Mi
+        # The rootdisk's imageId is left empty on purpose -- you pick the
+        # prepared Windows image in the UI when you create the VM from this
+        # template. 64Gi is a default, not a floor: the image only has to fit,
+        # and a cloud-init agent with a volume-extend plugin grows C: to
+        # whatever size is requested here.
+        harvesterhci.io/volumeClaimTemplates: |-
+          [{
+            "metadata": {
+              "name": "pvc-rootdisk",
+              "annotations": {
+                "harvesterhci.io/imageId": ""
+              }
+            },
+            "spec":{
+              "accessModes": ["ReadWriteMany"],
+              "resources":{
+                "requests":{
+                  "storage": "64Gi"
+                }
+              },
+              "volumeMode": "Block"
+            }
+          }]
+    spec:
+      runStrategy: RerunOnFailure
+      template:
+        spec:
+          evictionStrategy: LiveMigrateIfPossible
+          domain:
+            features:
+              acpi:
+                enabled: true
+              apic:
+                enabled: true
+              smm:
+                enabled: true
+              hyperv:
+                relaxed:
+                  enabled: true
+                vapic:
+                  enabled: true
+                spinlocks:
+                  enabled: true
+                  spinlocks: 8191
+                vpindex:
+                  enabled: true
+                synic:
+                  enabled: true
+                synictimer:
+                  enabled: true
+                  direct:
+                    enabled: true
+                ipi:
+                  enabled: true
+                runtime:
+                  enabled: true
+                reset:
+                  enabled: true
+            clock:
+              utc: {}
+              timer:
+                hpet:
+                  present: false
+                hyperv:
+                  present: true
+                pit:
+                  tickPolicy: delay
+                rtc:
+                  tickPolicy: catchup
+            cpu:
+              cores: 4
+            devices:
+              disks:
+              - disk:
+                  bus: virtio
+                name: rootdisk
+                bootOrder: 1
+              interfaces:
+              - name: default
+                model: virtio
+                masquerade: {}
+              inputs:
+              - bus: usb
+                name: tablet
+                type: tablet
+            resources:
+              limits:
+                memory: 16Gi
+                cpu: 4
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - persistentVolumeClaim:
+              claimName: pvc-rootdisk
+            name: rootdisk
+          - name: cloudinitdisk
+            cloudInitNoCloud:
+              secretRef:
+                name: windows-image-template-userdata
 `
 )
