@@ -17,9 +17,10 @@ const (
 
 // GVRs used with CheckObjectAccess.
 var (
-	ServiceGVR             = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
-	PVCGVR                 = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"}
-	VirtualMachineImageGVR = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachineimages"}
+	ServiceGVR              = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
+	PVCGVR                  = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"}
+	VirtualMachineImageGVR  = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachineimages"}
+	VirtualMachineBackupGVR = schema.GroupVersionResource{Group: "harvesterhci.io", Version: "v1beta1", Resource: "virtualmachinebackups"}
 )
 
 type ResourceAccessCheck struct {
