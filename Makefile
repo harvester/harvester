@@ -89,7 +89,7 @@ DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
 	gen-version-env gen-version-env-debug build-installer \
-	check-images fix
+	check-images fix collect-rancher-deps
 
 
 # ---- Directories ----
@@ -166,6 +166,12 @@ build-installer: prepare-addons | $(ROOT)/bin
 check-images: prepare-addons gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target check-images
+
+
+# ---- Collect Rancher dependency (fleet, fleet-crd, rancher-webhook) versions ----
+collect-rancher-deps:
+	$(BANNER)
+	$(DOCKER_BUILD) --target collect-rancher-deps
 
 
 # ---- Package harvester image ----
