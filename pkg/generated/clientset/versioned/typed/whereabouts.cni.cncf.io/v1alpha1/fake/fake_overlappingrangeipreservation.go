@@ -30,11 +30,11 @@ type fakeOverlappingRangeIPReservations struct {
 	Fake *FakeWhereaboutsV1alpha1
 }
 
-func newFakeOverlappingRangeIPReservations(fake *FakeWhereaboutsV1alpha1, namespace string) whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationInterface {
+func newFakeOverlappingRangeIPReservations(fake *FakeWhereaboutsV1alpha1) whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationInterface {
 	return &fakeOverlappingRangeIPReservations{
 		gentype.NewFakeClientWithList[*v1alpha1.OverlappingRangeIPReservation, *v1alpha1.OverlappingRangeIPReservationList](
 			fake.Fake,
-			namespace,
+			"",
 			v1alpha1.SchemeGroupVersion.WithResource("overlappingrangeipreservations"),
 			v1alpha1.SchemeGroupVersion.WithKind("OverlappingRangeIPReservation"),
 			func() *v1alpha1.OverlappingRangeIPReservation { return &v1alpha1.OverlappingRangeIPReservation{} },
