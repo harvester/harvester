@@ -235,6 +235,15 @@ COPY scripts/version scripts/.version_env scripts/
 RUN bash scripts/prepare-harvester-charts
 
 
+# ---- collect-rancher-deps ----
+# Resolves Rancher dependency chart/app versions (fleet, fleet-crd,
+# rancher-webhook) for harvester-release.yaml
+FROM builder AS collect-rancher-deps
+
+COPY scripts/version-rancher scripts/collect-rancher-deps.sh scripts/
+RUN mkdir -p /dist && bash scripts/collect-rancher-deps.sh /dist/rancher-deps.yaml
+
+
 # ---- check-images ----
 FROM bundle-builder AS check-images
 
@@ -259,3 +268,7 @@ COPY scripts/ scripts/
 COPY package/upgrade-matrix.yaml package/upgrade-matrix.yaml
 COPY package/harvester-os/ package/harvester-os/
 COPY package/harvester-repo/ package/harvester-repo/
+
+# rancherDependencies fragment resolved over HTTP in the collect-rancher-deps stage;
+# merged into harvester-release.yaml by scripts/package-harvester-os.
+COPY --from=collect-rancher-deps /dist/rancher-deps.yaml dist/rancher-deps.yaml
