@@ -20,7 +20,9 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	apitypes "github.com/rancher/apiserver/pkg/types"
 )
 
 var (
@@ -567,7 +569,9 @@ func Test_powerAction(t *testing.T) {
 	assert := require.New(t)
 
 	powerOperation := "shutdown"
-	typedObjects := []runtime.Object{testNode}
+	maintenanceNode := testNode.DeepCopy()
+	util.SetMaintenanceModeCondition(maintenanceNode, corev1.ConditionTrue, util.NodeConditionReasonCompleted, "Maintenance mode enabled")
+	typedObjects := []runtime.Object{maintenanceNode}
 	clientset := fake.NewSimpleClientset(typedObjects...)
 	fakeDynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, dynamicInventoryObj)
 	h := ActionHandler{
@@ -576,9 +580,9 @@ func Test_powerAction(t *testing.T) {
 		dynamicClient: fakeDynamicClient,
 	}
 
-	err := h.powerAction(testNode, powerOperation)
+	err := h.powerAction(maintenanceNode, powerOperation)
 	assert.NoError(err, "expected no error performing power action")
-	iObj, err := h.fetchInventoryObject(testNode.Name)
+	iObj, err := h.fetchInventoryObject(maintenanceNode.Name)
 	assert.NoError(err, "expected no error querying inventory object")
 	powerRequest, ok, err := unstructured.NestedString(iObj.Object, "spec", "powerActionRequested")
 	assert.NoError(err, "expected no error querying power status map")
@@ -590,7 +594,9 @@ func Test_invalidPowerAction(t *testing.T) {
 	assert := require.New(t)
 
 	powerOperation := "something"
-	typedObjects := []runtime.Object{testNode}
+	maintenanceNode := testNode.DeepCopy()
+	util.SetMaintenanceModeCondition(maintenanceNode, corev1.ConditionTrue, util.NodeConditionReasonCompleted, "Maintenance mode enabled")
+	typedObjects := []runtime.Object{maintenanceNode}
 	clientset := fake.NewSimpleClientset(typedObjects...)
 
 	h := ActionHandler{
@@ -598,8 +604,16 @@ func Test_invalidPowerAction(t *testing.T) {
 		nodeClient: fakeclients.NodeClient(clientset.CoreV1().Nodes),
 	}
 
-	err := h.powerAction(testNode, powerOperation)
+	err := h.powerAction(maintenanceNode, powerOperation)
 	assert.Error(err, "expected to get error")
+}
+
+func TestPowerActionRequiresMaintenancePhase(t *testing.T) {
+	clientset := fake.NewSimpleClientset(testNode)
+	h := ActionHandler{nodeClient: fakeclients.NodeClient(clientset.CoreV1().Nodes)}
+
+	err := h.powerAction(testNode, "shutdown")
+	require.Error(t, err)
 }
 
 func Test_listUnmigratableVM(t *testing.T) {
@@ -695,5 +709,136 @@ func Test_vmMigrationPossible(t *testing.T) {
 		if test.expectedNonMigratableCount > 0 {
 			assert.Len(resp[0].VMs, test.expectedNonMigratableCount, "failed check for test case: %s", test.name)
 		}
+	}
+}
+
+type fakeURLBuilder struct {
+	apitypes.URLBuilder
+}
+
+func (f fakeURLBuilder) Action(_ *apitypes.APISchema, id, action string) string {
+	return "/v1/nodes/" + id + "?action=" + action
+}
+
+type fakeAccessControl struct {
+	apitypes.AccessControl
+}
+
+func (f fakeAccessControl) CanUpdate(_ *apitypes.APIRequest, _ apitypes.APIObject, _ *apitypes.APISchema) error {
+	return nil
+}
+
+func TestFormatter_MaintenanceActionMatrix(t *testing.T) {
+	tests := []struct {
+		name            string
+		conditionStatus corev1.ConditionStatus
+		conditionReason string
+		hasDrainRequest bool
+		wantActions     []string
+		wantNoActions   []string
+	}{
+		{
+			name:          "absent",
+			wantActions:   []string{enableMaintenanceModeAction},
+			wantNoActions: []string{disableMaintenanceModeAction, clearMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "validating",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonValidating,
+			wantNoActions:   []string{enableMaintenanceModeAction, disableMaintenanceModeAction, clearMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "draining",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonDraining,
+			wantNoActions:   []string{enableMaintenanceModeAction, disableMaintenanceModeAction, clearMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "evacuating",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonEvacuating,
+			wantActions:     []string{disableMaintenanceModeAction, powerAction},
+			wantNoActions:   []string{enableMaintenanceModeAction, clearMaintenanceModeAction},
+		},
+		{
+			name:            "completed",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonCompleted,
+			wantActions:     []string{disableMaintenanceModeAction, powerAction},
+			wantNoActions:   []string{enableMaintenanceModeAction, clearMaintenanceModeAction},
+		},
+		{
+			name:            "false error with cleanup complete",
+			conditionStatus: corev1.ConditionFalse,
+			conditionReason: util.NodeConditionReasonError,
+			hasDrainRequest: false,
+			wantActions:     []string{clearMaintenanceModeAction},
+			wantNoActions:   []string{enableMaintenanceModeAction, disableMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "false error with cleanup pending",
+			conditionStatus: corev1.ConditionFalse,
+			conditionReason: util.NodeConditionReasonError,
+			hasDrainRequest: true,
+			wantNoActions:   []string{enableMaintenanceModeAction, clearMaintenanceModeAction, disableMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "true error with cleanup complete",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonError,
+			hasDrainRequest: false,
+			wantActions:     []string{disableMaintenanceModeAction},
+			wantNoActions:   []string{enableMaintenanceModeAction, clearMaintenanceModeAction, powerAction},
+		},
+		{
+			name:            "true error with cleanup pending",
+			conditionStatus: corev1.ConditionTrue,
+			conditionReason: util.NodeConditionReasonError,
+			hasDrainRequest: true,
+			wantActions:     []string{disableMaintenanceModeAction},
+			wantNoActions:   []string{enableMaintenanceModeAction, clearMaintenanceModeAction, powerAction},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node",
+				},
+			}
+			if tc.conditionReason != "" {
+				util.SetMaintenanceModeCondition(node, tc.conditionStatus, tc.conditionReason, "test")
+			}
+			if tc.hasDrainRequest {
+				drainhelper.SetDrainRequest(node, false)
+			}
+
+			unstrMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(node)
+			require.NoError(t, err)
+
+			for _, inputObj := range []interface{}{node, &unstructured.Unstructured{Object: unstrMap}} {
+				req := &apitypes.APIRequest{
+					AccessControl: fakeAccessControl{},
+					URLBuilder:    fakeURLBuilder{},
+				}
+				res := &apitypes.RawResource{
+					ID: "test-node",
+					APIObject: apitypes.APIObject{
+						Object: inputObj,
+					},
+				}
+
+				Formatter(req, res)
+
+				for _, action := range tc.wantActions {
+					require.Contains(t, res.Actions, action, "expected action %s to be present", action)
+				}
+				for _, action := range tc.wantNoActions {
+					require.NotContains(t, res.Actions, action, "expected action %s to be absent", action)
+				}
+			}
+		})
 	}
 }
