@@ -14,7 +14,6 @@ cdi:
     nodeSelector:
       kubernetes.io/os: linux
 
-hookImage: rancher/kuberlr-kubectl:v7.0.3
 hookRestartPolicy: OnFailure
 hookSecurityContext:
   seccompProfile:
@@ -25,3 +24,9 @@ hookSecurityContext:
   capabilities:
     drop:
       - ALL
+
+containers:
+  hook:
+    image:
+      repository: rancher/kuberlr-kubectl
+      tag: v7.0.3
