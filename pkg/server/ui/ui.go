@@ -2,6 +2,7 @@ package ui
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -84,15 +85,17 @@ func (u *handler) path() (path string, isURL bool) {
 		if settings.IsRelease() {
 			return u.pathSetting(), false
 		}
-		if u.canDownload(u.indexSetting()) {
-			return u.indexSetting(), true
-		}
-		return u.pathSetting(), false
 	case "bundled":
 		return u.pathSetting(), false
-	default:
+	}
+
+	// "external" (and any unrecognized value) falls through here too, so an
+	// unreachable ui-index URL falls back to the packaged UI instead of
+	// leaving the dashboard unusable.
+	if u.canDownload(u.indexSetting()) {
 		return u.indexSetting(), true
 	}
+	return u.pathSetting(), false
 }
 
 func (u *handler) ServeAsset() http.Handler {
@@ -132,6 +135,13 @@ func serveIndex(resp io.Writer, url string) error {
 		return err
 	}
 	defer r.Body.Close()
+
+	// http.Client.Get only errors on network-level failures, so a 404/5xx
+	// response (e.g. a misconfigured ui-index URL) would otherwise be
+	// treated as a successful download and served as-is.
+	if r.StatusCode < 200 || r.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status %s fetching %s", r.Status, url)
+	}
 
 	_, err = io.Copy(resp, r.Body)
 	return err
