@@ -1,0 +1,4 @@
+name: harvester-upgrade-manager
+namespace: harvester-system
+stage: experimental
+builtIn: false

@@ -1,0 +1,66 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  labels:
+    addon.harvesterhci.io/displayName: virtual-machine-auto-balance
+    addon.harvesterhci.io/experimental: "true"
+  name: descheduler
+  namespace: kube-system
+spec:
+  chart: descheduler
+  enabled: false
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  valuesContent: |
+    kind: Deployment
+    image:
+      repository: registry.k8s.io/descheduler/descheduler
+      pullPolicy: IfNotPresent
+    deschedulingInterval: 5m
+    replicas: 1
+    cmdOptions:
+      v: 3
+      feature-gates: EvictionsInBackground=true
+    deschedulerPolicy:
+      maxNoOfPodsToEvictPerNode: 5
+      profiles:
+      - name: default
+        pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            ignorePvcPods: false
+            evictLocalStoragePods: true
+            labelSelector:
+              matchExpressions:
+                - key: "kubevirt.io"
+                  operator: "In"
+                  values:
+                    - "virt-launcher"
+        - name: LowNodeUtilization
+          args:
+            evictableNamespaces:
+              exclude:
+              - cattle-dashboards
+              - cattle-fleet-clusters-system
+              - cattle-fleet-local-system
+              - cattle-fleet-system
+              - cattle-logging-system
+              - cattle-monitoring-system
+              - cattle-provisioning-capi-system
+              - cattle-system
+              - fleet-local
+              - harvester-system
+              - kube-system
+              - local
+              - longhorn-system
+            thresholds:
+              cpu: 30
+              memory: 30
+            targetThresholds:
+              cpu: 50
+              memory: 50
+        plugins:
+          balance:
+            enabled:
+            - LowNodeUtilization
+  version: 0.36.0

@@ -1,0 +1,427 @@
+resources:
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: vm-import-controller
+      namespace: harvester-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 1.9.0-dev.0
+      chart: harvester-vm-import-controller
+      {{- if and .Addons .Addons.harvester_vm_import_controller }}
+      enabled: {{ .Addons.harvester_vm_import_controller.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        image:
+          repository: rancher/harvester-vm-import-controller
+          tag: main-head
+        fullnameOverride: harvester-vm-import-controller
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: pcidevices-controller
+      namespace: harvester-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 1.9.0-dev.0
+      chart: harvester-pcidevices-controller
+      {{- if and .Addons .Addons.harvester_pcidevices_controller }}
+      enabled: {{ .Addons.harvester_pcidevices_controller.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        image:
+          repository: rancher/harvester-pcidevices
+          tag: master-head
+        fullnameOverride: harvester-pcidevices-controller
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: rancher-logging
+      namespace: cattle-logging-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 109.0.0+up4.10.0-rancher.23
+      chart: rancher-logging
+      {{- if and .Addons .Addons.rancher_logging }}
+      enabled: {{ .Addons.rancher_logging.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        systemdLogPath: /var/log/journal
+        disablePvc: true
+        additionalLoggingSources:
+          rke2:
+            enabled: true
+          kubeAudit:
+            enabled: true
+            auditFilename: "audit.log"
+            pathPrefix: "/var/lib/rancher/rke2/server/logs/"
+            loggingRef: "harvester-kube-audit-log-ref"
+            fluentbit:
+              logTag: kube-audit
+              tolerations:
+              - key: node-role.kubernetes.io/controlplane
+                value: "true"
+                effect: NoSchedule
+              - key: node-role.kubernetes.io/etcd
+                value: "true"
+                effect: NoExecute
+        fluentd:
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 800Mi
+            requests:
+              cpu: 100m
+              memory: 200Mi
+        fluentbit:
+          resources:
+            limits:
+              cpu: 200m
+              memory: 200Mi
+            requests:
+              cpu: 50m
+              memory: 50Mi
+        eventTailer:
+          name: harvester-default
+          namespace: cattle-logging-system
+          controlNamespace: cattle-logging-system
+          workloadOverrides:
+            containers:
+            - image: rancher/harvester-eventrouter:master-head
+              name: event-tailer
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 100Mi
+                requests:
+                  cpu: 20m
+                  memory: 20Mi
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: rancher-monitoring
+      namespace: cattle-monitoring-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 109.0.3+up80.9.1-rancher.14
+      chart: rancher-monitoring
+      {{- if and .Addons .Addons.rancher_monitoring }}
+      enabled: {{ .Addons.rancher_monitoring.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        rancherMonitoring:
+          enabled: false
+        kube-state-metrics:
+          metricLabelsAllowlist:
+            - 'nodes=[*]'
+        alertmanager:
+          enabled: true
+          config:
+            global:
+              resolve_timeout: 5m
+          service:
+            port: 9093
+          alertmanagerSpec:
+            {{- if .Vip }}
+            externalUrl: "https://{{ .Vip }}/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-alertmanager:9093/proxy/"
+            {{- end }}
+            retention: 120h
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: harvester-longhorn
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 5Gi
+            resources:
+              limits:
+                memory: 600Mi
+                cpu: 1000m
+              requests:
+                memory: 100Mi
+                cpu: 100m
+        grafana:
+          persistence:
+            enabled: true
+            size: 2Gi
+            storageClassName: harvester-longhorn
+            type: pvc
+            accessModes:
+            - ReadWriteOnce
+          resources:
+            limits:
+              cpu: 200m
+              memory: 500Mi
+            requests:
+              cpu: 100m
+              memory: 200Mi
+        prometheus:
+          service:
+            port: 9090
+          prometheusSpec:
+            evaluationInterval: 1m
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 2500Mi
+              requests:
+                cpu: 750m
+                memory: 1750Mi
+            retention: 5d
+            retentionSize: 50GiB
+            scrapeInterval: 1m
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 50Gi
+                  storageClassName: harvester-longhorn
+                  volumeMode: Filesystem
+            {{- if .Vip }}
+            externalUrl: "https://{{ .Vip }}/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-prometheus:9090/proxy/"
+            {{- end }}
+        prometheus-node-exporter:
+          resources:
+            limits:
+              cpu: 200m
+              memory: 180Mi
+            requests:
+              cpu: 100m
+              memory: 30Mi
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: harvester-seeder
+      namespace: harvester-system
+      labels:
+        addon.harvesterhci.io/experimental: "true"
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 1.9.0-dev.0
+      chart: harvester-seeder
+      {{- if and .Addons .Addons.harvester_seeder}}
+      enabled: {{ .Addons.harvester_seeder.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        image:
+          repository: rancher/harvester-seeder
+          tag: main-head
+        fullnameOverride: harvester-seeder
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: nvidia-driver-toolkit
+      namespace: harvester-system
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 1.9.0-dev.0
+      chart: nvidia-driver-runtime
+      {{- if and .Addons .Addons.nvidia_driver_toolkit}}
+      enabled: {{ .Addons.nvidia_driver_toolkit.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        image:
+          tag: sle-micro-head
+          repository: rancher/harvester-nvidia-driver-toolkit
+        driverLocation:  "HTTPENDPOINT/NVIDIA-Linux-x86_64-vgpu-kvm.run"
+        fullnameOverride: nvidia-driver-runtime
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: kubeovn-operator
+      namespace: kube-system
+      labels:
+        addon.harvesterhci.io/experimental: "true"
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 1.16.2
+      chart: kubeovn-operator
+      {{- if and .Addons .Addons.kubeovn_operator }}
+      enabled: {{ .Addons.kubeovn_operator.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        fullnameOverride: harvester-kubeovn-operator
+        enableConfiguration: true
+        configurationSpec:
+          components:
+            OVSDBConTimeout: 3
+            OVSDBInactivityTimeout: 10
+            checkGateway: true
+            enableANP: false
+            enableBindLocalIP: true
+            enableExternalVPC: true
+            enableIC: false
+            enableKeepVMIP: true
+            enableLB: true
+            enableLBSVC: false
+            enableLiveMigrationOptimize: true
+            enableNATGateway: true
+            enableNP: true
+            enableOVNIPSec: false
+            enableTProxy: false
+            hardwareOffload: false
+            logicalGateway: false
+            lsCtSkipOstLportIPS: true
+            lsDnatModDlDst: true
+            secureServing: false
+            setVLANTxOff: false
+            u2oInterconnection: false
+          ipv4:
+            joinCIDR: 100.64.0.0/16
+            pingerExternalAddress: 1.1.1.1
+            pingerExternalDomain: google.com.
+            podCIDR: 10.54.0.0/16
+            podGateway: 10.54.0.1
+            serviceCIDR: 10.55.0.0/16
+          kubeOvnCNI:
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          kubeOvnController:
+            requests:
+              cpu: "200m"
+              memory: "200Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          kubeOvnMonitor:
+            requests:
+              cpu: "200m"
+              memory: "200Mi"
+            limits:
+              cpu: "200m"
+              memory: "200Mi"
+          kubeOvnPinger:
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+            limits:
+              cpu: "200m"
+              memory: "400Mi"
+          networking:
+            defaultSubnet: ovn-default
+            defaultVPC: ovn-cluster
+            enableECMP: false
+            enableEIPSNAT: true
+            enableMetrics: true
+            enableSSL: false
+            networkType: geneve
+            nodeSubnet: join
+            ovnLeaderProbeInterval: 5
+            ovnNorthdNThreads: 1
+            ovnNorthdProbeInterval: 5000
+            ovnRemoteOpenflowInterval: 10
+            ovnRemoteProbeInterval: 10000
+            probeInterval: 180000
+            nodeLocalDNSIPS: ""
+          ovnCentral:
+            requests:
+              cpu: "300m"
+              memory: "200Mi"
+            limits:
+              cpu: "3"
+              memory: "4Gi"
+          ovnDir: /etc/origin/ovn
+          ovsOVN:
+            limits:
+              cpu: "2"
+              memory: "1000Mi"
+            requests:
+              cpu: "200m"
+              memory: "200Mi"
+          performance:
+            gcInterval: 360
+            inspectInterval: 20
+            ovsVSCtlConcurrency: 100
+  - apiVersion: harvesterhci.io/v1beta1
+    kind: Addon
+    metadata:
+      name: descheduler
+      namespace: kube-system
+      labels:
+        addon.harvesterhci.io/displayName: "virtual-machine-auto-balance"
+        addon.harvesterhci.io/experimental: "true"
+    spec:
+      repo: http://harvester-cluster-repo.cattle-system.svc/charts
+      version: 0.36.0
+      chart: descheduler
+      {{- if and .Addons .Addons.descheduler }}
+      enabled: {{ .Addons.descheduler.Enabled }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+      valuesContent: |
+        kind: Deployment
+        image:
+          repository: registry.k8s.io/descheduler/descheduler
+          pullPolicy: IfNotPresent
+        deschedulingInterval: 5m
+        replicas: 1
+        cmdOptions:
+          v: 3
+          feature-gates: EvictionsInBackground=true
+        deschedulerPolicy:
+          maxNoOfPodsToEvictPerNode: 5
+          profiles:
+          - name: default
+            pluginConfig:
+            - name: DefaultEvictor
+              args:
+                nodeFit: true
+                ignorePvcPods: false
+                evictLocalStoragePods: true
+                labelSelector:
+                  matchExpressions:
+                    - key: "kubevirt.io"
+                      operator: "In"
+                      values:
+                        - "virt-launcher"
+            - name: LowNodeUtilization
+              args:
+                evictableNamespaces:
+                  exclude:
+                  - cattle-dashboards
+                  - cattle-fleet-clusters-system
+                  - cattle-fleet-local-system
+                  - cattle-fleet-system
+                  - cattle-logging-system
+                  - cattle-monitoring-system
+                  - cattle-provisioning-capi-system
+                  - cattle-system
+                  - fleet-local
+                  - harvester-system
+                  - kube-system
+                  - local
+                  - longhorn-system
+                thresholds:
+                  cpu: 30
+                  memory: 30
+                targetThresholds:
+                  cpu: 50
+                  memory: 50
+            plugins:
+              balance:
+                enabled:
+                - LowNodeUtilization

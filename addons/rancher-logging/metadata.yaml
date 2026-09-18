@@ -1,0 +1,4 @@
+name: rancher-logging
+namespace: cattle-logging-system
+stage: ga
+builtIn: true

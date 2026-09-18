@@ -1,0 +1,15 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  name: pcidevices-controller
+  namespace: harvester-system
+spec:
+  chart: harvester-pcidevices-controller
+  enabled: false
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  valuesContent: |
+    image:
+      repository: rancher/harvester-pcidevices
+      tag: master-head
+    fullnameOverride: harvester-pcidevices-controller
+  version: 1.9.0-dev.0

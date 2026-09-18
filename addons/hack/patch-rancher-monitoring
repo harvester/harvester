@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# Note: this file and function are used by the ISO builder (in the Harvester repo) to patch the chart.
+# Do not delete this file or function, even if the function appears to do nothing, to avoid breaking the ISO builder.
+# Patch contents change from version to version, so keeping the file and function stable is important.
+
+patch_rancher_monitoring_chart()
+{
+  local chart_dir=$1 #${CHARTS_DIR}
+  local monitoring_version=$2 #MONITORING_VERSION
+  local pkg_monitoring_path=$3 #${PKG_PATCH_MONITORING_PATH}
+  local cwd=$(pwd)
+
+  if [ ! -d "${pkg_monitoring_path}/${monitoring_version}" ]; then
+    echo "NOTE: there is no related path: ${pkg_monitoring_path}/${monitoring_version} to patch, SKIP"
+    return 0
+  fi
+
+  cd ${chart_dir}
+  tar zxf rancher-monitoring-${monitoring_version}.tgz --warning=no-timestamp
+
+  local origfile="./rancher-monitoring/charts/grafana/templates/nginx-config.yaml"
+  local newfile="${pkg_monitoring_path}/${monitoring_version}/nginx-config.yaml"
+  if [ ! -f "$newfile" ]; then
+    echo "Error: new file $newfile is not found, can't patch rancher-monitoring chart" >&2
+    cd "$cwd"
+    return 1
+  fi
+  echo "patch original file $origfile"
+  if [ -f "$origfile" ]; then
+    ls -alth "$origfile"
+    echo "diff"
+    # when files are different, `diff` will return 1
+    diff "$origfile" "$newfile" || true
+    rm -f "$origfile"
+  else
+    echo "original file $origfile is not found"
+  fi
+
+  # replace with new file
+  cp -f "$newfile" "$origfile"
+  echo "patched file"
+  ls -alth "$origfile"
+
+  # patch values.yaml, it uses v7.1.0 for kubectl, but v7.1.1 is already used by rancher-monitoring-crd,
+  #   so we update it to v7.1.1 to avoid using two different versions of kubectl in the same ISO.
+  # kubectl:
+  #   repository: rancher/kuberlr-kubectl
+  #   tag: v7.1.0
+  #   pullPolicy: IfNotPresent
+  local valuesyaml="./rancher-monitoring/values.yaml"
+  if [[ ! -f "${valuesyaml}" ]]; then
+    echo "Error: ${valuesyaml} is not found in extracted rancher-monitoring chart." >&2
+    cd "$cwd"
+    return 1
+  fi
+  local FOUND_TAG="yes"
+  echo "--- Checking if values.yaml contains kuberlr-kubectl tag v7.1.0 ---"
+  grep -C 2 'tag: v7.1.0' "${valuesyaml}" || { echo "Warning:  exact \`tag: v7.1.0\` not found." && FOUND_TAG="no"; }
+  if [ "$FOUND_TAG" = "yes" ]; then
+    echo "--- Modifying values.yaml to replace kuberlr-kubectl image tag v7.1.0 with v7.1.1 ---"
+    sed -i -E 's/^([[:space:]]*tag: )v7\.1\.0$/\1v7.1.1/' "${valuesyaml}"
+    echo "--- Verifying that values.yaml has been modified correctly ---"
+    if ! grep -C 2 'tag: v7.1.1' "${valuesyaml}"; then
+      echo "Error: Modification verification failed." >&2
+      cd "$cwd"
+      return 1
+    fi
+  else
+    echo "Skip: did not find tag v7.1.0, no replace."
+  fi
+
+  # patch charts/grafana/values.yaml, it uses busybox 1.31.1 but all others are using 1.37.0,
+  # image:
+  #   repository: rancher/mirrored-library-busybox
+  #   tag: "1.31.1"
+  #   sha: ""
+  #   pullPolicy: IfNotPresent
+  local valuesyaml="./rancher-monitoring/charts/grafana/values.yaml"
+  if [[ ! -f "${valuesyaml}" ]]; then
+    echo "Error: ${valuesyaml} is not found in extracted rancher-monitoring chart." >&2
+    cd "$cwd"
+    return 1
+  fi
+  local FOUND_TAG="yes"
+  echo "--- Checking if charts/grafana/values.yaml contains busybox tag 1.31.1 ---"
+  grep -C 2 'tag: "1.31.1"' "${valuesyaml}" || { echo "Warning: exact \`tag: \"1.31.1\"\` not found." && FOUND_TAG="no"; }
+  if [ "$FOUND_TAG" = "yes" ]; then
+    echo "--- Modifying charts/grafana/values.yaml to replace busybox image tag 1.31.1 with 1.37.0 ---"
+    sed -i -E 's/^([[:space:]]*tag: )"1\.31\.1"$/\1"1.37.0"/' "${valuesyaml}"
+    echo "--- Verifying that charts/grafana/values.yaml has been modified correctly ---"
+    if ! grep -C 2 'tag: "1.37.0"' "${valuesyaml}"; then
+      echo "Error: Modification verification failed." >&2
+      cd "$cwd"
+      return 1
+    fi
+  else
+    echo "Skip: did not find tag \"1.31.1\", no replace."
+  fi
+
+  # remove existing chart
+  rm -f ${chart_dir}/rancher-monitoring-${monitoring_version}.tgz
+
+  # helm pack new
+  helm package rancher-monitoring
+  rm -rf rancher-monitoring
+  echo "finish patch ranch-monitoring chart"
+  cd $cwd
+}

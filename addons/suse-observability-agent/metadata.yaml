@@ -1,0 +1,4 @@
+name: suse-observability-agent
+namespace: suse-observability
+stage: experimental
+builtIn: false

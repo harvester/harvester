@@ -1,0 +1,4 @@
+name: harvester-seeder
+namespace: harvester-system
+stage: ga
+builtIn: true

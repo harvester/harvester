@@ -92,28 +92,23 @@ FROM scratch AS build-output
 COPY --from=build /go/src/github.com/harvester/harvester/bin/ /bin/
 
 
-# ---- prepare-addons ----
-FROM builder AS prepare-addons
-ARG ADDONS_BRANCH=main
+# ---- generate-addons ----
+# Assembles, validates, and renders the in-tree addons/ directory. Unlike the
+# pre-consolidation "prepare-addons" stage, this no longer clones
+# github.com/harvester/addons over the network: addons/ is part of the build
+# context (copied in via `base`'s `COPY . .`), so the ISO build is hermetic.
+FROM base AS generate-addons
+ARG MK_REPO_ID
 
-# re-pull when remote sha changed
-ARG REMOTE_SHA=unknown
+RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+    mkdir -p /dist/prepare-addons/addons-manifests /dist/prepare-addons/addons-templates && \
+    go run ./cmd/addon-generator -validate && \
+    go run ./cmd/addon-generator -generateAddons -path /dist/prepare-addons/addons-manifests && \
+    go run ./cmd/addon-generator -generateTemplates -path /dist/prepare-addons/addons-templates
 
-RUN mkdir -p /dist/prepare-addon
-# clone addons repo
-RUN git clone --branch ${ADDONS_BRANCH} --single-branch --depth 1 \
-    https://github.com/harvester/addons.git /dist/prepare-addons/addons && \
-    rm -rf /dist/prepare-addons/addons/.git
-    
-# generate addon manifests
-RUN mkdir -p /dist/prepare-addons/addons-manifests && \ 
-    cd /dist/prepare-addons/addons && \
-    go run . -generateAddons -path /dist/prepare-addons/addons-manifests
-
-# genereate addon templates (for rancherd)
-RUN mkdir -p /dist/prepare-addons/addons-templates && \ 
-    cd /dist/prepare-addons/addons && \
-    go run . -generateTemplates -path /dist/prepare-addons/addons-templates
+FROM scratch AS generate-addons-output
+COPY --from=generate-addons /dist/prepare-addons/ /prepare-addons/
 
 
 # ---- validate ----
@@ -144,7 +139,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
 FROM base AS test
 ARG MK_REPO_ID
 
-COPY --from=prepare-addons /dist/prepare-addons/addons-templates/rancherd-22-addons.yaml \
+COPY --from=generate-addons /dist/prepare-addons/addons-templates/rancherd-22-addons.yaml \
      /go/src/github.com/harvester/harvester/pkg/installer/config/templates/rancherd-22-addons.yaml
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
@@ -202,8 +197,6 @@ COPY --from=generate /go/src/github.com/harvester/harvester/pkg/generated /pkg/g
 FROM base AS build-installer
 ARG MK_REPO_ID
 
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
-
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
     ./scripts/build-installer
@@ -224,8 +217,8 @@ COPY scripts/lib/ scripts/lib/
 # ---- prepare-addons-charts ----
 FROM bundle-builder AS prepare-addons-charts
 
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
-COPY --from=prepare-addons /dist/prepare-addons/addons-templates/ /go/src/github.com/harvester/addons-templates/
+COPY addons/ addons/
+COPY --from=generate-addons /dist/prepare-addons/addons-templates/ addons-templates/
 
 COPY scripts/images/rancher-images.txt scripts/images/rancher-images.txt
 COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
@@ -257,11 +250,11 @@ FROM builder AS build-iso
 WORKDIR /go/src/github.com/harvester/harvester
 
 COPY --from=build-installer /go/src/github.com/harvester/harvester/bin/harvester-installer package/harvester-os/files/usr/bin/
-COPY --from=prepare-addons /dist/prepare-addons/addons/ /go/src/github.com/harvester/addons/
 COPY --from=prepare-harvester-charts /go/src/github.com/harvester/harvester/deploy/charts/ /go/src/github.com/harvester/harvester/deploy/charts/
 COPY --from=prepare-harvester-charts /dist/chart-tarballs/* /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
 COPY --from=prepare-addons-charts /dist/charts/*.tgz /go/src/github.com/harvester/harvester/package/harvester-repo/charts/
 
+COPY addons/ addons/
 COPY scripts/ scripts/
 COPY package/upgrade-matrix.yaml package/upgrade-matrix.yaml
 COPY package/harvester-os/ package/harvester-os/

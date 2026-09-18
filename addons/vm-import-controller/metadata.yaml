@@ -1,0 +1,4 @@
+name: vm-import-controller
+namespace: harvester-system
+stage: ga
+builtIn: true

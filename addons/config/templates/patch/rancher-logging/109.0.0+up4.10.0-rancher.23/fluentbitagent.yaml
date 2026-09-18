@@ -1,0 +1,30 @@
+{{- define "logging-operator.fluentbitagent.kube-audit" -}}
+# patch to ./templates/loggings/kube-audit/fluentbitagent.yaml
+# when harvester-installer makes ISO, the original file is replaced
+# harvester-patch to kube-audit fluentbitagent.yaml
+# upsteam file lacks loggingRef
+metadata:
+  name: {{ .Release.Name }}-kube-audit
+spec:
+  {{- if .Values.additionalLoggingSources.kubeAudit.loggingRef }}
+  loggingRef: {{ .Values.additionalLoggingSources.kubeAudit.loggingRef }}
+  {{- end }}
+  disableKubernetesFilter: true
+  extraVolumeMounts:
+    - source: {{ template "kubeAuditPathPrefix" . }}
+      destination: "/kube-audit-logs"
+      readOnly: true
+  inputTail:
+    Tag: {{ .Values.additionalLoggingSources.kubeAudit.fluentbit.logTag }}
+    Path: /kube-audit-logs/{{ template "kubeAuditFilename" . }}
+    Parser: json
+  tolerations:
+    {{- include "customTolerations" . | nindent 6 }}
+    {{- with .Values.additionalLoggingSources.kubeAudit.fluentbit.tolerations }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  nodeSelector: {{ include "controlplaneSelector" . | nindent 6 }}
+{{- end -}}
+{{- if .Values.additionalLoggingSources.kubeAudit.enabled }}
+{{- include "logging-operator.fluentbitagent" (list . "logging-operator.fluentbitagent.kube-audit") -}}
+{{- end }}

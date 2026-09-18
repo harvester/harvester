@@ -1,0 +1,4 @@
+name: descheduler
+namespace: kube-system
+stage: experimental
+builtIn: true

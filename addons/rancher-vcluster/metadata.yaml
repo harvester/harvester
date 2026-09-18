@@ -1,0 +1,4 @@
+name: rancher-vcluster
+namespace: rancher-vcluster
+stage: experimental
+builtIn: false

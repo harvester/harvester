@@ -1,0 +1,17 @@
+apiVersion: harvesterhci.io/v1beta1
+kind: Addon
+metadata:
+  labels:
+    addon.harvesterhci.io/experimental: "true"
+  name: harvester-seeder
+  namespace: harvester-system
+spec:
+  chart: harvester-seeder
+  enabled: false
+  repo: http://harvester-cluster-repo.cattle-system.svc/charts
+  valuesContent: |
+    image:
+      repository: rancher/harvester-seeder
+      tag: main-head
+    fullnameOverride: harvester-seeder
+  version: 1.9.0-dev.0
