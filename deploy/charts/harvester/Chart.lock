@@ -7,7 +7,7 @@ dependencies:
   version: 0.1.0
 - name: cdi
   repository: file://dependency_charts/cdi
-  version: 0.4.0
+  version: 0.4.1
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
-digest: sha256:082d66b5df95da792e9ed62aef5cfb4826f20809977feb8e389de43c76f7454f
-generated: "2026-09-01T16:30:16.027317233+08:00"
+digest: sha256:9d701ae707bf74779e0683fe03a0fd3e2a47dee73750131b55f9bd4e77b9325e
+generated: "2026-09-18T10:11:15.2041553+08:00"
