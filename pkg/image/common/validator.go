@@ -22,39 +22,51 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
+// Ensure vmiValidator satisfies all sub-interfaces at compile time.
+var _ VMIValidatorFull = (*vmiValidator)(nil)
+
 const (
 	fieldDisplayName = "spec.displayName"
 )
 
+// VMIValidator contains validations shared by all backends.
 type VMIValidator interface {
-	GetStatusSC(vmi *v1beta1.VirtualMachineImage) string
-
 	CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error
 	CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	CheckURL(vmi *v1beta1.VirtualMachineImage) error
-	CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
 	CheckImagePVC(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
-	CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error
-
 	IsExportVolume(vmi *v1beta1.VirtualMachineImage) bool
-
 	SCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
-	SCParametersConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	SourceTypeConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	PVCConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	URLConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
-	SecurityParameterConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
+}
 
+// SecurityParamsVMIValidator contains backing-image-specific security validations.
+type SecurityParamsVMIValidator interface {
+	CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
+	SCParametersConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
+	SecurityParameterConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
+}
+
+// OccupationVMIValidator contains backing-image-specific delete-time occupation checks.
+type OccupationVMIValidator interface {
 	VMTemplateVersionOccupation(vmi *v1beta1.VirtualMachineImage) error
 	PVCOccupation(vmi *v1beta1.VirtualMachineImage) error
 	VMBackupOccupation(vmi *v1beta1.VirtualMachineImage) error
+}
+
+// VMIValidatorFull is the composite used at the construction/wiring layer.
+type VMIValidatorFull interface {
+	VMIValidator
+	SecurityParamsVMIValidator
+	OccupationVMIValidator
 }
 
 type vmiValidator struct {
 	vmiCache               ctlharvesterv1.VirtualMachineImageCache
 	scCache                ctlstoragev1.StorageClassCache
 	sar                    authorizationv1client.SubjectAccessReviewInterface
-	podCache               ctlcorev1.PodCache
 	pvcCache               ctlcorev1.PersistentVolumeClaimCache
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 	vmBackupCache          ctlharvesterv1.VirtualMachineBackupCache
@@ -62,26 +74,18 @@ type vmiValidator struct {
 
 func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 	scCache ctlstoragev1.StorageClassCache,
-	podCache ctlcorev1.PodCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
-	sar authorizationv1client.SubjectAccessReviewInterface) VMIValidator {
-	vmiv := &vmiValidator{
+	sar authorizationv1client.SubjectAccessReviewInterface) VMIValidatorFull {
+	return &vmiValidator{
 		vmiCache:               vmiCache,
 		scCache:                scCache,
 		sar:                    sar,
-		podCache:               podCache,
 		pvcCache:               pvcCache,
 		vmTemplateVersionCache: vmTemplateVersionCache,
 		vmBackupCache:          vmBackupCache,
 	}
-	vmiv.podCache.AddIndexer(util.IndexPodByPVC, util.IndexPodByPVCFunc)
-	return vmiv
-}
-
-func (v *vmiValidator) GetStatusSC(vmi *v1beta1.VirtualMachineImage) string {
-	return vmi.Status.StorageClassName
 }
 
 // commonCheckDisplayName performs several validations on the `DisplayName` field.
@@ -240,23 +244,6 @@ func (v *vmiValidator) CheckSecurityParameters(request *types.Request, vmi *v1be
 		return werror.NewInvalidError(fmt.Sprintf("storage class %s is tied to a specific backing image and cannot be used as target for clone/encrypt", scName), fmt.Sprintf("metadata.annotations[%s]", util.AnnotationStorageClassName))
 	}
 
-	return nil
-}
-
-// CheckPVCInUse checks if the PVC is in use by any pods, this is only used to CDI backend
-func (v *vmiValidator) CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error {
-	if vmi.Spec.Backend != v1beta1.VMIBackendCDI {
-		return nil
-	}
-	index := fmt.Sprintf("%s-%s", vmi.Spec.PVCNamespace, vmi.Spec.PVCName)
-	if pods, err := v.podCache.GetByIndex(util.IndexPodByPVC, index); err == nil && len(pods) > 0 {
-		podList := []string{}
-		for _, pod := range pods {
-			indexedPod := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-			podList = append(podList, indexedPod)
-		}
-		return fmt.Errorf("PVC %s is used by Pods %v, cannot export volume when it's running", vmi.Spec.PVCName, podList)
-	}
 	return nil
 }
 
