@@ -204,6 +204,49 @@ func (v *pvcValidator) validateInternalUsage(pvc *corev1.PersistentVolumeClaim) 
 	default:
 		return nil
 	}
+<<<<<<< HEAD
+=======
+
+	biName, ok := sc.Parameters[util.LonghornOptionBackingImageName]
+	if !ok || biName == "" {
+		return nil
+	}
+
+	bi, err := v.backingImageCache.Get(util.LonghornSystemNamespaceName, biName)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get backing image %s: %v", biName, err))
+	}
+
+	vmImageID := bi.Annotations[util.AnnotationImageID]
+
+	if vmImageID == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(vmImageID, "/", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	imageNS, imageName := parts[0], parts[1]
+
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineImageGVR,
+		Namespace: imageNS,
+		Name:      imageName,
+	})
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check access to image %s/%s: %v", imageNS, imageName, err))
+	}
+	if !allowed {
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access image %s/%s", request.UserInfo.Username, imageNS, imageName), "spec.storageClassName")
+	}
+
+	return nil
+>>>>>>> c1345cc (feat: change status code to 403)
 }
 
 func (v *pvcValidator) isBelongToUpgradeImage(pvc *corev1.PersistentVolumeClaim) (bool, error) {

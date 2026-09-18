@@ -229,9 +229,14 @@ func (v *restoreValidator) getVMBackup(vmRestore *v1beta1.VirtualMachineRestore)
 	if err != nil {
 		return nil, fmt.Errorf("can't get vmbackup %s/%s, err: %w", vmRestore.Spec.VirtualMachineBackupNamespace, vmRestore.Spec.VirtualMachineBackupName, err)
 	}
+<<<<<<< HEAD
 
 	if vmBackup.DeletionTimestamp != nil {
 		return nil, fmt.Errorf("vmbackup %s/%s is deleted", vmBackup.Namespace, vmBackup.Name)
+=======
+	if !allowed {
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access VMBackup %s/%s", request.UserInfo.Username, vmbNamespace, vmbName), fieldVirtualMachineBackupName)
+>>>>>>> c1345cc (feat: change status code to 403)
 	}
 
 	if !ctlbackup.IsBackupReady(vmBackup) {

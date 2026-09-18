@@ -159,6 +159,25 @@ func (v *vmiValidator) CheckSecurityParameters(vmi *v1beta1.VirtualMachineImage)
 		return werror.NewInvalidError(`SourceImageNamespace is required when image source type is "clone"`, "spec.security.sourceImageName")
 	}
 
+<<<<<<< HEAD
+=======
+	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
+		SAR:       v.sar,
+		Username:  request.UserInfo.Username,
+		Groups:    request.UserInfo.Groups,
+		Verb:      util.VerbGet,
+		GVR:       util.VirtualMachineImageGVR,
+		Namespace: sp.SourceImageNamespace,
+		Name:      sp.SourceImageName,
+	})
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to check access to source image %s/%s: %v", sp.SourceImageNamespace, sp.SourceImageName, err))
+	}
+	if !allowed {
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access source image %s/%s", request.UserInfo.Username, sp.SourceImageNamespace, sp.SourceImageName), "")
+	}
+
+>>>>>>> c1345cc (feat: change status code to 403)
 	// Check if the source image exists
 	sourceImage, err := v.vmiCache.Get(sp.SourceImageNamespace, sp.SourceImageName)
 	if err != nil {
@@ -256,10 +275,15 @@ func (v *vmiValidator) CheckImagePVC(request *types.Request, vmi *v1beta1.Virtua
 		message := fmt.Sprintf("failed to check user permission, error: %s", err.Error())
 		return werror.NewInvalidError(message, "")
 	}
+<<<<<<< HEAD
 
 	if !ssar.Status.Allowed || ssar.Status.Denied {
 		message := fmt.Sprintf("user has no permission to get the pvc resource %s/%s", vmi.Spec.PVCName, vmi.Spec.PVCNamespace)
 		return werror.NewInvalidError(message, "")
+=======
+	if !allowed {
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access PVC %s/%s", request.UserInfo.Username, vmi.Spec.PVCNamespace, vmi.Spec.PVCName), "")
+>>>>>>> c1345cc (feat: change status code to 403)
 	}
 
 	_, err = v.pvcCache.Get(vmi.Spec.PVCNamespace, vmi.Spec.PVCName)
