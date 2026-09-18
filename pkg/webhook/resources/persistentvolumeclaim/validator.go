@@ -298,7 +298,7 @@ func (v *pvcValidator) validateBackingImageAccess(request *types.Request, scName
 		return werror.NewInternalError(fmt.Sprintf("failed to check access to image %s/%s: %v", imageNS, imageName, err))
 	}
 	if !allowed {
-		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access image %s/%s", request.UserInfo.Username, imageNS, imageName), "spec.storageClassName")
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access image %s/%s", request.UserInfo.Username, imageNS, imageName), "spec.storageClassName")
 	}
 
 	return nil

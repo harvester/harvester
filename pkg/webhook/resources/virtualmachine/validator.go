@@ -548,8 +548,8 @@ func (v *vmValidator) checkVolumeClaimTemplateEntry(request *types.Request, entr
 	}
 	if !allowed {
 		logrus.Infof("user %q is not allowed to access image %s/%s", request.UserInfo.Username, imageNS, imageName)
-		return werror.NewInvalidError(
-			fmt.Sprintf("user %q is not allowed to access image %s/%s", request.UserInfo.Username, imageNS, imageName),
+		return werror.NewForbidden(
+			fmt.Sprintf("user %q is not authorized to access image %s/%s", request.UserInfo.Username, imageNS, imageName),
 			fmt.Sprintf("metadata.annotations[%s]", util.AnnotationVolumeClaimTemplates),
 		)
 	}

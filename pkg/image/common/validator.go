@@ -184,7 +184,7 @@ func (v *vmiValidator) CheckSecurityParameters(request *types.Request, vmi *v1be
 		return werror.NewInternalError(fmt.Sprintf("failed to check access to source image %s/%s: %v", sp.SourceImageNamespace, sp.SourceImageName, err))
 	}
 	if !allowed {
-		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access source image %s/%s", request.UserInfo.Username, sp.SourceImageNamespace, sp.SourceImageName), "")
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access source image %s/%s", request.UserInfo.Username, sp.SourceImageNamespace, sp.SourceImageName), "")
 	}
 
 	// Check if the source image exists
@@ -285,7 +285,7 @@ func (v *vmiValidator) CheckImagePVC(request *types.Request, vmi *v1beta1.Virtua
 		return werror.NewInternalError(fmt.Sprintf("failed to check user permission for pvc %s/%s: %v", vmi.Spec.PVCNamespace, vmi.Spec.PVCName, err))
 	}
 	if !allowed {
-		return werror.NewInvalidError(fmt.Sprintf("user has no permission to get the pvc resource %s/%s", vmi.Spec.PVCNamespace, vmi.Spec.PVCName), "")
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access PVC %s/%s", request.UserInfo.Username, vmi.Spec.PVCNamespace, vmi.Spec.PVCName), "")
 	}
 
 	_, err = v.pvcCache.Get(vmi.Spec.PVCNamespace, vmi.Spec.PVCName)
