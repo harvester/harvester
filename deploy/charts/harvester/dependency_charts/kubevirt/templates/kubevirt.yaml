@@ -13,5 +13,19 @@ metadata:
     app.kubernetes.io/component: metadata
 spec:
 {{- if .Values.spec }}
-{{ toYaml .Values.spec | indent 2 }}
+{{- $spec := deepCopy .Values.spec }}
+{{- $ipFamilyPolicy := ((.Values.global | default dict).ipFamilyPolicy) | default "SingleStack" }}
+{{- $ipFamilyPatch := printf "{\"spec\":{\"ipFamilyPolicy\":\"%s\"}}" $ipFamilyPolicy }}
+{{- $ipFamilyPatches := list
+      (dict "patch" $ipFamilyPatch "resourceName" "virt-api" "resourceType" "Service" "type" "strategic")
+      (dict "patch" $ipFamilyPatch "resourceName" "virt-exportproxy" "resourceType" "Service" "type" "strategic")
+      (dict "patch" $ipFamilyPatch "resourceName" "kubevirt-operator-webhook" "resourceType" "Service" "type" "strategic")
+      (dict "patch" $ipFamilyPatch "resourceName" "kubevirt-prometheus-metrics" "resourceType" "Service" "type" "strategic")
+}}
+{{- $existingPatches := list }}
+{{- if $spec.customizeComponents }}
+{{- $existingPatches = $spec.customizeComponents.patches | default list }}
+{{- end }}
+{{- $_ := set $spec "customizeComponents" (dict "patches" (concat $existingPatches $ipFamilyPatches)) }}
+{{ toYaml $spec | indent 2 }}
 {{- end }}

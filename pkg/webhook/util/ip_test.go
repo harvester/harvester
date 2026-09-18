@@ -1,6 +1,8 @@
 package util
 
 import (
+	"math"
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,6 +103,163 @@ func Test_ipAddressRange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			count, _ := GetUsableIPAddressesCount(tt.config.Range, tt.config.Exclude)
 			assert.Equal(t, tt.expectedErr, count < 16)
+		})
+	}
+}
+
+func Test_GetUsableIPAddressesCountDualStack(t *testing.T) {
+	tests := []struct {
+		name      string
+		v4Range   string
+		v6Start   string
+		v6End     string
+		v4Exclude []string
+		wantCount int // exact expected count; -1 means math.MaxInt
+		wantErr   bool
+	}{
+		{
+			name:      "v4 only range",
+			v4Range:   "192.168.2.0/24",
+			v4Exclude: []string{},
+			wantCount: 254, // 256 - network address - broadcast
+			wantErr:   false,
+		},
+		{
+			name:      "v4 range with exclude",
+			v4Range:   "192.168.2.0/24",
+			v4Exclude: []string{"192.168.2.0/28"},
+			wantCount: 239, // 254 - 15 (the /28 includes .0, already excluded as the network address)
+			wantErr:   false,
+		},
+		{
+			name:      "v6 only window",
+			v6Start:   "2001:db8::1",
+			v6End:     "2001:db8::ff",
+			wantCount: 255, // 0xff - 0x1 + 1
+			wantErr:   false,
+		},
+		{
+			name:      "dual range sum",
+			v4Range:   "192.168.2.0/24",
+			v4Exclude: []string{},
+			v6Start:   "2001:db8::1",
+			v6End:     "2001:db8::ff",
+			wantCount: 509, // 254 + 255
+			wantErr:   false,
+		},
+		{
+			name:      "v6 single-address window",
+			v6Start:   "2001:db8::5",
+			v6End:     "2001:db8::5",
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name:      "v6 huge window returns MaxInt instead of overflowing",
+			v6Start:   "::",
+			v6End:     "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+			wantCount: -1, // math.MaxInt
+			wantErr:   false,
+		},
+		{
+			name:      "invalid v4 range returns error",
+			v4Range:   "not-a-cidr",
+			v4Exclude: []string{},
+			wantErr:   true,
+		},
+		{
+			name:    "invalid v6Start returns error",
+			v6Start: "not-an-ip",
+			v6End:   "2001:db8::ff",
+			wantErr: true,
+		},
+		{
+			name:    "invalid v6End returns error",
+			v6Start: "2001:db8::1",
+			v6End:   "not-an-ip",
+			wantErr: true,
+		},
+		{
+			name:    "v6Start after v6End returns error",
+			v6Start: "2001:db8::ff",
+			v6End:   "2001:db8::1",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := GetUsableIPAddressesCountDualStack(tt.v4Range, tt.v6Start, tt.v6End, tt.v4Exclude)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.wantCount == -1 {
+					assert.Equal(t, math.MaxInt, count)
+				} else {
+					assert.Equal(t, tt.wantCount, count)
+				}
+			}
+		})
+	}
+}
+
+func Test_IsCoveredByPrefixes(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		excludes []string
+		want     bool
+	}{
+		{
+			name:     "two /25s fully cover a /24",
+			target:   "10.0.4.0/24",
+			excludes: []string{"10.0.4.0/25", "10.0.4.128/25"},
+			want:     true,
+		},
+		{
+			name:     "single exclude equal to target",
+			target:   "192.168.1.0/24",
+			excludes: []string{"192.168.1.0/24"},
+			want:     true,
+		},
+		{
+			name:     "exclude more general than target covers it",
+			target:   "192.168.1.128/25",
+			excludes: []string{"192.168.1.0/24"},
+			want:     true,
+		},
+		{
+			name:     "one /25 does not cover the full /24",
+			target:   "10.0.4.0/24",
+			excludes: []string{"10.0.4.0/25"},
+			want:     false,
+		},
+		{
+			name:     "no excludes leaves target uncovered",
+			target:   "192.168.1.0/24",
+			excludes: []string{},
+			want:     false,
+		},
+		{
+			name:     "IPv6: two /121s fully cover a /120",
+			target:   "2001:db8::/120",
+			excludes: []string{"2001:db8::/121", "2001:db8::80/121"},
+			want:     true,
+		},
+		{
+			name:     "IPv6: only one /121 does not cover the /120",
+			target:   "2001:db8::/120",
+			excludes: []string{"2001:db8::/121"},
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target, err := netip.ParsePrefix(tt.target)
+			assert.NoError(t, err)
+			got := IsCoveredByPrefixes(target.Masked(), tt.excludes)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

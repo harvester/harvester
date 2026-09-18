@@ -1376,22 +1376,112 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 			errMsg: "not allowed on",
 		},
 		{
-			name: "IPv6 /120 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 120>=16)",
+			name: "IPv6 CIDR in range field is rejected (use rangeV6 for dual-stack)",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"2001:db8::/120"}`,
 			},
-			errMsg: "IPv6 ranges are not supported",
+			errMsg: "range must be an IPv4 CIDR",
 		},
 		{
-			name: "IPv6 /64 range rejected by To4() guard (minSNPrefixLength=16 alone would not protect: 64>=16)",
+			name: "IPv6-only (rangeV6 without range) is rejected - IPv4 Family First required",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "rangeV6":"2001:db8::/120"}`,
+			},
+			errMsg: "IPv6-only is not supported",
+		},
+		{
+			name: "IPv6 /64 CIDR in range field is rejected (use rangeV6 for dual-stack)",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
 				Default:    "",
 				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"fd00::/64"}`,
 			},
-			errMsg: "IPv6 ranges are not supported",
+			errMsg: "range must be an IPv4 CIDR",
+		},
+		{
+			name: "rangeV6 is rejected on a single-stack cluster (no node has an IPv6 address)",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"192.168.0.0/24", "rangeV6":"fd00::/120"}`,
+			},
+			errMsg: "this cluster was not installed with dual-stack",
+			// No node1/node2 given: the cluster has no IPv6 node address, so
+			// isClusterDualStack() must report false even though both CIDRs
+			// are individually well-formed.
+		},
+		{
+			name: "IPv4 CIDR in rangeV6 field is rejected (swapped family, not IPv6 Family First)",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"192.168.0.0/24", "rangeV6":"10.0.0.0/24"}`,
+			},
+			errMsg: "rangeV6 must be an IPv6 CIDR",
+			// This cluster must be recognized as dual-stack so the failure
+			// actually comes from the CIDR-family check, not the install-mode gate.
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+				Status: corev1.NodeStatus{
+					Addresses: []corev1.NodeAddress{
+						{Type: corev1.NodeInternalIP, Address: "192.168.0.5"},
+						{Type: corev1.NodeInternalIP, Address: "fd00::5"},
+					},
+					Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+				},
+			},
+		},
+		{
+			name: "rangeV6 without rangeV6Start/rangeV6End is rejected on a dual-stack cluster",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"192.168.0.0/24", "rangeV6":"fd00::/120"}`,
+			},
+			errMsg: "rangeV6Start and rangeV6End are required alongside rangeV6",
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+				Status: corev1.NodeStatus{
+					Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+					Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+				},
+			},
+		},
+		{
+			name: "rangeV6Start outside rangeV6 is rejected",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"192.168.0.0/24", "rangeV6":"fd00::/120", "rangeV6Start":"fd01::10", "rangeV6End":"fd00::20"}`,
+			},
+			errMsg: "is not within rangeV6",
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+				Status: corev1.NodeStatus{
+					Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+					Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+				},
+			},
+		},
+		{
+			name: "rangeV6Start after rangeV6End is rejected",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.StorageNetworkName},
+				Default:    "",
+				Value:      `{"vlan":100, "clusterNetwork":"mgmt", "range":"192.168.0.0/24", "rangeV6":"fd00::/120", "rangeV6Start":"fd00::20", "rangeV6End":"fd00::10"}`,
+			},
+			errMsg: "must not be after rangeV6End",
+			node1: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+				Status: corev1.NodeStatus{
+					Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+					Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+				},
+			},
 		},
 		{
 			name: "fail to create storage-network with same vlan-id as VM Network when exclusive vlan is enabled",
@@ -2660,6 +2750,53 @@ func Test_checkNetworkOverlap(t *testing.T) {
 			wantErr: true,
 			errMsg:  "storage-network: the network configuration is overlapped with rwx-network",
 		},
+		{
+			name:   "dual-stack: non-overlapping IPv4 and non-overlapping IPv6, no error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "192.168.1.0/24", RangeV6: "fd00:1::/120", RangeV6Start: "fd00:1::10", RangeV6End: "fd00:1::20"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.2.0/24", RangeV6: "fd00:2::/120", RangeV6Start: "fd00:2::10", RangeV6End: "fd00:2::20"},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "dual-stack: IPv4 ranges overlap even though IPv6 windows do not, return error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "192.168.1.0/24", RangeV6: "fd00:1::/120", RangeV6Start: "fd00:1::10", RangeV6End: "fd00:1::20"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.1.0/24", RangeV6: "fd00:2::/120", RangeV6Start: "fd00:2::10", RangeV6End: "fd00:2::20"},
+			},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with vm-migration-network",
+		},
+		{
+			name:   "dual-stack: IPv6 windows overlap even though IPv4 ranges do not, return error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "192.168.1.0/24", RangeV6: "fd00::/120", RangeV6Start: "fd00::10", RangeV6End: "fd00::30"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.2.0/24", RangeV6: "fd00::/120", RangeV6Start: "fd00::20", RangeV6End: "fd00::40"},
+			},
+			wantErr: true,
+			errMsg:  "storage-network: the network configuration is overlapped with vm-migration-network",
+		},
+		{
+			name:   "dual-stack: adjacent IPv6 windows do not overlap, no error",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "192.168.1.0/24", RangeV6: "fd00::/120", RangeV6Start: "fd00::10", RangeV6End: "fd00::1f"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.2.0/24", RangeV6: "fd00::/120", RangeV6Start: "fd00::20", RangeV6End: "fd00::30"},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "dual-stack: one side single-stack (no RangeV6Start/End), only IPv4 is compared",
+			c1Name: "storage-network",
+			c1:     &networkutil.Config{Range: "192.168.1.0/24", RangeV6: "fd00::/120", RangeV6Start: "fd00::10", RangeV6End: "fd00::20"},
+			c2: map[string]*networkutil.Config{
+				"vm-migration-network": {Range: "192.168.2.0/24"},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2673,6 +2810,122 @@ func Test_checkNetworkOverlap(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func Test_isClusterDualStack(t *testing.T) {
+	tests := []struct {
+		name  string
+		nodes []runtime.Object
+		want  bool
+	}{
+		{
+			name:  "no nodes -> not dual-stack",
+			nodes: []runtime.Object{},
+			want:  false,
+		},
+		{
+			name: "nodes with IPv4-only InternalIP -> not dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{Type: corev1.NodeInternalIP, Address: "192.168.0.5"},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "one node with an IPv6 InternalIP -> dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+						Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+					},
+				},
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-2"},
+					Status: corev1.NodeStatus{
+						Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.6"}},
+						Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "IPv6 ExternalIP is ignored, only InternalIP counts -> not dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeExternalIP, Address: "fd00::5"}},
+						Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "IPv6 node that is NotReady is ignored -> not dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+						Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionFalse}},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "IPv6 node with no Ready condition reported at all is ignored -> not dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "IPv6 node being deleted is ignored -> not dual-stack",
+			nodes: []runtime.Object{
+				&corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "node-1",
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+						Finalizers:        []string{"harvesterhci.io/test"},
+					},
+					Status: corev1.NodeStatus{
+						Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.0.5"}, {Type: corev1.NodeInternalIP, Address: "fd00::5"}},
+						Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(tt.nodes...)
+			v := &settingValidator{
+				nodeCache: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+
+			got, err := v.isClusterDualStack()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -2946,22 +3199,22 @@ func Test_checkExclusiveVlan(t *testing.T) {
 //
 // Why minSNPrefixLength = 16 is not enough:
 //
-//	IPv4 /16: prefixLen=16, 16 < 16 = false → passes → 2^16 = 65,534 hosts → enumerable in ms
-//	IPv6 /64: prefixLen=64, 64 < 16 = false → passes → 2^64 ≈ 1.8×10¹⁹ hosts → never enumerates
+//	IPv4 /16: prefixLen=16, 16 < 16 = false -> passes -> 2^16 = 65,534 hosts -> enumerable in ms
+//	IPv6 /64: prefixLen=64, 64 < 16 = false -> passes -> 2^64 ~= 1.8e19 hosts -> never enumerates
 //
-// The same "prefix length must be ≥ 16" boundary that is safe for IPv4 (32-bit
+// The same "prefix length must be >= 16" boundary that is safe for IPv4 (32-bit
 // address space) is catastrophic for IPv6 (128-bit address space). The constant
 // was designed for IPv4 and provides zero protection against large IPv6 subnets.
 //
 // Full call chain that hangs:
 //
 //	v.Update
-//	  └─ validateUpdateVMMigrationNetwork
-//	       └─ validateNetworkHelper
-//	            ├─ checkNetworkRangeValid  ← guard commented out; 64 >= 16 passes
-//	            └─ checkVMMigrationNetworkRangeValid
-//	                 └─ GetUsableIPAddressesCount("2001:db8::/64")
-//	                      └─ incrementIP loop  ← 2^64 iterations, never returns
+//	  -> validateUpdateVMMigrationNetwork
+//	       -> validateNetworkHelper
+//	            -> checkNetworkRangeValid  (guard commented out; 64 >= 16 passes)
+//	            -> checkVMMigrationNetworkRangeValid
+//	                 -> GetUsableIPAddressesCount("2001:db8::/64")
+//	                      -> incrementIP loop  (2^64 iterations, never returns)
 func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	v := NewValidator(
@@ -2991,24 +3244,23 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 
 	select {
 	case err := <-done:
-		// If the To4() guard in checkNetworkRangeValid is active it rejects IPv6
-		// immediately — that is the correct protected behaviour, so the test passes.
-		if err != nil && strings.Contains(err.Error(), "IPv6") {
+		// checkNetworkRangeValid rejects IPv6 in the range field immediately.
+		if err != nil && strings.Contains(err.Error(), "range must be an IPv4 CIDR") {
 			t.Logf("PROTECTED: v.Update rejected IPv6 /64 immediately: %v", err)
 			return
 		}
 		// Any other return (nil or unrelated error) means the guard is gone AND
-		// the enumeration somehow finished — that should never happen for /64.
-		t.Fatalf("v.Update returned unexpectedly (err=%v) for IPv6 /64 — "+
+		// the enumeration somehow finished - that should never happen for /64.
+		t.Fatalf("v.Update returned unexpectedly (err=%v) for IPv6 /64 - "+
 			"expected either an IPv6 rejection error (guard present) or a hang (guard absent). "+
 			"minSNPrefixLength=16 checks prefixLen<16; 64>=16, so without the guard "+
 			"GetUsableIPAddressesCount must enumerate 2^64 addresses. "+
 			"Compare: IPv4 /16 = 65,534 hosts (safe); IPv6 /64 = 2^64 hosts (catastrophic).", err)
 	case <-time.After(10 * time.Second):
 		// Guard is absent: v.Update is still looping inside GetUsableIPAddressesCount
-		// after 10 seconds — 2^64 iterations cannot complete on any hardware.
+		// after 10 seconds - 2^64 iterations cannot complete on any hardware.
 		// This confirms the OOM/DoS risk when the To4() guard is removed.
 		// The leaked goroutine exits with the test process.
-		t.Log("UNPROTECTED (guard absent): v.Update hung as expected — OOM/DoS risk confirmed")
+		t.Log("UNPROTECTED (guard absent): v.Update hung as expected - OOM/DoS risk confirmed")
 	}
 }
