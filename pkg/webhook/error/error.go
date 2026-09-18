@@ -52,6 +52,15 @@ func NewMethodNotAllowed(message string) AdmitError {
 	}
 }
 
+// 403
+func NewForbidden(message string, field string) AdmitError {
+	return AdmitError{
+		code:    http.StatusForbidden,
+		message: message,
+		reason:  metav1.StatusReasonForbidden,
+	}
+}
+
 // 422
 func NewInvalidError(message string, field string) AdmitError {
 	return AdmitError{
