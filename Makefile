@@ -100,7 +100,7 @@ DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 	--build-arg SUSE_STORAGE_REGISTRY="$(MK_SUSE_STORAGE_REGISTRY)" \
 	-f $(ROOT)/Dockerfile $(ROOT)
 
-.PHONY: build validate validate-ci test test-integration build-iso \
+.PHONY: build validate validate-ci validate-prime test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
@@ -142,6 +142,12 @@ build: gen-version-env | $(ROOT)/bin
 validate: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target validate
+
+
+# ---- Validate Prime ----
+validate-prime: gen-version-env
+	$(BANNER)
+	$(DOCKER_BUILD) --target validate-prime
 
 
 # ---- Validate CI (dirty check after go generate + go mod tidy) ----
