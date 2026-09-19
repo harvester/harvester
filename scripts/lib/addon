@@ -32,3 +32,28 @@ load_addon_env() {
     fi
   fi
 }
+
+# Sprint releases (tag vX.Y.Z-dev-YYYYMMDD, see scripts/version) tag harvester/os2
+# with the same version, so both rancher/harvester-os and
+# rancher/harvester-nvidia-driver-toolkit exist under that tag and share a kernel.
+# Replace the floating "*-head" nvidia-driver-toolkit tag in the generated addon
+# files under the given directory with the sprint version. No-op for non-sprint
+# builds and for release branches that already pin a tag.
+freeze_sprint_image_tags() {
+  local dir=$1
+
+  if [ -z "${SPRINT_RELEASE:-}" ]; then
+    return 0
+  fi
+  if [ ! -d "${dir}" ]; then
+    echo "[ERROR] addon output path ${dir} doesn't exist."
+    return 1
+  fi
+
+  local f
+  grep -rl 'harvester-nvidia-driver-toolkit' "${dir}" | while read -r f; do
+    # The tag line sits right above the repo line in the addon values.
+    sed -i "/tag: .*-head\$/ {N; /harvester-nvidia-driver-toolkit/ s/tag: .*-head\n/tag: ${VERSION}\n/}" "${f}"
+    echo "[sprint] nvidia-driver-toolkit tag in ${f}: $(grep -B1 'harvester-nvidia-driver-toolkit' "${f}" | head -n1 | sed 's/^ *//')"
+  done
+}

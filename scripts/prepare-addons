@@ -34,3 +34,9 @@ if [ -e "$TOP_DIR/dist/prepare-addons" ]; then
 fi
 
 docker cp "${id}:/dist/prepare-addons/" "${TOP_DIR}/dist/prepare-addons/"
+
+# sprint releases: pin the nvidia-driver-toolkit tag in the generated manifests
+# (they are shipped in the upgrade image and applied by upgrade_addon)
+source "${TOP_DIR}/scripts/version"
+source "${TOP_DIR}/scripts/lib/addon"
+freeze_sprint_image_tags "${TOP_DIR}/dist/prepare-addons/addons-manifests"

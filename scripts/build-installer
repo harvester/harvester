@@ -57,4 +57,7 @@ go run . -generateTemplates -path ${TOP_DIR}/pkg/installer/config/templates
 
 cd ${TOP_DIR}
 
+# sprint releases: pin the nvidia-driver-toolkit tag embedded in the installer
+freeze_sprint_image_tags ${TOP_DIR}/pkg/installer/config/templates
+
 CGO_ENABLED=0 go build -gcflags "${OTHER_COMPILERFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/harvester-installer ./cmd/installer
