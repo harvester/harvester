@@ -5,9 +5,11 @@ prime:
 
   # Image overrides applied to deploy/charts/harvester/values.yaml by
   # scripts/patch-harvester's replace_harvester_image_registry when PRIME_BUILD=true.
-  #   path       — yq path to the image node; <path>.repository must already exist in values.yaml
-  #   repository — target repository; registry placeholders are expanded from the env
-  #   tag        — optional; the tag already in values.yaml is kept when omitted
+  #   path                — yq path to the image node; <path>.repository must already exist in values.yaml
+  #   repository          — target repository; registry placeholders are expanded from the env
+  #   tag                 — optional; the tag already in values.yaml is kept when omitted
+  #   skip_tag_validation — optional; when true, scripts/validate-prime skips the check that the
+  #                         tag override must contain the community tag from values.yaml
   images:
     - path: .cdi.containers.hook.image
       repository: ${RANCHER_REGISTRY}/rancher/kuberlr-kubectl

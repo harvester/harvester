@@ -1,0 +1,20 @@
+name: Validate Prime
+
+on:
+  push:
+    branches:
+    - prime-*
+  workflow_dispatch:
+
+jobs:
+  validate-prime:
+    name: Validate Prime
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x64]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - name: Run validate prime
+      run: make validate-prime
