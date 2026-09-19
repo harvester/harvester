@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
@@ -19,11 +20,12 @@ import (
 )
 
 const (
-	AnnStorageProvisioner     = "volume.kubernetes.io/storage-provisioner"
-	AnnBetaStorageProvisioner = "volume.beta.kubernetes.io/storage-provisioner"
-	LonghornDataLocality      = "dataLocality"
-	IndexPodByPVC             = "indexPodByPVC"
-	rwxVolumeDisplayMax       = 3
+	AnnStorageProvisioner      = "volume.kubernetes.io/storage-provisioner"
+	AnnBetaStorageProvisioner  = "volume.beta.kubernetes.io/storage-provisioner"
+	LonghornDataLocality       = "dataLocality"
+	IndexPodByPVC              = "indexPodByPVC"
+	IndexVMIByBackingImageName = "indexVirtualMachineImageByBackingImageName"
+	rwxVolumeDisplayMax        = 3
 )
 
 var (
@@ -229,4 +231,12 @@ func CheckRWXNonMigratableVolumesDetached(volumeCache ctllhv1.VolumeCache) error
 		suffix = "..."
 	}
 	return fmt.Errorf("there are RWX volumes not in detached state: %s", strings.Join(display, ", ")+suffix)
+}
+
+func IndexVMIByBackingImageNameFunc(vmImage *v1beta1.VirtualMachineImage) ([]string, error) {
+	indexes := []string{}
+	if vmImage.Spec.BackingImageName != "" {
+		indexes = append(indexes, vmImage.Spec.BackingImageName)
+	}
+	return indexes, nil
 }
