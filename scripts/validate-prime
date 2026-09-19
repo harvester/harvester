@@ -1,0 +1,48 @@
+#!/bin/bash
+# DESC: Runs Harvester Prime-specific validations.
+set -e
+
+cd "$(dirname "$0")/.."
+
+BUILD_YAML="build.yaml"
+VALUES_YAML="deploy/charts/harvester/values.yaml"
+
+# Prime image tag overrides in build.yaml's .prime.images[] must contain the
+# community tag already present in values.yaml at the same path, e.g.
+# whereabouts community "v0.9.4" -> prime "v0.9.4-build20260819".
+check_prime_image_tag_overrides() {
+  local fail=0 count path prime_tag community_tag skip
+  count=$(yq '.prime.images | length' "${BUILD_YAML}")
+  for ((i = 0; i < count; i++)); do
+    path=$(yq ".prime.images[$i].path" "${BUILD_YAML}")
+    prime_tag=$(yq ".prime.images[$i].tag // \"\"" "${BUILD_YAML}")
+    [[ -z "${prime_tag}" ]] && continue
+
+    skip=$(yq ".prime.images[$i].skip_tag_validation // false" "${BUILD_YAML}")
+    if [[ "${skip}" == "true" ]]; then
+      echo "SKIP: ${path}: tag validation skipped (skip_tag_validation: true)"
+      continue
+    fi
+
+    community_tag=$(yq "${path}.tag // \"\"" "${VALUES_YAML}")
+    if [[ -z "${community_tag}" ]]; then
+      echo "Error: ${path}.tag not found in ${VALUES_YAML}"
+      fail=1
+      continue
+    fi
+
+    if [[ "${prime_tag}" != *"${community_tag}"* ]]; then
+      echo "Error: ${path}: prime tag '${prime_tag}' does not contain community tag '${community_tag}'"
+      fail=1
+    else
+      echo "OK: ${path}: prime tag '${prime_tag}' contains community tag '${community_tag}'"
+    fi
+  done
+  return "${fail}"
+}
+
+echo "Running Prime validations"
+
+check_prime_image_tag_overrides
+
+echo "All Prime validations passed"

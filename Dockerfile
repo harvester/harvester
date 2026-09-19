@@ -125,6 +125,11 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     ./scripts/validate
 
 
+# ---- validate-prime ----
+FROM base AS validate-prime
+RUN ./scripts/validate-prime
+
+
 # ---- validate-ci ----
 FROM base AS validate-ci
 ARG MK_REPO_ID
