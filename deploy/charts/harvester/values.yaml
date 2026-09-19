@@ -166,7 +166,7 @@ cdi:
     hook:
       image:
         repository: rancher/kuberlr-kubectl
-        tag: v7.0.3
+        tag: v8.1.2
 
   spec:
     cloneStrategyOverride: copy
