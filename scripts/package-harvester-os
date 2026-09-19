@@ -36,6 +36,12 @@ HARVESTER_KUBEVIRT_VERSION=$(yq e '.kubevirt-operator.containers.operator.image.
 HARVESTER_MIN_UPGRADABLE_VERSION=${MIN_UPGRADABLE_VERSION}
 
 BASE_OS_IMAGE="rancher/harvester-os:sle-micro-head"
+# Sprint releases tag harvester/os2 with the Harvester version before the ISO
+# build, so a floating "*-head" base image is pinned to that build. Release
+# branches already pin a dated tag and are left untouched.
+if [[ -n "${SPRINT_RELEASE}" && "${BASE_OS_IMAGE}" == *-head ]]; then
+  BASE_OS_IMAGE="rancher/harvester-os:${VERSION}"
+fi
 HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
 
 cd ${PACKAGE_HARVESTER_OS_DIR}
