@@ -29,6 +29,12 @@ fi
 
 prime_registry=$(validate_registry "${HARVESTER_PRIME_REGISTRY}" HARVESTER_PRIME_REGISTRY)
 
+# rancher-monitoring/rancher-logging resolve images via their chart's
+# global.cattle.systemDefaultRegistry default (see patch_addon_chart_registry
+# in scripts/lib/addon). Resolve the same "monitoring" category registry here
+# so the addon manifest's valuesContent stays in lockstep with that default.
+monitoring_registry=$(resolve_registry monitoring)
+
 temp_file=$(mktemp "${version_info_path}.tmp.XXXXXX")
 cleanup() {
     rm -f "${temp_file}"
@@ -53,6 +59,10 @@ while IFS= read -r line || [[ -n "${line}" ]]; do
                 replaced=$((replaced + 1))
             fi
             ;;
+        MONITORING_REGISTRY)
+            line="${key}=\"${monitoring_registry}\""
+            replaced=$((replaced + 1))
+            ;;
     esac
 
     printf '%s\n' "${line}" >> "${temp_file}"
@@ -62,4 +72,4 @@ chmod --reference="${version_info_path}" "${temp_file}"
 mv "${temp_file}" "${version_info_path}"
 trap - EXIT
 
-echo "Updated ${replaced} add-on image repositories for HARVESTER_PRIME_REGISTRY=${prime_registry}"
+echo "Updated ${replaced} add-on registry/image entries for HARVESTER_PRIME_REGISTRY=${prime_registry}, MONITORING_REGISTRY=${monitoring_registry}"

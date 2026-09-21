@@ -26,6 +26,8 @@ docker build "${docker_pull_args[@]}" \
     --build-arg MK_HOST_ARCH \
     --build-arg PRIME_BUILD="${MK_PRIME_BUILD:-}" \
     --build-arg HARVESTER_PRIME_REGISTRY="${MK_HARVESTER_PRIME_REGISTRY:-}" \
+    --build-arg MK_RANCHER_PRIME_REGISTRY="${MK_RANCHER_PRIME_REGISTRY:-}" \
+    --build-arg MK_MONITORING_REGISTRY="${MK_MONITORING_REGISTRY:-}" \
     --target generate-addons-output \
     --output "type=local,dest=${TOP_DIR}/dist" \
     -f "${TOP_DIR}/Dockerfile" "${TOP_DIR}"
