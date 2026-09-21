@@ -1,7 +1,7 @@
 name: Validate Prime
 
 on:
-  # uncomment when a stable branch include prime builds
+  # uncomment when a stable branch includes prime builds
   # push:
   #   branches:
   #   - v1.*
@@ -11,9 +11,6 @@ jobs:
   validate-prime:
     name: Validate Prime
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x64]
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
