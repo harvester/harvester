@@ -915,7 +915,21 @@ EOF
 
     write_addon_version_values_patch "$version" $valuesfile addon-patch.yaml
 
+    # capture status before patching: wait_for_addon_upgrade_deployment only
+    # waits when the addon was already AddonDeploySuccessful beforehand.
+    local enabled=""
+    local curstatus=""
+    enabled=$(kubectl get addons.harvesterhci.io kubeovn-operator -n kube-system -o=jsonpath='{.spec.enabled}' || true)
+    if [[ $enabled = "true" ]]; then
+      curstatus=$(kubectl get addons.harvesterhci.io kubeovn-operator -n kube-system -o=jsonpath='{.status.status}' || true)
+    fi
+
     kubectl patch addons.harvesterhci kubeovn-operator -n kube-system --patch-file ./addon-patch.yaml --type merge
+
+    # wait for the addon operation this patch triggered to clear before
+    # sync_addon_labels_from_manifests touches this addon again, so it
+    # doesn't race the webhook's in-progress-operation guard.
+    wait_for_addon_upgrade_deployment kubeovn-operator kube-system $enabled $curstatus
   fi
 
 }
