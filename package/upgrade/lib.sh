@@ -390,28 +390,38 @@ write_addon_version_values_patch()
   rm -f "$valuesfile"
 }
 
-# sync_addon_image_from_manifest overlays the top-level image.repository and
-# image.tag from the packaged manifest (which already carries the registry,
-# community or Prime, baked in at build time) onto a live valuesContent file,
-# without touching any other field. This keeps user customizations intact
-# while guaranteeing the addon's image always tracks the registry shipped
-# with the upgrade bundle. No-op if the packaged manifest has no top-level
-# image block.
+# sync_addon_image_from_manifest overlays the top-level image.repository,
+# image.tag, and global.cattle.systemDefaultRegistry from the packaged
+# manifest (which already carries the registry, community or Prime, baked in
+# at build time) onto a live valuesContent file, without touching any other
+# field. This keeps user customizations intact while guaranteeing the addon's
+# images always track the registry shipped with the upgrade bundle. Each
+# field is a no-op when the packaged manifest doesn't carry it (e.g.
+# image.repository for rancher-monitoring, or systemDefaultRegistry on a
+# community build where it is intentionally left empty to match the chart's
+# own default).
 sync_addon_image_from_manifest()
 {
   local name=$1
   local valuesfile=$2
   local manifest="/usr/local/share/addons/${name}.yaml"
 
-  local repo tag
-  repo=$(yq '.spec.valuesContent' "$manifest" | yq '.image.repository // ""')
-  tag=$(yq '.spec.valuesContent' "$manifest" | yq '.image.tag // ""')
+  local values
+  values=$(yq '.spec.valuesContent' "$manifest")
+
+  local repo tag registry
+  repo=$(echo "$values" | yq '.image.repository // ""')
+  tag=$(echo "$values" | yq '.image.tag // ""')
+  registry=$(echo "$values" | yq '.global.cattle.systemDefaultRegistry // ""')
 
   if [[ -n "$repo" ]]; then
     REPO="$repo" yq -e '.image.repository = strenv(REPO)' -i "$valuesfile"
   fi
   if [[ -n "$tag" ]]; then
     TAG="$tag" yq -e '.image.tag = strenv(TAG)' -i "$valuesfile"
+  fi
+  if [[ -n "$registry" ]]; then
+    REGISTRY="$registry" yq -e '.global.cattle.systemDefaultRegistry = strenv(REGISTRY)' -i "$valuesfile"
   fi
 }
 
@@ -612,9 +622,12 @@ is_rc_release()
 }
 
 # upgrade addon: patch the chart version, and overlay the packaged image
-# repository/tag (see sync_addon_image_from_manifest) onto the existing
-# valuesContent so the addon keeps tracking the registry shipped with the
-# upgrade bundle even when no other field needs to change.
+# repository/tag/registry (see sync_addon_image_from_manifest) onto the
+# existing valuesContent so the addon keeps tracking the registry shipped
+# with the upgrade bundle even when the version itself doesn't change (e.g. a
+# same-version community->prime transition). The resulting patch is a no-op
+# when both the version and the synced fields are already up to date, so
+# `kubectl patch` triggers no redeploy in that case.
 upgrade_addon_try_patch_version_only()
 {
   local name=$1
@@ -626,12 +639,6 @@ upgrade_addon_try_patch_version_only()
   local version=$(kubectl get addons.harvesterhci.io $name -n $namespace -o=jsonpath='{.spec.version}' || true)
   if [[ -z "$version" ]]; then
     echo "addon is not found, nothing to do"
-    return 0
-  fi
-
-  # check if version is updated
-  if [[ "$version" = "$newversion" ]]; then
-    echo "addon has already been $newversion, nothing to do"
     return 0
   fi
 
