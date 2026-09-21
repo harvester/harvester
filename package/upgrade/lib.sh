@@ -333,9 +333,24 @@ EOF
   item_count=$(kubectl get addons.harvesterhci $name -n $namespace -o  jsonpath='{..name}' || true)
   if [ -z "$item_count" ]; then
     install_addon $name $namespace
-  else
-    kubectl patch addons.harvesterhci $name -n $namespace --patch-file ./addon-patch.yaml --type merge
+    return 0
   fi
+
+  # capture status before patching: wait_for_addon_upgrade_deployment only
+  # waits when the addon was already AddonDeploySuccessful beforehand.
+  local enabled=""
+  local curstatus=""
+  enabled=$(kubectl get addons.harvesterhci $name -n $namespace -o=jsonpath='{.spec.enabled}' || true)
+  if [[ $enabled = "true" ]]; then
+    curstatus=$(kubectl get addons.harvesterhci $name -n $namespace -o=jsonpath='{.status.status}' || true)
+  fi
+
+  kubectl patch addons.harvesterhci $name -n $namespace --patch-file ./addon-patch.yaml --type merge
+
+  # wait for the addon operation this patch triggered to clear before any
+  # later pass (e.g. sync_addon_labels_from_manifests) touches this addon
+  # again, so it doesn't race the webhook's in-progress-operation guard.
+  wait_for_addon_upgrade_deployment $name $namespace $enabled $curstatus
 }
 
 install_addon()
@@ -346,7 +361,7 @@ install_addon()
   kubectl apply -f /usr/local/share/addons/${name}.yaml -n $namespace
 }
 
-# Synchronize labels derived from addons/<name>/metadata.yaml onto an existing
+# Synchronize labels derived from addons/{built-in,standalone}/<name>/metadata.yaml onto an existing
 # Addon. The packaged manifests are the source of truth after generation.
 # Unrelated labels are preserved; stale stage/deprecation labels are removed.
 sync_addon_labels()
@@ -384,7 +399,26 @@ sync_addon_labels()
   ')
 
   echo "Synchronizing metadata-derived labels for addon $namespace/$name"
-  kubectl patch addons.harvesterhci.io "$name" -n "$namespace" --type merge -p "$patch"
+
+  # The validator webhook rejects any update, including a label-only patch,
+  # while the addon has an operation in progress (spec/version patched by an
+  # earlier upgrade step, chart still installing). Retry a few times, and
+  # never let this best-effort metadata sync abort the upgrade under set -e;
+  # give up with a warning if the addon is still busy after the retries.
+  local i=0
+  local patch_failed=false
+  while [[ "$i" -lt 6 ]]; do
+    kubectl patch addons.harvesterhci.io "$name" -n "$namespace" --type merge -p "$patch" && { patch_failed=false; break; }
+    patch_failed=true
+    echo "failed to patch labels on addon $namespace/$name, an operation may still be in progress, retrying ($i)..."
+    sleep 5
+    i=$((i + 1))
+  done
+
+  if [[ "$patch_failed" == true ]]; then
+    echo "WARNING: giving up synchronizing labels for addon $namespace/$name; it is still busy, recover it manually if needed"
+  fi
+  return 0
 }
 
 sync_addon_labels_from_manifests()
