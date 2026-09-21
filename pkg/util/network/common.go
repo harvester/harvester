@@ -20,6 +20,15 @@ type Config struct {
 	ExclusiveVlan  bool     `json:"exclusiveVlan,omitempty"`
 	Range          string   `json:"range,omitempty"`
 	Exclude        []string `json:"exclude,omitempty"`
+	// RangeV6 is the enclosing IPv6 network (used for routing/gateway purposes,
+	// same role as Range for IPv4). Unlike IPv4, IPv6 address space is not scarce,
+	// so rather than carving out reserved/used addresses from RangeV6 via an
+	// exclude list, the administrator instead names one independent, contiguous,
+	// allocatable window within it via RangeV6Start/RangeV6End (Whereabouts'
+	// native range_start/range_end fields). Both must be set together with RangeV6.
+	RangeV6      string `json:"rangeV6,omitempty"`
+	RangeV6Start string `json:"rangeV6Start,omitempty"`
+	RangeV6End   string `json:"rangeV6End,omitempty"`
 }
 
 // Note: this data type should align with https://github.com/containernetworking/cni/blob/main/pkg/types/types.go#L64-L78
@@ -35,9 +44,21 @@ type BridgeConfig struct {
 
 // Note: this data type should align with https://github.com/k8snetworkplumbingwg/whereabouts/blob/master/pkg/types/types.go#L48-L75
 type IPAMConfig struct {
-	Type    string   `json:"type"`
-	Range   string   `json:"range"`
-	Exclude []string `json:"exclude,omitempty"`
+	Type     string               `json:"type"`
+	Range    string               `json:"range,omitempty"`    // legacy single-stack
+	Exclude  []string             `json:"exclude,omitempty"`  // legacy single-stack
+	IPRanges []RangeConfiguration `json:"ipRanges,omitempty"` // dual-stack (Whereabouts v0.9.3+)
+}
+
+// RangeConfiguration is one entry in the Whereabouts ipRanges dual-stack list.
+// It must be defined locally because the vendored Whereabouts package does not
+// export this type. Field names/tags mirror upstream exactly:
+// https://github.com/k8snetworkplumbingwg/whereabouts/blob/master/pkg/types/types.go#L41-L46
+type RangeConfiguration struct {
+	Range      string   `json:"range"`
+	Exclude    []string `json:"exclude,omitempty"`
+	RangeStart net.IP   `json:"range_start,omitempty"`
+	RangeEnd   net.IP   `json:"range_end,omitempty"`
 }
 
 func CreateBridgeConfig(config Config) BridgeConfig {
@@ -51,14 +72,28 @@ func CreateBridgeConfig(config Config) BridgeConfig {
 		},
 	}
 	bridgeConfig.Bridge = config.ClusterNetwork + BridgeSuffix
-	bridgeConfig.IPAM.Range = config.Range
 
 	if config.Vlan == 0 {
 		config.Vlan = DefaultPVID
 	}
 	bridgeConfig.Vlan = int(config.Vlan)
 
-	if len(config.Exclude) > 0 {
+	if config.RangeV6 != "" {
+		// Dual-stack: use the Whereabouts ipRanges list format.
+		// Both the IPv4 and IPv6 ranges are written; the flat range/exclude
+		// fields are left empty so the two formats are never mixed.
+		// Exclude/RangeStart/RangeEnd all carry `omitempty`, so a nil/empty
+		// value is dropped from the JSON on its own; no length check needed.
+		ipv4Entry := RangeConfiguration{Range: config.Range, Exclude: config.Exclude}
+		ipv6Entry := RangeConfiguration{
+			Range:      config.RangeV6,
+			RangeStart: net.ParseIP(config.RangeV6Start),
+			RangeEnd:   net.ParseIP(config.RangeV6End),
+		}
+		bridgeConfig.IPAM.IPRanges = []RangeConfiguration{ipv4Entry, ipv6Entry}
+	} else {
+		// Single-stack: legacy flat range/exclude path.
+		bridgeConfig.IPAM.Range = config.Range
 		bridgeConfig.IPAM.Exclude = config.Exclude
 	}
 
