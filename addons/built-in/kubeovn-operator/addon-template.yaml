@@ -13,6 +13,9 @@ spec:
   enabled: false
   {{- end }}
   valuesContent: |
+    image:
+      repository: << .KUBEOVN_OPERATOR_IMAGE_REPOSITORY >>
+      tag: << .KUBEOVN_OPERATOR_IMAGE_TAG >>
     fullnameOverride: harvester-kubeovn-operator
     enableConfiguration: true
     configurationSpec:
