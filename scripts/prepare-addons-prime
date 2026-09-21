@@ -45,7 +45,8 @@ while IFS= read -r line || [[ -n "${line}" ]]; do
         PCIDEVICES_CONTROLLER_IMAGE_REPOSITORY|\
         HARVESTER_SEEDER_IMAGE_REPOSITORY|\
         NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY|\
-        HARVESTER_EVENTROUTER_IMAGE_REPOSITORY)
+        HARVESTER_EVENTROUTER_IMAGE_REPOSITORY|\
+        KUBEOVN_OPERATOR_IMAGE_REPOSITORY)
             if [[ "${value}" == '"rancher/'* ]]; then
                 suffix="${value#\"rancher/}"
                 line="${key}=\"${prime_registry}/harvester/${suffix}"
