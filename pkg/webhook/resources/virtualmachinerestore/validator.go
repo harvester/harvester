@@ -285,7 +285,7 @@ func (v *restoreValidator) checkVMBackupAccess(request *types.Request, vmr *v1be
 		return werror.NewInternalError(fmt.Sprintf("failed to check access to VMBackup %s/%s: %v", vmbNamespace, vmbName, err))
 	}
 	if !allowed {
-		return werror.NewInvalidError(fmt.Sprintf("user %q is not allowed to access VMBackup %s/%s", request.UserInfo.Username, vmbNamespace, vmbName), fieldVirtualMachineBackupName)
+		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access VMBackup %s/%s", request.UserInfo.Username, vmbNamespace, vmbName), fieldVirtualMachineBackupName)
 	}
 	return nil
 }
