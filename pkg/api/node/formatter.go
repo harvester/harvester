@@ -133,28 +133,23 @@ func (h ActionHandler) Do(ctx *harvesterServer.Ctx) (harvesterServer.ResponseBod
 		}
 		return nil, h.powerAction(toUpdate, input.Operation)
 	case enableCPUManager:
-		return nil, h.enableCPUManager(toUpdate)
+		return nil, h.enableCPUManager(name)
 	case disableCPUManager:
-		return nil, h.disableCPUManager(toUpdate)
+		return nil, h.disableCPUManager(name)
 	default:
 		return nil, apierror.NewAPIError(validation.InvalidAction, "Unsupported action")
 	}
 }
 
-func (h ActionHandler) enableCPUManager(node *corev1.Node) error {
-	return h.requestCPUManager(node, ctlnode.CPUManagerStaticPolicy)
+func (h ActionHandler) enableCPUManager(nodeName string) error {
+	return h.requestCPUManager(nodeName, ctlnode.CPUManagerStaticPolicy)
 }
 
-func (h ActionHandler) disableCPUManager(node *corev1.Node) error {
-	return h.requestCPUManager(node, ctlnode.CPUManagerNonePolicy)
+func (h ActionHandler) disableCPUManager(nodeName string) error {
+	return h.requestCPUManager(nodeName, ctlnode.CPUManagerNonePolicy)
 }
 
-func (h ActionHandler) requestCPUManager(node *corev1.Node, policy ctlnode.CPUManagerPolicy) error {
-	newNode := node.DeepCopy()
-	if newNode.Annotations == nil {
-		newNode.Annotations = make(map[string]string)
-	}
-
+func (h ActionHandler) requestCPUManager(nodeName string, policy ctlnode.CPUManagerPolicy) error {
 	updateStatus := &ctlnode.CPUManagerUpdateStatus{
 		Status: ctlnode.CPUManagerRequestedStatus,
 		Policy: policy,
@@ -164,12 +159,24 @@ func (h ActionHandler) requestCPUManager(node *corev1.Node, policy ctlnode.CPUMa
 	if err != nil {
 		return err
 	}
-	newNode.Annotations[util.AnnotationCPUManagerUpdateStatus] = string(bytes)
-	if _, err = h.nodeClient.Update(newNode); err != nil {
-		return err
-	}
 
-	return nil
+	// The node object is updated by the cpu-manager job controller and by the
+	// kubelet right after a policy change, so a copy taken from the informer
+	// cache can carry a stale resourceVersion. Read the live object and retry
+	// on conflict; the node webhook still rejects a no-op request with 400.
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		nodeObj, err := h.nodeClient.Get(nodeName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if nodeObj.Annotations == nil {
+			nodeObj.Annotations = make(map[string]string)
+		}
+		nodeObj.Annotations[util.AnnotationCPUManagerUpdateStatus] = string(bytes)
+		_, err = h.nodeClient.Update(nodeObj)
+		return err
+	})
 }
 
 func (h ActionHandler) cordonUncordonNode(node *corev1.Node, actionName string, cordon bool) error {

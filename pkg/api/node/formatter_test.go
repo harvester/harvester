@@ -1,7 +1,9 @@
 package node
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,13 +12,16 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1beta1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlnode "github.com/harvester/harvester/pkg/controller/master/node"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
 	"github.com/harvester/harvester/pkg/util"
@@ -696,4 +701,39 @@ func Test_vmMigrationPossible(t *testing.T) {
 			assert.Len(resp[0].VMs, test.expectedNonMigratableCount, "failed check for test case: %s", test.name)
 		}
 	}
+}
+
+func Test_requestCPUManagerRetriesOnConflict(t *testing.T) {
+	assert := require.New(t)
+
+	node := testNode.DeepCopy()
+	clientset := fake.NewSimpleClientset(node)
+
+	// The first update sees a stale resourceVersion, as it does when the
+	// cpu-manager job controller or the kubelet touched the node right before
+	// the action reads it from the informer cache.
+	conflicted := false
+	clientset.PrependReactor("update", "nodes", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if conflicted {
+			return false, nil, nil
+		}
+		conflicted = true
+		return true, nil, apierrors.NewConflict(corev1.Resource("nodes"), node.Name, errors.New("the object has been modified"))
+	})
+
+	h := ActionHandler{
+		nodeCache:  fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		nodeClient: fakeclients.NodeClient(clientset.CoreV1().Nodes),
+	}
+
+	err := h.enableCPUManager(node.Name)
+	assert.NoError(err, "expected the cpu manager request to survive a single update conflict")
+	assert.True(conflicted, "expected the first update to be rejected with a conflict")
+
+	updated, err := clientset.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
+	assert.NoError(err)
+	status, err := ctlnode.GetCPUManagerUpdateStatus(updated.Annotations[util.AnnotationCPUManagerUpdateStatus])
+	assert.NoError(err, "expected a valid cpu manager update status annotation")
+	assert.Equal(ctlnode.CPUManagerRequestedStatus, status.Status)
+	assert.Equal(ctlnode.CPUManagerStaticPolicy, status.Policy)
 }
