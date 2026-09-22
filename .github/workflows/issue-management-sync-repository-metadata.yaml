@@ -1,0 +1,249 @@
+name: "[Issue Management] Sync Repository Metadata"
+
+on:
+  workflow_dispatch:
+  label:
+    types: [created, edited, deleted]
+  milestone:
+    types: [created, edited, opened, closed, deleted]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-repository-metadata
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Sync label or milestone
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        script: |
+          const target = {
+            owner: "harvester",
+            repo: "suse-virtualization-mgmt",
+          };
+
+          async function listLabels(repo) {
+            return github.paginate(github.rest.issues.listLabelsForRepo, {
+              ...repo,
+              per_page: 100,
+            });
+          }
+
+          async function listMilestones(repo) {
+            return github.paginate(github.rest.issues.listMilestones, {
+              ...repo,
+              state: "all",
+              per_page: 100,
+            });
+          }
+
+          async function getTargetLabel(name) {
+            try {
+              const response = await github.rest.issues.getLabel({
+                ...target,
+                name,
+              });
+              return response.data;
+            } catch (error) {
+              if (error.status === 404) {
+                return null;
+              }
+              throw error;
+            }
+          }
+
+          async function getTargetMilestone(title) {
+            const milestones = await listMilestones(target);
+            return milestones.find((milestone) => milestone.title === title);
+          }
+
+          async function forceSync() {
+            const source = context.repo;
+            const [sourceLabels, targetLabels, sourceMilestones, targetMilestones] =
+              await Promise.all([
+                listLabels(source),
+                listLabels(target),
+                listMilestones(source),
+                listMilestones(target),
+              ]);
+
+            const targetLabelsByName = new Map(
+              targetLabels.map((label) => [label.name.toLowerCase(), label]),
+            );
+            const sourceLabelNames = new Set(
+              sourceLabels.map((label) => label.name.toLowerCase()),
+            );
+
+            for (const label of sourceLabels) {
+              const targetLabel = targetLabelsByName.get(label.name.toLowerCase());
+              if (targetLabel) {
+                await github.rest.issues.updateLabel({
+                  ...target,
+                  name: targetLabel.name,
+                  new_name: label.name,
+                  color: label.color,
+                  description: label.description || "",
+                });
+              } else {
+                await github.rest.issues.createLabel({
+                  ...target,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description || "",
+                });
+              }
+            }
+
+            for (const label of targetLabels) {
+              if (!sourceLabelNames.has(label.name.toLowerCase())) {
+                await github.rest.issues.deleteLabel({
+                  ...target,
+                  name: label.name,
+                });
+              }
+            }
+
+            const targetMilestonesByTitle = new Map(
+              targetMilestones.map((milestone) => [milestone.title, milestone]),
+            );
+            const sourceMilestoneTitles = new Set(
+              sourceMilestones.map((milestone) => milestone.title),
+            );
+
+            for (const milestone of sourceMilestones) {
+              const targetMilestone = targetMilestonesByTitle.get(milestone.title);
+              const data = {
+                ...target,
+                title: milestone.title,
+                state: milestone.state,
+                description: milestone.description || "",
+                due_on: milestone.due_on,
+              };
+
+              if (targetMilestone) {
+                await github.rest.issues.updateMilestone({
+                  ...data,
+                  milestone_number: targetMilestone.number,
+                });
+              } else {
+                await github.rest.issues.createMilestone(data);
+              }
+            }
+
+            for (const milestone of targetMilestones) {
+              if (!sourceMilestoneTitles.has(milestone.title)) {
+                await github.rest.issues.deleteMilestone({
+                  ...target,
+                  milestone_number: milestone.number,
+                });
+              }
+            }
+
+            core.info(
+              `Force synced ${sourceLabels.length} labels and ` +
+              `${sourceMilestones.length} milestones`,
+            );
+          }
+
+          async function syncLabel() {
+            const label = context.payload.label;
+            const previousName = context.payload.changes?.name?.from;
+
+            if (context.payload.action === "deleted") {
+              const targetLabel = await getTargetLabel(label.name);
+              if (targetLabel) {
+                await github.rest.issues.deleteLabel({
+                  ...target,
+                  name: label.name,
+                });
+              }
+              return;
+            }
+
+            const lookupName = previousName || label.name;
+            const targetLabel = await getTargetLabel(lookupName);
+            const data = {
+              ...target,
+              new_name: label.name,
+              color: label.color,
+              description: label.description || "",
+            };
+
+            if (targetLabel) {
+              await github.rest.issues.updateLabel({
+                ...data,
+                name: lookupName,
+              });
+            } else {
+              const renamedTargetLabel = previousName
+                ? await getTargetLabel(label.name)
+                : null;
+              if (renamedTargetLabel) {
+                await github.rest.issues.updateLabel({
+                  ...data,
+                  name: label.name,
+                });
+              } else {
+                await github.rest.issues.createLabel({
+                  ...target,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description || "",
+                });
+              }
+            }
+          }
+
+          async function syncMilestone() {
+            const milestone = context.payload.milestone;
+            const previousTitle = context.payload.changes?.title?.from;
+
+            if (context.payload.action === "deleted") {
+              const targetMilestone = await getTargetMilestone(milestone.title);
+              if (targetMilestone) {
+                await github.rest.issues.deleteMilestone({
+                  ...target,
+                  milestone_number: targetMilestone.number,
+                });
+              }
+              return;
+            }
+
+            const lookupTitle = previousTitle || milestone.title;
+            const targetMilestone = await getTargetMilestone(lookupTitle)
+              || (previousTitle
+                ? await getTargetMilestone(milestone.title)
+                : null);
+            const data = {
+              ...target,
+              title: milestone.title,
+              state: milestone.state,
+              description: milestone.description || "",
+              due_on: milestone.due_on,
+            };
+
+            if (targetMilestone) {
+              await github.rest.issues.updateMilestone({
+                ...data,
+                milestone_number: targetMilestone.number,
+              });
+            } else {
+              await github.rest.issues.createMilestone(data);
+            }
+          }
+
+          if (context.eventName === "workflow_dispatch") {
+            await forceSync();
+          } else if (context.eventName === "label") {
+            await syncLabel();
+          } else if (context.eventName === "milestone") {
+            await syncMilestone();
+          } else {
+            core.setFailed(`Unsupported event: ${context.eventName}`);
+          }
