@@ -154,17 +154,20 @@ jobs:
                 title: milestone.title,
                 state: milestone.state,
                 description: milestone.description || "",
-                due_on: milestone.due_on,
               };
 
               if (targetMilestone) {
                 if (!milestoneMatches(milestone, targetMilestone)) {
                   await mutate(() => github.rest.issues.updateMilestone({
                     ...data,
+                    due_on: milestone.due_on,
                     milestone_number: targetMilestone.number,
                   }));
                 }
               } else {
+                if (milestone.due_on) {
+                  data.due_on = milestone.due_on;
+                }
                 await mutate(() => github.rest.issues.createMilestone(data));
               }
             }
@@ -258,15 +261,18 @@ jobs:
               title: milestone.title,
               state: milestone.state,
               description: milestone.description || "",
-              due_on: milestone.due_on,
             };
 
             if (targetMilestone) {
               await mutate(() => github.rest.issues.updateMilestone({
                 ...data,
+                due_on: milestone.due_on,
                 milestone_number: targetMilestone.number,
               }));
             } else {
+              if (milestone.due_on) {
+                data.due_on = milestone.due_on;
+              }
               await mutate(() => github.rest.issues.createMilestone(data));
             }
           }
