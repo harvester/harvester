@@ -1,9 +1,9 @@
 
-# Service Health Dashboard
+# Resource Health Dashboard
 
 ## Summary
 
-Harvester currently lacks a unified way to inspect the health of its internal components. When users report issues, the investigation requires manually checking resources across multiple controllers. This enhancement introduces a framework for proactive health reporting: each component maintains one or more `ComponentHealth` CRs (split per resource kind or per node to avoid concurrent-write conflicts) describing its current check results, and a summary controller aggregates all component CRs into a single `HealthSummary` CR that the dashboard can display. Because a component's detail can span multiple CRs, the Harvester UI extension performs a basic client-side aggregation when drilling into a single component.
+Harvester currently lacks a unified way to inspect the health of its internal components or show the general status of the system. When users report issues, the investigation requires manually checking resources across multiple controllers. This enhancement introduces a framework for proactive health and status reporting: each component maintains one or more `ComponentHealth` CRs describing its current check results, and a summary controller aggregates all component CRs into a single `HealthSummary` CR. The dashboard then reads the summary for the overview and fetches per-component detail from the individual `ComponentHealth` CRs when needed.
 
 ### Related Issues
 
@@ -15,8 +15,8 @@ When a user-reported issue is vague, there is no single place to determine the r
 
 ### Goals
 
-- Provide a `ComponentHealth` CRD so each component can report its own health checks continuously.
-- Provide a `HealthSummary` CRD that aggregates all component health statuses into a single resource the dashboard can read.
+- Provide a `ComponentHealth` CRD so each component can report its own health checks.
+- Provide a `HealthSummary` CRD that aggregates all component health statuses into a single resource.
 
 ### Non-goals
 
@@ -29,15 +29,19 @@ There are two architectural layers to this enhancement, each building on the pre
 
 **Layer 1 — ComponentHealth CRD**
 
-Each component runs one or more reconcile loops that evaluate its own health rules and write the results to the `ComponentHealth` CR(s) it owns (one per resource kind it checks, see [ComponentHealth](#componenthealth) below). This makes health status continuously visible rather than discoverable only when someone happens to look.
+Each component runs one or more reconcile loops that evaluate its own health rules and write the results to the `ComponentHealth` CR(s) it owns (one per resource kind it checks, see [ComponentHealth](#componenthealth) below). This makes health status visible rather than discoverable only when someone happens to look.
 
 **Layer 2 — HealthSummary CRD**
 
-A dedicated summary controller watches all `ComponentHealth` CRs and maintains a single `HealthSummary` CR, grouping CRs by their `health.harvesterhci.io/component` label so a component that owns several CRs still contributes one entry. The dashboard reads only the summary CR for the overview. When a user drills down into a component, the Harvester UI extension lists that component's `ComponentHealth` CRs by label selector and aggregates them client-side, since a component's detail is no longer guaranteed to be a single CR.
+A summary controller watches all `ComponentHealth` CRs and maintains a single `HealthSummary` CR, grouping CRs by their `health.harvesterhci.io/component` label so a component that owns several CRs still contributes one entry. The dashboard reads only the summary CR for the overview. When a user drills down into a component, the Harvester UI extension lists that component's `ComponentHealth` CRs by label selector and aggregates them client-side, since a component's detail is no longer guaranteed to be a single CR.
 
 #### Architecture Diagram
 
-![](20260915-service-health-dashboard/image-01.png)
+![](20260915-resource-health-dashboard/image-01.png)
+
+Every `Component Health Controller`, whether in `harvester/harvester` or in another repository, follows the same enqueue / de-dup / reconcile flow for the `ComponentHealth` CRs it owns. The only difference is that the `Summary Controller` exists once, in `harvester/harvester`; other repositories do not implement it.
+
+Within each `Component Health Controller`, every `OnChange` handler of a watched resource does not compute anything itself. It only enqueues the key of the `ComponentHealth` CR that owns that resource kind (for example `harvester-controller-node`) into the controller's workqueue. The workqueue de-duplicates identical keys, so a burst of events (e.g. many Node or VMI updates) collapses into a single reconcile of the corresponding `ComponentHealth` CR.
 
 ## Proposal
 
@@ -49,7 +53,7 @@ As a Harvester administrator, I open the dashboard and immediately see that the 
 
 #### Story 2
 
-As an engineer debugging a customer issue, I run `kubectl get componenthealth --all` and instantly see which components have active warnings or errors, without needing to inspect each controller's logs individually.
+As an engineer debugging a customer issue, I run `kubectl get componenthealths --all-namespaces` and instantly see which components have active warnings or errors, without needing to inspect each controller's logs individually.
 
 #### Story 3
 
@@ -63,7 +67,7 @@ Two new CRDs are introduced under the existing `harvesterhci.io/v1beta1` API gro
 
 A logical component (e.g. `harvester-controller`, `pcidevices-controller`) does not own a single `ComponentHealth` CR. Instead, it owns one CR per resource kind (or, for DaemonSet-backed components, one CR per node) it reports on. All CRs belonging to the same logical component share the label `health.harvesterhci.io/component: <component-name>`; DaemonSet-backed CRs additionally carry `health.harvesterhci.io/node: <node-name>`.
 
-CR names follow the convention `<component-name>-<resource-or-node>`, e.g. `harvester-controller-node`, `harvester-controller-vm`, `harvester-controller-volume`, or `pcidevices-controller-<node-name>`. If a DaemonSet-backed component later needs to report on more than one resource kind per node, the recommended convention is `<component-name>-<resource>-<node-name>` (e.g. `pcidevices-controller-pcidevices-<node-name>`).
+CR names follow the convention `<component-name>-<resource-or-node-name>`, e.g. `harvester-controller-node`, `harvester-controller-vm`, `harvester-controller-volume`, or `pcidevices-controller-<node-name>`. If a DaemonSet-backed component later needs to report on more than one resource kind per node, the recommended convention is `<component-name>-<resource>-<node-name>` (e.g. `pcidevices-controller-vgpudevices-<node-name>`).
 
 Splitting the CR per resource (instead of one CR per component) means each reconcile loop within a component only ever patches the status of the CR it owns, avoiding update conflicts that would occur if multiple independent reconcile loops (e.g. a node check and a VM check) raced to patch the same object's status subresource.
 
@@ -120,7 +124,9 @@ items:
 
 `checks` is a map keyed by `reason`, so a controller can update or delete a single check result when a resource changes or when a warning returns to normal. `affectedResources.names` is a map keyed by resource name. It uses `namespace/name` for namespaced resources and bare `name` for cluster-scoped resources. The map value is currently empty and reserved for future per-resource detail.
 
-`affectedResources` is a pointer field and may be absent for checks that do not relate to a specific resource kind (e.g. a DaemonSet pod that reports no checks yet still updates `lastCheckedAt` to signal liveness, as in the `pcidevices-controller-harvester2` example above). A check is expected to contain one `affectedResources` group because affected resources for the same reason are normally the same `apiVersion` and `kind`.
+`affectedResources` is a pointer field and may be absent for checks that do not relate to a specific resource kind (e.g. a DaemonSet pod whose CR was just created and has no checks yet, as in the `pcidevices-controller-harvester2` example above).
+
+`lastCheckedAt` is only updated when the `checks` of that CR actually change (including the initial creation), not on every reconcile. It therefore tells readers how long the current status has persisted. A check is expected to contain one `affectedResources` group because affected resources for the same reason are normally the same `apiVersion` and `kind`.
 
 Because a single logical component can now be represented by several CRs, `kubectl get componenthealths -A` naturally lists one row per resource kind / node rather than one row per component:
 
@@ -131,7 +137,7 @@ harvester-controller-schedulevmbackup       4d19h
 harvester-controller-vm                     5d21h
 harvester-controller-vmbackup               4d19h
 harvester-controller-volume                 5d21h
-pcidevices-controller-harverster1.dap.sys   5d19h
+pcidevices-controller-harvester1.dap.sys    5d19h
 pcidevices-controller-harvester2            5d19h
 ```
 
@@ -213,7 +219,7 @@ type ComponentSummary struct {
 }
 ```
 
-Both CRDs live in the existing `harvesterhci.io/v1beta1` API group (not a new `health.harvesterhci.io` group), so they are generated and vendored the same way as every other Harvester type — see [Limitations](#limitations) for the trade-off this implies for out-of-repo components.
+Both CRDs live in the existing `harvesterhci.io/v1beta1` API group (not a new `health.harvesterhci.io` group), so they are generated and vendored the same way as every other Harvester type.
 
 ## Design
 
@@ -228,9 +234,17 @@ This framework surfaces two broad categories of health signal:
 
 Each component decides its own check logic. There is no shared interface or abstraction that every component's checks must implement.
 
+#### Not Limited to Anomaly Detection
+
+`ComponentHealth` is not restricted to reporting "a resource is not supposed to do something." A component may also use it to surface arbitrary state it wants visible on the dashboard, even when that state is expected or benign — for example, `node.spec.unschedulable` being `true`, or the current phase of a `VirtualMachineBackup`. These are reported the same way as any other check, using `Severity: Info` (or `Warning`/`Error` if the component judges the state worth flagging), so no new mechanism is needed to support them. This keeps the framework useful as a general status/observability surface for a component, not just an anomaly detector.
+
 #### Component Health Controller
 
-Each component's health controller owns one `Handler` with an `OnChange` callback per watched resource kind. Each callback recomputes the checks for the resource kind it owns and patches only the `ComponentHealth` CR named for that resource kind, never a CR shared with another callback in the same component:
+Each component's health controller owns one `Handler`. The resource `OnChange` callbacks do not compute checks themselves; they only enqueue the key of the `ComponentHealth` CR that owns that resource kind. The actual check is done by a single `OnChange` handler registered on `ComponentHealth` itself, which dispatches by key to the matching `reconcileXxx()` function:
+
+1. A watched resource (Node, VMI, Volume, VMBackup, ScheduleVMBackup) changes and its `OnChange` callback enqueues the fixed `ComponentHealth` key for that kind (e.g. `harvester-controller-node`).
+2. The controller workqueue de-duplicates by key, so any number of resource events that arrive before the key is processed collapse into one reconcile, and one key is never processed by two workers at the same time.
+3. `OnComponentHealthChanged(key)` maps the key to its `reconcileXxx()` function, which lists the resources from the informer cache, recomputes all checks for that kind, and persists them with `updateComponentHealthChecks`.
 
 ```go
 // pkg/controller/master/componenthealth/controller.go
@@ -240,35 +254,71 @@ const (
     nodeComponentHealthName   = "harvester-controller-node"
     vmComponentHealthName     = "harvester-controller-vm"
     volumeComponentHealthName = "harvester-controller-volume"
+    // ... vmbackup, schedulevmbackup
 )
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
+    componentHealths := management.HarvesterFactory.Harvesterhci().V1beta1().ComponentHealth()
     nodes := management.CoreFactory.Core().V1().Node()
     vmis := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
     volumes := management.LonghornFactory.Longhorn().V1beta2().Volume()
 
-    h := &Handler{ /* caches for nodes, vmis, volumes, ... */ }
+    h := &Handler{ /* componentHealthController, resource caches, healthCachesSynced, ... */ }
 
+    // the only place checks are computed: dispatch by ComponentHealth key
+    componentHealths.OnChange(ctx, "component-health-reconcile", h.OnComponentHealthChanged)
+
+    // resource handlers only enqueue
     nodes.OnChange(ctx, nodeControllerName, h.OnNodeChanged)
     vmis.OnChange(ctx, vmiControllerName, h.OnVMIChanged)
     volumes.OnChange(ctx, volumeControllerName, h.OnVolumeChanged)
+
+    // seed every key once caches are synced so checks exist even when no resource changes
+    go h.enqueueInitialHealth(ctx)
     return nil
+}
+
+func (h *Handler) OnNodeChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
+    h.componentHealthController.Enqueue(nodeComponentHealthName)
+    return node, nil
+}
+
+func (h *Handler) OnComponentHealthChanged(key string, health *harvesterv1.ComponentHealth) (*harvesterv1.ComponentHealth, error) {
+    var reconcile func() error
+    switch key {
+    case nodeComponentHealthName:
+        reconcile = h.reconcileNodes
+    case vmComponentHealthName:
+        reconcile = h.reconcileVMI
+    case volumeComponentHealthName:
+        reconcile = h.reconcileVolumes
+    // ... vmbackup, schedulevmbackup
+    default:
+        return health, nil // not owned by this controller
+    }
+    // return an error (requeue) until all informer caches are synced
+    return health, reconcile()
 }
 ```
 
-`updateComponentHealthChecks(componentHealthName, checks, ownedKeys)` is the shared helper every check function calls to persist its result: it gets-or-creates the named CR, replaces only the entries in `ownedKeys` (so one check function never clobbers another check function's keys within the same CR), stamps `lastCheckedAt`, and sets the `health.harvesterhci.io/component` label:
+Because the key is the only thing carried through the queue, the reconcile always reads the latest state from the informer cache rather than acting on the individual event. This makes the result idempotent and independent of event order or count.
+
+`updateComponentHealthChecks(componentHealthName, checks, ownedKeys)` is the shared helper every `reconcileXxx()` calls to persist its result: it gets-or-creates the named CR, replaces only the entries in `ownedKeys` (so one check function never clobbers another check function's keys within the same CR), sets the `health.harvesterhci.io/component` label, and skips the write entirely if the resulting `checks` are unchanged:
 
 ```go
 func (h *Handler) updateComponentHealthChecks(componentHealthName string, checks map[string]harvesterv1.CheckResult, ownedKeys []string) error {
     // get-or-create the CR named componentHealthName
     // remove any existing entries whose key is in ownedKeys, then merge in checks
-    // patch status.checks and status.lastCheckedAt, setting the component label
+    // if the merged checks equal the existing ones, return without writing
+    // otherwise update status.checks and status.lastCheckedAt, setting the component label
 }
 ```
 
-Because each resource kind's checks live in a dedicated CR, and each CR is only ever written by the `OnChange` callback that owns it, concurrent reconciles across resource kinds cannot race on the same object's status subresource — this is the concurrency motivation for splitting `ComponentHealth` per resource described above.
+The no-op-when-unchanged rule matters because writing a `ComponentHealth` CR triggers `OnComponentHealthChanged` again for the same key. The second pass finds nothing to change and stops, so the loop converges instead of re-writing forever. This is also why `lastCheckedAt` only moves when the checks change: it records when the current status began, not when it was last evaluated.
 
-For DaemonSet-backed components such as `pcidevices-controller`, the same pattern applies per node: each pod computes its own checks and patches only the CR named after its own node (or `<component>-<resource>-<node>` if it later reports on more than one resource kind), so pods on different nodes never contend for the same CR either.
+Because each resource kind's checks live in a dedicated CR, and each key is processed by one worker at a time, concurrent reconciles across resource kinds cannot race on the same object's status. This is the concurrency motivation for splitting `ComponentHealth` per resource described above.
+
+For DaemonSet-backed components such as `pcidevices-controller`, the same pattern applies per node: each pod computes its own checks and patches only the CR named after its own node (or `<component>-<resource>-<node>` if it later reports on more than one resource kind), so pods on different nodes never contend for the same CR either. Components in other repositories use the same pattern: their resource `OnChange` callbacks enqueue the component's own `ComponentHealth` key, and their reconcile persists results through the same get-or-create / no-op-when-unchanged logic. They only need the `ComponentHealth` types from `harvester/harvester`; the `Summary Controller` is not duplicated.
 
 #### Summary Controller
 
@@ -290,7 +340,7 @@ Action Items:
 - [ ] Add dashboard/UI extension support to read `HealthSummary` for the overview and aggregate per-component `ComponentHealth` CRs for drill-down.
 
 
-![](20260915-service-health-dashboard/image-02.png)
+![](20260915-resource-health-dashboard/image-02.png)
 
 ### Test Plan
 
@@ -303,16 +353,65 @@ Covered in individual component pull requests. At minimum each component must pr
 
 The `HealthSummary` CR is created by the summary controller on first run; no manual bootstrap is required. Existing clusters upgrading to this version will have their `ComponentHealth` CRs created the first time each component's controller reconciles after upgrade.
 
-## Limitations
+## Notes
 
-### Cross-repository Import Dependency
+### Troubleshooting
 
-`HealthSummary` is read and written exclusively by the summary controller inside `harvester/harvester`, so its Go types can remain entirely within that repository.
+Because check reasons are pre-defined keys, we can document each one on the docs website and tell users what to do when it appears.
 
-`ComponentHealth` is different: any component that lives in a separate repository (e.g. `pcidevices-controller`) must write its own `ComponentHealth` CR(s). That means the `harvesterhci.io/v1beta1` API types — including `ComponentHealth`, `CheckResult`, `AffectedResources`, `AffectedResourceDetail`, and the generated client/informer code — must be importable from outside `harvester/harvester`. This introduces a cross-repository import dependency: external component repositories must vendor or depend on the Harvester API package that exposes these types.
+![](20260915-resource-health-dashboard/image-03.png)
 
-As a result, any breaking change to the `ComponentHealth` Go types or CRD schema requires coordinated updates across all repositories that implement a component health controller.
+### Dynamic Status Reporting
+
+Not every check needs a hand-written reconciler. For simple field-to-check mappings, a generic controller could read rules from a `ConfigMap` instead, avoiding a code change per field.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: componenthealth-dynamic-fields
+  namespace: harvester-system
+data:
+  rules.yaml: |
+    - name: NodeUnschedulable
+      componentHealthName: harvester-controller-node
+      resource:
+        apiVersion: v1
+        kind: Node
+      fieldPath: spec.unschedulable
+      matchValue: "true"
+      severity: Warning
+      message: "Node is marked unschedulable"
+    - name: VMBackupPhase
+      componentHealthName: harvester-controller-vmbackup
+      resource:
+        apiVersion: harvesterhci.io/v1beta1
+        kind: VirtualMachineBackup
+      fieldPath: status.readyToUse
+      matchValue: "false"
+      severity: Info
+      message: "VM backup is not ready to use"
+```
+
+This should be treated as a small extension of the core feature, not as a general-purpose rule engine. The intent is only to support simple field-to-status mappings; it is not a generic expression language for arbitrary object traversal or custom logic. To keep the design constrained and low-risk, we limit it to:
+
+1. only simple scalar fields are supported; arrays and maps are out of scope.
+2. only the GVKs already used by the health dashboard are supported.
 
 ### Addon Components
 
-The cross-repository import dependency is most visible for components delivered as Harvester addons rather than as separate controller repositories. An addon that wants to report `ComponentHealth` must import the `harvesterhci.io/v1beta1` CRD types (and whatever resource types it checks) into its own, independently-maintained codebase, and implement its check logic there from scratch. This scatters check logic across every addon that adopts this framework, and — because each addon's codebase is separate from `harvester/harvester` and from every other addon — forces logic that could otherwise be shared between components to be duplicated instead.
+If we implement this as an addon, the service dashboard addon would need to re-implement each resource check by importing the relevant repositories and duplicating their validation logic. That makes maintenance harder and increases the risk that checks drift from the source component.
+
+It is easier to keep the resource check and validation logic in the owning component itself.
+
+For example:
+
+If this is implemented as an addon:
+- We would need to import multiple repositories and duplicate validation logic across them.
+- Some checks could be forgotten or missed when moved into the addon.
+- Any change in the original repository would also require a corresponding change in the addon.
+
+If this is not implemented as an addon:
+
+- each repository imports the shared Harvester API types from `harvester/harvester`
+- each repository only needs to maintain its own scope and validation logic
