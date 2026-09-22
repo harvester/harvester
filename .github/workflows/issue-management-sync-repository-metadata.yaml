@@ -22,11 +22,40 @@ jobs:
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        retries: 3
+        retry-exempt-status-codes: 400,401,404,422
         script: |
           const target = {
             owner: "harvester",
             repo: "suse-virtualization-mgmt",
           };
+          const mutationDelayMs = 1000;
+          let mutationCount = 0;
+
+          function sleep(milliseconds) {
+            return new Promise((resolve) => setTimeout(resolve, milliseconds));
+          }
+
+          async function mutate(operation) {
+            if (mutationCount > 0) {
+              await sleep(mutationDelayMs);
+            }
+            mutationCount += 1;
+            return operation();
+          }
+
+          function labelMatches(source, destination) {
+            return source.name === destination.name
+              && source.color.toLowerCase() === destination.color.toLowerCase()
+              && (source.description || "") === (destination.description || "");
+          }
+
+          function milestoneMatches(source, destination) {
+            return source.title === destination.title
+              && source.state === destination.state
+              && (source.description || "") === (destination.description || "")
+              && (source.due_on || null) === (destination.due_on || null);
+          }
 
           async function listLabels(repo) {
             return github.paginate(github.rest.issues.listLabelsForRepo, {
@@ -83,29 +112,31 @@ jobs:
             for (const label of sourceLabels) {
               const targetLabel = targetLabelsByName.get(label.name.toLowerCase());
               if (targetLabel) {
-                await github.rest.issues.updateLabel({
-                  ...target,
-                  name: targetLabel.name,
-                  new_name: label.name,
-                  color: label.color,
-                  description: label.description || "",
-                });
+                if (!labelMatches(label, targetLabel)) {
+                  await mutate(() => github.rest.issues.updateLabel({
+                    ...target,
+                    name: targetLabel.name,
+                    new_name: label.name,
+                    color: label.color,
+                    description: label.description || "",
+                  }));
+                }
               } else {
-                await github.rest.issues.createLabel({
+                await mutate(() => github.rest.issues.createLabel({
                   ...target,
                   name: label.name,
                   color: label.color,
                   description: label.description || "",
-                });
+                }));
               }
             }
 
             for (const label of targetLabels) {
               if (!sourceLabelNames.has(label.name.toLowerCase())) {
-                await github.rest.issues.deleteLabel({
+                await mutate(() => github.rest.issues.deleteLabel({
                   ...target,
                   name: label.name,
-                });
+                }));
               }
             }
 
@@ -127,27 +158,29 @@ jobs:
               };
 
               if (targetMilestone) {
-                await github.rest.issues.updateMilestone({
-                  ...data,
-                  milestone_number: targetMilestone.number,
-                });
+                if (!milestoneMatches(milestone, targetMilestone)) {
+                  await mutate(() => github.rest.issues.updateMilestone({
+                    ...data,
+                    milestone_number: targetMilestone.number,
+                  }));
+                }
               } else {
-                await github.rest.issues.createMilestone(data);
+                await mutate(() => github.rest.issues.createMilestone(data));
               }
             }
 
             for (const milestone of targetMilestones) {
               if (!sourceMilestoneTitles.has(milestone.title)) {
-                await github.rest.issues.deleteMilestone({
+                await mutate(() => github.rest.issues.deleteMilestone({
                   ...target,
                   milestone_number: milestone.number,
-                });
+                }));
               }
             }
 
             core.info(
               `Force synced ${sourceLabels.length} labels and ` +
-              `${sourceMilestones.length} milestones`,
+              `${sourceMilestones.length} milestones with ${mutationCount} mutations`,
             );
           }
 
@@ -158,10 +191,10 @@ jobs:
             if (context.payload.action === "deleted") {
               const targetLabel = await getTargetLabel(label.name);
               if (targetLabel) {
-                await github.rest.issues.deleteLabel({
+                await mutate(() => github.rest.issues.deleteLabel({
                   ...target,
                   name: label.name,
-                });
+                }));
               }
               return;
             }
@@ -176,26 +209,26 @@ jobs:
             };
 
             if (targetLabel) {
-              await github.rest.issues.updateLabel({
+              await mutate(() => github.rest.issues.updateLabel({
                 ...data,
                 name: lookupName,
-              });
+              }));
             } else {
               const renamedTargetLabel = previousName
                 ? await getTargetLabel(label.name)
                 : null;
               if (renamedTargetLabel) {
-                await github.rest.issues.updateLabel({
+                await mutate(() => github.rest.issues.updateLabel({
                   ...data,
                   name: label.name,
-                });
+                }));
               } else {
-                await github.rest.issues.createLabel({
+                await mutate(() => github.rest.issues.createLabel({
                   ...target,
                   name: label.name,
                   color: label.color,
                   description: label.description || "",
-                });
+                }));
               }
             }
           }
@@ -207,10 +240,10 @@ jobs:
             if (context.payload.action === "deleted") {
               const targetMilestone = await getTargetMilestone(milestone.title);
               if (targetMilestone) {
-                await github.rest.issues.deleteMilestone({
+                await mutate(() => github.rest.issues.deleteMilestone({
                   ...target,
                   milestone_number: targetMilestone.number,
-                });
+                }));
               }
               return;
             }
@@ -229,12 +262,12 @@ jobs:
             };
 
             if (targetMilestone) {
-              await github.rest.issues.updateMilestone({
+              await mutate(() => github.rest.issues.updateMilestone({
                 ...data,
                 milestone_number: targetMilestone.number,
-              });
+              }));
             } else {
-              await github.rest.issues.createMilestone(data);
+              await mutate(() => github.rest.issues.createMilestone(data));
             }
           }
 
