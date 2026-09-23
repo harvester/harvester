@@ -338,6 +338,10 @@ const (
 
 	RWXHashNetworkLabel = RWXHashNetworkAnnotation
 
+	// RWXVolServiceLabel marks the Share Manager VIP Service of a Longhorn RWX volume;
+	// its value is the volume name.
+	RWXVolServiceLabel = prefix + "/rwx-vol-service"
+
 	RWXNetworkNetAttachDefPrefix    = "rwx-network-"
 	RWXNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
