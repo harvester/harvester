@@ -91,6 +91,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		}
 		return hnc, nil
 	})
+
+	registerShareManagerVIP(ctx, management)
 	return nil
 }
 
