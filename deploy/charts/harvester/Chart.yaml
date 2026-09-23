@@ -20,14 +20,14 @@ dependencies:
       - kubevirt
       - operator
   - name: kubevirt
-    version: 0.1.0
+    version: 0.1.1
     repository: file://dependency_charts/kubevirt
     condition: kubevirt.enabled
     tags:
       - kubevirt
       - crd
   - name: cdi
-    version: 0.4.1
+    version: 0.4.2
     repository: file://dependency_charts/cdi
     condition: cdi.enabled
     tags:
