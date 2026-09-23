@@ -32,6 +32,10 @@ func (c *FakeNetworkV1beta1) ClusterNetworks() v1beta1.ClusterNetworkInterface {
 	return newFakeClusterNetworks(c)
 }
 
+func (c *FakeNetworkV1beta1) HostNetworkConfigs() v1beta1.HostNetworkConfigInterface {
+	return newFakeHostNetworkConfigs(c)
+}
+
 func (c *FakeNetworkV1beta1) LinkMonitors() v1beta1.LinkMonitorInterface {
 	return newFakeLinkMonitors(c)
 }
