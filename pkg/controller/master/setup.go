@@ -20,6 +20,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/pvc"
 	"github.com/harvester/harvester/pkg/controller/master/rancher"
 	"github.com/harvester/harvester/pkg/controller/master/resourcequota"
+	"github.com/harvester/harvester/pkg/controller/master/rwxnetwork"
 	"github.com/harvester/harvester/pkg/controller/master/schedulevmbackup"
 	"github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storageclass"
@@ -63,6 +64,7 @@ var registerFuncs = []registerFunc{
 	setting.Register,
 	storageclass.Register,
 	storagenetwork.Register,
+	rwxnetwork.Register,
 	supportbundle.Register,
 	template.Register,
 	upgrade.Register,

@@ -150,6 +150,44 @@ func ipv4RangeEntry(ipam map[string]any) (map[string]any, error) {
 	return nil, fmt.Errorf("NAD config has no IPv4 range")
 }
 
+// BridgeNAD is the part of a Harvester bridge NAD config that locates its network.
+type BridgeNAD struct {
+	ClusterNetwork string
+	Vlan           uint16
+	Range          string
+}
+
+// ParseBridgeNADConfig reads the cluster network, VLAN and IPv4 range of a bridge NAD.
+func ParseBridgeNADConfig(config string) (BridgeNAD, error) {
+	var conf struct {
+		Type   string         `json:"type"`
+		Bridge string         `json:"bridge"`
+		Vlan   uint16         `json:"vlan"`
+		IPAM   map[string]any `json:"ipam"`
+	}
+	if err := json.Unmarshal([]byte(config), &conf); err != nil {
+		return BridgeNAD{}, fmt.Errorf("failed to decode NAD config: %w", err)
+	}
+	if conf.Type != DefaultCNI || !strings.HasSuffix(conf.Bridge, BridgeSuffix) {
+		return BridgeNAD{}, fmt.Errorf("NAD config is not a Harvester bridge network")
+	}
+
+	entry, err := ipv4RangeEntry(conf.IPAM)
+	if err != nil {
+		return BridgeNAD{}, err
+	}
+	cidr, _ := entry["range"].(string)
+	if prefix, err := netip.ParsePrefix(cidr); err != nil || !prefix.Addr().Is4() {
+		return BridgeNAD{}, fmt.Errorf("NAD config has no IPv4 range")
+	}
+
+	return BridgeNAD{
+		ClusterNetwork: strings.TrimSuffix(conf.Bridge, BridgeSuffix),
+		Vlan:           conf.Vlan,
+		Range:          cidr,
+	}, nil
+}
+
 // IPPoolAllocatedAddrs returns the addresses allocated in a Whereabouts IPPool. The
 // allocation keys are offsets from the pool's network address.
 func IPPoolAllocatedAddrs(pool *whereaboutsv1alpha1.IPPool) ([]netip.Addr, error) {
