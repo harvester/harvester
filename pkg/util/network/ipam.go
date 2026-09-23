@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/netip"
@@ -63,6 +64,32 @@ func AssignHostIPs(hostIPRange string, current map[string]string, nodes []string
 	}
 
 	return assigned, unassigned, nil
+}
+
+// ErrRangeExhausted is returned when a range has no free address left.
+var ErrRangeExhausted = errors.New("no free address left in range")
+
+// AllocateVIP returns the lowest address in vipRange that is not in used.
+func AllocateVIP(vipRange string, used []string) (string, error) {
+	prefix, err := netip.ParsePrefix(vipRange)
+	if err != nil {
+		return "", fmt.Errorf("invalid VIP range %q: %w", vipRange, err)
+	}
+	prefix = prefix.Masked()
+
+	taken := make(map[netip.Addr]struct{}, len(used))
+	for _, ip := range used {
+		if addr, err := netip.ParseAddr(ip); err == nil {
+			taken[addr] = struct{}{}
+		}
+	}
+
+	for addr := prefix.Addr(); prefix.Contains(addr); addr = addr.Next() {
+		if _, ok := taken[addr]; !ok {
+			return addr.String(), nil
+		}
+	}
+	return "", fmt.Errorf("%w %s", ErrRangeExhausted, vipRange)
 }
 
 // SetManagedExcludes rewrites the Whereabouts exclude list of the IPv4 range in a NAD
