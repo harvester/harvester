@@ -284,3 +284,46 @@ func TestIPPoolAllocatedAddrs(t *testing.T) {
 		netip.MustParseAddr("172.16.0.254"),
 	}, addrs)
 }
+
+func TestParseBridgeNADConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		want    BridgeNAD
+		wantErr bool
+	}{
+		{
+			name:   "single-stack",
+			config: `{"type":"bridge","bridge":"cn-br","vlan":2017,"ipam":{"type":"whereabouts","range":"172.16.0.0/24"}}`,
+			want:   BridgeNAD{ClusterNetwork: "cn", Vlan: 2017, Range: "172.16.0.0/24"},
+		},
+		{
+			name: "dual-stack",
+			config: `{"type":"bridge","bridge":"mgmt-br","vlan":10,"ipam":{"type":"whereabouts","ipRanges":[` +
+				`{"range":"fd00::/64"},{"range":"172.16.0.0/24"}]}}`,
+			want: BridgeNAD{ClusterNetwork: "mgmt", Vlan: 10, Range: "172.16.0.0/24"},
+		},
+		{
+			name:    "not a bridge NAD",
+			config:  `{"type":"kube-ovn","ipam":{"type":"whereabouts","range":"172.16.0.0/24"}}`,
+			wantErr: true,
+		},
+		{
+			name:    "no IPv4 range",
+			config:  `{"type":"bridge","bridge":"cn-br","vlan":2017,"ipam":{"type":"whereabouts"}}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseBridgeNADConfig(tc.config)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
