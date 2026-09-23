@@ -1,4 +1,4 @@
-package storagenetwork
+package network
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPoolNameFromCIDR(t *testing.T) {
+func TestWhereaboutsIPPoolName(t *testing.T) {
 	tests := []struct {
 		name    string
 		cidr    string
@@ -57,7 +57,7 @@ func TestPoolNameFromCIDR(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := poolNameFromCIDR(tc.cidr)
+			got, err := WhereaboutsIPPoolName(tc.cidr)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
