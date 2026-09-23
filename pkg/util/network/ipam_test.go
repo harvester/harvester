@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"strings"
 	"testing"
@@ -123,6 +124,64 @@ func TestAssignHostIPs(t *testing.T) {
 		})
 	}
 }
+
+func TestAllocateVIP(t *testing.T) {
+	tests := []struct {
+		name     string
+		vipRange string
+		used     []string
+		want     string
+		wantErr  error
+	}{
+		{
+			name:     "hands out the first address of an empty range",
+			vipRange: "172.16.0.248/29",
+			want:     "172.16.0.248",
+		},
+		{
+			name:     "fills the lowest gap",
+			vipRange: "172.16.0.248/29",
+			used:     []string{"172.16.0.248", "172.16.0.250"},
+			want:     "172.16.0.249",
+		},
+		{
+			name:     "ignores used addresses outside the range and malformed ones",
+			vipRange: "172.16.0.248/30",
+			used:     []string{"172.16.0.1", "not-an-ip", "172.16.0.248"},
+			want:     "172.16.0.249",
+		},
+		{
+			name:     "reports an exhausted range",
+			vipRange: "172.16.0.248/31",
+			used:     []string{"172.16.0.248", "172.16.0.249"},
+			wantErr:  ErrRangeExhausted,
+		},
+		{
+			name:     "rejects an invalid range",
+			vipRange: "172.16.0.248",
+			wantErr:  errInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := AllocateVIP(tt.vipRange, tt.used)
+			switch tt.wantErr {
+			case nil:
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			case errInvalid:
+				assert.Error(t, err)
+				assert.NotErrorIs(t, err, ErrRangeExhausted)
+			default:
+				assert.ErrorIs(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// errInvalid marks test cases expecting an error other than ErrRangeExhausted.
+var errInvalid = errors.New("invalid")
 
 func TestSetManagedExcludes(t *testing.T) {
 	singleStack := `{"cniVersion":"0.3.1","type":"bridge","bridge":"cn-br","promiscMode":true,"vlan":2017,"mtu":9000,` +
