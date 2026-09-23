@@ -9,10 +9,12 @@ import (
 
 type Validator struct {
 	vmiv common.VMIValidator
+	secv common.SecurityParamsVMIValidator
+	occv common.OccupationVMIValidator
 }
 
-func GetValidator(vmiv common.VMIValidator) backend.Validator {
-	return &Validator{vmiv: vmiv}
+func GetValidator(vmiv common.VMIValidator, secv common.SecurityParamsVMIValidator, occv common.OccupationVMIValidator) backend.Validator {
+	return &Validator{vmiv: vmiv, secv: secv, occv: occv}
 }
 
 func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMachineImage) error {
@@ -28,7 +30,7 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 		return err
 	}
 
-	if err := biv.vmiv.CheckSecurityParameters(request, vmi); err != nil {
+	if err := biv.secv.CheckSecurityParameters(request, vmi); err != nil {
 		return err
 	}
 
@@ -40,7 +42,7 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 }
 
 func (biv *Validator) Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) error {
-	if err := biv.vmiv.SCParametersConsistency(oldVMI, newVMI); err != nil {
+	if err := biv.secv.SCParametersConsistency(oldVMI, newVMI); err != nil {
 		return err
 	}
 
@@ -62,7 +64,7 @@ func (biv *Validator) Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) er
 		return err
 	}
 
-	if err := biv.vmiv.SecurityParameterConsistency(oldVMI, newVMI); err != nil {
+	if err := biv.secv.SecurityParameterConsistency(oldVMI, newVMI); err != nil {
 		return err
 	}
 
@@ -78,19 +80,19 @@ func (biv *Validator) Update(oldVMI, newVMI *harvesterv1.VirtualMachineImage) er
 }
 
 func (biv *Validator) Delete(vmi *harvesterv1.VirtualMachineImage) error {
-	if biv.vmiv.GetStatusSC(vmi) == "" {
+	if vmi.Status.StorageClassName == "" {
 		return nil
 	}
 
-	if err := biv.vmiv.VMTemplateVersionOccupation(vmi); err != nil {
+	if err := biv.occv.VMTemplateVersionOccupation(vmi); err != nil {
 		return err
 	}
 
-	if err := biv.vmiv.PVCOccupation(vmi); err != nil {
+	if err := biv.occv.PVCOccupation(vmi); err != nil {
 		return err
 	}
 
-	if err := biv.vmiv.VMBackupOccupation(vmi); err != nil {
+	if err := biv.occv.VMBackupOccupation(vmi); err != nil {
 		return err
 	}
 
