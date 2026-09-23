@@ -4,10 +4,10 @@ dependencies:
   version: 0.7.0
 - name: kubevirt
   repository: file://dependency_charts/kubevirt
-  version: 0.1.0
+  version: 0.1.1
 - name: cdi
   repository: file://dependency_charts/cdi
-  version: 0.4.1
+  version: 0.4.2
 - name: harvester-network-controller
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.0
-digest: sha256:9d701ae707bf74779e0683fe03a0fd3e2a47dee73750131b55f9bd4e77b9325e
-generated: "2026-09-18T10:11:15.2041553+08:00"
+digest: sha256:58f4240a83668aafc20b43b685710507973132773cc60ac37ca1d7aa40685532
+generated: "2026-09-23T10:33:25.557976621+03:00"
