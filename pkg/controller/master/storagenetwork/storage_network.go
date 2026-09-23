@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -492,20 +491,6 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	return nil
 }
 
-// poolNameFromCIDR derives the Whereabouts IPPool Kubernetes object name from a
-// CIDR string. The name is the masked network address with the prefix length
-// appended via a dash. Colons in IPv6 addresses are replaced with dashes so the
-// result is a valid Kubernetes object name (e.g. "fd00::/64" -> "fd00---64").
-func poolNameFromCIDR(cidr string) (string, error) {
-	_, network, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return "", fmt.Errorf("invalid CIDR %q: %w", cidr, err)
-	}
-	parts := strings.SplitN(network.String(), "/", 2)
-	addr := strings.ReplaceAll(parts[0], ":", "-")
-	return addr + "-" + parts[1], nil
-}
-
 func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -527,7 +512,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 		return fmt.Errorf("parsing value error %v", err)
 	}
 
-	ippoolName, err := poolNameFromCIDR(config.Range)
+	ippoolName, err := network.WhereaboutsIPPoolName(config.Range)
 	if err != nil {
 		return fmt.Errorf("deriving IPv4 IPPool name: %w", err)
 	}
@@ -540,7 +525,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	allocated := len(ippool.Spec.Allocations)
 
 	if config.RangeV6 != "" {
-		v6PoolName, err := poolNameFromCIDR(config.RangeV6)
+		v6PoolName, err := network.WhereaboutsIPPoolName(config.RangeV6)
 		if err != nil {
 			return fmt.Errorf("deriving IPv6 IPPool name: %w", err)
 		}
