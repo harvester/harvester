@@ -28,10 +28,11 @@ import (
 )
 
 var (
-	ClusterNetworkResourceName = "clusternetworks"
-	LinkMonitorResourceName    = "linkmonitors"
-	VlanConfigResourceName     = "vlanconfigs"
-	VlanStatusResourceName     = "vlanstatuses"
+	ClusterNetworkResourceName    = "clusternetworks"
+	HostNetworkConfigResourceName = "hostnetworkconfigs"
+	LinkMonitorResourceName       = "linkmonitors"
+	VlanConfigResourceName        = "vlanconfigs"
+	VlanStatusResourceName        = "vlanstatuses"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -57,6 +58,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&ClusterNetwork{},
 		&ClusterNetworkList{},
+		&HostNetworkConfig{},
+		&HostNetworkConfigList{},
 		&LinkMonitor{},
 		&LinkMonitorList{},
 		&VlanConfig{},

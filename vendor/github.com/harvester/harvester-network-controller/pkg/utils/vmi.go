@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	ctlkubevirtv1 "github.com/harvester/harvester-network-controller/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 type VmiGetter struct {
