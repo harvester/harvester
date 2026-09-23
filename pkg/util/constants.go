@@ -333,6 +333,7 @@ const (
 	RWXNadNetworkAnnotation    = RWXNetworkAnnotation + "/net-attach-def"
 	RWXOldNadNetworkAnnotation = RWXNetworkAnnotation + "/old-net-attach-def"
 	RWXNetworkInitializedAnno  = RWXNetworkAnnotation + "/initialized"
+	RWXNetworkManagedLabel     = RWXNetworkAnnotation + "/managed"
 
 	RWXHashNetworkLabel = RWXHashNetworkAnnotation
 

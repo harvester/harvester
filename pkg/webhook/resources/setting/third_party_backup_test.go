@@ -168,7 +168,7 @@ func thirdPartyValidator(objects ...runtime.Object) (*settingValidator, *fake.Cl
 	validator := NewValidator(nil, nil,
 		fakeclients.VMBackupCache(client.HarvesterhciV1beta1().VirtualMachineBackups), nil,
 		restoreListCache{client: client}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		fakeclients.SecretCache(client.CoreV1().Secrets), nil,
+		fakeclients.SecretCache(client.CoreV1().Secrets), nil, nil, nil,
 	)
 	validator.(*settingValidator).settingCache = fakeclients.HarvesterSettingCache(client.HarvesterhciV1beta1().Settings)
 	return validator.(*settingValidator), client
