@@ -328,12 +328,13 @@ const (
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
-	RWXNetworkAnnotation       = "rwx-network.settings.harvesterhci.io"
-	RWXHashNetworkAnnotation   = RWXNetworkAnnotation + "/hash"
-	RWXNadNetworkAnnotation    = RWXNetworkAnnotation + "/net-attach-def"
-	RWXOldNadNetworkAnnotation = RWXNetworkAnnotation + "/old-net-attach-def"
-	RWXNetworkInitializedAnno  = RWXNetworkAnnotation + "/initialized"
-	RWXNetworkManagedLabel     = RWXNetworkAnnotation + "/managed"
+	RWXNetworkAnnotation        = "rwx-network.settings.harvesterhci.io"
+	RWXHashNetworkAnnotation    = RWXNetworkAnnotation + "/hash"
+	RWXNadNetworkAnnotation     = RWXNetworkAnnotation + "/net-attach-def"
+	RWXOldNadNetworkAnnotation  = RWXNetworkAnnotation + "/old-net-attach-def"
+	RWXNetworkInitializedAnno   = RWXNetworkAnnotation + "/initialized"
+	RWXNetworkManagedLabel      = RWXNetworkAnnotation + "/managed"
+	RWXManagedExcludeAnnotation = RWXNetworkAnnotation + "/managed-exclude"
 
 	RWXHashNetworkLabel = RWXHashNetworkAnnotation
 
