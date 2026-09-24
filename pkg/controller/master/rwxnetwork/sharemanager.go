@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"sync"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -39,7 +40,8 @@ import (
 const (
 	ShareManagerVIPControllerName = "harvester-rwx-share-manager-vip-controller"
 
-	ReasonVIPRangeExhausted = "VIPRangeExhausted"
+	ReasonVIPRangeExhausted  = "VIPRangeExhausted"
+	ReasonVIPServiceConflict = "VIPServiceConflict"
 
 	vipServicePrefix                    = "rwx-vip-"
 	kubeVIPLoadBalancerIPsAnnotation    = "kube-vip.io/loadbalancerIPs"
@@ -128,9 +130,15 @@ func registerShareManagerVIP(ctx context.Context, management *config.Management)
 		return svc, nil
 	})
 	services.OnRemove(ctx, ShareManagerVIPControllerName, func(_ string, svc *corev1.Service) (*corev1.Service, error) {
-		if svc != nil && svc.Namespace == util.LonghornSystemNamespaceName && svc.Labels[util.RWXVolServiceLabel] != "" {
+		if svc == nil || svc.Namespace != util.LonghornSystemNamespaceName {
+			return svc, nil
+		}
+		if svc.Labels[util.RWXVolServiceLabel] != "" {
 			// A released VIP may unblock volumes waiting on an exhausted range.
 			h.enqueueAll()
+		} else if volumeName, ok := strings.CutPrefix(svc.Name, vipServicePrefix); ok {
+			// A removed foreign Service may unblock the volume whose VIP Service name it took.
+			h.enqueue(volumeName)
 		}
 		return svc, nil
 	})
@@ -183,7 +191,10 @@ func (h *ShareManagerVIPHandler) OnVolumeChange(_ string, volume *lhv1beta2.Volu
 		return volume, err
 	}
 	if svc != nil && svc.Labels[util.RWXVolServiceLabel] != volume.Name {
-		return volume, fmt.Errorf("service %s/%s is not managed by Harvester", svc.Namespace, svc.Name)
+		// The Service watch requeues the volume once the foreign one is removed.
+		h.recorder.Eventf(volume, corev1.EventTypeWarning, ReasonVIPServiceConflict,
+			"Service %s/%s exists but is not managed by Harvester, the Share Manager VIP cannot be set up", svc.Namespace, svc.Name)
+		return volume, nil
 	}
 
 	if rwxConfig == nil || rwxConfig.HostIPRange == "" || rwxConfig.VIPRange == "" {

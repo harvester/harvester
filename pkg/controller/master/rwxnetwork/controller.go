@@ -35,7 +35,8 @@ const (
 	ControllerName        = "harvester-rwx-host-network-controller"
 	HostNetworkConfigName = "rwx-network"
 
-	ReasonHostIPRangeExhausted = "HostIPRangeExhausted"
+	ReasonHostIPRangeExhausted      = "HostIPRangeExhausted"
+	ReasonHostNetworkConfigConflict = "HostNetworkConfigConflict"
 
 	hostNetworkConfigModeStatic = "static"
 )
@@ -151,12 +152,26 @@ func (h *Handler) reconcile(setting *harvesterv1.Setting) (*harvesterv1.Setting,
 		return setting, err
 	}
 
+	hnc, err := h.hncCache.Get(HostNetworkConfigName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return setting, err
+	}
+	if err == nil && hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
+		// The HostNetworkConfig watch requeues once the foreign one is removed.
+		return h.setHostIPsAssignedCondition(setting, false, ReasonHostNetworkConfigConflict,
+			fmt.Sprintf("HostNetworkConfig %s exists but is not managed by Harvester", HostNetworkConfigName))
+	}
+
 	unassigned, err := h.syncHostNetworkConfig(network, rwxConfig.HostIPRange)
 	if err != nil {
 		return setting, err
 	}
 
-	return h.setHostIPsAssigned(setting, rwxConfig.HostIPRange, unassigned)
+	if len(unassigned) > 0 {
+		return h.setHostIPsAssignedCondition(setting, false, ReasonHostIPRangeExhausted,
+			fmt.Sprintf("no address left in hostIPRange %s for node(s) %s", rwxConfig.HostIPRange, strings.Join(unassigned, ", ")))
+	}
+	return h.setHostIPsAssignedCondition(setting, true, "", "")
 }
 
 func (h *Handler) teardown(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -388,26 +403,24 @@ func (h *Handler) managedHostNetworkConfig() (*networkv1.HostNetworkConfig, erro
 	return hnc, nil
 }
 
-func (h *Handler) setHostIPsAssigned(setting *harvesterv1.Setting, hostIPRange string, unassigned []string) (*harvesterv1.Setting, error) {
+// setHostIPsAssignedCondition updates the hostIPsAssigned condition, and records a
+// Warning event whenever it turns false with a new message.
+func (h *Handler) setHostIPsAssignedCondition(setting *harvesterv1.Setting, assigned bool, reason, message string) (*harvesterv1.Setting, error) {
 	cond := harvesterv1.SettingHostIPsAssigned
 	settingCopy := setting.DeepCopy()
-
-	var message string
-	if len(unassigned) == 0 {
+	if assigned {
 		cond.True(settingCopy)
-		cond.Reason(settingCopy, "")
 	} else {
-		message = fmt.Sprintf("no address left in hostIPRange %s for node(s) %s", hostIPRange, strings.Join(unassigned, ", "))
 		cond.False(settingCopy)
-		cond.Reason(settingCopy, ReasonHostIPRangeExhausted)
 	}
+	cond.Reason(settingCopy, reason)
 	cond.Message(settingCopy, message)
 
 	if reflect.DeepEqual(settingCopy.Status, setting.Status) {
 		return setting, nil
 	}
-	if len(unassigned) > 0 {
-		h.recorder.Event(settingCopy, corev1.EventTypeWarning, ReasonHostIPRangeExhausted, message)
+	if !assigned {
+		h.recorder.Event(settingCopy, corev1.EventTypeWarning, reason, message)
 	}
 	return h.settings.Update(settingCopy)
 }
