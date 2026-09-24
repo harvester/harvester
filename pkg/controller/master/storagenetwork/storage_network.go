@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -301,6 +302,43 @@ func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string)
 	return setting
 }
 
+// rwxReservedExcludes returns the RWX hostIPRange and vipRange a new NAD for the setting
+// must exclude, so that it never hands them out before the rwx-network controller
+// reserves them.
+func (h *Handler) rwxReservedExcludes(setting *harvesterv1.Setting) ([]string, error) {
+	rwxValue := setting.EffectiveValue()
+	switch setting.Name {
+	case settings.RWXNetworkSettingName:
+	case settings.StorageNetworkName:
+		rwxSetting, err := h.settingsCache.Get(settings.RWXNetworkSettingName)
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		} else if err != nil {
+			return nil, err
+		}
+		rwxValue = rwxSetting.EffectiveValue()
+	default:
+		return nil, nil
+	}
+	return rwxReservedExcludes(setting.Name, rwxValue)
+}
+
+func rwxReservedExcludes(settingName, rwxValue string) ([]string, error) {
+	rwxConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](rwxValue)
+	if err != nil {
+		return nil, err
+	}
+	if rwxConfig.HostIPRange == "" || rwxConfig.VIPRange == "" {
+		return nil, nil
+	}
+	// The ranges belong to the storage network NAD in share mode, and to the dedicated
+	// RWX NAD otherwise.
+	if rwxConfig.ShareStorageNetwork != (settingName == settings.StorageNetworkName) {
+		return nil, nil
+	}
+	return []string{rwxConfig.HostIPRange, rwxConfig.VIPRange}, nil
+}
+
 // getNetworkConfig returns the network.Config to use for NAD creation.
 // For the rwx-network composite setting, it extracts the inner Network field.
 func (h *Handler) getNetworkConfig(setting *harvesterv1.Setting) (network.Config, error) {
@@ -326,6 +364,11 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	if err != nil {
 		return nil, err
 	}
+	reserved, err := h.rwxReservedExcludes(setting)
+	if err != nil {
+		return nil, err
+	}
+	config.Exclude = append(slices.Clone(config.Exclude), reserved...)
 	bridgeConfig := network.CreateBridgeConfig(config)
 
 	nadConfig, err := json.Marshal(bridgeConfig)
@@ -347,6 +390,13 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	}
 	nad.Annotations = map[string]string{
 		keys.nadAnno: "true",
+	}
+	if len(reserved) > 0 {
+		reservedJSON, err := json.Marshal(reserved)
+		if err != nil {
+			return nil, err
+		}
+		nad.Annotations[util.RWXManagedExcludeAnnotation] = string(reservedJSON)
 	}
 
 	nad.Labels = map[string]string{
