@@ -327,15 +327,32 @@ func (h *ShareManagerVIPHandler) hostNetworkReady() (bool, error) {
 	} else if err != nil {
 		return false, err
 	}
-	if hnc.DeletionTimestamp != nil || hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
-		return false, nil
+	return hostNetworkConfigReady(hnc), nil
+}
+
+// hostNetworkConfigReady reports whether every node of a managed HostNetworkConfig has
+// its address set up. The network controller only reports readiness per node.
+func hostNetworkConfigReady(hnc *networkv1.HostNetworkConfig) bool {
+	if hnc.DeletionTimestamp != nil || hnc.Labels[util.RWXNetworkManagedLabel] != "true" || len(hnc.Spec.HostIPs) == 0 {
+		return false
 	}
-	for _, c := range hnc.Status.Conditions {
-		if c.Type == networkv1.Ready {
-			return c.Status == corev1.ConditionTrue, nil
+	for node := range hnc.Spec.HostIPs {
+		status, ok := hnc.Status.NodeStatus[node]
+		if !ok || status.ClusterNetwork != hnc.Spec.ClusterNetwork || status.VlanID != hnc.Spec.VlanID {
+			return false
+		}
+		ready := false
+		for _, c := range status.Conditions {
+			if c.Type == networkv1.Ready {
+				ready = c.Status == corev1.ConditionTrue
+				break
+			}
+		}
+		if !ready {
+			return false
 		}
 	}
-	return false, nil
+	return true
 }
 
 // rwxEndpointNetwork returns the NAD Longhorn attaches the Share Manager pods to, as
