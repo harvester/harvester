@@ -2,6 +2,7 @@ package setting
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
@@ -208,51 +209,97 @@ func Test_validateRWXNetworkReservedRanges(t *testing.T) {
 	}
 }
 
-func Test_checkStorageNetworkKeepsRWXReservedRanges(t *testing.T) {
+func Test_checkStorageNetworkNotLockedByRWX(t *testing.T) {
 	rwxSetting := func(value string) *v1beta1.Setting {
 		return &v1beta1.Setting{ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName}, Value: value}
 	}
-	sharedWithRanges := rwxSetting(`{"share-storage-network":true,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`)
+	const storageNetwork = `{"vlan":2017,"clusterNetwork":"mgmt","range":"172.16.0.0/24"}`
 
 	tests := []struct {
 		name        string
-		rwx         *v1beta1.Setting
-		config      *networkutil.Config
+		rwx         string
+		newValue    string
 		errContains string
 	}{
 		{
-			name:   "new storage network still fits the ranges",
-			rwx:    sharedWithRanges,
-			config: &networkutil.Config{ClusterNetwork: "mgmt", Vlan: 2018, Range: "172.16.0.0/24"},
+			name:        "shared with ranges set",
+			rwx:         `{"share-storage-network":true,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`,
+			newValue:    `{"vlan":2017,"clusterNetwork":"mgmt","range":"172.16.0.0/24","exclude":["172.16.0.128/28"]}`,
+			errContains: "remove them from rwx-network first",
 		},
 		{
-			name:        "new storage network no longer contains the ranges",
-			rwx:         sharedWithRanges,
-			config:      &networkutil.Config{ClusterNetwork: "mgmt", Vlan: 2017, Range: "172.16.1.0/24"},
-			errContains: "rwx-network shares this network",
+			name:        "shared with ranges set, storage network cleared",
+			rwx:         `{"share-storage-network":true,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`,
+			errContains: "remove them from rwx-network first",
 		},
 		{
-			name:   "ranges are ignored when rwx-network does not share the storage network",
-			rwx:    rwxSetting(`{"share-storage-network":false,"network":{"vlan":2017,"clusterNetwork":"mgmt","range":"10.10.0.0/24"},"hostIPRange":"10.10.0.224/28","vipRange":"10.10.0.192/27"}`),
-			config: &networkutil.Config{ClusterNetwork: "mgmt", Vlan: 2017, Range: "172.16.1.0/24"},
+			name:     "shared with ranges set, same config reformatted",
+			rwx:      `{"share-storage-network":true,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`,
+			newValue: `{"range":"172.16.0.0/24","clusterNetwork":"mgmt","vlan":2017}`,
 		},
 		{
-			name:   "storage network cleared",
-			rwx:    sharedWithRanges,
-			config: nil,
+			name:     "shared without ranges",
+			rwx:      `{"share-storage-network":true}`,
+			newValue: `{"vlan":2018,"clusterNetwork":"mgmt","range":"172.16.0.0/24"}`,
+		},
+		{
+			name:     "ranges set on a dedicated network",
+			rwx:      `{"share-storage-network":false,"network":{"vlan":2019,"clusterNetwork":"mgmt","range":"10.10.0.0/24"},"hostIPRange":"10.10.0.224/28","vipRange":"10.10.0.192/27"}`,
+			newValue: `{"vlan":2018,"clusterNetwork":"mgmt","range":"172.16.0.0/24"}`,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			v := newRWXRangesValidator(tc.rwx)
-			err := v.checkStorageNetworkKeepsRWXReservedRanges(tc.config)
+			v := newRWXRangesValidator(rwxSetting(tc.rwx))
+			err := v.checkStorageNetworkNotLockedByRWX(storageNetworkSetting(storageNetwork), storageNetworkSetting(tc.newValue))
 			if tc.errContains == "" {
 				assert.NoError(t, err)
 				return
 			}
 			if assert.Error(t, err) {
 				assert.Contains(t, err.Error(), tc.errContains)
+			}
+		})
+	}
+}
+
+func Test_checkRWXNetworkNotLocked(t *testing.T) {
+	const (
+		network  = `"network":{"vlan":2017,"clusterNetwork":"mgmt","range":"172.16.0.0/24"}`
+		disabled = `{"share-storage-network":false,` + network + `}`
+		enabled  = `{"share-storage-network":false,` + network + `,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`
+	)
+	rwxSetting := func(value string) *v1beta1.Setting {
+		return &v1beta1.Setting{ObjectMeta: metav1.ObjectMeta{Name: settings.RWXNetworkSettingName}, Value: value}
+	}
+
+	tests := []struct {
+		name     string
+		oldValue string
+		newValue string
+		locked   bool
+	}{
+		{name: "enable", oldValue: disabled, newValue: enabled},
+		{name: "enable together with a new network", oldValue: `{"share-storage-network":false}`, newValue: enabled},
+		{name: "disable", oldValue: enabled, newValue: disabled},
+		{name: "reset to default", oldValue: enabled, newValue: ""},
+		{name: "change the network while disabled", oldValue: disabled, newValue: strings.Replace(disabled, "2017", "2018", 1)},
+		{name: "change a range", oldValue: enabled, newValue: strings.Replace(enabled, "172.16.0.224/28", "172.16.0.160/27", 1), locked: true},
+		{name: "change the VLAN", oldValue: enabled, newValue: strings.Replace(enabled, "2017", "2018", 1), locked: true},
+		{name: "change the excludes", oldValue: enabled, newValue: strings.Replace(enabled, `"range":"172.16.0.0/24"`, `"range":"172.16.0.0/24","exclude":["172.16.0.10/32"]`, 1), locked: true},
+		{name: "switch to share mode", oldValue: enabled, newValue: `{"share-storage-network":true,"hostIPRange":"172.16.0.224/28","vipRange":"172.16.0.192/27"}`, locked: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkRWXNetworkNotLocked(rwxSetting(tc.oldValue), rwxSetting(tc.newValue))
+			if !tc.locked {
+				assert.NoError(t, err)
+				return
+			}
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), "remove them first")
 			}
 		})
 	}
