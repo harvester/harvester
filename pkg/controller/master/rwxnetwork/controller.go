@@ -13,6 +13,7 @@ import (
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	networkutils "github.com/harvester/harvester-network-controller/pkg/utils"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
 	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
+	ctlwhereaboutsv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
@@ -37,6 +39,7 @@ const (
 
 	ReasonHostIPRangeExhausted      = "HostIPRangeExhausted"
 	ReasonHostNetworkConfigConflict = "HostNetworkConfigConflict"
+	ReasonAddressInUse              = "AddressInUse"
 
 	hostNetworkConfigModeStatic = "static"
 )
@@ -54,6 +57,7 @@ type Handler struct {
 	hncCache          ctlnetworkv1.HostNetworkConfigCache
 	vlanConfigCache   ctlnetworkv1.VlanConfigCache
 	nodeCache         ctlcorev1.NodeCache
+	ipPoolCache       ctlwhereaboutsv1.IPPoolCache
 	recorder          record.EventRecorder
 }
 
@@ -63,6 +67,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	hncs := management.HarvesterNetworkFactory.Network().V1beta1().HostNetworkConfig()
 	vlanConfigs := management.HarvesterNetworkFactory.Network().V1beta1().VlanConfig()
 	nodes := management.CoreFactory.Core().V1().Node()
+	ipPools := management.WhereaboutsCNIFactory.Whereabouts().V1alpha1().IPPool()
 
 	h := &Handler{
 		settings:          settingController,
@@ -74,6 +79,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		hncCache:          hncs.Cache(),
 		vlanConfigCache:   vlanConfigs.Cache(),
 		nodeCache:         nodes.Cache(),
+		ipPoolCache:       ipPools.Cache(),
 		recorder:          management.NewRecorder(ControllerName, "", ""),
 	}
 
@@ -91,6 +97,11 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 			h.enqueue()
 		}
 		return hnc, nil
+	})
+	// A released address may unblock the reserved ranges.
+	ipPools.OnChange(ctx, ControllerName, func(_ string, pool *whereaboutsv1alpha1.IPPool) (*whereaboutsv1alpha1.IPPool, error) {
+		h.enqueue()
+		return pool, nil
 	})
 
 	registerShareManagerVIP(ctx, management)
@@ -160,6 +171,17 @@ func (h *Handler) reconcile(setting *harvesterv1.Setting) (*harvesterv1.Setting,
 		// The HostNetworkConfig watch requeues once the foreign one is removed.
 		return h.setHostIPsAssignedCondition(setting, false, ReasonHostNetworkConfigConflict,
 			fmt.Sprintf("HostNetworkConfig %s exists but is not managed by Harvester", HostNetworkConfigName))
+	}
+
+	// Pods may have got an address in the ranges before they were excluded. Hold the
+	// host network until those addresses are released rather than hand them out twice.
+	inUse, err := h.reservedAddrsInUse(network.Range, rwxConfig.HostIPRange, rwxConfig.VIPRange)
+	if err != nil {
+		return setting, err
+	}
+	if len(inUse) > 0 {
+		return h.setHostIPsAssignedCondition(setting, false, ReasonAddressInUse,
+			fmt.Sprintf("address(es) in hostIPRange or vipRange still allocated: %s", strings.Join(inUse, ", ")))
 	}
 
 	unassigned, err := h.syncHostNetworkConfig(network, rwxConfig.HostIPRange)
@@ -275,6 +297,37 @@ func (h *Handler) setNADManagedExcludes(nad *nadv1.NetworkAttachmentDefinition, 
 		return err
 	}
 	return nil
+}
+
+// reservedAddrsInUse returns the Whereabouts allocations of the subnet that fall in the
+// given ranges, as "address (pod)".
+func (h *Handler) reservedAddrsInUse(subnet string, ranges ...string) ([]string, error) {
+	poolName, err := networkutil.WhereaboutsIPPoolName(subnet)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := h.ipPoolCache.Get(util.KubeSystemNamespace, poolName)
+	if apierrors.IsNotFound(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	allocations, err := networkutil.IPPoolAllocations(pool)
+	if err != nil {
+		return nil, err
+	}
+
+	var inUse []string
+	for addr, podRef := range allocations {
+		for _, r := range ranges {
+			if prefix, err := netip.ParsePrefix(r); err == nil && prefix.Contains(addr) {
+				inUse = append(inUse, fmt.Sprintf("%s (%s)", addr, podRef))
+				break
+			}
+		}
+	}
+	sort.Strings(inUse)
+	return inUse, nil
 }
 
 // syncHostNetworkConfig reconciles the managed HostNetworkConfig and returns the eligible

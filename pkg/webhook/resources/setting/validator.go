@@ -3107,11 +3107,11 @@ func (v *settingValidator) checkRangesNotAllocated(subnet string, prefixes ...ne
 		return err
 	}
 
-	addrs, err := networkutil.IPPoolAllocatedAddrs(pool)
+	allocations, err := networkutil.IPPoolAllocations(pool)
 	if err != nil {
 		return err
 	}
-	for _, addr := range addrs {
+	for addr := range allocations {
 		for _, prefix := range prefixes {
 			if prefix.Contains(addr) {
 				return fmt.Errorf("address %s in %s is already allocated by Whereabouts", addr, prefix)
