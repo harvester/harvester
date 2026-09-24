@@ -215,9 +215,9 @@ func ParseBridgeNADConfig(config string) (BridgeNAD, error) {
 	}, nil
 }
 
-// IPPoolAllocatedAddrs returns the addresses allocated in a Whereabouts IPPool. The
-// allocation keys are offsets from the pool's network address.
-func IPPoolAllocatedAddrs(pool *whereaboutsv1alpha1.IPPool) ([]netip.Addr, error) {
+// IPPoolAllocations returns the addresses allocated in a Whereabouts IPPool with the pod
+// holding each of them. The allocation keys are offsets from the pool's network address.
+func IPPoolAllocations(pool *whereaboutsv1alpha1.IPPool) (map[netip.Addr]string, error) {
 	prefix, err := netip.ParsePrefix(pool.Spec.Range)
 	if err != nil {
 		return nil, fmt.Errorf("invalid IPPool range %q: %w", pool.Spec.Range, err)
@@ -225,8 +225,8 @@ func IPPoolAllocatedAddrs(pool *whereaboutsv1alpha1.IPPool) ([]netip.Addr, error
 	base := new(big.Int).SetBytes(prefix.Masked().Addr().AsSlice())
 	size := len(prefix.Addr().AsSlice())
 
-	addrs := make([]netip.Addr, 0, len(pool.Spec.Allocations))
-	for key := range pool.Spec.Allocations {
+	allocations := make(map[netip.Addr]string, len(pool.Spec.Allocations))
+	for key, allocation := range pool.Spec.Allocations {
 		offset, err := strconv.ParseUint(key, 10, 64)
 		if err != nil {
 			continue
@@ -236,7 +236,7 @@ func IPPoolAllocatedAddrs(pool *whereaboutsv1alpha1.IPPool) ([]netip.Addr, error
 			continue
 		}
 		addr, _ := netip.AddrFromSlice(sum.FillBytes(make([]byte, size)))
-		addrs = append(addrs, addr)
+		allocations[addr] = allocation.PodRef
 	}
-	return addrs, nil
+	return allocations, nil
 }

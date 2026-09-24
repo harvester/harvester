@@ -323,7 +323,7 @@ func TestSetManagedExcludes(t *testing.T) {
 	}
 }
 
-func TestIPPoolAllocatedAddrs(t *testing.T) {
+func TestIPPoolAllocations(t *testing.T) {
 	pool := &whereaboutsv1alpha1.IPPool{
 		Spec: whereaboutsv1alpha1.IPPoolSpec{
 			Range: "172.16.0.0/24",
@@ -336,12 +336,12 @@ func TestIPPoolAllocatedAddrs(t *testing.T) {
 		},
 	}
 
-	addrs, err := IPPoolAllocatedAddrs(pool)
+	allocations, err := IPPoolAllocations(pool)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []netip.Addr{
-		netip.MustParseAddr("172.16.0.1"),
-		netip.MustParseAddr("172.16.0.254"),
-	}, addrs)
+	assert.Equal(t, map[netip.Addr]string{
+		netip.MustParseAddr("172.16.0.1"):   "longhorn-system/csi-a",
+		netip.MustParseAddr("172.16.0.254"): "longhorn-system/csi-b",
+	}, allocations)
 }
 
 func TestParseBridgeNADConfig(t *testing.T) {
