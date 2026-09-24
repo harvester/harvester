@@ -145,6 +145,12 @@ func Test_validateRWXNetworkReservedRanges(t *testing.T) {
 			errContains: "HostNetworkConfig user already configures",
 		},
 		{
+			name:        "user HostNetworkConfig taking the managed name conflicts",
+			value:       dedicated("10.10.0.0/24", "", "10.10.0.224/28", "10.10.0.192/27"),
+			objects:     []runtime.Object{hostNetworkConfig("rwx-network", "mgmt", 2018, false)},
+			errContains: "HostNetworkConfig rwx-network is reserved",
+		},
+		{
 			name:    "managed HostNetworkConfig on the same VLAN is fine",
 			value:   dedicated("10.10.0.0/24", "", "10.10.0.224/28", "10.10.0.192/27"),
 			objects: []runtime.Object{hostNetworkConfig("rwx", "mgmt", 2017, true), hostNetworkConfig("other", "mgmt", 2018, false)},
