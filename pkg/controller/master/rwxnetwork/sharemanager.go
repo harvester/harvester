@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
+	networkutils "github.com/harvester/harvester-network-controller/pkg/utils"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhtypes "github.com/longhorn/longhorn-manager/types"
@@ -43,7 +44,6 @@ const (
 	vipServicePrefix                    = "rwx-vip-"
 	kubeVIPLoadBalancerIPsAnnotation    = "kube-vip.io/loadbalancerIPs"
 	kubeVIPServiceInterfaceAnnotation   = "kube-vip.io/serviceInterface"
-	kubeVIPServiceInterfaceAuto         = "auto"
 	networkStatusAnnotation             = nadv1.NetworkStatusAnnot
 	longhornEndpointNetworkForRWXVolume = "endpoint-network-for-rwx-volume"
 	endpointSliceManagedBy              = ShareManagerVIPControllerName
@@ -200,7 +200,7 @@ func (h *ShareManagerVIPHandler) OnVolumeChange(_ string, volume *lhv1beta2.Volu
 		return volume, nil
 	}
 
-	svc, err = h.syncService(volume, svc, rwxConfig.VIPRange)
+	svc, err = h.syncService(volume, svc, rwxConfig)
 	if err != nil || svc == nil {
 		return volume, err
 	}
@@ -209,18 +209,25 @@ func (h *ShareManagerVIPHandler) OnVolumeChange(_ string, volume *lhv1beta2.Volu
 
 // syncService reconciles the VIP Service of a volume. It returns nil when the volume
 // cannot get a VIP yet.
-func (h *ShareManagerVIPHandler) syncService(volume *lhv1beta2.Volume, svc *corev1.Service, vipRange string) (*corev1.Service, error) {
-	if svc != nil && inRange(serviceVIP(svc), vipRange) {
-		return h.applyService(svc, newVIPService(volume, serviceVIP(svc)))
-	}
+func (h *ShareManagerVIPHandler) syncService(volume *lhv1beta2.Volume, svc *corev1.Service, rwxConfig *settings.RWXNetworkConfig) (*corev1.Service, error) {
+	vipRange := rwxConfig.VIPRange
+	inUse := svc != nil && inRange(serviceVIP(svc), vipRange)
 
-	// Only new VIPs wait for the host network; existing ones keep serving through a
-	// transient HostNetworkConfig change.
-	if svc == nil {
-		ready, err := h.hostNetworkReady()
-		if err != nil || !ready {
-			return nil, err
+	// kube-vip announces a VIP only if its interface exists when the Service is
+	// created or updated, and does not retry by itself, so VIPs are only handed out
+	// once the host network is ready. Existing ones keep serving meanwhile.
+	iface, err := h.hostNetworkInterface(rwxConfig)
+	if err != nil {
+		return nil, err
+	}
+	if iface == "" {
+		if inUse {
+			return svc, nil
 		}
+		return nil, nil
+	}
+	if inUse {
+		return h.applyService(svc, newVIPService(volume, serviceVIP(svc), iface))
 	}
 
 	h.allocateLock.Lock()
@@ -247,7 +254,7 @@ func (h *ShareManagerVIPHandler) syncService(volume *lhv1beta2.Volume, svc *core
 	} else if err != nil {
 		return nil, err
 	}
-	return h.applyService(svc, newVIPService(volume, vip))
+	return h.applyService(svc, newVIPService(volume, vip, iface))
 }
 
 func (h *ShareManagerVIPHandler) applyService(current, desired *corev1.Service) (*corev1.Service, error) {
@@ -318,16 +325,38 @@ func (h *ShareManagerVIPHandler) syncEndpointSlice(volume *lhv1beta2.Volume, svc
 	return err
 }
 
-// hostNetworkReady reports whether the Harvester hosts have an address on the RWX
-// network, which kube-vip needs to pick the interface announcing the VIPs.
-func (h *ShareManagerVIPHandler) hostNetworkReady() (bool, error) {
+// hostNetworkInterface returns the host interface on the RWX network that announces the
+// VIPs, or an empty string while the managed HostNetworkConfig for the current setting
+// is not ready.
+func (h *ShareManagerVIPHandler) hostNetworkInterface(rwxConfig *settings.RWXNetworkConfig) (string, error) {
+	network, err := h.rwxSourceNetwork(rwxConfig)
+	if err != nil || network == nil {
+		return "", err
+	}
+
 	hnc, err := h.hncCache.Get(HostNetworkConfigName)
 	if apierrors.IsNotFound(err) {
-		return false, nil
+		return "", nil
 	} else if err != nil {
-		return false, err
+		return "", err
 	}
-	return hostNetworkConfigReady(hnc), nil
+	if hnc.Spec.ClusterNetwork != network.ClusterNetwork || hnc.Spec.VlanID != network.Vlan || !hostNetworkConfigReady(hnc) {
+		return "", nil
+	}
+	return networkutils.GetClusterNetworkVlanDevice(network.ClusterNetwork, network.Vlan), nil
+}
+
+// rwxSourceNetwork returns the network carrying RWX traffic, which is the storage
+// network in share mode.
+func (h *ShareManagerVIPHandler) rwxSourceNetwork(rwxConfig *settings.RWXNetworkConfig) (*networkutil.Config, error) {
+	if !rwxConfig.ShareStorageNetwork {
+		return rwxConfig.Network, nil
+	}
+	setting, err := h.settingCache.Get(settings.StorageNetworkName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s setting: %w", settings.StorageNetworkName, err)
+	}
+	return settings.DecodeConfig[networkutil.Config](setting.EffectiveValue())
 }
 
 // hostNetworkConfigReady reports whether every node of a managed HostNetworkConfig has
@@ -423,7 +452,7 @@ func inRange(ip, cidr string) bool {
 	return err == nil && prefix.Masked().Contains(addr)
 }
 
-func newVIPService(volume *lhv1beta2.Volume, vip string) *corev1.Service {
+func newVIPService(volume *lhv1beta2.Volume, vip, iface string) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vipServiceName(volume.Name),
@@ -431,7 +460,7 @@ func newVIPService(volume *lhv1beta2.Volume, vip string) *corev1.Service {
 			Labels:    map[string]string{util.RWXVolServiceLabel: volume.Name},
 			Annotations: map[string]string{
 				kubeVIPLoadBalancerIPsAnnotation:  vip,
-				kubeVIPServiceInterfaceAnnotation: kubeVIPServiceInterfaceAuto,
+				kubeVIPServiceInterfaceAnnotation: iface,
 			},
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: lhv1beta2.SchemeGroupVersion.String(),
