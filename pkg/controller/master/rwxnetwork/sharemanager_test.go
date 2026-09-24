@@ -219,12 +219,7 @@ func newVIPTestEnv(rwxSetting string, hncReady bool, objs ...runtime.Object) *vi
 			ObjectMeta: metav1.ObjectMeta{Name: longhornEndpointNetworkForRWXVolume, Namespace: util.LonghornSystemNamespaceName},
 			Value:      testRWXNAD,
 		},
-		&networkv1.HostNetworkConfig{
-			ObjectMeta: metav1.ObjectMeta{Name: HostNetworkConfigName, Labels: map[string]string{util.RWXNetworkManagedLabel: "true"}},
-			Status: networkv1.HostNetworkConfigStatus{
-				Conditions: []networkv1.Condition{{Type: networkv1.Ready, Status: readyStatus}},
-			},
-		},
+		newTestHostNetworkConfig(readyStatus),
 	)
 
 	clientset := fake.NewSimpleClientset(objs...)
@@ -278,6 +273,57 @@ func (e *vipTestEnv) setPod(t *testing.T, pod *corev1.Pod) {
 	_ = pods.Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 	_, err := pods.Create(context.TODO(), pod, metav1.CreateOptions{})
 	require.NoError(t, err)
+}
+
+func newTestHostNetworkConfig(readyStatus corev1.ConditionStatus) *networkv1.HostNetworkConfig {
+	return &networkv1.HostNetworkConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: HostNetworkConfigName, Labels: map[string]string{util.RWXNetworkManagedLabel: "true"}},
+		Spec: networkv1.HostNetworkConfigSpec{
+			ClusterNetwork: "rwx",
+			VlanID:         2017,
+			Mode:           hostNetworkConfigModeStatic,
+			HostIPs:        map[string]networkv1.IPAddr{"node-1": "172.16.0.240/24", "node-2": "172.16.0.241/24"},
+		},
+		Status: networkv1.HostNetworkConfigStatus{
+			NodeStatus: map[string]networkv1.HostNetworkConfigNodeStatus{
+				"node-1": {ClusterNetwork: "rwx", VlanID: 2017, Conditions: []networkv1.Condition{{Type: networkv1.Ready, Status: corev1.ConditionTrue}}},
+				"node-2": {ClusterNetwork: "rwx", VlanID: 2017, Conditions: []networkv1.Condition{{Type: networkv1.Ready, Status: readyStatus}}},
+			},
+		},
+	}
+}
+
+func TestHostNetworkConfigReady(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*networkv1.HostNetworkConfig)
+		want   bool
+	}{
+		{name: "every node ready", want: true},
+		{name: "a node not ready", mutate: func(h *networkv1.HostNetworkConfig) {
+			h.Status.NodeStatus["node-2"].Conditions[0].Status = corev1.ConditionFalse
+		}},
+		{name: "a node without status", mutate: func(h *networkv1.HostNetworkConfig) {
+			delete(h.Status.NodeStatus, "node-2")
+		}},
+		{name: "a node status for another VLAN", mutate: func(h *networkv1.HostNetworkConfig) {
+			s := h.Status.NodeStatus["node-2"]
+			s.VlanID = 2018
+			h.Status.NodeStatus["node-2"] = s
+		}},
+		{name: "no host IPs", mutate: func(h *networkv1.HostNetworkConfig) { h.Spec.HostIPs = nil }},
+		{name: "being deleted", mutate: func(h *networkv1.HostNetworkConfig) { h.DeletionTimestamp = &metav1.Time{} }},
+		{name: "not managed", mutate: func(h *networkv1.HostNetworkConfig) { h.Labels = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hnc := newTestHostNetworkConfig(corev1.ConditionTrue)
+			if tt.mutate != nil {
+				tt.mutate(hnc)
+			}
+			assert.Equal(t, tt.want, hostNetworkConfigReady(hnc))
+		})
+	}
 }
 
 func newRWXVolume(name string) *lhv1beta2.Volume {
