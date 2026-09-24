@@ -13,6 +13,9 @@ spec:
   enabled: false
   {{- end }}
   valuesContent: |
+    global:
+      cattle:
+        systemDefaultRegistry: "<< .MONITORING_REGISTRY >>"
     rancherMonitoring:
       enabled: false
     kube-state-metrics:

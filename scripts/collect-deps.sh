@@ -26,6 +26,7 @@ SCRIPTS_DIR="${TOP_DIR}/scripts"
 WORKING_DIR=$(mktemp -d)
 
 source ${SCRIPTS_DIR}/version-rancher
+source ${SCRIPTS_DIR}/lib/image
 
 update_chart_app_versions()
 {
@@ -58,7 +59,9 @@ update_rancher_deps()
   local fleet_versions="${WORKING_DIR}/fleet-versions.txt"
   local webhook_versions="${WORKING_DIR}/webhook-versions.txt"
   local rancher_build_yaml="${WORKING_DIR}/rancher-build.yaml"
-  local rancher_image="rancher/rancher:$rancher_version"
+  local rancher_registry
+  rancher_registry=$(resolve_rancher_registry)
+  local rancher_image="${rancher_registry}/rancher/rancher:${rancher_version}"
 
   # Get min verseion from rancher image's env variables
   curl https://raw.githubusercontent.com/rancher/rancher/$rancher_version/build.yaml -o $rancher_build_yaml

@@ -1,4 +1,21 @@
 
+# Set the registry in the shipped chart defaults so both Addon HelmCharts and
+# ManagedCharts (including the CRD installation jobs) use the bundled images.
+patch_addon_chart_registry() (
+  set -e
+  local chart_dir=$1 chart_name=$2 chart_version=$3 registry=$4
+  local work_dir
+  work_dir=$(mktemp -d)
+  trap 'rm -rf "${work_dir}"' EXIT
+
+  tar -xzf "${chart_dir}/${chart_name}-${chart_version}.tgz" -C "${work_dir}" --warning=no-timestamp
+  # Some CRD-only charts do not ship a values.yaml.
+  touch "${work_dir}/${chart_name}/values.yaml"
+  registry="${registry}" yq -i '.global.cattle.systemDefaultRegistry = strenv(registry)' \
+    "${work_dir}/${chart_name}/values.yaml"
+  helm package "${work_dir}/${chart_name}" --destination "${chart_dir}"
+)
+
 load_addon_env() {
   local addon_path=$1
   

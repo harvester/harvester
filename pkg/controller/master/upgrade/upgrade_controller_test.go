@@ -12,6 +12,7 @@ import (
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	upgradeapiv1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -19,6 +20,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -117,6 +119,113 @@ func newKubeVirt(namespace, name string) *kubevirtv1.KubeVirt {
 			},
 		},
 	}
+}
+
+func TestValidateUpgradeRepo(t *testing.T) {
+	testCases := []struct {
+		name           string
+		currentFlavor  string
+		targetFlavor   string
+		targetRegistry string
+		expectedError  string
+	}{
+		{
+			name:          "community to community",
+			currentFlavor: settings.ServerFlavorCommunity,
+			targetFlavor:  settings.ServerFlavorCommunity,
+		},
+		{
+			name:          "community to Prime",
+			currentFlavor: settings.ServerFlavorCommunity,
+			targetFlavor:  settings.ServerFlavorPrime,
+		},
+		{
+			name:          "Prime to Prime",
+			currentFlavor: settings.ServerFlavorPrime,
+			targetFlavor:  settings.ServerFlavorPrime,
+		},
+		{
+			name:          "Prime to community is rejected",
+			currentFlavor: settings.ServerFlavorPrime,
+			targetFlavor:  settings.ServerFlavorCommunity,
+			expectedError: "upgrading from a Prime release to a community release is not supported",
+		},
+		{
+			name: "missing flavors default to community",
+		},
+		{
+			name:          "unsupported current flavor is rejected",
+			currentFlavor: "unknown",
+			targetFlavor:  settings.ServerFlavorCommunity,
+			expectedError: "unsupported current server flavor",
+		},
+		{
+			name:          "unsupported target flavor is rejected",
+			currentFlavor: settings.ServerFlavorCommunity,
+			targetFlavor:  "unknown",
+			expectedError: "unsupported target server flavor",
+		},
+		{
+			name:           "target registry with scheme is rejected",
+			currentFlavor:  settings.ServerFlavorCommunity,
+			targetFlavor:   settings.ServerFlavorPrime,
+			targetRegistry: "https://prime.invalid/containers",
+			expectedError:  "rancherSystemDefaultRegistry must not include a URL scheme",
+		},
+		{
+			name:           "target registry with trailing slash is rejected",
+			currentFlavor:  settings.ServerFlavorCommunity,
+			targetFlavor:   settings.ServerFlavorPrime,
+			targetRegistry: "prime.invalid/containers/",
+			expectedError:  "rancherSystemDefaultRegistry must not end with '/'",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repoInfo := &repoinfo.RepoInfo{
+				Release: repoinfo.HarvesterRelease{
+					RancherSystemDefaultRegistry: testCase.targetRegistry,
+					ServerFlavor:                 testCase.targetFlavor,
+				},
+			}
+
+			err := validateUpgradeRepo(testCase.currentFlavor, repoInfo)
+			if testCase.expectedError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, testCase.expectedError)
+		})
+	}
+}
+
+func TestUpgradeEligibilityCheckDoesNotSkipFlavorValidation(t *testing.T) {
+	currentFlavor := settings.ServerFlavor.Get()
+	require.NoError(t, settings.ServerFlavor.Set(settings.ServerFlavorPrime))
+	t.Cleanup(func() {
+		require.NoError(t, settings.ServerFlavor.Set(currentFlavor))
+	})
+
+	upgrade := &harvesterv1.Upgrade{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				skipVersionCheckAnnotation: "true",
+			},
+		},
+	}
+	repoInfo := &repoinfo.RepoInfo{
+		Release: repoinfo.HarvesterRelease{
+			ServerFlavor: settings.ServerFlavorCommunity,
+		},
+	}
+	repoInfoStr, err := repoInfo.Marshall()
+	require.NoError(t, err)
+	upgrade.Status.RepoInfo = repoInfoStr
+
+	isEligible, reason := upgradeEligibilityCheck(upgrade)
+	require.False(t, isEligible)
+	require.Contains(t, reason, "upgrading from a Prime release to a community release is not supported")
 }
 
 func newManagedChart(namespace, name string) *mgmtv3.ManagedChart {

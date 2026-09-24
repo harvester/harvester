@@ -53,6 +53,8 @@ var (
 	// Following variables are replaced by ldflags
 	RKE2Version                   = ""
 	RancherVersion                = ""
+	PrimeBuild                    = ""
+	SystemDefaultRegistry         = ""
 	HarvesterChartVersion         = ""
 	MonitoringChartVersion        = ""
 	LoggingChartVersion           = ""
@@ -320,6 +322,9 @@ func setConfigDefaultValues(config *HarvesterConfig) {
 	if config.RancherVersion == "" {
 		config.RancherVersion = RancherVersion
 	}
+	if PrimeBuild == "true" && config.SystemDefaultRegistry == "" {
+		config.SystemDefaultRegistry = SystemDefaultRegistry
+	}
 	if config.HarvesterChartVersion == "" {
 		config.HarvesterChartVersion = HarvesterChartVersion
 	}
@@ -373,7 +378,7 @@ func initRancherdStage(config *HarvesterConfig, stage *yipSchema.Stage) error {
 			Group:       0,
 		})
 
-	rancherdConfig, err := render("rancherd-config.yaml", config)
+	rancherdConfig, err := renderRancherdConfig(config)
 	if err != nil {
 		return err
 	}

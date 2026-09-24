@@ -9,6 +9,150 @@ normalize_image()
   echo $1 | awk -F '/' '{if(NF>=3){print $0} else if(NF==2){print "docker.io/"$0}else if(NF==1){print "docker.io/library/"$0}}'
 }
 
+# Validate a registry supplied at a build boundary and return it unchanged.
+# Registry values are host/path prefixes, not URLs, and must not end in '/'.
+validate_registry()
+{
+  local registry=$1
+  local name=${2:-Image registry}
+  if [[ -z "${registry}" ]]; then
+    echo "${name} is required" >&2
+    return 1
+  fi
+  if [[ "${registry}" == *://* ]]; then
+    echo "${name} must not include a URL scheme" >&2
+    return 1
+  fi
+  if [[ "${registry}" == */ ]]; then
+    echo "${name} must not end with '/'" >&2
+    return 1
+  fi
+  echo "${registry}"
+}
+
+# Resolve the registry for an image category. Community builds always use the
+# public default. Prime builds must receive the registry at build time; Prime
+# registry addresses are intentionally never stored in this repository.
+#
+#   harvester    — Harvester component images referenced by Harvester charts
+#   rancher      — Rancher, RKE2, rancherd bootstrap images, system-default-registry
+#   monitoring   — rancher-monitoring/rancher-logging images; falls back to the
+#                  rancher registry when MK_MONITORING_REGISTRY is unset
+#   suse-storage — SUSE Storage; defaults to the public dp.apps.rancher.io
+resolve_registry()
+{
+  local category=$1
+
+  case "${category}" in
+    harvester)
+      if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        if [[ -z "${MK_HARVESTER_PRIME_REGISTRY:-}" ]]; then
+          echo "MK_HARVESTER_PRIME_REGISTRY is required when MK_PRIME_BUILD=true" >&2
+          return 1
+        fi
+        validate_registry "${MK_HARVESTER_PRIME_REGISTRY}" MK_HARVESTER_PRIME_REGISTRY
+        return
+      fi
+      echo "docker.io"
+      ;;
+    rancher)
+      if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        if [[ -z "${MK_RANCHER_PRIME_REGISTRY:-}" ]]; then
+          echo "MK_RANCHER_PRIME_REGISTRY is required when MK_PRIME_BUILD=true" >&2
+          return 1
+        fi
+        validate_registry "${MK_RANCHER_PRIME_REGISTRY}" MK_RANCHER_PRIME_REGISTRY
+        return
+      fi
+      echo "docker.io"
+      ;;
+    monitoring)
+      if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        if [[ -n "${MK_MONITORING_REGISTRY:-}" ]]; then
+          validate_registry "${MK_MONITORING_REGISTRY}" MK_MONITORING_REGISTRY
+          return
+        fi
+        resolve_registry rancher
+        return
+      fi
+      echo "docker.io"
+      ;;
+    suse-storage)
+      validate_registry "${MK_SUSE_STORAGE_REGISTRY:-dp.apps.rancher.io}" MK_SUSE_STORAGE_REGISTRY
+      ;;
+    *)
+      echo "Unknown image registry category: ${category}" >&2
+      return 1
+      ;;
+  esac
+}
+
+# Back-compat wrapper: the Rancher/RKE2/rancherd category was originally the
+# only one and had its own function name.
+resolve_rancher_registry()
+{
+  resolve_registry rancher
+}
+
+# Render a registry-less image inventory into a concrete image list.
+# Source entries must use the form namespace/repository:tag. Blank lines and
+# comments are ignored so the result can be passed directly to docker image save.
+render_image_list()
+{
+  local in_file=$1
+  local registry
+  local out_file=$3
+  local image first_component
+
+  if ! registry=$(validate_registry "$2"); then
+    return 1
+  fi
+
+  : > "${out_file}"
+  while IFS= read -r image || [[ -n "${image}" ]]; do
+    image=${image%$'\r'}
+    [[ -z "${image}" || "${image}" == \#* ]] && continue
+    if [[ "${image}" == /* || "${image}" != */* ]]; then
+      echo "Registry-less image must include a namespace: ${image}" >&2
+      return 1
+    fi
+    if [[ "${image##*/}" != *:* && "${image}" != *@* ]]; then
+      echo "Image inventory entry must include a tag or digest: ${image}" >&2
+      return 1
+    fi
+
+    first_component=${image%%/*}
+    if [[ "${first_component}" == *.* || "${first_component}" == *:* || "${first_component}" == "localhost" ]]; then
+      echo "Image inventory entry must not include a registry: ${image}" >&2
+      return 1
+    fi
+    echo "${registry}/${image}" >> "${out_file}"
+  done < "${in_file}"
+}
+
+# Rewrite a downloaded image list to a different registry while retaining each
+# repository path and tag. Inputs without an explicit registry are first
+# normalized to docker.io.
+rewrite_image_list_registry()
+{
+  local in_file=$1
+  local registry
+  local out_file=$3
+  local image normalized
+
+  if ! registry=$(validate_registry "$2"); then
+    return 1
+  fi
+
+  : > "${out_file}"
+  while IFS= read -r image || [[ -n "${image}" ]]; do
+    image=${image%$'\r'}
+    [[ -z "${image}" || "${image}" == \#* ]] && continue
+    normalized=$(normalize_image "${image}")
+    echo "${registry}/${normalized#*/}" >> "${out_file}"
+  done < "${in_file}"
+}
+
 save_image_list()
 {
   local app=$1
@@ -38,10 +182,18 @@ save_image_list()
     # Add docker.io prefix if there is no prefixed registry URL
     repository=$(normalize_image $repository)
 
+    # The allow list identifies repositories independently of their registry.
+    repository=${repository#*/}
+
     if yq -e e ".${app}[] | select(. == \"${repository}\")" ${SCRIPTS_DIR}/images/allow.yaml &>/dev/null; then
       want+="$(normalize_image $image)"$'\n'
     fi
   done
+
+  if [ -z "$want" ]; then
+    echo "No images from ${in_file} matched allow.yaml's \"${app}\" list" >&2
+    exit 1
+  fi
 
   echo -n "$want" | sort | uniq > $out_file
 }

@@ -37,6 +37,19 @@ MK_ISO_BUILDER_IMAGE      := harvester-iso-builder:$(MK_REPO_ID)
 MK_TEST_INTEGRATION_IMAGE := harvester-test-integration:$(MK_REPO_ID)
 MK_DOCKER_PROGRESS        ?= plain
 MK_DOCKER_PULL            ?= --pull
+MK_DOCKER_CLI_CONFIG      ?=
+MK_PRIME_BUILD	          ?=
+# Registry values are host/path prefixes without a URL scheme or trailing slash.
+MK_HARVESTER_PRIME_REGISTRY ?=
+MK_RANCHER_PRIME_REGISTRY ?=
+MK_MONITORING_REGISTRY   ?=
+MK_SUSE_STORAGE_REGISTRY  ?= dp.apps.rancher.io
+
+PRIME_REGISTRY_VARIABLES := MK_HARVESTER_PRIME_REGISTRY MK_RANCHER_PRIME_REGISTRY MK_MONITORING_REGISTRY MK_SUSE_STORAGE_REGISTRY
+
+define validate_registry_variable
+$(if $(filter %/,$(strip $($(1)))),$(error $(1) must not end with '/'))
+endef
 
 # Legacy dapper env variables
 CODECOV_TOKEN             ?=
@@ -62,7 +75,7 @@ MK_IMAGE_CACHE_MAX_ITEMS  ?= 5
 # set to 0 to skip sha256 integrity check before using cached tarball (default: 1)
 MK_IMAGE_CACHE_VERIFY     ?=
 
-export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_REPO_ID MK_ISO_BUILDER_IMAGE
+export MK_DOCKER_PROGRESS MK_DOCKER_PULL MK_DOCKER_CLI_CONFIG MK_REPO_ID MK_ISO_BUILDER_IMAGE MK_PRIME_BUILD MK_HARVESTER_PRIME_REGISTRY MK_RANCHER_PRIME_REGISTRY MK_MONITORING_REGISTRY MK_SUSE_STORAGE_REGISTRY
 export HARVESTER_UI_VERSION HARVESTER_UI_PLUGIN_BUNDLED_VERSION
 export RKE2_IMAGE_REPO USE_LOCAL_IMAGES REPO PUSH DRONE_BRANCH DRONE_TAG
 export CODECOV_TOKEN
@@ -76,21 +89,34 @@ export ARCH
 
 DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 	--progress=$(MK_DOCKER_PROGRESS) \
+	$(if $(strip $(MK_DOCKER_CLI_CONFIG)),--secret id=docker_cli_config$(comma)src="$(MK_DOCKER_CLI_CONFIG)") \
+	--build-arg MK_DOCKER_CLI_CONFIG \
 	--build-arg MK_REPO_ID \
 	--build-arg MK_HOST_ARCH \
+	--build-arg PRIME_BUILD="$(MK_PRIME_BUILD)" \
+	--build-arg HARVESTER_PRIME_REGISTRY="$(MK_HARVESTER_PRIME_REGISTRY)" \
+	--build-arg MK_RANCHER_PRIME_REGISTRY="$(MK_RANCHER_PRIME_REGISTRY)" \
+	--build-arg MK_MONITORING_REGISTRY="$(MK_MONITORING_REGISTRY)" \
+	--build-arg SUSE_STORAGE_REGISTRY="$(MK_SUSE_STORAGE_REGISTRY)" \
 	-f $(ROOT)/Dockerfile $(ROOT)
 
-.PHONY: build validate validate-ci test test-integration build-iso \
+.PHONY: build validate validate-ci validate-prime test test-integration build-iso \
 	package-all package package-harvester-webhook package-harvester-upgrade \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
 	gen-version-env gen-version-env-debug build-installer \
-	check-images fix
+	check-images fix validate-prime-registries
 
 
 # ---- Directories ----
 $(ROOT)/bin:
 	@mkdir -p $@
+
+
+# ---- Validate Prime registry inputs ----
+validate-prime-registries:
+	$(foreach variable,$(PRIME_REGISTRY_VARIABLES),$(call validate_registry_variable,$(variable)))
+	@:
 
 
 # ---- Pre-generate version env for container builds (no .git needed inside Docker) ----
@@ -116,6 +142,12 @@ build: gen-version-env | $(ROOT)/bin
 validate: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target validate
+
+
+# ---- Validate Prime ----
+validate-prime: gen-version-env
+	$(BANNER)
+	$(DOCKER_BUILD) --target validate-prime
 
 
 # ---- Validate CI (dirty check after go generate + go mod tidy) ----
@@ -200,10 +232,14 @@ generate:
 	$(DOCKER_BUILD) --target generate-output --output type=local,dest=$(ROOT)
 
 # ---- Generate addon manifests from the in-tree addons directory ---
-prepare-addons:
+prepare-addons: validate-prime-registries
 	$(BANNER)
 	$(ROOT)/scripts/prepare-addons
 
+
+prepare-harvester-charts: validate-prime-registries
+	$(BANNER)
+	$(DOCKER_BUILD) --target prepare-harvester-charts
 
 # ---- Build ISO ----
 build-iso: gen-version-env build-installer check-images

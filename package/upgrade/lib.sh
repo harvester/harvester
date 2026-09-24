@@ -34,6 +34,7 @@ detect_repo()
   REPO_OS_VERSION="${REPO_OS_PRETTY_NAME#Harvester }"
   REPO_RKE2_VERSION=$(yq -e e '.kubernetes' $release_file)
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
+  REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY=$(yq e '.rancherSystemDefaultRegistry // ""' $release_file)
   REPO_MONITORING_CHART_VERSION=$(yq -e e '.monitoringChart' $release_file)
   REPO_LOGGING_CHART_VERSION=$(yq -e e '.loggingChart' $release_file)
   REPO_LOGGING_CHART_HARVESTER_EVENTROUTER_VERSION=$(yq -e e '.loggingChartHarvesterEventRouter' $release_file)
@@ -69,6 +70,16 @@ detect_repo()
 
   if [ -z "$REPO_RANCHER_VERSION" ]; then
     echo "[ERROR] Fail to get Rancher version from upgrade repo."
+    exit 1
+  fi
+
+  if [[ "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" == *://* ]]; then
+    echo "[ERROR] rancherSystemDefaultRegistry must not include a URL scheme."
+    exit 1
+  fi
+
+  if [[ "$REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY" == */ ]]; then
+    echo "[ERROR] rancherSystemDefaultRegistry must not end with '/'."
     exit 1
   fi
 
@@ -361,6 +372,59 @@ install_addon()
   kubectl apply -f /usr/local/share/addons/${name}.yaml -n $namespace
 }
 
+# write_addon_version_values_patch renders a `kubectl patch --type merge`
+# manifest that bumps spec.version and replaces spec.valuesContent with the
+# contents of valuesfile, then removes valuesfile. Delegating the YAML
+# construction to yq means embedding the (arbitrary, multi-line)
+# valuesContent never depends on manual indentation or heredoc quoting, and
+# version strings that look like another YAML type (e.g. "2.0", "1", "true")
+# are quoted automatically instead of being silently reinterpreted.
+write_addon_version_values_patch()
+{
+  local version=$1
+  local valuesfile=$2
+  local patchfile=$3
+
+  VERSION="$version" VALUES="$(cat "$valuesfile")" \
+    yq -n '.spec.version = strenv(VERSION) | .spec.valuesContent = strenv(VALUES)' > "$patchfile"
+  rm -f "$valuesfile"
+}
+
+# sync_addon_image_from_manifest overlays the top-level image.repository,
+# image.tag, and global.cattle.systemDefaultRegistry from the packaged
+# manifest (which already carries the registry, community or Prime, baked in
+# at build time) onto a live valuesContent file, without touching any other
+# field. This keeps user customizations intact while guaranteeing the addon's
+# images always track the registry shipped with the upgrade bundle. Each
+# field is a no-op when the packaged manifest doesn't carry it (e.g.
+# image.repository for rancher-monitoring, or systemDefaultRegistry on a
+# community build where it is intentionally left empty to match the chart's
+# own default).
+sync_addon_image_from_manifest()
+{
+  local name=$1
+  local valuesfile=$2
+  local manifest="/usr/local/share/addons/${name}.yaml"
+
+  local values
+  values=$(yq '.spec.valuesContent' "$manifest")
+
+  local repo tag registry
+  repo=$(echo "$values" | yq '.image.repository // ""')
+  tag=$(echo "$values" | yq '.image.tag // ""')
+  registry=$(echo "$values" | yq '.global.cattle.systemDefaultRegistry // ""')
+
+  if [[ -n "$repo" ]]; then
+    REPO="$repo" yq -e '.image.repository = strenv(REPO)' -i "$valuesfile"
+  fi
+  if [[ -n "$tag" ]]; then
+    TAG="$tag" yq -e '.image.tag = strenv(TAG)' -i "$valuesfile"
+  fi
+  if [[ -n "$registry" ]]; then
+    REGISTRY="$registry" yq -e '.global.cattle.systemDefaultRegistry = strenv(REGISTRY)' -i "$valuesfile"
+  fi
+}
+
 # Synchronize labels derived from addons/{built-in,standalone}/<name>/metadata.yaml onto an existing
 # Addon. The packaged manifests are the source of truth after generation.
 # Unrelated labels are preserved; stale stage/deprecation labels are removed.
@@ -557,7 +621,13 @@ is_rc_release()
   fi
 }
 
-# upgrade addon, the only operation is to upgrade the chart version
+# upgrade addon: patch the chart version, and overlay the packaged image
+# repository/tag/registry (see sync_addon_image_from_manifest) onto the
+# existing valuesContent so the addon keeps tracking the registry shipped
+# with the upgrade bundle even when the version itself doesn't change (e.g. a
+# same-version community->prime transition). The resulting patch is a no-op
+# when both the version and the synced fields are already up to date, so
+# `kubectl patch` triggers no redeploy in that case.
 upgrade_addon_try_patch_version_only()
 {
   local name=$1
@@ -572,18 +642,13 @@ upgrade_addon_try_patch_version_only()
     return 0
   fi
 
-  # check if version is updated
-  if [[ "$version" = "$newversion" ]]; then
-    echo "addon has already been $newversion, nothing to do"
-    return 0
-  fi
+  local valuesfile="${name}-values-temp.yaml"
+  rm -f $valuesfile
+  kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
+  sync_addon_image_from_manifest $name $valuesfile
 
-  # patch version
   local patchfile=addon-patch-temp.yaml
-  cat > $patchfile <<EOF
-spec:
-  version: "$newversion"
-EOF
+  write_addon_version_values_patch "$newversion" $valuesfile $patchfile
   echo "to be patched file content"
   cat ./$patchfile
 
@@ -664,6 +729,7 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
   local valuesfile="logging-values-temp.yaml"
   rm -f $valuesfile
   kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
+  sync_addon_image_from_manifest $name $valuesfile
 
   local EXIT_CODE=0
 
@@ -693,20 +759,8 @@ upgrade_addon_rancher_logging_with_patch_eventrouter_image()
     NEW_VERSION=$ernewversion yq -e '.eventTailer.workloadOverrides.containers[0].image = strenv(NEW_VERSION)' -i $valuesfile
   fi
 
-  # add 4 spaces to each line
-  sed -i -e 's/^/    /' $valuesfile
-  local newvalues=$(<$valuesfile)
-  rm -f $valuesfile
-
   local patchfile="addon-patch-temp.yaml"
-  rm -f $patchfile
-
-cat > $patchfile <<EOF
-spec:
-  version: $newversion
-  valuesContent: |
-$newvalues
-EOF
+  write_addon_version_values_patch "$newversion" $valuesfile $patchfile
 
   local enabled=""
   local curstatus=""
@@ -749,6 +803,7 @@ upgrade_addon_rancher_monitoring_with_patches()
   local valuesfile="monitoring-values-temp.yaml"
   rm -f $valuesfile
   kubectl get addons.harvesterhci.io $name -n $namespace -ojsonpath="{.spec.valuesContent}" > $valuesfile
+  sync_addon_image_from_manifest $name $valuesfile
 
   echo "check rancherMonitoring.enabled"
   # local var escaps `Error: no matches found`, and return value is `null` if not found the key on yaml
@@ -778,20 +833,8 @@ upgrade_addon_rancher_monitoring_with_patches()
     yq -e '.kube-state-metrics.metricLabelsAllowlist[0] = "nodes=[*]"' -i $valuesfile
   fi
 
-  # add 4 spaces to each line
-  sed -i -e 's/^/    /' $valuesfile
-  local newvalues=$(<$valuesfile)
-  rm -f $valuesfile
-
   local patchfile="addon-patch-temp.yaml"
-  rm -f $patchfile
-
-cat > $patchfile <<EOF
-spec:
-  version: $newversion
-  valuesContent: |
-$newvalues
-EOF
+  write_addon_version_values_patch "$newversion" $valuesfile $patchfile
 
   local enabled=""
   local curstatus=""
@@ -856,17 +899,37 @@ EOF
   # wait for managedchart to be ready before updating the addon
   wait_managedchart_ready "kubeovn-operator-crd"
 
-  ## addon patch 
-  patch=$(cat /usr/local/share/addons/kubeovn-operator.yaml | yq '{"spec": .spec | pick(["version"])}')
-  cat > addon-patch.yaml <<EOF
-$patch
-EOF
-
   item_count=$(kubectl get addons.harvesterhci kubeovn-operator -n kube-system -o  jsonpath='{..name}' || true)
   if [ -z "$item_count" ]; then
     install_addon kubeovn-operator kube-system
   else
+    ## addon patch: bump the version, and overlay the packaged image
+    ## repository/tag onto the existing valuesContent (see
+    ## sync_addon_image_from_manifest) so kubeovn keeps tracking the
+    ## registry shipped with the upgrade bundle, without touching any
+    ## live network/resource/feature configuration.
+    local valuesfile="kubeovn-values-temp.yaml"
+    rm -f $valuesfile
+    kubectl get addons.harvesterhci.io kubeovn-operator -n kube-system -ojsonpath="{.spec.valuesContent}" > $valuesfile
+    sync_addon_image_from_manifest kubeovn-operator $valuesfile
+
+    write_addon_version_values_patch "$version" $valuesfile addon-patch.yaml
+
+    # capture status before patching: wait_for_addon_upgrade_deployment only
+    # waits when the addon was already AddonDeploySuccessful beforehand.
+    local enabled=""
+    local curstatus=""
+    enabled=$(kubectl get addons.harvesterhci.io kubeovn-operator -n kube-system -o=jsonpath='{.spec.enabled}' || true)
+    if [[ $enabled = "true" ]]; then
+      curstatus=$(kubectl get addons.harvesterhci.io kubeovn-operator -n kube-system -o=jsonpath='{.status.status}' || true)
+    fi
+
     kubectl patch addons.harvesterhci kubeovn-operator -n kube-system --patch-file ./addon-patch.yaml --type merge
+
+    # wait for the addon operation this patch triggered to clear before
+    # sync_addon_labels_from_manifests touches this addon again, so it
+    # doesn't race the webhook's in-progress-operation guard.
+    wait_for_addon_upgrade_deployment kubeovn-operator kube-system $enabled $curstatus
   fi
 
 }

@@ -20,12 +20,51 @@ is_push_repo_image() {
     [[ "${repo}" == *"${REPO}/"* ]] && [[ "${tag}" == "${IMAGE_PUSH_TAG}" ]]
 }
 
+# collect_longhorn_image_list OUT_FILE
+# Appends Longhorn images to OUT_FILE.
+# If MK_PRIME_BUILD=true, parses images from the suse-storage values.yaml by reading
+#   .image.<component>.{registry,repository,tag} and constructing {registry}/{repository}:{tag}.
+# Otherwise, fetches longhorn-images.txt from the upstream Longhorn GitHub release and
+#   removes the openshift-oauth-proxy image which has no multi-arch images and is not needed.
+collect_longhorn_image_list() {
+    local out_file="$1"
+
+    if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+        local suse_storage_values="${harvester_chart_path}/dependency_charts/suse-storage/values.yaml"
+        local registries repositories tags
+        registries=(   $(yq eval '.image | .. | select(has("registry")) | select(has("repository")) | select(has("tag")) | .registry'    "${suse_storage_values}") )
+        repositories=( $(yq eval '.image | .. | select(has("registry")) | select(has("repository")) | select(has("tag")) | .repository' "${suse_storage_values}") )
+        tags=(         $(yq eval '.image | .. | select(has("registry")) | select(has("repository")) | select(has("tag")) | .tag'        "${suse_storage_values}") )
+        if [[ ${#registries[@]} -ne ${#repositories[@]} ]] || [[ ${#repositories[@]} -ne ${#tags[@]} ]]; then
+            echo "ERROR: registry/repository/tag count mismatch in suse-storage/values.yaml"
+            exit 1
+        fi
+        for i in "${!registries[@]}"; do
+            local registry="${registries[$i]}"
+            local repo="${repositories[$i]}"
+            local tag="${tags[$i]}"
+            # Skip entries with empty fields (e.g., openshift oauthProxy placeholder)
+            [[ -z "${registry}" || -z "${repo}" || -z "${tag}" ]] && continue
+            echo "add suse-storage image: ${registry}/${repo}:${tag}"
+            echo "${registry}/${repo}:${tag}" >> "${out_file}"
+        done
+    else
+        local longhorn_version
+        longhorn_version=v$(ls "${harvester_chart_path}/charts" | grep longhorn | sed -e "s/^longhorn-//" -e "s/.tgz$//")
+        curl -sfL "https://raw.githubusercontent.com/longhorn/longhorn/${longhorn_version}/deploy/longhorn-images.txt" >> "${out_file}"
+        # longhornio/openshift-origin-oauth-proxy has no multi-arch images and Harvester doesn't need it
+        # ref: https://github.com/longhorn/longhorn/issues/8329#issuecomment-2046043895
+        sed -i '/longhornio\/openshift-origin-oauth-proxy/d' "${out_file}"
+    fi
+}
+
+
 # collect_harvester_image_list OUT_FILE
 # Assembles the full Harvester image list from:
 #   - chart values.yaml (repository+tag pairs)
 #   - addon environment variables (loaded via load_addon_env)
 #   - scripts/images/harvester-additional-images.txt
-#   - longhorn-images.txt from the upstream Longhorn GitHub release
+#   - Longhorn images (via collect_longhorn_image_list)
 # Normalises registry prefixes, fills in missing :latest tags, deduplicates,
 # and filters out images not needed by Harvester (openshift-oauth-proxy, multus, etc.).
 collect_harvester_image_list() {
@@ -44,21 +83,18 @@ collect_harvester_image_list() {
         echo "${repositories[$i]}:${tags[$i]}" >> "${out_file}"
     done
 
-    echo "${VM_IMPORT_CONTROLLER_IMAGE}"     >> "${out_file}"
-    echo "${PCIDEVICES_CONTROLLER_IMAGE}"    >> "${out_file}"
-    echo "${HARVESTER_SEEDER_IMAGE}"         >> "${out_file}"
-    echo "${HARVESTER_EVENTROUTER_FULL_TAG}" >> "${out_file}"
-    echo "${KUBEOVN_OPERATOR_IMAGE}"         >> "${out_file}"
-    echo "${DESCHEDULER_IMAGE}"              >> "${out_file}"
+    # todo: maybe we can build the image list in add-on repo?
+    echo "${VM_IMPORT_CONTROLLER_IMAGE_REPOSITORY}:${VM_IMPORT_CONTROLLER_IMAGE_TAG}" >> "${out_file}"
+    echo "${PCIDEVICES_CONTROLLER_IMAGE_REPOSITORY}:${PCIDEVICES_CONTROLLER_IMAGE_TAG}" >> "${out_file}"
+    echo "${HARVESTER_SEEDER_IMAGE_REPOSITORY}:${HARVESTER_SEEDER_IMAGE_TAG}" >> "${out_file}"
+    echo "${NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY}:${NVIDIA_DRIVER_TOOLKIT_IMAGE_TAG}" >> "${out_file}"
+    echo "${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}" >> "${out_file}"
+    echo "${KUBEOVN_OPERATOR_IMAGE_REPOSITORY}:${KUBEOVN_OPERATOR_IMAGE_TAG}" >> "${out_file}"
+    echo "${DESCHEDULER_IMAGE_REPOSITORY}:${DESCHEDULER_IMAGE_TAG}" >> "${out_file}"
 
     cat "${SCRIPTS_DIR}/images/harvester-additional-images.txt" >> "${out_file}"
 
-    local longhorn_version
-    longhorn_version=v$(ls "${harvester_chart_path}/charts" | grep longhorn | sed -e "s/^longhorn-//" -e "s/.tgz$//")
-    curl -sfL "https://raw.githubusercontent.com/longhorn/longhorn/${longhorn_version}/deploy/longhorn-images.txt" >> "${out_file}"
-    # longhornio/openshift-origin-oauth-proxy has no multi-arch images and Harvester doesn't need it
-    # ref: https://github.com/longhorn/longhorn/issues/8329#issuecomment-2046043895
-    sed -i '/longhornio\/openshift-origin-oauth-proxy/d' "${out_file}"
+    collect_longhorn_image_list "${out_file}"
 
     awk -F ':' '{if($2==""){print $1":latest"}else{print $0}}' "${out_file}" > "${out_file}.tmp"
     mv "${out_file}.tmp" "${out_file}"
