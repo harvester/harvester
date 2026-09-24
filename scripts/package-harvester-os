@@ -65,8 +65,21 @@ EOF
 # Collect all the previous versions' image lists
 ${SCRIPTS_DIR}/archive-images-lists.sh "${TOP_DIR}/../harvester/package/upgrade-matrix.yaml" "${IMAGES_LISTS_DIR}" "${RANCHERD_IMAGES_DIR}" "${BUNDLE_DIR}/harvester/images-lists-archive" "${ARCH}"
 
-# Collect dependencies' versions
-${SCRIPTS_DIR}/collect-deps.sh harvester-release.yaml
+# Merge the Rancher dependency versions resolved by the collect-rancher-deps build stage
+# (see Dockerfile) into harvester-release.yaml.
+merge_rancher_deps()
+{
+  local release_file=$1
+  local deps_file="${TOP_DIR}/dist/rancher-deps.yaml"
+
+  if [ ! -s "${deps_file}" ]; then
+    echo "Missing Rancher dependencies fragment: ${deps_file}"
+    exit 1
+  fi
+  yq eval-all '. as $item ireduce ({}; . * $item)' "${release_file}" "${deps_file}" -i
+}
+
+merge_rancher_deps harvester-release.yaml
 
 echo "The harvester-release info is"
 cat ./harvester-release.yaml
