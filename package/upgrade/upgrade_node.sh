@@ -800,6 +800,12 @@ EOF
   #   https://github.com/harvester/harvester/issues/9815
   set_nic_names_by_mac_address
 
+  # Ensure upgraded systems pick up the change in
+  # https://github.com/harvester/harvester/pull/11758
+  chmod 700 ${HOST_DIR}/oem 2>/dev/null || true
+  chmod 700 ${HOST_DIR}/oem/install 2>/dev/null || true
+  chmod 600 ${HOST_DIR}/oem/*.yaml 2>/dev/null || true
+
   umount $tmp_rootfs_mount
   rm -rf $tmp_rootfs_squashfs
 
