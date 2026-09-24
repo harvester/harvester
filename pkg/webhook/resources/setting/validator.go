@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -1415,6 +1416,10 @@ func (v *settingValidator) validateUpdateStorageNetwork(_ *types.Request, oldSet
 		))
 	}
 
+	if err := v.checkStorageNetworkNotLockedByRWX(oldSetting, newSetting); err != nil {
+		return err
+	}
+
 	var (
 		config *networkutil.Config
 		err    error
@@ -1446,10 +1451,6 @@ func (v *settingValidator) validateUpdateStorageNetwork(_ *types.Request, oldSet
 	}
 
 	if err := v.checkStorageNetworkNotBlockedByRWX(newSetting); err != nil {
-		return err
-	}
-
-	if err := v.checkStorageNetworkKeepsRWXReservedRanges(config); err != nil {
 		return err
 	}
 
@@ -1497,6 +1498,10 @@ func (v *settingValidator) validateUpdateRWXNetwork(request *types.Request, oldS
 	}
 
 	if err := v.checkRWXNotInProgress(oldSetting, newSetting); err != nil {
+		return err
+	}
+
+	if err := checkRWXNetworkNotLocked(oldSetting, newSetting); err != nil {
 		return err
 	}
 
@@ -2955,13 +2960,9 @@ func (v *settingValidator) checkRWXReservedRanges(rwxConfig *settings.RWXNetwork
 	return nil
 }
 
-// checkStorageNetworkKeepsRWXReservedRanges ensures a new storage network still fits
-// the RWX reserved ranges while rwx-network shares it.
-func (v *settingValidator) checkStorageNetworkKeepsRWXReservedRanges(config *networkutil.Config) error {
-	if config == nil {
-		return nil
-	}
-
+// checkStorageNetworkNotLockedByRWX rejects storage network changes while rwx-network
+// shares it with hostIPRange and vipRange set, as the RWX host network is built on it.
+func (v *settingValidator) checkStorageNetworkNotLockedByRWX(oldSetting, newSetting *v1beta1.Setting) error {
 	rwxSetting, err := v.settingCache.Get(settings.RWXNetworkSettingName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -2973,17 +2974,36 @@ func (v *settingValidator) checkStorageNetworkKeepsRWXReservedRanges(config *net
 	if err != nil {
 		return werror.NewInternalError(err.Error())
 	}
-	if rwxConfig == nil || !rwxConfig.ShareStorageNetwork || rwxConfig.HostIPRange == "" {
+	if !rwxConfig.ShareStorageNetwork || !rwxReservedRangesSet(rwxConfig) {
 		return nil
 	}
 
-	if err := v.validateRWXReservedRanges(config, rwxConfig.HostIPRange, rwxConfig.VIPRange); err != nil {
-		return werror.NewInvalidError(fmt.Sprintf("%s shares this network: %v", settings.RWXNetworkSettingName, err), settings.KeywordValue)
+	oldConfig, oldErr := settings.DecodeConfig[networkutil.Config](oldSetting.EffectiveValue())
+	newConfig, newErr := settings.DecodeConfig[networkutil.Config](newSetting.EffectiveValue())
+	if oldErr == nil && newErr == nil && reflect.DeepEqual(oldConfig, newConfig) {
+		return nil
 	}
-	if err := v.checkStorageNetworkCapacity(withExcludes(config, rwxConfig.HostIPRange, rwxConfig.VIPRange), true); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	return werror.NewInvalidError(fmt.Sprintf("%s cannot be changed while %s shares it with hostIPRange and vipRange set, remove them from %s first",
+		settings.StorageNetworkName, settings.RWXNetworkSettingName, settings.RWXNetworkSettingName), settings.KeywordValue)
+}
+
+// checkRWXNetworkNotLocked rejects rwx-network changes while hostIPRange and vipRange are
+// set, other than removing them, so the RWX host network is never rebuilt in place.
+func checkRWXNetworkNotLocked(oldSetting, newSetting *v1beta1.Setting) error {
+	oldConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](oldSetting.EffectiveValue())
+	if err != nil || !rwxReservedRangesSet(oldConfig) {
+		return nil
 	}
-	return nil
+	newConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](newSetting.EffectiveValue())
+	if err != nil || !rwxReservedRangesSet(newConfig) || reflect.DeepEqual(oldConfig, newConfig) {
+		return nil
+	}
+	return werror.NewInvalidError(fmt.Sprintf("%s cannot be changed while hostIPRange and vipRange are set, remove them first",
+		settings.RWXNetworkSettingName), settings.KeywordValue)
+}
+
+func rwxReservedRangesSet(rwxConfig *settings.RWXNetworkConfig) bool {
+	return rwxConfig.HostIPRange != "" || rwxConfig.VIPRange != ""
 }
 
 func (v *settingValidator) validateRWXReservedRanges(config *networkutil.Config, hostIPRange, vipRange string) error {
