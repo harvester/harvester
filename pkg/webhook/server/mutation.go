@@ -32,13 +32,14 @@ func Mutation(clients *clients.Clients, options *config.Options, crdExists bool)
 	vmImgCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
 	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	kubevirtCache := clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache()
+	shareManagerCache := clients.LonghornFactory.Longhorn().V1beta2().ShareManager().Cache()
 	var kubeovnSubnetCache ctlkubeovnv1.SubnetCache
 	if crdExists {
 		kubeovnSubnetCache = clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache()
 	}
 	mutators := []types.Mutator{
 		persistentvolumeclaim.NewMutator(pvcCache, vmImgCache),
-		pod.NewMutator(settingCache),
+		pod.NewMutator(settingCache, shareManagerCache),
 		templateversion.NewMutator(),
 		upgrade.NewMutator(nodeCache, settingCache),
 		virtualmachine.NewMutator(settingCache, nadCache, kubevirtCache, kubeovnSubnetCache),

@@ -3,7 +3,9 @@ package pod
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -12,6 +14,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	harvSettings "github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -37,13 +40,20 @@ var matchingLabelsForNamespace = map[string][]labels.Set{
 }
 
 const (
-	forkliftAppKey = "forklift.app"
-	forkliftAppVal = "virt-v2v"
+	forkliftAppKey                     = "forklift.app"
+	forkliftAppVal                     = "virt-v2v"
+	shareManagerKind                   = "ShareManager"
+	shareManagerPodStaticIPAnnotation  = util.ShareManagerStaticIPAnno
+	shareManagerPodIfaceAnnotation     = util.ShareManagerIfaceAnno
+	shareManagerPodIPAnnotation        = util.ShareManagerIPAnno
+	shareManagerPodMACAnnotation       = util.ShareManagerMACAnno
+	shareManagerPodStaticNADAnnotation = util.ShareManagerStaticNADAnno
 )
 
-func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
+func NewMutator(settingCache v1beta1.SettingCache, shareManagerCache ctllonghornv1.ShareManagerCache) types.Mutator {
 	return &podMutator{
-		setttingCache: settingCache,
+		settingCache:      settingCache,
+		shareManagerCache: shareManagerCache,
 	}
 }
 
@@ -51,7 +61,8 @@ func NewMutator(settingCache v1beta1.SettingCache) types.Mutator {
 // external services. It includes harvester apiserver and longhorn backing-image-data-source pods.
 type podMutator struct {
 	types.DefaultMutator
-	setttingCache v1beta1.SettingCache
+	settingCache      v1beta1.SettingCache
+	shareManagerCache ctllonghornv1.ShareManagerCache
 }
 
 func newResource(ops []admissionregv1.OperationType) types.Resource {
@@ -78,6 +89,10 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 		return generateForkliftV2VPatch(pod)
 	}
 
+	if isShareManagerPod(pod) {
+		return m.shareManagerNetworkPatches(pod)
+	}
+
 	if !shouldPatch(pod) {
 		return nil, nil
 	}
@@ -97,8 +112,56 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 	return patchOps, nil
 }
 
+func (m *podMutator) shareManagerNetworkPatches(pod *corev1.Pod) (types.PatchOps, error) {
+	if m.shareManagerCache == nil {
+		return nil, nil
+	}
+
+	shareManagerName, ok := shareManagerOwnerName(pod)
+	if !ok {
+		return nil, nil
+	}
+
+	shareManager, err := m.shareManagerCache.Get(pod.Namespace, shareManagerName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	shareManagerAnnotations := shareManager.Annotations
+	if !strings.EqualFold(shareManagerAnnotations[shareManagerPodStaticIPAnnotation], "true") {
+		return nil, nil
+	}
+
+	nad := shareManagerAnnotations[shareManagerPodStaticNADAnnotation]
+	ip := shareManagerAnnotations[shareManagerPodIPAnnotation]
+	mac := shareManagerAnnotations[shareManagerPodMACAnnotation]
+	iface := shareManagerAnnotations[shareManagerPodIfaceAnnotation]
+	if nad == "" || ip == "" || mac == "" || iface == "" {
+		return nil, nil
+	}
+
+	podAnnotations := pod.Annotations
+	networksAnnotation, changed, err := mutateNetworksAnnotation(podAnnotations[networkv1.NetworkAttachmentAnnot], nad, ip, mac, iface)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
+		return nil, nil
+	}
+
+	patchOp, err := stringAnnotationPatch(podAnnotations, networkv1.NetworkAttachmentAnnot, networksAnnotation)
+	if err != nil {
+		return nil, err
+	}
+
+	return types.PatchOps{patchOp}, nil
+}
+
 func (m *podMutator) httpProxyPatches(pod *corev1.Pod) (types.PatchOps, error) {
-	proxySetting, err := m.setttingCache.Get(harvSettings.HTTPProxySettingName)
+	proxySetting, err := m.settingCache.Get(harvSettings.HTTPProxySettingName)
 	if err != nil || proxySetting.Value == "" {
 		if errors.IsNotFound(err) {
 			return nil, nil
@@ -165,7 +228,7 @@ func envPatches(target, envVars []corev1.EnvVar, basePath string) (types.PatchOp
 }
 
 func (m *podMutator) additionalCAPatches(pod *corev1.Pod) (types.PatchOps, error) {
-	additionalCASetting, err := m.setttingCache.Get("additional-ca")
+	additionalCASetting, err := m.settingCache.Get("additional-ca")
 	if err != nil || additionalCASetting.Value == "" {
 		if errors.IsNotFound(err) {
 			return nil, nil
@@ -257,6 +320,131 @@ func shouldPatch(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+func shareManagerOwnerName(pod *corev1.Pod) (string, bool) {
+	for _, ownerRef := range pod.OwnerReferences {
+		if ownerRef.Kind == shareManagerKind && ownerRef.Name != "" {
+			return ownerRef.Name, true
+		}
+	}
+	return "", false
+}
+
+func isShareManagerPod(pod *corev1.Pod) bool {
+	_, ok := shareManagerOwnerName(pod)
+	return ok
+}
+
+func mutateNetworksAnnotation(annotation, nad, ip, mac, iface string) (string, bool, error) {
+	networkName, networkNamespace, err := parseNADNamespacedName(nad)
+	if err != nil {
+		return "", false, err
+	}
+
+	selections := []networkv1.NetworkSelectionElement{}
+	if annotation != "" {
+		if err := json.Unmarshal([]byte(annotation), &selections); err != nil {
+			return "", false, err
+		}
+	}
+
+	desiredIPs := []string{ip}
+	changed := false
+	found := false
+
+	for i := range selections {
+		if selections[i].InterfaceRequest != iface {
+			continue
+		}
+
+		found = true
+		if selections[i].Name == networkName &&
+			selections[i].Namespace == networkNamespace &&
+			stringSlicesEqual(selections[i].IPRequest, desiredIPs) &&
+			selections[i].MacRequest == mac &&
+			selections[i].IPAMClaimReference == "" {
+			continue
+		}
+
+		selections[i].Name = networkName
+		selections[i].Namespace = networkNamespace
+		selections[i].IPRequest = desiredIPs
+		selections[i].MacRequest = mac
+		selections[i].IPAMClaimReference = ""
+		changed = true
+	}
+
+	if !found {
+		return "", false, nil
+	}
+
+	if !changed {
+		return "", false, nil
+	}
+
+	value, err := json.Marshal(selections)
+	if err != nil {
+		return "", false, err
+	}
+	return string(value), true, nil
+}
+
+func parseNADNamespacedName(nad string) (string, string, error) {
+	parts := strings.Split(nad, "/")
+	switch len(parts) {
+	case 1:
+		if parts[0] == "" {
+			return "", "", fmt.Errorf("invalid network attachment definition name %q", nad)
+		}
+		return parts[0], "", nil
+	case 2:
+		if parts[0] == "" || parts[1] == "" {
+			return "", "", fmt.Errorf("invalid network attachment definition name %q", nad)
+		}
+		return parts[1], parts[0], nil
+	default:
+		return "", "", fmt.Errorf("invalid network attachment definition name %q", nad)
+	}
+}
+
+func stringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stringAnnotationPatch(annotations map[string]string, key, value string) (string, error) {
+	valueBytes, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+
+	if len(annotations) == 0 {
+		annotationsValue, err := json.Marshal(map[string]string{key: value})
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf(`{"op": "add", "path": "/metadata/annotations", "value": %s}`, annotationsValue), nil
+	}
+
+	path := fmt.Sprintf("/metadata/annotations/%s", escapeJSONPointerToken(key))
+	if _, exists := annotations[key]; exists {
+		return fmt.Sprintf(`{"op": "replace", "path": "%s", "value": %s}`, path, valueBytes), nil
+	}
+
+	return fmt.Sprintf(`{"op": "add", "path": "%s", "value": %s}`, path, valueBytes), nil
+}
+
+func escapeJSONPointerToken(token string) string {
+	token = strings.ReplaceAll(token, "~", "~0")
+	return strings.ReplaceAll(token, "/", "~1")
 }
 
 // identifies if pod is a forklift virt-v2v conversion pod
