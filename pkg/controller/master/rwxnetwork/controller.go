@@ -3,6 +3,7 @@ package rwxnetwork
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"reflect"
@@ -40,6 +41,7 @@ const (
 	ReasonHostIPRangeExhausted      = "HostIPRangeExhausted"
 	ReasonHostNetworkConfigConflict = "HostNetworkConfigConflict"
 	ReasonAddressInUse              = "AddressInUse"
+	ReasonHostNetworkConfigMismatch = "HostNetworkConfigMismatch"
 
 	hostNetworkConfigModeStatic = "static"
 )
@@ -185,7 +187,11 @@ func (h *Handler) reconcile(setting *harvesterv1.Setting) (*harvesterv1.Setting,
 	}
 
 	unassigned, err := h.syncHostNetworkConfig(network, rwxConfig.HostIPRange)
-	if err != nil {
+	if errors.Is(err, errHostNetworkConfigMismatch) {
+		return h.setHostIPsAssignedCondition(setting, false, ReasonHostNetworkConfigMismatch,
+			fmt.Sprintf("HostNetworkConfig %s no longer matches the %s setting, remove hostIPRange and vipRange and set them again",
+				HostNetworkConfigName, settings.RWXNetworkSettingName))
+	} else if err != nil {
 		return setting, err
 	}
 
@@ -330,8 +336,16 @@ func (h *Handler) reservedAddrsInUse(subnet string, ranges ...string) ([]string,
 	return inUse, nil
 }
 
+// errHostNetworkConfigMismatch reports a managed HostNetworkConfig that cannot be updated
+// in place to match the setting.
+var errHostNetworkConfigMismatch = errors.New("managed HostNetworkConfig does not match the setting")
+
 // syncHostNetworkConfig reconciles the managed HostNetworkConfig and returns the eligible
 // nodes left without an address.
+//
+// The HostNetworkConfig is only removed on teardown. Removing it tears down the host
+// interface together with every VIP kube-vip announces on it, and kube-vip does not
+// recover those VIPs once the interface comes back.
 func (h *Handler) syncHostNetworkConfig(network networkutil.BridgeNAD, hostIPRange string) ([]string, error) {
 	subnet, err := netip.ParsePrefix(network.Range)
 	if err != nil {
@@ -377,10 +391,11 @@ func (h *Handler) syncHostNetworkConfig(network networkutil.BridgeNAD, hostIPRan
 		}
 	case hnc.DeletionTimestamp != nil:
 		// The HostNetworkConfig watch requeues once the deletion completes.
-	case desired == nil || needsRecreate(hnc, desired):
-		if err := h.hncs.Delete(hnc.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return nil, err
-		}
+	case desired == nil:
+		// Keep the current one: the node and VlanConfig caches may not have caught up
+		// yet, e.g. right after a leader change.
+	case !updatableInPlace(hnc, desired):
+		return nil, errHostNetworkConfigMismatch
 	case !reflect.DeepEqual(hnc.Spec, desired.Spec):
 		hncCopy := hnc.DeepCopy()
 		hncCopy.Spec = desired.Spec
@@ -514,17 +529,17 @@ func newHostNetworkConfig(network networkutil.BridgeNAD, prefixBits int, assigne
 	}
 }
 
-// needsRecreate reports whether the HostNetworkConfig must be replaced rather than
-// updated. Its cluster network and VLAN are immutable, and the network controller
-// agent does not reapply the address of an interface it has already set up.
-func needsRecreate(current, desired *networkv1.HostNetworkConfig) bool {
+// updatableInPlace reports whether the HostNetworkConfig can be updated to the desired
+// spec. Its cluster network and VLAN are immutable, and the network controller agent
+// does not reapply the address of an interface it has already set up.
+func updatableInPlace(current, desired *networkv1.HostNetworkConfig) bool {
 	if current.Spec.ClusterNetwork != desired.Spec.ClusterNetwork || current.Spec.VlanID != desired.Spec.VlanID {
-		return true
+		return false
 	}
 	for node, ip := range desired.Spec.HostIPs {
 		if currentIP, ok := current.Spec.HostIPs[node]; ok && currentIP != ip {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
