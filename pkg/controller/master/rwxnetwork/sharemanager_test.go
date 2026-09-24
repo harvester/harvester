@@ -3,6 +3,7 @@ package rwxnetwork
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
@@ -128,14 +129,14 @@ func TestNewVIPService(t *testing.T) {
 		},
 	}
 
-	svc := newVIPService(volume, "172.16.0.250")
+	svc := newVIPService(volume, "172.16.0.250", testVIPInterface)
 
 	assert.Equal(t, "rwx-vip-pvc-1", svc.Name)
 	assert.Equal(t, util.LonghornSystemNamespaceName, svc.Namespace)
 	assert.Equal(t, map[string]string{util.RWXVolServiceLabel: "pvc-1"}, svc.Labels)
 	assert.Equal(t, map[string]string{
 		kubeVIPLoadBalancerIPsAnnotation:  "172.16.0.250",
-		kubeVIPServiceInterfaceAnnotation: "auto",
+		kubeVIPServiceInterfaceAnnotation: testVIPInterface,
 	}, svc.Annotations)
 	require.Len(t, svc.OwnerReferences, 1)
 	assert.Equal(t, metav1.OwnerReference{
@@ -159,7 +160,7 @@ func TestNewVIPService(t *testing.T) {
 }
 
 func TestNewVIPEndpointSlice(t *testing.T) {
-	svc := newVIPService(&lhv1beta2.Volume{ObjectMeta: metav1.ObjectMeta{Name: "pvc-1"}}, "172.16.0.250")
+	svc := newVIPService(&lhv1beta2.Volume{ObjectMeta: metav1.ObjectMeta{Name: "pvc-1"}}, "172.16.0.250", testVIPInterface)
 	svc.UID = types.UID("service-uid")
 
 	t.Run("points at the Share Manager address", func(t *testing.T) {
@@ -194,9 +195,10 @@ func TestNewVIPEndpointSlice(t *testing.T) {
 }
 
 const (
-	testRWXNAD      = "harvester-system/rwx-network-abcde"
-	testRWXSetting  = `{"share-storage-network":false,"network":{"vlan":2017,"clusterNetwork":"rwx","range":"172.16.0.0/24"},"hostIPRange":"172.16.0.240/29","vipRange":"172.16.0.248/30"}`
-	testRWXDisabled = `{"share-storage-network":false}`
+	testRWXNAD       = "harvester-system/rwx-network-abcde"
+	testRWXSetting   = `{"share-storage-network":false,"network":{"vlan":2017,"clusterNetwork":"rwx","range":"172.16.0.0/24"},"hostIPRange":"172.16.0.240/29","vipRange":"172.16.0.248/30"}`
+	testRWXDisabled  = `{"share-storage-network":false}`
+	testVIPInterface = "rwx-br.2017"
 )
 
 type vipTestEnv struct {
@@ -372,7 +374,7 @@ func TestShareManagerVIPKeepsVIPAcrossPodRecreation(t *testing.T) {
 
 func TestShareManagerVIPAllocation(t *testing.T) {
 	t.Run("skips VIPs held by other volumes", func(t *testing.T) {
-		other := newVIPService(newRWXVolume("pvc-0"), "172.16.0.248")
+		other := newVIPService(newRWXVolume("pvc-0"), "172.16.0.248", testVIPInterface)
 		env := newVIPTestEnv(testRWXSetting, true, other)
 
 		env.reconcile(t, newRWXVolume("pvc-1"))
@@ -380,20 +382,36 @@ func TestShareManagerVIPAllocation(t *testing.T) {
 	})
 
 	t.Run("reallocates a VIP left outside a changed vipRange", func(t *testing.T) {
-		stale := newVIPService(newRWXVolume("pvc-1"), "172.16.0.200")
+		stale := newVIPService(newRWXVolume("pvc-1"), "172.16.0.200", testVIPInterface)
 		env := newVIPTestEnv(testRWXSetting, true, stale)
 
 		env.reconcile(t, newRWXVolume("pvc-1"))
 		svc := env.service(t, "pvc-1")
 		assert.Equal(t, "172.16.0.248", serviceVIP(svc))
 		assert.Equal(t, "172.16.0.248", svc.Spec.LoadBalancerIP)
+		assert.Equal(t, testVIPInterface, svc.Annotations[kubeVIPServiceInterfaceAnnotation])
+	})
+
+	t.Run("does not reallocate a VIP while the host network is not ready", func(t *testing.T) {
+		stale := newVIPService(newRWXVolume("pvc-1"), "172.16.0.200", testVIPInterface)
+		env := newVIPTestEnv(testRWXSetting, false, stale)
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Equal(t, "172.16.0.200", serviceVIP(env.service(t, "pvc-1")))
+	})
+
+	t.Run("waits for a host network on the current cluster network and VLAN", func(t *testing.T) {
+		env := newVIPTestEnv(strings.Replace(testRWXSetting, `"vlan":2017`, `"vlan":2018`, 1), true)
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Nil(t, env.service(t, "pvc-1"))
 	})
 
 	t.Run("reports an exhausted vipRange", func(t *testing.T) {
 		vips := []string{"172.16.0.248", "172.16.0.249", "172.16.0.250", "172.16.0.251"}
 		objs := make([]runtime.Object, 0, len(vips))
 		for i, vip := range vips {
-			objs = append(objs, newVIPService(newRWXVolume(fmt.Sprintf("pvc-%d", i+10)), vip))
+			objs = append(objs, newVIPService(newRWXVolume(fmt.Sprintf("pvc-%d", i+10)), vip, testVIPInterface))
 		}
 		env := newVIPTestEnv(testRWXSetting, true, objs...)
 
@@ -411,7 +429,7 @@ func TestShareManagerVIPAllocation(t *testing.T) {
 	})
 
 	t.Run("keeps serving an existing VIP while the host network is not ready", func(t *testing.T) {
-		existing := newVIPService(newRWXVolume("pvc-1"), "172.16.0.249")
+		existing := newVIPService(newRWXVolume("pvc-1"), "172.16.0.249", testVIPInterface)
 		env := newVIPTestEnv(testRWXSetting, false, existing)
 
 		env.reconcile(t, newRWXVolume("pvc-1"))
@@ -434,7 +452,7 @@ func TestShareManagerVIPIgnoresOtherVolumes(t *testing.T) {
 }
 
 func TestShareManagerVIPTeardown(t *testing.T) {
-	existing := newVIPService(newRWXVolume("pvc-1"), "172.16.0.248")
+	existing := newVIPService(newRWXVolume("pvc-1"), "172.16.0.248", testVIPInterface)
 	env := newVIPTestEnv(testRWXDisabled, true, existing)
 
 	env.reconcile(t, newRWXVolume("pvc-1"))
