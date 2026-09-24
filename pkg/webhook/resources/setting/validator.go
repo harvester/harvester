@@ -51,6 +51,7 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/containerd"
+	"github.com/harvester/harvester/pkg/controller/master/rwxnetwork"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -3083,6 +3084,9 @@ func (v *settingValidator) checkForeignHostNetworkConfig(clusterNetwork string, 
 	for _, hnc := range hncs {
 		if hnc.DeletionTimestamp != nil || hnc.Labels[util.RWXNetworkManagedLabel] == "true" {
 			continue
+		}
+		if hnc.Name == rwxnetwork.HostNetworkConfigName {
+			return fmt.Errorf("HostNetworkConfig %s is reserved for %s but is not managed by Harvester", hnc.Name, settings.RWXNetworkSettingName)
 		}
 		if hnc.Spec.ClusterNetwork == clusterNetwork && hnc.Spec.VlanID == vlan {
 			return fmt.Errorf("HostNetworkConfig %s already configures cluster network %s with VLAN %d", hnc.Name, clusterNetwork, vlan)
