@@ -182,6 +182,13 @@ do_mount()
     mount ${PERSISTENT} ${TARGET}/usr/local
 }
 
+set_oem_perms()
+{
+    echo "Setting file permissions on /oem..."
+    chmod 700 ${TARGET}/oem
+    chmod 600 ${TARGET}/oem/*.yaml
+}
+
 sparsify_passive_img()
 {
     # See https://github.com/harvester/harvester/issues/7518
@@ -490,6 +497,7 @@ save_installation_log()
 {
     save_dir=${TARGET}/oem/install
     mkdir -p $save_dir
+    chmod 700 $save_dir
 
     if [ -e "$HARVESTER_INSTALLATION_LOG" ]; then
         fsync $HARVESTER_INSTALLATION_LOG
@@ -573,6 +581,7 @@ do_data_disk_format
 # Preload images
 do_detect
 do_mount
+set_oem_perms
 sparsify_passive_img
 get_iso  # For PXE Boot
 save_configs
