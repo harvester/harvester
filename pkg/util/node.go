@@ -109,7 +109,7 @@ func IsOtherNodeAvailable(nodeName string, nodeList []*corev1.Node) bool {
 		if node.Name == nodeName {
 			continue
 		}
-		if _, ok := node.Annotations[MaintainStatusAnnotationKey]; !ok && !node.Spec.Unschedulable {
+		if !IsMaintenanceModeEngaged(node) && !node.Spec.Unschedulable {
 			return true
 		}
 	}

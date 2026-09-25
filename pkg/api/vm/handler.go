@@ -750,11 +750,11 @@ func (h *vmActionHandler) findMigratableNodesByVMI(vmi *kubevirtv1.VirtualMachin
 }
 
 func isDrained(node *corev1.Node) bool {
-	if _, ok := node.Annotations[util.MaintainStatusAnnotationKey]; ok {
-		return ok
+	if util.IsMaintenanceModeEngaged(node) {
+		return true
 	}
-	if _, ok := node.Annotations[drainhelper.DrainAnnotation]; ok {
-		return ok
+	if drainhelper.HasDrainRequest(node) {
+		return true
 	}
 	if node.Spec.Unschedulable {
 		return true
