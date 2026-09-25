@@ -89,6 +89,13 @@ helm pull https://github.com/kubernetes-sigs/descheduler/releases/download/desch
 # make chart sanity check
 tar zxvf ${DIST_CHARTS_DIR}/descheduler-${DESCHEDULER_CHART_VERSION}.tgz >/dev/null --warning=no-timestamp
 
+# Prepare vm-catalog chart
+if [ -d "${TOP_DIR}/deploy/charts/vm-catalog" ]; then
+  helm package ${TOP_DIR}/deploy/charts/vm-catalog -d ${DIST_CHARTS_DIR}
+elif [ -n "${VM_CATALOG_CHART_VERSION:-}" ]; then
+  helm pull https://github.com/harvester/charts/releases/download/vm-catalog-${VM_CATALOG_CHART_VERSION}/vm-catalog-${VM_CATALOG_CHART_VERSION}.tgz -d ${DIST_CHARTS_DIR}
+fi
+
 # index here for the following check function
 helm repo index ${DIST_CHARTS_DIR}
 
