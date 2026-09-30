@@ -32,7 +32,7 @@ import (
 // OverlappingRangeIPReservationsGetter has a method to return a OverlappingRangeIPReservationInterface.
 // A group's client should implement this interface.
 type OverlappingRangeIPReservationsGetter interface {
-	OverlappingRangeIPReservations(namespace string) OverlappingRangeIPReservationInterface
+	OverlappingRangeIPReservations() OverlappingRangeIPReservationInterface
 }
 
 // OverlappingRangeIPReservationInterface has methods to work with OverlappingRangeIPReservation resources.
@@ -54,13 +54,13 @@ type overlappingRangeIPReservations struct {
 }
 
 // newOverlappingRangeIPReservations returns a OverlappingRangeIPReservations
-func newOverlappingRangeIPReservations(c *WhereaboutsV1alpha1Client, namespace string) *overlappingRangeIPReservations {
+func newOverlappingRangeIPReservations(c *WhereaboutsV1alpha1Client) *overlappingRangeIPReservations {
 	return &overlappingRangeIPReservations{
 		gentype.NewClientWithList[*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationList](
 			"overlappingrangeipreservations",
 			c.RESTClient(),
 			scheme.ParameterCodec,
-			namespace,
+			"",
 			func() *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation {
 				return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation{}
 			},
