@@ -1,13 +1,12 @@
-# Image and Template Catalog AddOn
+# Native KubeVirt-Driven VM Catalog AddOn
 
 ## Summary
 
-Add a new optional Harvester AddOn — `harvester-catalog-addon` — that provides a curated, community-maintained catalog of cloud-init-ready Linux images and pre-defined VM templates in three t-shirt sizes (small, medium, large). When the AddOn is enabled, the Harvester Dashboard shows two new sections:
+Add an optional Harvester AddOn — `vm-catalog` — that provides a streamlined, cloud-like VM creation workflow directly from the main sidebar. Rather than introducing proprietary Harvester catalog CRDs or custom controller daemons, the VM Catalog builds natively on upstream KubeVirt APIs already bundled with Harvester (`VirtualMachineClusterInstancetype` and `VirtualMachineClusterPreference` from KubeVirt's `common-instancetypes` bundle).
 
-- **Images → Catalog** — a card grid of curated OS images (Ubuntu, Fedora, Debian, CentOS Stream, AlmaLinux, Rocky Linux, openSUSE Leap / Tumbleweed / MicroOS). One click downloads the image into the user's chosen namespace with a deterministic name.
-- **Virtual Machines → From Catalog** — a new tab alongside the existing *Single Instance* / *Multiple Instance* creation flows. Users pick an OS, pick a size, name the VM, and get a running, cloud-init-configured VM without editing YAML or hunting for image URLs.
+Specification resolution is delegated server-side to KubeVirt's native `expand-vm-spec` subresource API, producing standard Harvester VMs that are 100% compatible with existing backup, restore, migration, and admission webhooks.
 
-The AddOn is fully optional and ships with sensible defaults. Existing Harvester behavior is unchanged when the AddOn is disabled.
+The AddOn is fully optional and opt-in via **Advanced > Addons**. When enabled, a top-level **Catalog** entry appears in the main navigation sidebar. Harvester behavior is completely unchanged when the AddOn is disabled.
 
 ### Related Issues
 
@@ -22,25 +21,29 @@ Today, provisioning a new VM in Harvester requires several manual steps that ass
 3. Manually pick CPU, memory, disk, and network configuration for the VM.
 4. Write cloud-init user-data to bootstrap SSH access.
 
-Users who spin up VMs frequently repeat this dance for every cluster and every namespace, often maintaining private notes with the "known good" URLs. Newcomers routinely end up with images that lack cloud-init, non-bootable images (wrong architecture, wrong format), or VMs sized incorrectly for their workload.
+Users who spin up VMs frequently repeat this dance for every cluster and every namespace, often maintaining private notes with "known good" URLs. Newcomers routinely end up with images that lack cloud-init, non-bootable images (wrong architecture, wrong format), or VMs sized incorrectly for their workload.
 
-Peer projects in the KubeVirt ecosystem (`kubevirt/common-templates`, `kubevirt-ui/kubevirt-plugin`, CDI `DataImportCron`) address this with a curated template + auto-boot-source model. Harvester currently offers no equivalent.
+Harvester already deploys KubeVirt's `common-instancetypes` bundle, providing:
+- Standardized compute sizing across series (`u1` General Purpose, `o1` Memory-Optimized, `cx1` Compute-Optimized, `m1`, `n1`, `rt1`).
+- Curated OS preferences defining optimal disk bus, firmware (BIOS vs. UEFI), network model, and OS icons for over 50 Linux and Windows operating systems.
+
+By building the catalog directly on these native upstream APIs instead of introducing proprietary catalog CRDs and custom controllers, Harvester can deliver a modern, cloud-like provisioning experience with zero ongoing controller maintenance overhead.
 
 ### Goals
 
-- Ship a curated, community-maintained list of popular Linux images with verified download URLs and cloud-init support.
-- Provide pre-defined t-shirt-sized VM templates per OS so users can go from "I want Ubuntu" to "running VM" in two clicks.
-- Package everything as an optional Harvester `Addon` — no changes to core Harvester behavior.
-- Add discoverable UI surfaces (Images → Catalog, Virtual Machines → From Catalog) that appear only when the AddOn is enabled, using the same `registerAddonSideNav` pattern the VM Import controller uses.
-- Provide a stable, deterministic identifier for each catalog image so pre-provisioned templates reliably resolve their base image after download.
-- Provide a CLI surface (via `harvester-cli`) for scripted / GitOps consumption of the same catalog.
+- Deliver a fast, 3-step VM provisioning flow (OS Tile → Size Matrix → Basic Details) under a top-level **Catalog** sidebar item.
+- Leverage native upstream KubeVirt APIs (`VirtualMachineClusterInstancetype` and `VirtualMachineClusterPreference`) without introducing new CRDs or controller maintenance overhead.
+- Resolve instancetype and preference references server-side via KubeVirt's `expand-vm-spec` API, ensuring produced VMs work with existing Harvester admission webhooks, live migration, and backup/restore.
+- Package as a lightweight AddOn (`vm-catalog`) providing RBAC permissions for non-admin users.
+- Support both Linux and Windows golden images, in both connected and air-gapped/offline clusters.
+- Provide an interactive "Preview spec" dialog comparing requested references against expanded KubeVirt domains.
+- Provide full automated UI and navigation tests in Cypress.
 
 ### Non-goals
 
-- Not a replacement for the existing `Images → Create` flow. Users can still upload arbitrary images from URL or file.
-- Not an offline/air-gapped image mirror. The catalog metadata (names, URLs, icons) is shipped with the AddOn, but image bytes are still downloaded from upstream sources by Harvester nodes at request time.
-- Not an automatic image updater in the initial release. When a distro publishes a new build, users re-download the catalog entry to refresh; a `DataImportCron`-style auto-refresh may follow in a later HEP.
-- Not opinionated about which OSes belong in the catalog. Additions and removals are community-driven via PRs to the AddOn repo.
+- Not introducing proprietary Harvester catalog CRDs (`ImageCatalogEntry`, `TemplateCatalogEntry`) or custom catalog reconciliation controllers.
+- Not replacing the existing advanced VM creation/edit form (`edit/kubevirt.io.virtualmachine`). Users who require advanced hardware passthrough, complex disk layouts, or custom cloud-init configs continue to use the standard form.
+- Not an image downloading daemon in the MVP. The catalog surfaces available bootable `VirtualMachineImage` resources on the cluster, mapping them dynamically to matching preferences.
 
 ## Proposal
 
@@ -48,184 +51,187 @@ Peer projects in the KubeVirt ecosystem (`kubevirt/common-templates`, `kubevirt-
 
 #### Story 1: First-time Harvester user provisions a VM
 
-**Before:** A new user installs Harvester, wants to try a VM. They open the Dashboard, click *Virtual Machines → Create*, and are presented with a form that requires them to select an image. There are no images. They open a second browser tab to find an Ubuntu cloud image URL, discover that "cloud" images ship in multiple variants (server/minimal/cloud), pick one, copy the URL, go to *Images → Create*, paste, wait for the download, return to *Virtual Machines*, size the VM by guesswork, hand-write cloud-init user-data for an SSH key, and finally create the VM. First-run experience: ~15 minutes with three browser tabs open.
+**Before:** A new user installs Harvester and wants to try a VM. They open the Dashboard, click *Virtual Machines → Create*, and are presented with a complex form requiring CPU, memory, disk types, network bindings, and guest OS settings. First-run experience: ~15 minutes with multiple tabs open to search for recommended parameters.
 
-**After:** The user enables the `harvester-catalog-addon` from *Advanced → Addons*. Navigates to *Virtual Machines → From Catalog*. Sees a card grid: Ubuntu 24.04, Fedora 44, Rocky Linux 10.2, openSUSE Leap 16.0, .... Clicks Ubuntu 24.04 → picks *Medium* → gives the VM a name → clicks *Create*. VM boots. First-run experience: under 60 seconds.
+**After:** The user enables the `vm-catalog` AddOn from *Advanced → Addons*. Clicks **Catalog** in the left sidebar. Sees an OS tile grid: openSUSE, Ubuntu, Fedora, Debian, Windows, ... Clicks an OS tile → picks an instance size (`u1.medium`, 2 vCPU / 4 GiB) → enters a VM name (or keeps the auto-suggested name) → clicks *Create*. VM boots. First-run experience: under 60 seconds.
 
-#### Story 2: Platform team standardizes on curated images
+#### Story 2: Platform team standardizes sizing and OS defaults
 
-**Before:** Every team in the organization maintains its own list of "good" cloud image URLs. Some are stale (pointing to EOL builds), some point to variants without cloud-init, some point to non-x86_64 builds. Support tickets result.
+**Before:** Different teams configure VMs with arbitrary, unstandardized CPU and memory values, complicating capacity planning and leading to frequent memory pressure or over-provisioning.
 
-**After:** The platform team enables the AddOn once per cluster. The organization gets a single, verified list of images. When a new distro release lands upstream, one PR to the AddOn repo updates the catalog for everyone.
+**After:** Platform teams direct users to the Catalog. Sizing conforms to upstream KubeVirt standard series (`u1`, `cx1`, `o1`), with recommended memory-to-vCPU ratios. Operating system preferences ensure correct bus drivers (`virtio`), clock configurations, and firmware settings are applied consistently.
 
-#### Story 3: Sensible defaults for VM sizing
+#### Story 3: Air-Gapped and Enterprise Deployments
 
-**Before:** Users often mis-size VMs (2 GB RAM for a desktop that needs 4, 20 GB disk for a workload that grows past 50). Sizing is invisible until things break.
+**Before:** Catalog designs that hardcode external internet URLs fail in air-gapped or restricted networks where nodes cannot reach external mirrors.
 
-**After:** T-shirt sizes (small / medium / large) per OS encode community-recommended minimums. Users who need custom sizes still have the regular *Create → Single Instance* flow available.
+**After:** The VM Catalog dynamically inspects existing `VirtualMachineImage` resources in the cluster and maps them to cluster preferences. In air-gapped environments, images pre-staged via Hauler or local registries immediately populate the Catalog tiles without external internet access.
 
 ### User Experience In Detail
 
 **Enabling the AddOn:**
 1. Dashboard → Advanced → Addons.
-2. Locate `harvester-catalog-addon` (shipped as disabled by default, following the same convention as `vm-import-controller`, `pcidevices-controller`, etc.).
-3. Click *Enable*. The Addon controller reconciles the Helm chart, installs CRDs, and seeds the initial catalog entries.
-4. New sections appear in the left navigation within a few seconds.
+2. Locate `vm-catalog` (disabled by default).
+3. Click *Enable*. The AddOn deploys the aggregated `ClusterRole` (`harvesterhci.io:vm-catalog:user`).
+4. The **Catalog** item appears directly in the main left sidebar under root.
 
-**Downloading a catalog image:**
-1. Navigate to *Images → Catalog*.
-2. Browse the card grid; each card shows the OS icon, display name, version, approximate size, and a *Download* action.
-3. Click *Download*. A modal prompts for target namespace and StorageClass (with graceful text-input fallback when the caller lacks cluster-wide `list` permissions, as is common with Rancher-proxied kubeconfigs).
-4. Confirm. A `VirtualMachineImage` is created with `metadata.name: catalog-<image-key>` in the chosen namespace. Standard Harvester image-import progress is visible in *Images*.
-
-**Creating a VM from the catalog:**
-1. Navigate to *Virtual Machines*. A third tab, *From Catalog*, joins *Single Instance* and *Multiple Instance*.
-2. The card grid mirrors the image catalog. Click a card.
-3. A modal prompts for: t-shirt size (small / medium / large), VM name, target namespace, StorageClass, and optional cloud-init overrides (SSH key, hostname).
-4. If the base image is not yet present in the target namespace, an inline banner offers *Download and create* which performs both steps.
-5. Confirm. A `VirtualMachine` is instantiated from the corresponding `TemplateCatalogEntry`, referencing the deterministic image name.
-
-**CLI parity:**
-- `harvester template catalog list [os]` — lists available catalog templates, optionally filtered by OS.
-- `harvester template catalog create <os>/<size> --name NAME [--namespace NS] [--storage-class SC]` — instantiates a VM from a catalog template, transparently downloading the base image if missing.
-
-The CLI operates against the same `TemplateCatalogEntry` and `ImageCatalogEntry` CRs the UI consumes.
-
-### API changes
-
-Two new CRDs under a new group, `catalog.harvesterhci.io/v1beta1`. No changes to existing Harvester CRDs.
-
-```yaml
-apiVersion: catalog.harvesterhci.io/v1beta1
-kind: ImageCatalogEntry
-metadata:
-  name: ubuntu-24-04                                # deterministic key, drives the downloaded image name
-spec:
-  displayName: "Ubuntu 24.04 LTS (Noble Numbat)"
-  os: ubuntu
-  osVersion: "24.04"
-  osFamily: linux
-  icon: icon-ubuntu
-  description: "Long-term support server image with cloud-init pre-installed."
-  sourceURL: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-  checksumURL: "https://cloud-images.ubuntu.com/noble/current/SHA256SUMS"
-  cloudInitReady: true
-  approxSizeGiB: 4
-status:
-  installedNamespaces: [default, dev]                # namespaces where the corresponding VirtualMachineImage exists
-```
-
-```yaml
-apiVersion: catalog.harvesterhci.io/v1beta1
-kind: TemplateCatalogEntry
-metadata:
-  name: ubuntu-24-04-medium
-spec:
-  imageRef: ubuntu-24-04                             # matches ImageCatalogEntry.metadata.name
-  displayName: "Ubuntu 24.04 (Medium)"
-  size: medium                                       # small | medium | large
-  workload: server                                   # server | desktop | highperformance
-  resources:
-    cpu: 2
-    memoryGiB: 4
-    diskGiB: 40
-  defaultCloudInit: |
-    #cloud-config
-    ssh_pwauth: false
-    package_update: true
-```
-
-Deterministic image identity is the load-bearing design decision. When a user "downloads" an `ImageCatalogEntry` into namespace `X`, the controller creates a `VirtualMachineImage` with `metadata.name: catalog-<entry-key>` in `X` (using an explicit `name` rather than `generateName`). Because `VirtualMachineImage` is namespaced, the same catalog key can coexist in multiple namespaces. `TemplateCatalogEntry` references the image by this deterministic name, so templates resolve reliably in whatever namespace the user chooses at VM creation time.
+**Catalog Provisioning Flow:**
+1. Navigate to **Catalog** in the left sidebar.
+2. **Step 1 (Operating system):**
+   - Displays a grid of OS tiles. Each tile shows the operating system logo, display name, number of matching images, and associated preference.
+   - If multiple images match an OS (e.g., Ubuntu 22.04 and Ubuntu 24.04), a dropdown allows selecting the specific image.
+3. **Step 2 (Size):**
+   - Organizes compute options into series tabs: `u1` (General Purpose), `o1` (Memory Optimized), `cx1` (Compute Optimized), `m1`, `n1`, `rt1`.
+   - Each size card displays vCPU, RAM, tier badge (micro, small, medium, large, etc.), and proportional linear bars visualizing resource allocation.
+   - Defaults to common sizes with a "Show all sizes" toggle.
+4. **Step 3 (Details):**
+   - **Name:** Auto-suggested based on the chosen OS (e.g., `opensuse-vm-a1b2`), with real-time RFC 1123 DNS validation.
+   - **Namespace:** Target namespace selector.
+   - **Network:** Network attachment definition selector (defaults to Management Network).
+   - **Root disk:** Sized in GiB with validation enforcing that size cannot be smaller than the image's virtual size.
+   - **Credentials:** Multi-select for existing SSH keys and optional console password injected via cloud-init.
+   - **Start after creation:** Checkbox controlling `spec.runStrategy` (`RerunOnFailure` vs `Halted`).
+5. **Preview spec (Optional):**
+   - Clicking **Preview spec** triggers a server-side call to KubeVirt's `expand-vm-spec` subresource.
+   - Displays a side-by-side comparison:
+     - *You ask for:* The lightweight VM definition with `spec.instancetype` and `spec.preference` references.
+     - *KubeVirt expands to:* The fully populated `domain` spec showing resolved CPU topology, memory limits, devices, and firmware.
+6. **Create:**
+   - Clicking **Create** expands and shims the VM spec, creates the `VirtualMachine` in Harvester, and redirects the user to the VM detail page.
 
 ## Design
 
-### Implementation Overview
+### Architectural Pattern: Server-Side Spec Expansion
 
-**Repository layout** (proposed new repo, `harvester/harvester-catalog-addon`):
+KubeVirt supports creating VMs that reference instancetypes directly (`spec.instancetype` / `spec.preference`). However, Harvester's existing admission webhooks enforce that:
+1. `spec.template.spec.domain` must have explicit `resources.limits.memory` or `memory.guest` for memory overcommit calculations.
+2. A mutating webhook executes a JSON-patch `replace` on `/spec/template/spec/domain/cpu/maxSockets`, which fails if `domain.cpu` is omitted because it is delegated to an instancetype.
+
+To resolve this without destabilizing existing webhooks, the Catalog employs the **Expand-on-Create** pattern:
 
 ```
-harvester-catalog-addon/
-├── charts/harvester-catalog-addon/                  # Helm chart, same shape as vm-import-controller
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
-│       ├── crds/                                    # ImageCatalogEntry, TemplateCatalogEntry
-│       ├── deployment.yaml                          # the controller
-│       ├── rbac.yaml
-│       ├── serviceaccount.yaml
-│       └── seed/                                    # initial catalog entries as manifests
-│           ├── images-ubuntu.yaml
-│           ├── images-fedora.yaml
-│           └── templates-*.yaml
-├── pkg/apis/catalog.harvesterhci.io/v1beta1/        # CRD Go types (wrangler-generated)
-├── pkg/controllers/
-│   ├── imagecatalogentry_controller.go              # reconciles Download requests → VirtualMachineImage
-│   └── templatecatalogentry_controller.go           # reconciles Create-VM-from-catalog
-├── main.go
-└── package/Dockerfile
++-------------------------------------------------------------+
+| 1. buildCatalogVm()                                         |
+|    Constructs VM referencing instancetype & preference      |
++-------------------------------------------------------------+
+                              │
+                              ▼
++-------------------------------------------------------------+
+| 2. PUT /apis/subresources.kubevirt.io/v1/namespaces/<ns>/   |
+|        expand-vm-spec                                       |
+|    KubeVirt resolves instancetype sizing, CPU topology,     |
+|    bus, model, and firmware server-side                     |
++-------------------------------------------------------------+
+                              │
+                              ▼
++-------------------------------------------------------------+
+| 3. harvesterShim()                                          |
+|    Pins cpu.maxSockets = cpu.sockets;                       |
+|    Sets resources.limits for Harvester overcommit           |
++-------------------------------------------------------------+
+                              │
+                              ▼
++-------------------------------------------------------------+
+| 4. harvester/create + save()                                |
+|    Applies standard VM to Harvester (passes all webhooks)   |
++-------------------------------------------------------------+
 ```
 
-The Helm chart is published to the standard `harvester-cluster-repo` service so a stock `Addon` CR (`spec.repo: http://harvester-cluster-repo.cattle-system.svc/charts`) can install it — matching every other shipped Harvester AddOn.
+This guarantees that:
+- Created VMs are standard, fully-expanded Harvester VMs.
+- Live migration, backups, snapshots, and clone operations work out of the box.
+- When Harvester admission webhooks are updated in the future to natively support instancetype references, the flow can switch to reference mode simply by bypassing the expansion step.
 
-**Reconciliation contract** for `ImageCatalogEntry`:
-- The CR itself is a static description; it does not trigger a download by existing.
-- Downloads are triggered by the UI/CLI creating a lightweight `ImageCatalogInstall` sub-resource (or an annotation on the CR: `catalog.harvesterhci.io/install-in-namespaces: default,dev`). The controller reconciles this by creating one `VirtualMachineImage/catalog-<entry-key>` per requested namespace with `spec.url` and `spec.checksum` copied from the entry, and `spec.sourceType: download`.
+### Image-to-Preference Mapping
 
-**VM creation from `TemplateCatalogEntry`:**
-- MVP does not introduce a Harvester `VirtualMachineTemplateVersion` object. The UI/CLI reads the `TemplateCatalogEntry`, substitutes user-supplied fields (name, namespace, SSH key, cloud-init overrides), and directly creates a `VirtualMachine`.
-- The generated `VirtualMachine` references `catalog-<entry-key>` in its data-volume template, which is guaranteed to exist because the UI checks and offers to download first.
+Images are mapped dynamically to OS tiles using a prioritized heuristic:
 
-**Dashboard UI integration** (in `harvester/harvester-ui-extension`):
-- Add resource types `HCI.CATALOG_IMAGE` and `HCI.CATALOG_TEMPLATE` to `pkg/harvester/types.ts`.
-- Add `ADD_ONS.CATALOG` to `pkg/harvester/config/harvester-map.js`.
-- In `pkg/harvester/config/harvester-cluster.js`, define a `weightGroup('catalog', …, false)` initially hidden, then call:
-  ```js
-  registerAddonSideNav(store, PRODUCT_NAME, {
-    addonName:    ADD_ONS.CATALOG,                   // 'harvester-catalog-addon'
-    resourceType: HCI.ADD_ONS,
-    navGroup:     'catalog',
-    types:        [HCI.CATALOG_IMAGE, HCI.CATALOG_TEMPLATE],
-  });
-  ```
-  This is the identical mechanism used by `vm-import-controller` — the UI section appears only when the Addon CR exists and is enabled.
-- New Vue components: `pkg/harvester/list/catalog.harvesterhci.io.imagecatalogentry.vue`, `pkg/harvester/list/catalog.harvesterhci.io.templatecatalogentry.vue`, plus a new *From Catalog* tab on the VM create page.
-- L10n keys under `harvester.addons.catalog.*` in `pkg/harvester/l10n/en-us.yaml`.
+1. **Explicit Preference Label:** Image label `instancetype.kubevirt.io/default-preference: <preference-name>`.
+2. **Harvester OS Type Label:** Harvester's built-in `harvesterhci.io/os-type` label (`sles`, `openSUSE`, `ubuntu`, `redhat`, `windows`, etc.) mapped to matching preference prefixes.
+3. **Display Name Matching:** Heuristic matching against image display name tokens (e.g., `leap`, `tumbleweed`, `ubuntu-24`, `win2k22`).
+4. **Fallback:** If no preference matches, the image is placed under the **Other** tile.
 
-**Initial catalog contents** (mirrors the already-verified list from `abonillabeeche/harvester-cli` `image-metadata.json`):
-- Ubuntu 25.10, 25.04, 24.10, 24.04 LTS, 22.04 LTS, 20.04 LTS
-- Fedora Cloud 44, 43, 42
-- Debian 13 (trixie), 12 (bookworm)
-- CentOS Stream 10, 9
-- AlmaLinux 10, 9, 8
-- Rocky Linux 10.2, 10.1, 9.8, 9.7, 8.10, 8.9
-- openSUSE Leap 16.0, 15.6, 15.5, 15.4
-- openSUSE Tumbleweed (rolling)
-- openSUSE MicroOS (rolling)
+The default size is resolved from `instancetype.kubevirt.io/default-instancetype` on the image, falling back to `u1.medium`.
 
-All URLs verified to return HTTP 206 Partial Content on a 1 MiB range GET at the time of writing. A verification script accompanying the AddOn re-runs this check on every release.
+### Provenance Metadata
 
-### Test plan
+To maintain visibility into which instancetype and preference were used to create the VM, non-functional metadata annotations are recorded on the VM:
 
-1. Install the AddOn on a fresh Harvester test cluster. Verify CRDs install and the initial seed data appears as `ImageCatalogEntry` / `TemplateCatalogEntry` objects.
-2. Verify *Images → Catalog* and *Virtual Machines → From Catalog* sections are visible in the Dashboard.
-3. Download `ubuntu-24-04` into the `default` namespace. Verify `VirtualMachineImage/catalog-ubuntu-24-04` is created and reaches `Ready`.
-4. Create a VM from *Virtual Machines → From Catalog* using Ubuntu 24.04 → Medium. Verify the VM boots with 2 CPU / 4 GB / 40 GB, cloud-init runs, SSH is reachable with the supplied key.
-5. Download the same catalog entry into a second namespace. Verify a second `VirtualMachineImage` is created and does not conflict with the first.
-6. Disable the AddOn. Verify the two UI sections disappear. Verify existing catalog-derived `VirtualMachine` and `VirtualMachineImage` resources remain intact.
-7. Re-enable the AddOn. Verify UI sections reappear and existing catalog-derived resources are still enumerated.
-8. In a namespace where the caller lacks cluster-wide `list` permission (Rancher-proxied kubeconfig), verify text-input fallback prompts for namespace and StorageClass.
-9. Bad-source path: point an `ImageCatalogEntry.spec.sourceURL` at an unreachable host, request a download, verify a clear user-facing error surfaces on the CR status and in the Dashboard.
-10. Upgrade path: install AddOn v0.1.0, then upgrade to a hypothetical v0.2.0 that adds a new `ImageCatalogEntry`. Verify the new entry is present and pre-existing entries and user data are untouched.
+```yaml
+metadata:
+  annotations:
+    catalog.harvesterhci.io/instancetype: u1.medium
+    catalog.harvesterhci.io/preference: ubuntu
+    catalog.harvesterhci.io/image: default/ubuntu-24.04
+```
 
-### Upgrade strategy
+These annotations avoid reserved KubeVirt prefixes (`kubevirt.io/*`, `instancetype.kubevirt.io/*`) so controllers do not attempt conflicting reconciliations.
 
-- The AddOn is optional and additive. Clusters that never enable it are unaffected.
-- Upgrading the AddOn's Helm chart re-applies the seed manifests; user-modified `ImageCatalogEntry` fields are preserved via server-side apply semantics, and new entries are added.
-- Disabling the AddOn stops the controller but leaves CRDs and existing `VirtualMachineImage` / `VirtualMachine` objects in place — no data loss.
-- Uninstalling the AddOn requires manual CRD removal (`kubectl delete crd imagecatalogentries.catalog.harvesterhci.io templatecatalogentries.catalog.harvesterhci.io`) if the operator wants a clean slate.
+### API & RBAC Changes
 
-## Note
+**Zero new CRDs.** 
 
-- Design inspiration draws on open-source KubeVirt ecosystem patterns: `DataSource` indirection in `kubevirt/common-templates`, `VirtualMachineClusterInstancetype` and `VirtualMachineClusterPreference` from KubeVirt Instance Types, and the boot-source auto-import model in `kubevirt-ui/kubevirt-plugin`. This proposal deliberately opts for a simpler MVP (deterministic image names, pre-cloned t-shirt templates) and leaves the instance-type-based redesign for a follow-up HEP once Harvester's KubeVirt version fully supports the newer APIs.
-- The initial curated list is contributed from the community-maintained catalog at [`abonillabeeche/harvester-cli/image-metadata.json`](https://github.com/abonillabeeche/harvester-cli/blob/main/image-metadata.json), which is currently used by the `harvester image catalog` CLI subcommands and includes the verification script that will be reused in this AddOn's release pipeline.
-- Future work — out of scope for this HEP but tracked as follow-ups: `DataImportCron`-style auto-refresh of catalog images, ARM64 catalog entries, migration of t-shirt sizes to `VirtualMachineClusterInstancetype` + `VirtualMachineClusterPreference`, and community-contributed OS icon packs.
+The `vm-catalog` AddOn chart (`deploy/charts/vm-catalog/`) deploys an aggregated `ClusterRole` granting non-admin users permission to use the KubeVirt expansion API and inspect instancetypes:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: harvesterhci.io:vm-catalog:user
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+- apiGroups:
+  - subresources.kubevirt.io
+  resources:
+  - virtualmachines/expand-vm-spec
+  verbs:
+  - create
+  - update
+- apiGroups:
+  - instancetype.kubevirt.io
+  resources:
+  - virtualmachineclusterinstancetypes
+  - virtualmachineclusterpreferences
+  verbs:
+  - get
+  - list
+  - watch
+```
+
+### Dashboard UI Integration (`harvester-ui-extension`)
+
+- Registered as a top-level route: `${PRODUCT_NAME}-c-cluster-catalog` at `/:product/c/:cluster/catalog`.
+- Registered via `registerAddonSideNav()` so the **Catalog** entry appears in the main navigation sidebar only when the `vm-catalog` AddOn is enabled. Direct URL navigation displays a friendly warning banner linking to the Addons page when disabled.
+- Fully supports both light and dark theme using Rancher Shell CSS custom properties.
+
+## Test Plan
+
+### Automated Cypress E2E Tests (`harvester-ui-tests`)
+
+The automated test suite `testcases/virtualmachines/catalog.spec.ts` exercises:
+1. **Sidebar Navigation:** Verifies Catalog entry appears in the navigation and routes to the wizard.
+2. **Initial State & Waiting Steps:** Verifies steps 2 and 3 remain in waiting/disabled state until prerequisites are met.
+3. **OS Distro Selection:** Verifies selecting an OS tile auto-suggests a valid RFC 1123 VM name.
+4. **Instance Type Series & Sizes:** Verifies switching series tabs (`u1`, `o1`, `cx1`) and selecting size tiers.
+5. **Form Field Validations:** Verifies DNS naming constraints and root disk minimum size validation (must be >= image virtual size).
+6. **Spec Preview:** Verifies "Preview spec" button calls `expand-vm-spec` and displays requested references alongside the expanded domain.
+7. **Toggle Controls:** Verifies the "Start after creation" toggle updates summary and runStrategy.
+
+### Manual / QA Verification
+
+1. **AddOn Enable/Disable:**
+   - Enable `vm-catalog` in **Advanced > Addons**; verify **Catalog** appears in the sidebar.
+   - Disable `vm-catalog`; verify **Catalog** disappears from the sidebar and direct URL access is blocked.
+2. **Non-Admin User RBAC:**
+   - Log in as a standard user with Project Member / Edit permissions.
+   - Open Catalog, select OS, click "Preview spec", and create a VM.
+   - Verify non-admin user can execute `expand-vm-spec` without permission errors.
+3. **VM Lifecycle:**
+   - Verify created VMs can be started, stopped, cloned, snapshotted, and live-migrated across nodes.
+
+## Upgrade Strategy
+
+- Upgrades to existing clusters automatically register the `vm-catalog` AddOn via `upgrade_manifests.sh` in the `upgrade_addons()` function.
+- The AddOn is disabled by default on upgrade; existing workloads and behaviors are 100% unaffected.
