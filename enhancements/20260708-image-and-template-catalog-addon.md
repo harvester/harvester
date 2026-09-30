@@ -24,7 +24,7 @@ Today, provisioning a new VM in Harvester requires several manual steps that ass
 Users who spin up VMs frequently repeat this dance for every cluster and every namespace, often maintaining private notes with "known good" URLs. Newcomers routinely end up with images that lack cloud-init, non-bootable images (wrong architecture, wrong format), or VMs sized incorrectly for their workload.
 
 Harvester already deploys KubeVirt's `common-instancetypes` bundle, providing:
-- Standardized compute sizing across series (`u1` General Purpose, `o1` Memory-Optimized, `cx1` Compute-Optimized, `m1`, `n1`, `rt1`).
+- Standardized compute sizing across series (`u1` General Purpose, `o1` Memory-Optimized, `cx1` Compute-Optimized, `d1` Dedicated, `m1`, `n1`, `rt1`).
 - Curated OS preferences defining optimal disk bus, firmware (BIOS vs. UEFI), network model, and OS icons for over 50 Linux and Windows operating systems.
 
 By building the catalog directly on these native upstream APIs instead of introducing proprietary catalog CRDs and custom controllers, Harvester can deliver a modern, cloud-like provisioning experience with zero ongoing controller maintenance overhead.
@@ -53,7 +53,7 @@ By building the catalog directly on these native upstream APIs instead of introd
 
 **Before:** A new user installs Harvester and wants to try a VM. They open the Dashboard, click *Virtual Machines → Create*, and are presented with a complex form requiring CPU, memory, disk types, network bindings, and guest OS settings. First-run experience: ~15 minutes with multiple tabs open to search for recommended parameters.
 
-**After:** The user enables the `vm-catalog` AddOn from *Advanced → Addons*. Clicks **Catalog** in the left sidebar. Sees an OS tile grid: openSUSE, Ubuntu, Fedora, Debian, Windows, ... Clicks an OS tile → picks an instance size (`u1.medium`, 2 vCPU / 4 GiB) → enters a VM name (or keeps the auto-suggested name) → clicks *Create*. VM boots. First-run experience: under 60 seconds.
+**After:** The user enables the `vm-catalog` AddOn from *Advanced → Addons*. Clicks **Catalog** in the left sidebar. Sees an OS tile grid: openSUSE, Ubuntu, Fedora, Debian, Windows, ... Clicks an OS tile → picks an instance size (`u1.medium`, 1 vCPU / 4 GiB) → enters a VM name (or keeps the auto-suggested name) → clicks *Create*. VM boots. First-run experience: under 60 seconds.
 
 #### Story 2: Platform team standardizes sizing and OS defaults
 
@@ -72,7 +72,7 @@ By building the catalog directly on these native upstream APIs instead of introd
 **Enabling the AddOn:**
 1. Dashboard → Advanced → Addons.
 2. Locate `vm-catalog` (disabled by default).
-3. Click *Enable*. The AddOn deploys the aggregated `ClusterRole` (`harvesterhci.io:vm-catalog:user`).
+3. Click *Enable*. The AddOn only gates the UI; no RBAC objects are needed (see [API & RBAC Changes](#api--rbac-changes)).
 4. The **Catalog** item appears directly in the main left sidebar under root.
 
 **Catalog Provisioning Flow:**
@@ -81,7 +81,7 @@ By building the catalog directly on these native upstream APIs instead of introd
    - Displays a grid of OS tiles. Each tile shows the operating system logo, display name, number of matching images, and associated preference.
    - If multiple images match an OS (e.g., Ubuntu 22.04 and Ubuntu 24.04), a dropdown allows selecting the specific image.
 3. **Step 2 (Size):**
-   - Organizes compute options into series tabs: `u1` (General Purpose), `o1` (Memory Optimized), `cx1` (Compute Optimized), `m1`, `n1`, `rt1`.
+   - Organizes compute options into series tabs: `u1` (General Purpose), `o1` (Memory Optimized), `cx1` (Compute Optimized), `d1` (Dedicated), `m1`, `n1`, `rt1`.
    - Each size card displays vCPU, RAM, tier badge (micro, small, medium, large, etc.), and proportional linear bars visualizing resource allocation.
    - Defaults to common sizes with a "Show all sizes" toggle.
 4. **Step 3 (Details):**
@@ -106,6 +106,8 @@ By building the catalog directly on these native upstream APIs instead of introd
 KubeVirt supports creating VMs that reference instancetypes directly (`spec.instancetype` / `spec.preference`). However, Harvester's existing admission webhooks enforce that:
 1. `spec.template.spec.domain` must have explicit `resources.limits.memory` or `memory.guest` for memory overcommit calculations.
 2. A mutating webhook executes a JSON-patch `replace` on `/spec/template/spec/domain/cpu/maxSockets`, which fails if `domain.cpu` is omitted because it is delegated to an instancetype.
+
+Verified on Harvester v1.9.0 (KubeVirt 1.8.4): a dry-run create of a reference-mode VM (`u1.medium` + `opensuse.leap`) is rejected with `either memory.guest or resources.limits.memory must be set`.
 
 To resolve this without destabilizing existing webhooks, the Catalog employs the **Expand-on-Create** pattern:
 
@@ -136,6 +138,8 @@ To resolve this without destabilizing existing webhooks, the Catalog employs the
 |    Applies standard VM to Harvester (passes all webhooks)   |
 +-------------------------------------------------------------+
 ```
+
+**Why the shim (step 3) is needed:** the expanded spec from step 2 already passes Harvester's admission webhooks on its own, since it carries `memory.guest` and an explicit `domain.cpu`. But it has `resources: {}`, and Harvester's mutator only applies CPU/memory overcommit to `requests` when `resources.limits` is set. Without the shim, catalog VMs would silently skip the overcommit settings that UI-created VMs get. With the shim, the result matches UI-created VMs. For example, `u1.medium` on the default overcommit config (cpu 1000%, memory 150%) gets limits `cpu: 1` / `memory: 4Gi` and mutated requests `cpu: 100m` / `memory: 2730Mi`.
 
 This guarantees that:
 - Created VMs are standard, fully-expanded Harvester VMs.
@@ -171,34 +175,24 @@ These annotations avoid reserved KubeVirt prefixes (`kubevirt.io/*`, `instancety
 
 **Zero new CRDs.** 
 
-The `vm-catalog` AddOn chart (`deploy/charts/vm-catalog/`) deploys an aggregated `ClusterRole` granting non-admin users permission to use the KubeVirt expansion API and inspect instancetypes:
+**Zero new RBAC.** KubeVirt already ships every permission the catalog needs:
 
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: harvesterhci.io:vm-catalog:user
-  labels:
-    rbac.authorization.k8s.io/aggregate-to-edit: "true"
-    rbac.authorization.k8s.io/aggregate-to-view: "true"
-rules:
-- apiGroups:
-  - subresources.kubevirt.io
-  resources:
-  - virtualmachines/expand-vm-spec
-  verbs:
-  - create
-  - update
-- apiGroups:
-  - instancetype.kubevirt.io
-  resources:
-  - virtualmachineclusterinstancetypes
-  - virtualmachineclusterpreferences
-  verbs:
-  - get
-  - list
-  - watch
-```
+| Catalog call | RBAC attributes checked by the API server | Already granted by |
+|---|---|---|
+| `PUT /apis/subresources.kubevirt.io/v1/namespaces/<ns>/expand-vm-spec` | group `subresources.kubevirt.io`, resource `expand-vm-spec`, verb `update` (namespaced, no subresource) | `kubevirt.io:edit` / `kubevirt.io:admin`, which aggregate into `edit` / `admin` |
+| `GET .../virtualmachines/<name>/expand-spec` (preview of an existing VM) | resource `virtualmachines`, subresource `expand-spec`, verb `get` | `kubevirt.io:edit` / `kubevirt.io:view` |
+| List `virtualmachineclusterinstancetypes` / `virtualmachineclusterpreferences` | cluster-scoped `get`/`list`/`watch` | `instancetype.kubevirt.io:view`, bound to `system:authenticated` by virt-operator |
+| Create `VirtualMachine`, list `VirtualMachineImage` | existing Harvester VM permissions | `edit` (Rancher *Project Member* inherits `edit`, *Project Owner* inherits `admin`) |
+
+A custom ClusterRole granting `virtualmachines/expand-vm-spec` would match nothing: the namespaced endpoint is authorized as resource `expand-vm-spec` with no subresource. Aggregating to `view` would also give read-only users a write-verb endpoint. Separately, rules aggregated into `edit` cannot grant the cluster-scoped instancetype resources through a project RoleBinding, and they are not needed. The AddOn therefore ships no RBAC objects. Its only job is to toggle the UI.
+
+**Open question for reviewers:** with no RBAC to deploy, the `vm-catalog` AddOn chart is effectively empty. Is an AddOn still the right on/off switch (it is consistent with `vm-import-controller` side-nav gating), or should this be a Harvester setting or a UI feature flag instead?
+
+Verified on Harvester v1.9.0 (KubeVirt 1.8.4) with a ServiceAccount whose only permission is a namespace RoleBinding to `edit`:
+- `expand-vm-spec` in its namespace returns `200`.
+- `expand-vm-spec` in another namespace returns `403` (`cannot update resource "expand-vm-spec" in API group "subresources.kubevirt.io"`).
+- Listing cluster instancetypes and preferences is allowed.
+- A dry-run create of the expanded and shimmed VM returns `201`.
 
 ### Dashboard UI Integration (`harvester-ui-extension`)
 
@@ -228,6 +222,8 @@ The automated test suite `testcases/virtualmachines/catalog.spec.ts` exercises:
    - Log in as a standard user with Project Member / Edit permissions.
    - Open Catalog, select OS, click "Preview spec", and create a VM.
    - Verify non-admin user can execute `expand-vm-spec` without permission errors.
+   - Verify a user with only *Read-only* (`view`) access gets `403` on `expand-vm-spec`, and that the Catalog UI disables *Create* rather than failing late.
+   - Verify a Project Member of project A gets `403` on `expand-vm-spec` in project B's namespaces.
 3. **VM Lifecycle:**
    - Verify created VMs can be started, stopped, cloned, snapshotted, and live-migrated across nodes.
 
