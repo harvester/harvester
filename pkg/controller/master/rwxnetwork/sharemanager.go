@@ -34,6 +34,7 @@ import (
 	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	helmutil "github.com/harvester/harvester/pkg/util/helm"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 )
 
@@ -51,6 +52,8 @@ const (
 	endpointSliceManagedBy              = ShareManagerVIPControllerName
 	nfsPortName                         = "nfs"
 	nfsPort                             = 2049
+	addressAnnouncerName                = "announce-rwx-address"
+	harvesterReleaseName                = "harvester"
 )
 
 // ShareManagerVIPHandler exposes the Share Manager of every RWX volume through a stable
@@ -68,7 +71,11 @@ type ShareManagerVIPHandler struct {
 	endpointSliceCache ctldiscoveryv1.EndpointSliceCache
 	podCache           ctlcorev1.PodCache
 	hncCache           ctlnetworkv1.HostNetworkConfigCache
-	recorder           record.EventRecorder
+	announcerImage     func() (string, error)
+	// updateEphemeralContainers writes the ephemeral containers of a pod, which the
+	// generated clients cannot do.
+	updateEphemeralContainers func(*corev1.Pod) error
+	recorder                  record.EventRecorder
 
 	// allocateLock serializes VIP allocation, whose ledger is the set of VIP Services.
 	allocateLock sync.Mutex
@@ -94,7 +101,16 @@ func registerShareManagerVIP(ctx context.Context, management *config.Management)
 		endpointSliceCache: endpointSlices.Cache(),
 		podCache:           pods.Cache(),
 		hncCache:           hncs.Cache(),
-		recorder:           management.NewRecorder(ShareManagerVIPControllerName, "", ""),
+		updateEphemeralContainers: func(pod *corev1.Pod) error {
+			_, err := management.ClientSet.CoreV1().Pods(pod.Namespace).UpdateEphemeralContainers(ctx, pod.Name, pod, metav1.UpdateOptions{})
+			return err
+		},
+		announcerImage: func() (string, error) {
+			image, err := helmutil.FetchImageFromHelmValues(management.ClientSet, util.HarvesterSystemNamespaceName,
+				harvesterReleaseName, []string{"containers", "apiserver", "image"})
+			return image.ImageName(), err
+		},
+		recorder: management.NewRecorder(ShareManagerVIPControllerName, "", ""),
 	}
 
 	volumes.OnChange(ctx, ShareManagerVIPControllerName, h.OnVolumeChange)
@@ -205,6 +221,9 @@ func (h *ShareManagerVIPHandler) OnVolumeChange(_ string, volume *lhv1beta2.Volu
 			}
 		}
 		return volume, nil
+	}
+	if err := h.announceShareManagerAddress(volume); err != nil {
+		return volume, err
 	}
 	if svc != nil && svc.DeletionTimestamp != nil {
 		// The Service watch requeues once the deletion completes.
@@ -336,6 +355,43 @@ func (h *ShareManagerVIPHandler) syncEndpointSlice(volume *lhv1beta2.Volume, svc
 	return err
 }
 
+// announceShareManagerAddress adds an ephemeral container to a new Share Manager pod that
+// sends gratuitous ARP for its RWX network address. Whereabouts often hands a recreated pod
+// the address of the previous one, and hosts and pods on the RWX network otherwise keep
+// sending to the old MAC until their neighbour entries expire.
+func (h *ShareManagerVIPHandler) announceShareManagerAddress(volume *lhv1beta2.Volume) error {
+	network, err := h.rwxEndpointNetwork()
+	if err != nil {
+		return err
+	}
+	pod, err := h.podCache.Get(util.LonghornSystemNamespaceName, lhtypes.GetShareManagerPodNameFromShareManagerName(volume.Name))
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if pod.DeletionTimestamp != nil || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return nil
+	}
+	addr, iface := shareManagerRWXInterface(pod, network)
+	if addr == "" || iface == "" {
+		return nil
+	}
+	for _, c := range pod.Spec.EphemeralContainers {
+		if c.Name == addressAnnouncerName {
+			return nil
+		}
+	}
+
+	image, err := h.announcerImage()
+	if err != nil {
+		return fmt.Errorf("failed to get the image to announce the address of pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	podCopy := pod.DeepCopy()
+	podCopy.Spec.EphemeralContainers = append(podCopy.Spec.EphemeralContainers, newAddressAnnouncer(image, iface, addr))
+	return h.updateEphemeralContainers(podCopy)
+}
+
 // hostNetworkInterface returns the host interface on the RWX network that announces the
 // VIPs, or an empty string while the managed HostNetworkConfig for the current setting
 // is not ready.
@@ -416,13 +472,23 @@ func isRWXFilesystemVolume(volume *lhv1beta2.Volume) bool {
 // shareManagerEndpointAddr returns the address of a ready Share Manager pod on the given
 // network, or an empty string.
 func shareManagerEndpointAddr(pod *corev1.Pod, network string) string {
-	if pod == nil || network == "" || pod.DeletionTimestamp != nil || !podReady(pod) {
+	if pod == nil || pod.DeletionTimestamp != nil || !podReady(pod) {
 		return ""
+	}
+	addr, _ := shareManagerRWXInterface(pod, network)
+	return addr
+}
+
+// shareManagerRWXInterface returns the IPv4 address and interface name of a pod on the
+// given network, or empty strings.
+func shareManagerRWXInterface(pod *corev1.Pod, network string) (string, string) {
+	if pod == nil || network == "" {
+		return "", ""
 	}
 
 	var statuses []nadv1.NetworkStatus
 	if err := json.Unmarshal([]byte(pod.Annotations[networkStatusAnnotation]), &statuses); err != nil {
-		return ""
+		return "", ""
 	}
 	for _, status := range statuses {
 		if status.Name != network {
@@ -430,11 +496,25 @@ func shareManagerEndpointAddr(pod *corev1.Pod, network string) string {
 		}
 		for _, ip := range status.IPs {
 			if addr, err := netip.ParseAddr(ip); err == nil && addr.Is4() {
-				return addr.String()
+				return addr.String(), status.Interface
 			}
 		}
 	}
-	return ""
+	return "", ""
+}
+
+func newAddressAnnouncer(image, iface, addr string) corev1.EphemeralContainer {
+	return corev1.EphemeralContainer{
+		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+			Name:            addressAnnouncerName,
+			Image:           image,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Command:         []string{"arping", "-U", "-c", "3", "-I", iface, addr},
+			SecurityContext: &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{Add: []corev1.Capability{"NET_RAW"}},
+			},
+		},
+	}
 }
 
 func podReady(pod *corev1.Pod) bool {
