@@ -199,6 +199,8 @@ const (
 	testRWXSetting   = `{"share-storage-network":false,"network":{"vlan":2017,"clusterNetwork":"rwx","range":"172.16.0.0/24"},"hostIPRange":"172.16.0.240/29","vipRange":"172.16.0.248/30"}`
 	testRWXDisabled  = `{"share-storage-network":false}`
 	testVIPInterface = "rwx-br.2017"
+
+	testAnnouncerImage = "rancher/harvester:test"
 )
 
 type vipTestEnv struct {
@@ -238,7 +240,12 @@ func newVIPTestEnv(rwxSetting string, hncReady bool, objs ...runtime.Object) *vi
 			endpointSliceCache: fakeclients.EndpointSliceCache(clientset.DiscoveryV1().EndpointSlices),
 			podCache:           fakeclients.PodCache(clientset.CoreV1().Pods),
 			hncCache:           fakeclients.HostNetworkConfigCache(clientset.NetworkV1beta1().HostNetworkConfigs),
-			recorder:           recorder,
+			announcerImage:     func() (string, error) { return testAnnouncerImage, nil },
+			updateEphemeralContainers: func(pod *corev1.Pod) error {
+				_, err := clientset.CoreV1().Pods(pod.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				return err
+			},
+			recorder: recorder,
 		},
 	}
 }
@@ -336,7 +343,7 @@ func newRWXVolume(name string) *lhv1beta2.Volume {
 }
 
 func rwxNetworkStatus(ip string) string {
-	return `[{"name":"k8s-pod-network","ips":["10.52.0.30"],"default":true},{"name":"` + testRWXNAD + `","ips":["` + ip + `"]}]`
+	return `[{"name":"k8s-pod-network","ips":["10.52.0.30"],"default":true},{"name":"` + testRWXNAD + `","interface":"lhnet2","ips":["` + ip + `"]}]`
 }
 
 func endpointAddrs(eps *discoveryv1.EndpointSlice) []string {
@@ -457,4 +464,135 @@ func TestShareManagerVIPTeardown(t *testing.T) {
 
 	env.reconcile(t, newRWXVolume("pvc-1"))
 	assert.Nil(t, env.service(t, "pvc-1"))
+}
+
+func TestShareManagerRWXInterface(t *testing.T) {
+	const network = "harvester-system/rwx-network-abcde"
+
+	tests := []struct {
+		name      string
+		pod       *corev1.Pod
+		network   string
+		wantAddr  string
+		wantIface string
+	}{
+		{
+			name:      "pod not ready yet",
+			pod:       newShareManagerPod(false, testNetworkStatus),
+			network:   network,
+			wantAddr:  "172.16.0.21",
+			wantIface: "lhnet2",
+		},
+		{
+			name:     "no interface name",
+			pod:      newShareManagerPod(false, `[{"name":"`+network+`","ips":["172.16.0.21"]}]`),
+			network:  network,
+			wantAddr: "172.16.0.21",
+		},
+		{
+			name:    "IPv6 only",
+			pod:     newShareManagerPod(false, `[{"name":"`+network+`","interface":"lhnet2","ips":["fd00::21"]}]`),
+			network: network,
+		},
+		{
+			name:    "pod not attached to the RWX network",
+			pod:     newShareManagerPod(false, testNetworkStatus),
+			network: "harvester-system/storagenetwork-xyz",
+		},
+		{
+			name:    "no network status",
+			pod:     newShareManagerPod(false, ""),
+			network: network,
+		},
+		{
+			name: "no pod",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addr, iface := shareManagerRWXInterface(tt.pod, tt.network)
+			assert.Equal(t, tt.wantAddr, addr)
+			assert.Equal(t, tt.wantIface, iface)
+		})
+	}
+}
+
+func TestNewAddressAnnouncer(t *testing.T) {
+	c := newAddressAnnouncer(testAnnouncerImage, "lhnet2", "172.16.0.21")
+
+	assert.Equal(t, addressAnnouncerName, c.Name)
+	assert.Equal(t, testAnnouncerImage, c.Image)
+	assert.Equal(t, corev1.PullIfNotPresent, c.ImagePullPolicy)
+	assert.Equal(t, []string{"arping", "-U", "-c", "3", "-I", "lhnet2", "172.16.0.21"}, c.Command)
+	require.NotNil(t, c.SecurityContext)
+	require.NotNil(t, c.SecurityContext.Capabilities)
+	assert.Equal(t, []corev1.Capability{"NET_RAW"}, c.SecurityContext.Capabilities.Add)
+}
+
+func (e *vipTestEnv) announcers(t *testing.T) []corev1.EphemeralContainer {
+	t.Helper()
+	pod, err := e.clientset.CoreV1().Pods(util.LonghornSystemNamespaceName).Get(context.TODO(), "share-manager-pvc-1", metav1.GetOptions{})
+	require.NoError(t, err)
+	var announcers []corev1.EphemeralContainer
+	for _, c := range pod.Spec.EphemeralContainers {
+		if c.Name == addressAnnouncerName {
+			announcers = append(announcers, c)
+		}
+	}
+	return announcers
+}
+
+func TestShareManagerAddressAnnouncement(t *testing.T) {
+	t.Run("announces the RWX address of a new Share Manager pod once", func(t *testing.T) {
+		env := newVIPTestEnv(testRWXSetting, true, newShareManagerPod(false, rwxNetworkStatus("172.16.0.21")))
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		announcers := env.announcers(t)
+		require.Len(t, announcers, 1)
+		assert.Equal(t, []string{"arping", "-U", "-c", "3", "-I", "lhnet2", "172.16.0.21"}, announcers[0].Command)
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Len(t, env.announcers(t), 1)
+	})
+
+	t.Run("announces even without a VIP", func(t *testing.T) {
+		env := newVIPTestEnv(testRWXSetting, false, newShareManagerPod(false, rwxNetworkStatus("172.16.0.21")))
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Nil(t, env.service(t, "pvc-1"))
+		assert.Len(t, env.announcers(t), 1)
+	})
+
+	t.Run("skips pods while the RWX ranges are not set", func(t *testing.T) {
+		env := newVIPTestEnv(testRWXDisabled, true, newShareManagerPod(true, rwxNetworkStatus("172.16.0.21")))
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Empty(t, env.announcers(t))
+	})
+
+	t.Run("skips pods not attached to the RWX network yet", func(t *testing.T) {
+		env := newVIPTestEnv(testRWXSetting, true, newShareManagerPod(false, ""))
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Empty(t, env.announcers(t))
+	})
+
+	t.Run("skips terminating pods", func(t *testing.T) {
+		pod := newShareManagerPod(true, rwxNetworkStatus("172.16.0.21"))
+		pod.DeletionTimestamp = &metav1.Time{}
+		env := newVIPTestEnv(testRWXSetting, true, pod)
+
+		env.reconcile(t, newRWXVolume("pvc-1"))
+		assert.Empty(t, env.announcers(t))
+	})
+
+	t.Run("retries when the image cannot be resolved", func(t *testing.T) {
+		env := newVIPTestEnv(testRWXSetting, true, newShareManagerPod(false, rwxNetworkStatus("172.16.0.21")))
+		env.handler.announcerImage = func() (string, error) { return "", fmt.Errorf("no helm release") }
+
+		_, err := env.handler.OnVolumeChange("longhorn-system/pvc-1", newRWXVolume("pvc-1"))
+		assert.Error(t, err)
+		assert.Empty(t, env.announcers(t))
+	})
 }
