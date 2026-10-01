@@ -176,7 +176,7 @@ stringData:
     #
     # users:
     #   - name: tux
-    #     password: <change-me>
+    #     passwd: <change-me>   # plaintext; Cloudbase-Init sets a random password if omitted
     #     groups: [Administrators]
     # runcmd:
     #   - powershell.exe -Command "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
