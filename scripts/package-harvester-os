@@ -101,7 +101,11 @@ docker build --pull \
   --build-arg ARCH="${ARCH}" \
 	-t ${HARVESTER_OS_IMAGE} .
 
-PROJECT_PREFIX="harvester"
+PROJECT_NAME="harvester"
+if [[ "${PRIME_BUILD:-}" == "true" ]]; then
+  PROJECT_NAME="suse-virtualization"
+fi
+PROJECT_PREFIX="${PROJECT_NAME}"
 if [ -n "${DRONE_TAG:-}" ]; then
   PROJECT_PREFIX+="-${DRONE_TAG}"
 elif [ -n "${DRONE_BRANCH:-}" ]; then
@@ -268,7 +272,7 @@ find $IMAGES_LISTS_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
 find $RANCHERD_IMAGES_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
 
 # Write all images into one file for user convenience
-IMAGE_ALL=$TOP_DIR/dist/artifacts/harvester-images-list-${ARCH}.txt
+IMAGE_ALL=$TOP_DIR/dist/artifacts/${PROJECT_NAME}-images-list-${ARCH}.txt
 rm -f ${IMAGE_ALL}
 echo "# All images in the Harvester ISO built @ " $(date) $'\n' > ${IMAGE_ALL}
 for filename in $OUTPUT_DIR/*.txt; do
