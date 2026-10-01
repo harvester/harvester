@@ -16,9 +16,8 @@ jobs:
 
       - name: Download Rancher's VEX Hub report
         run: |
-          curl -fsSL -H "Accept: application/vnd.git-lfs+json" \
-            "https://media.githubusercontent.com/media/rancher/vexhub/main/reports/rancher.openvex.json" \
-            -o rancher.openvex.json
+          curl -fsSOL --retry 3 --retry-all-errors https://github.com/rancher/vexhub/raw/refs/heads/main/reports/rancher.openvex.json.gz
+          gzip -d rancher.openvex.json.gz
 
       - name: Run Trivy vulnerability scanner in repo mode
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
