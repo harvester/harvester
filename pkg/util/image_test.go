@@ -189,6 +189,54 @@ func TestGetBackingImageNameRestoreUsesExistingLegacyName(t *testing.T) {
 	require.Equal(t, legacyBackingImage, bi.Name)
 }
 
+func TestGetImageMinimumSizeQuantity(t *testing.T) {
+	tests := []struct {
+		name        string
+		virtualSize int64
+		size        int64
+		expected    int64
+	}{
+		{
+			name:        "small image is not rounded to a whole GiB",
+			virtualSize: 100000000,
+			size:        100000000,
+			expected:    100000000,
+		},
+		{
+			name:        "non-GiB-aligned virtual size is kept",
+			virtualSize: 2361393152,
+			size:        735465984,
+			expected:    2361393152,
+		},
+		{
+			name:        "artifact size is used when larger",
+			virtualSize: 100000000,
+			size:        100000001,
+			expected:    100000001,
+		},
+		{
+			name: "unknown sizes result in a zero quantity",
+		},
+		{
+			name:        "negative sizes result in a zero quantity",
+			virtualSize: -1,
+			size:        -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			image := &harvesterv1.VirtualMachineImage{
+				Status: harvesterv1.VirtualMachineImageStatus{
+					VirtualSize: tt.virtualSize,
+					Size:        tt.size,
+				},
+			}
+			require.Equal(t, tt.expected, util.GetImageMinimumSizeQuantity(image).Value())
+		})
+	}
+}
+
 func TestGetImageDiskSizeQuantity(t *testing.T) {
 	const gib = int64(1024 * 1024 * 1024)
 
