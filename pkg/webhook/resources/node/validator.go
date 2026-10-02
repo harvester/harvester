@@ -20,6 +20,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -130,13 +131,13 @@ func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj r
 }
 
 func validateCordonAndMaintenanceMode(oldNode, newNode *corev1.Node, nodeList []*corev1.Node) error {
-	// if old node already have "maintain-status" annotation or Unscheduleable=true,
-	// it has already been enabled, so we skip it
-	if _, ok := oldNode.Annotations[util.MaintainStatusAnnotationKey]; ok || oldNode.Spec.Unschedulable {
-		return nil
-	}
-	// if new node doesn't have "maintain-status" annotation and Unscheduleable=false, we skip it
-	if _, ok := newNode.Annotations[util.MaintainStatusAnnotationKey]; !ok && !newNode.Spec.Unschedulable {
+	// Maintenance requests are expressed by adding drain-requested on the main
+	// Node resource. Do not validate nodes/status: kubelet-owned condition and
+	// heartbeat updates must remain outside this admission path.
+	newMaintenanceRequest := !drainhelper.HasDrainRequest(oldNode) && drainhelper.HasDrainRequest(newNode)
+	// Preserve the existing safety check for users cordoning a node directly.
+	newCordon := !oldNode.Spec.Unschedulable && newNode.Spec.Unschedulable
+	if !newMaintenanceRequest && !newCordon {
 		return nil
 	}
 	// if there's another node available that's not in maintenance, and is schedulable, then everything is fine

@@ -27,6 +27,28 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
+func TestIsDrainedMaintenanceCondition(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  corev1.ConditionStatus
+		reason  string
+		drained bool
+	}{
+		{name: "validating", status: corev1.ConditionTrue, reason: util.NodeConditionReasonValidating, drained: true},
+		{name: "completed", status: corev1.ConditionTrue, reason: util.NodeConditionReasonCompleted, drained: true},
+		{name: "timeout error", status: corev1.ConditionTrue, reason: util.NodeConditionReasonError, drained: true},
+		{name: "pre-check error", status: corev1.ConditionFalse, reason: util.NodeConditionReasonError, drained: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			node := &corev1.Node{}
+			util.SetMaintenanceModeCondition(node, test.status, test.reason, test.name)
+			assert.Equal(t, test.drained, isDrained(node))
+		})
+	}
+}
+
 func TestMigrateAction(t *testing.T) {
 	type input struct {
 		namespace  string

@@ -11,6 +11,7 @@ const (
 	RemovedPVCsAnnotationKey            = prefix + "/removedPersistentVolumeClaims"
 	AdditionalCASecretName              = "harvester-additional-ca"
 	AdditionalCAFileName                = "additional-ca.pem"
+	AnnotationValueTrue                 = "true"
 	AnnotationMigrationTarget           = prefix + "/migrationTargetNodeName"
 	AnnotationMigrationUID              = prefix + "/migrationUID"
 	AnnotationMigrationState            = prefix + "/migrationState"
@@ -230,10 +231,6 @@ const (
 	APIServerCAKey                           = "apiServerCA"
 
 	RKEControlPlaneRoleLabel = "rke.cattle.io/control-plane-role"
-
-	MaintainStatusAnnotationKey = prefix + "/maintain-status"
-	MaintainStatusComplete      = "completed"
-	MaintainStatusRunning       = "running"
 
 	LabelMaintainModeStrategy              = prefix + "/maintain-mode-strategy"
 	AnnotationMaintainModeStrategyNodeName = prefix + "/maintain-mode-strategy-node-name"
