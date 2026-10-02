@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
@@ -118,10 +117,11 @@ func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.Stora
 	targetDVStorage := &cdiv1.StorageSpec{}
 	targetDVStorage.StorageClassName = &vmi.Spec.TargetStorageClassName
 	targetDVStorage.Resources.Requests = make(corev1.ResourceList)
-	if vmi.Status.VirtualSize == 0 {
-		return nil, fmt.Errorf("virtual size is not set")
+	minSize := util.GetImageMinimumSizeQuantity(vmi)
+	if minSize.IsZero() {
+		return nil, fmt.Errorf("vm image size is zero")
 	}
-	targetDVStorage.Resources.Requests[corev1.ResourceStorage] = *resource.NewQuantity(vmi.Status.VirtualSize, resource.DecimalSI)
+	targetDVStorage.Resources.Requests[corev1.ResourceStorage] = *minSize
 	// for upgrade repo deployment usage, we need to create RWX filesystem data volume
 	// so that it can be mounted to multiple pods.
 	if vmi.Annotations != nil && vmi.Annotations[util.AnnotationUpgradeImage] == "True" {

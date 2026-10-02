@@ -166,10 +166,9 @@ func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) err
 	return v.checkImageSize(newPVC)
 }
 
-// checkImageSize ensures the volume is not smaller than the virtual size of
-// the VM image it was created from, if any. A volume smaller than its
-// source image's virtual size can lead to data integrity issues once the
-// guest OS writes past the shrunk backing store.
+// checkImageSize ensures the volume is not smaller than the VM image it was
+// created from, if any. A volume smaller than its source image can lead to data
+// integrity issues once the guest OS writes past the shrunk backing store.
 func (v *pvcValidator) checkImageSize(pvc *corev1.PersistentVolumeClaim) error {
 	image, err := util.GetPVCSourceImage(pvc, v.imageCache)
 	if err != nil {
@@ -179,14 +178,10 @@ func (v *pvcValidator) checkImageSize(pvc *corev1.PersistentVolumeClaim) error {
 		return nil
 	}
 
-	minSize, err := util.GetImageDiskSizeQuantity(image)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to calculate the minimum size for image %q: %v", util.GetNamespacedName(image), err))
-	}
-
+	minSize := util.GetImageMinimumSizeQuantity(image)
 	pvcSize := pvc.Spec.Resources.Requests.Storage()
 	if pvcSize.Cmp(*minSize) < 0 {
-		message := fmt.Sprintf("volume %q size (%s) must be at least %s to match the virtual size of image %q",
+		message := fmt.Sprintf("volume %q size (%s) must be at least %s to match the size of image %q",
 			util.GetNamespacedName(pvc), pvcSize.String(), minSize.String(), util.GetNamespacedName(image))
 		return werror.NewInvalidError(message, "spec.resources.requests.storage")
 	}
