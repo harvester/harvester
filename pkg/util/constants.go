@@ -147,6 +147,7 @@ const (
 	PCIDevicesControllerName              = "pcidevices-controller"
 	NvidiaDriverToolkitName               = "nvidia-driver-toolkit"
 	HarvesterCSIDriverLVMName             = "harvester-csi-driver-lvm"
+	VMCatalogAddonName                    = "vm-catalog"
 	RancherMonitoringPrometheus           = "rancher-monitoring-prometheus"
 	RancherMonitoringAlertmanager         = "rancher-monitoring-alertmanager"
 	RancherMonitoring                     = "rancher-monitoring"
