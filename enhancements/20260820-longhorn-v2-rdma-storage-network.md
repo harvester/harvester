@@ -118,8 +118,11 @@ queues) → **ipvlan is the recommended attachment**, consistent with the matrix
 - Switch-side lossless-fabric configuration (PFC/ECN/DSCP on the physical
   switch). We document the requirement and configure the host side; the switch
   is the operator's responsibility.
-- RDMA for the host-facing volume frontend (guest/VM I/O). This proposal covers
-  only the internal engine⇄replica fabric; the frontend stays NVMe-TCP/ublk.
+- RDMA for the host-facing volume frontend (guest/VM I/O) in this phase. This
+  proposal covers the internal engine⇄replica fabric; the frontend stays
+  NVMe-TCP/ublk for now. Frontend RDMA is planned as the next phase, since DPU-
+  equipped nodes consume volumes away from the engine; the shared-PF device
+  access chosen below keeps that path open.
 - RDMA to VMs / VF passthrough to guests (already covered by the SR-IOV network
   devices HEP).
 - Live migration of RDMA-backed volumes across an OFED/kernel change; backing
@@ -204,7 +207,7 @@ volume's replica controllers report `trtype=RDMA`.
 
 - **StorageClass parameter** `dataEngineTransport: tcp|rdma` (default `tcp`),
   passed through to Longhorn's per-volume `dataEngineTransport` (upstream
-  Longhorn work, #13796). Immutable per volume.
+  Longhorn work, #13796). It can be changed only while the volume is detached.
 
 - **Longhorn `storage-network` setting**: Harvester keeps syncing the NAD ref
   into it (unchanged mechanism); only the NAD it points at changes shape.
@@ -310,7 +313,7 @@ NVIDIA's container under NVIDIA's EULA at their discretion.
 **(D) Longhorn transport selection + shared-device interface.**
 Harvester exposes the StorageClass parameter `dataEngineTransport: rdma`, which
 maps to Longhorn's per-volume `dataEngineTransport` (upstream #13796). Transport
-is chosen per volume and is immutable — a single RDMA-capable storage network
+is chosen per volume (changeable only while detached) — a single RDMA-capable storage network
 carries both TCP and RDMA volumes simultaneously (validated: sibling TCP and
 RDMA volumes on the same fabric).
 
@@ -328,9 +331,19 @@ pods (and a future frontend consumer) share the one PF. Leaving the setting
 empty preserves the legacy privileged-host-mount behavior, so the change is
 backward compatible.
 
-Longhorn also now reports an **`RDMACapable` node condition** and rejects an
-RDMA volume at admission unless enough RDMA-capable nodes exist, confining RDMA
-replicas to capable nodes (longhorn-manager, #13796). Harvester's capability
+Longhorn also now reports an **`RDMACapable` node condition**, rejects an RDMA
+volume at admission unless the data engine is V2 and at least one RDMA-capable
+node exists, rejects attaching it to a node that is not RDMA-capable, and
+confines RDMA replicas to capable nodes (longhorn-manager, #13796).
+
+**SPDK buffer pools.** An RDMA volume makes the engine node's SPDK target run two
+NVMe-oF transports (RDMA for replicas, TCP for the frontend). With Longhorn's
+default iobuf pools (`data-engine-iobuf-small-pool-size` 8192 /
+`data-engine-iobuf-large-pool-size` 1024), heavy writes stalled on the engine
+node during validation; 32768 / 4096 ran clean. How Longhorn will size these for
+RDMA is an open question upstream (longhorn/longhorn-manager#5107); Harvester
+should follow that outcome, and until then set the larger values when it enables
+the RDMA storage network. Harvester's capability
 discovery (E) can surface this condition directly instead of re-detecting.
 
 **(E) RDMA capability discovery & health.**
@@ -459,8 +472,9 @@ asserted, which upstream tests do not do):
   reboot. A kernel bump that changes inbox `mlx5` is handled by the base OS
   image; only the OOT fallback path would need a module rebuild
   (kernel-module-devel HEP covers this).
-- Existing TCP V2 volumes are not converted; `dataEngineTransport` is chosen at
-  volume creation and is immutable.
+- Existing TCP V2 volumes are not converted automatically; `dataEngineTransport`
+  can be switched to `rdma` while a volume is detached, provided all its replicas
+  are on RDMA-capable nodes (Longhorn webhook).
 
 ## Note
 
