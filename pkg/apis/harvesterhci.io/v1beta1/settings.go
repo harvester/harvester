@@ -7,6 +7,9 @@ import (
 
 var (
 	SettingConfigured condition.Cond = "configured"
+	// SettingHostIPsAssigned reports whether every eligible node got an address from the
+	// hostIPRange of the rwx-network setting.
+	SettingHostIPsAssigned condition.Cond = "hostIPsAssigned"
 )
 
 // +genclient

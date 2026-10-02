@@ -319,13 +319,19 @@ const (
 	StorageNetworkNetAttachDefPrefix    = "storagenetwork-"
 	StorageNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName
 
-	RWXNetworkAnnotation       = "rwx-network.settings.harvesterhci.io"
-	RWXHashNetworkAnnotation   = RWXNetworkAnnotation + "/hash"
-	RWXNadNetworkAnnotation    = RWXNetworkAnnotation + "/net-attach-def"
-	RWXOldNadNetworkAnnotation = RWXNetworkAnnotation + "/old-net-attach-def"
-	RWXNetworkInitializedAnno  = RWXNetworkAnnotation + "/initialized"
+	RWXNetworkAnnotation        = "rwx-network.settings.harvesterhci.io"
+	RWXHashNetworkAnnotation    = RWXNetworkAnnotation + "/hash"
+	RWXNadNetworkAnnotation     = RWXNetworkAnnotation + "/net-attach-def"
+	RWXOldNadNetworkAnnotation  = RWXNetworkAnnotation + "/old-net-attach-def"
+	RWXNetworkInitializedAnno   = RWXNetworkAnnotation + "/initialized"
+	RWXNetworkManagedLabel      = RWXNetworkAnnotation + "/managed"
+	RWXManagedExcludeAnnotation = RWXNetworkAnnotation + "/managed-exclude"
 
 	RWXHashNetworkLabel = RWXHashNetworkAnnotation
+
+	// RWXVolServiceLabel marks the Share Manager VIP Service of a Longhorn RWX volume;
+	// its value is the volume name.
+	RWXVolServiceLabel = prefix + "/rwx-vol-service"
 
 	RWXNetworkNetAttachDefPrefix    = "rwx-network-"
 	RWXNetworkNetAttachDefNamespace = HarvesterSystemNamespaceName

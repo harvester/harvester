@@ -35,6 +35,8 @@ SOFTWARE.
 // that can enforce mutual exclusion through other means.
 package mapset
 
+import "go.mongodb.org/mongo-driver/bson/bsontype"
+
 // Set is the primary interface provided by the mapset package.  It
 // represents an unordered set of data and a large number of
 // operations that can be applied to that set.
@@ -72,6 +74,10 @@ type Set[T comparable] interface {
 	// ContainsAny returns whether at least one of the
 	// given items are in the set.
 	ContainsAny(val ...T) bool
+
+	// ContainsAnyElement returns whether at least one of the
+	// given element are in the set.
+	ContainsAnyElement(other Set[T]) bool
 
 	// Difference returns the difference between this set
 	// and other. The returned set will contain
@@ -185,6 +191,12 @@ type Set[T comparable] interface {
 	// Pop removes and returns an arbitrary item from the set.
 	Pop() (T, bool)
 
+	// PopN removes and returns up to n arbitrary items from the set.
+	// It returns a slice of the removed items and the actual number of items removed.
+	// If the set is empty or n is less than or equal to 0s, it returns an empty slice and 0.
+	// If n is greater than the set's size, all items are
+	PopN(n int) ([]T, int)
+
 	// ToSlice returns the members of the set as a slice.
 	ToSlice() []T
 
@@ -192,8 +204,15 @@ type Set[T comparable] interface {
 	MarshalJSON() ([]byte, error)
 
 	// UnmarshalJSON will unmarshal a JSON-based byte slice into a full Set datastructure.
-	// For this to work, set subtypes must implemented the Marshal/Unmarshal interface.
+	// For this to work, set subtypes must implement the Marshal/Unmarshal interface.
 	UnmarshalJSON(b []byte) error
+
+	// MarshalBSONValue will marshal the set into a BSON-based representation.
+	MarshalBSONValue() (bsontype.Type, []byte, error)
+
+	// UnmarshalBSONValue will unmarshal a BSON-based byte slice into a full Set datastructure.
+	// For this to work, set subtypes must implement the Marshal/Unmarshal interface.
+	UnmarshalBSONValue(bt bsontype.Type, b []byte) error
 }
 
 // NewSet creates and returns a new set with the given elements.
@@ -252,4 +271,14 @@ func NewThreadUnsafeSetFromMapKeys[T comparable, V any](val map[T]V) Set[T] {
 	}
 
 	return s
+}
+
+// Elements returns an iterator that yields the elements of the set. Starting
+// with Go 1.23, users can use a for loop to iterate over it.
+func Elements[T comparable](s Set[T]) func(func(element T) bool) {
+	return func(yield func(element T) bool) {
+		s.Each(func(t T) bool {
+			return !yield(t)
+		})
+	}
 }

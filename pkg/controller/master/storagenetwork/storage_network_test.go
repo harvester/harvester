@@ -4,66 +4,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/harvester/harvester/pkg/settings"
 )
 
-func TestPoolNameFromCIDR(t *testing.T) {
-	tests := []struct {
-		name    string
-		cidr    string
-		want    string
-		wantErr bool
-	}{
-		{
-			name: "IPv4 /24",
-			cidr: "10.0.0.0/24",
-			want: "10.0.0.0-24",
-		},
-		{
-			name: "IPv4 /16",
-			cidr: "192.168.0.0/16",
-			want: "192.168.0.0-16",
-		},
-		{
-			name: "IPv4 host bits masked out",
-			cidr: "10.0.0.5/24",
-			want: "10.0.0.0-24",
-		},
-		{
-			name: "IPv6 /64 with double colon",
-			cidr: "fd00::/64",
-			want: "fd00---64",
-		},
-		{
-			name: "IPv6 /112",
-			cidr: "2001:db8::/112",
-			want: "2001-db8---112",
-		},
-		{
-			name: "IPv6 host bits masked out",
-			cidr: "fd00::1/64",
-			want: "fd00---64",
-		},
-		{
-			name:    "invalid CIDR returns error",
-			cidr:    "not-a-cidr",
-			wantErr: true,
-		},
-		{
-			name:    "empty string returns error",
-			cidr:    "",
-			wantErr: true,
-		},
-	}
+func TestRWXReservedExcludes(t *testing.T) {
+	const (
+		dedicated = `{"share-storage-network":false,"network":{"vlan":2017,"clusterNetwork":"mgmt","range":"172.16.0.0/24"},"hostIPRange":"172.16.0.16/28","vipRange":"172.16.0.32/28"}`
+		shared    = `{"share-storage-network":true,"hostIPRange":"172.16.0.16/28","vipRange":"172.16.0.32/28"}`
+		noRanges  = `{"share-storage-network":true}`
+	)
+	ranges := []string{"172.16.0.16/28", "172.16.0.32/28"}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := poolNameFromCIDR(tc.cidr)
-			if tc.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tc.want, got)
+	tests := []struct {
+		name        string
+		settingName string
+		rwxValue    string
+		want        []string
+	}{
+		{name: "dedicated RWX NAD", settingName: settings.RWXNetworkSettingName, rwxValue: dedicated, want: ranges},
+		{name: "storage network NAD in share mode", settingName: settings.StorageNetworkName, rwxValue: shared, want: ranges},
+		{name: "storage network NAD without share mode", settingName: settings.StorageNetworkName, rwxValue: dedicated},
+		{name: "RWX NAD in share mode", settingName: settings.RWXNetworkSettingName, rwxValue: shared},
+		{name: "no ranges", settingName: settings.StorageNetworkName, rwxValue: noRanges},
+		{name: "rwx-network not set", settingName: settings.StorageNetworkName},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := rwxReservedExcludes(tt.settingName, tt.rwxValue)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
