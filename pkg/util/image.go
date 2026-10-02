@@ -207,16 +207,20 @@ func GetSCWithSelector(scCache ctlstoragev1.StorageClassCache, selector labels.S
 	return scList, nil
 }
 
-// GetImageDiskSizeQuantity returns the minimum disk size a volume created
-// from the given image must have, i.e. the image's virtual size (or its
-// artifact size if larger), rounded up to whole GiB.
+// GetImageMinimumSizeQuantity returns the image's virtual size or its artifact size if larger
+func GetImageMinimumSizeQuantity(image *harvesterv1.VirtualMachineImage) *resource.Quantity {
+	return resource.NewQuantity(max(0, image.Status.VirtualSize, image.Status.Size), resource.BinarySI)
+}
+
+// GetImageDiskSizeQuantity returns the image's minimum size rounded up to whole
+// GiB for UI allocation. Use GetImageMinimumSizeQuantity for size validation.
 func GetImageDiskSizeQuantity(image *harvesterv1.VirtualMachineImage) (*resource.Quantity, error) {
-	imgSize := max(image.Status.VirtualSize, image.Status.Size)
-	if imgSize <= 0 {
-		return resource.NewQuantity(0, resource.BinarySI), nil
+	imgSize := GetImageMinimumSizeQuantity(image)
+	if imgSize.IsZero() {
+		return imgSize, nil
 	}
 
-	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*resource.NewQuantity(imgSize, resource.BinarySI))
+	imgSizeRoundUp, err := k8svolumehelpers.RoundUpToGiB(*imgSize)
 	if err != nil {
 		return nil, err
 	}
