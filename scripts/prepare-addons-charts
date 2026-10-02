@@ -8,6 +8,7 @@ DIST_CHARTS_DIR="/dist/charts"
 cd ${TOP_DIR}
 
 source ${SCRIPTS_DIR}/lib/addon
+source ${SCRIPTS_DIR}/lib/image
 ADDONS_PATH=${TOP_DIR}/addons
 ADDONS_TEMPLATES_PATH=${TOP_DIR}/addons-templates
 load_addon_env ${ADDONS_PATH}
@@ -16,6 +17,9 @@ MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
 LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
 echo "Rancher monitoring version: ${MONITORING_VERSION}"
 echo "Rancher logging version: ${LOGGING_VERSION}"
+
+# Resolve before downloading charts so a missing Prime registry fails early.
+MONITORING_REGISTRY=$(resolve_registry monitoring)
 
 mkdir -p ${DIST_CHARTS_DIR}
 
@@ -49,6 +53,33 @@ patch_rancher_logging_chart ${DIST_CHARTS_DIR} ${LOGGING_VERSION} ${PKG_PATCH_LO
 
 # make chart sanity check again after patch
 tar zxvf ${DIST_CHARTS_DIR}/rancher-logging-${LOGGING_VERSION}.tgz >/dev/null --warning=no-timestamp
+
+# Keep chart defaults aligned with the registry used by prepare_monitoring_bundle.
+#
+# This stays necessary even though the rancher-monitoring/rancher-logging
+# addon templates (addons/rancher-monitoring, addons/rancher-logging) also
+# carry an explicit global.cattle.systemDefaultRegistry in valuesContent:
+#   - rancher-monitoring-crd/rancher-logging-crd are deployed as ManagedCharts
+#     (see upgrade_managedchart_monitoring_crd/upgrade_managedchart_logging_crd
+#     in package/upgrade/upgrade_manifests.sh), which only ever patch
+#     spec.version and never carry a valuesContent override. The CRD
+#     installation Job's image can only come from this chart-level default.
+#   - valuesContent is user-editable (Harvester UI/API can replace it
+#     wholesale), so this remains the fallback baseline for the main charts
+#     too if a user-supplied valuesContent drops the global.cattle block.
+# The addon-template override exists for a different reason: it makes the
+# registry visible in valuesContent so the upgrade path's change detection
+# (which only compares version/valuesContent/chart/repo) can see a
+# same-version community->prime registry transition and trigger a redeploy,
+# something a chart-tarball-only default can't do.
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  for chart in rancher-monitoring rancher-monitoring-crd; do
+    patch_addon_chart_registry "${DIST_CHARTS_DIR}" "${chart}" "${MONITORING_VERSION}" "${MONITORING_REGISTRY}"
+  done
+  for chart in rancher-logging rancher-logging-crd; do
+    patch_addon_chart_registry "${DIST_CHARTS_DIR}" "${chart}" "${LOGGING_VERSION}" "${MONITORING_REGISTRY}"
+  done
+fi
 
 # Prepare vm-import-controller chart
 echo "pull harvester-vm-import-controller: $VM_IMPORT_CONTROLLER_CHART_VERSION"
@@ -134,17 +165,21 @@ check_addon_chart_version_matching
 
 check_monitoring_logging_addon_image_matching() {
   if [[ -n "${MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC}" ]]; then
-    # The images in ${SCRIPTS_DIR}/images/rancher-images.txt (maintained by contributors manually)
-    # are pulled and packed into ISO by the ISO builder.
+    # The images in the registry-less ${SCRIPTS_DIR}/images/monitoring-images.txt inventory
+    # are pulled and packed into the ISO by the ISO builder.
     # The rancher-monitoring and rancher-logging chart images are extracted from the addon charts and stored in ${MONITORING_LOGGING_ADDON_IMAGE_FILE},
     #  even complex, a few images are shared by the addons and the embedded `Rancher`.
-    # From time to time, some images are accidentally removed or overwritten from ${SCRIPTS_DIR}/images/rancher-images.txt.
+    # From time to time, some images are accidentally removed or overwritten from the inventory.
     # For example, bump `Rancher` changes one image tag, but it was actually still used by the addons.
 
     # The following function ensures the images claimed by the addons are all included in the ISO builder image list, and that the versions match.
     echo "check addon chart images matching"
     # function is defined on addons/packaging/hack/check-monitoring-logging-chart-images, which is loaded by load_addon_env
-    ${MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC} "${MONITORING_LOGGING_ADDON_IMAGE_FILE}" "${SCRIPTS_DIR}/images/rancher-images.txt"
+    local rendered_monitoring_images
+    rendered_monitoring_images=$(mktemp)
+    render_image_list "${SCRIPTS_DIR}/images/monitoring-images.txt" "docker.io" "${rendered_monitoring_images}"
+    ${MONITORING_LOGGING_ADDON_IMAGE_VALIDATION_FUNC} "${MONITORING_LOGGING_ADDON_IMAGE_FILE}" "${rendered_monitoring_images}"
+    rm -f "${rendered_monitoring_images}"
   else
     echo "Warning: skip check monitoring and logging addon chart images matching because the check script or image list is missing from the in-tree addons directory"
   fi

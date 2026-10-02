@@ -28,6 +28,18 @@ func render(template string, context interface{}) (string, error) {
 	return util.RenderTemplate(string(templBytes), context)
 }
 
+type rancherdConfigTemplateData struct {
+	*HarvesterConfig
+	PrimeBuild bool
+}
+
+func renderRancherdConfig(config *HarvesterConfig) (string, error) {
+	return render("rancherd-config.yaml", rancherdConfigTemplateData{
+		HarvesterConfig: config,
+		PrimeBuild:      PrimeBuild == "true",
+	})
+}
+
 func escapeMustaches(input string) string {
 	re := regexp.MustCompile(`\{\{.*?\}\}`)
 	return re.ReplaceAllStringFunc(input, func(match string) string {

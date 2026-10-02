@@ -21,7 +21,7 @@ MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
 LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
 echo "Rancher monitoring version: ${MONITORING_VERSION}"
 echo "Rancher logging version: ${LOGGING_VERSION}"
-echo "Harvester eventrouter image tag: ${HARVESTER_EVENTROUTER_FULL_TAG}"
+echo "Harvester eventrouter image: ${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}"
 
 mkdir -p ${ARTIFACTS_DIR}
 
@@ -29,6 +29,7 @@ source ${SCRIPTS_DIR}/version
 source ${SCRIPTS_DIR}/version-rke2
 source ${SCRIPTS_DIR}/version-rancher
 source ${SCRIPTS_DIR}/lib/iso
+source ${SCRIPTS_DIR}/lib/image
 
 HARVESTER_VERSION=${VERSION}
 HARVESTER_CHART_VERSION=${CHART_VERSION}
@@ -47,6 +48,10 @@ HARVESTER_OS_IMAGE=rancher/harvester-os:$VERSION
 cd ${PACKAGE_HARVESTER_OS_DIR}
 
 PRETTY_NAME="Harvester ${VERSION}"
+SERVER_FLAVOR=community
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  SERVER_FLAVOR=prime
+fi
 
 cat > harvester-release.yaml <<EOF
 harvester: ${HARVESTER_VERSION}
@@ -57,10 +62,16 @@ kubernetes: ${RKE2_VERSION}
 rancher: ${RANCHER_VERSION}
 monitoringChart: ${MONITORING_VERSION}
 loggingChart: ${LOGGING_VERSION}
-loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_FULL_TAG}
+loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}
 kubevirt: ${HARVESTER_KUBEVIRT_VERSION}
 minUpgradableVersion: '${HARVESTER_MIN_UPGRADABLE_VERSION}'
+serverFlavor: ${SERVER_FLAVOR}
 EOF
+
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  rancher_prime_registry=$(resolve_registry rancher)
+  echo "rancherSystemDefaultRegistry: ${rancher_prime_registry}" >> harvester-release.yaml
+fi
 
 # Collect all the previous versions' image lists
 ${SCRIPTS_DIR}/archive-images-lists.sh "${TOP_DIR}/../harvester/package/upgrade-matrix.yaml" "${IMAGES_LISTS_DIR}" "${RANCHERD_IMAGES_DIR}" "${BUNDLE_DIR}/harvester/images-lists-archive" "${ARCH}"
@@ -90,7 +101,11 @@ docker build --pull \
   --build-arg ARCH="${ARCH}" \
 	-t ${HARVESTER_OS_IMAGE} .
 
-PROJECT_PREFIX="harvester"
+PROJECT_NAME="harvester"
+if [[ "${MK_PRIME_BUILD:-}" == "true" ]]; then
+  PROJECT_NAME="suse-virtualization"
+fi
+PROJECT_PREFIX="${PROJECT_NAME}"
 if [ -n "${DRONE_TAG:-}" ]; then
   PROJECT_PREFIX+="-${DRONE_TAG}"
 elif [ -n "${DRONE_BRANCH:-}" ]; then
@@ -257,7 +272,7 @@ find $IMAGES_LISTS_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
 find $RANCHERD_IMAGES_DIR -name "*.txt" -exec cp {} $OUTPUT_DIR \;
 
 # Write all images into one file for user convenience
-IMAGE_ALL=$TOP_DIR/dist/artifacts/harvester-images-list-${ARCH}.txt
+IMAGE_ALL=$TOP_DIR/dist/artifacts/${PROJECT_NAME}-images-list-${ARCH}.txt
 rm -f ${IMAGE_ALL}
 echo "# All images in the Harvester ISO built @ " $(date) $'\n' > ${IMAGE_ALL}
 for filename in $OUTPUT_DIR/*.txt; do

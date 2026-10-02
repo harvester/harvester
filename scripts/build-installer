@@ -12,11 +12,12 @@ load_addon_env ${ADDONS_PATH}
 
 MONITORING_VERSION=${RANCHER_MONITORING_CHART_VERSION}
 LOGGING_VERSION=${RANCHER_LOGGING_CHART_VERSION}
-echo "HARVESTER_EVENTROUTER_FULL_TAG: $HARVESTER_EVENTROUTER_FULL_TAG"
+echo "Harvester eventrouter image: ${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}"
 
 source ${SCRIPTS_DIR}/version
 source ${SCRIPTS_DIR}/version-rke2
 source ${SCRIPTS_DIR}/version-rancher
+source ${SCRIPTS_DIR}/lib/image
 
 echo "Installer version: ${VERSION}"
 echo "Harvester version: ${VERSION}"
@@ -29,8 +30,21 @@ echo "The ARCH is: ${ARCH}"
 
 mkdir -p bin
 
+PRIME_BUILD_VALUE=${PRIME_BUILD:-}
+RANCHER_PRIME_REGISTRY=
+if [[ "${PRIME_BUILD_VALUE}" == "true" ]]; then
+    if [[ -z "${MK_RANCHER_PRIME_REGISTRY:-}" ]]; then
+        echo "MK_RANCHER_PRIME_REGISTRY is required when PRIME_BUILD=true" >&2
+        exit 1
+    fi
+
+    RANCHER_PRIME_REGISTRY=$(validate_registry "${MK_RANCHER_PRIME_REGISTRY}" MK_RANCHER_PRIME_REGISTRY)
+fi
+
 LINKFLAGS="-X github.com/harvester/harvester/pkg/installer/config.RKE2Version=$RKE2_VERSION
            -X github.com/harvester/harvester/pkg/installer/config.RancherVersion=$RANCHER_VERSION
+           -X github.com/harvester/harvester/pkg/installer/config.PrimeBuild=$PRIME_BUILD_VALUE
+           -X github.com/harvester/harvester/pkg/installer/config.SystemDefaultRegistry=$RANCHER_PRIME_REGISTRY
            -X github.com/harvester/harvester/pkg/installer/version.Version=$VERSION
            -X github.com/harvester/harvester/pkg/installer/version.GitCommit=$COMMIT
            -X github.com/harvester/harvester/pkg/installer/version.HarvesterVersion=$VERSION
