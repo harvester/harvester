@@ -1,0 +1,412 @@
+name: Build Prime
+
+# Branch pushes publish to the staging registry; pushing a prime-<version> tag
+# (e.g. prime-v1.9.1 or prime-v1.9.1-rc1) publishes <version> to Prime.
+# The configure job sends every tag ref to Prime, so switching to
+# `release: types: [published]` needs no other change. Release events cannot
+# filter by tag, and never use both triggers: one release would build twice.
+#
+# Branch builds: push events use the workflow file from the pushed branch, so
+# each release line controls its own merge builds through `branches` below.
+# Keep at most one branch pattern, following the release line's lifecycle:
+#   1. master and newly created v1.x branches: no branch pattern (no merge builds).
+#   2. Enable Prime builds on community merges: add 'v1.*' on the v1.x branch.
+#   3. Move to the Prime branch: remove 'v1.*' from v1.x, and use only
+#      'prime-v1.*' on prime-v1.x.
+# Never list both: v1.x and prime-v1.x publish the same image tag and ISO folder.
+on:
+  push:
+    # branches:
+    # - 'v1.*'
+    tags:
+    - 'prime-v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ARCHITECTURES: '["x64", "arm64"]'
+  # For testing, check setup-prime-build action's README
+  PRIME_TEST_CONFIG: ${{ secrets.PRIME_TEST_CONFIG }}
+
+jobs:
+  configure:
+    name: Configure Prime build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      architectures: ${{ steps.set_vars.outputs.architectures }}
+      tag: ${{ steps.set_vars.outputs.tag }}
+      image_tag: ${{ steps.set_vars.outputs.image_tag }}
+      build_version: ${{ steps.set_vars.outputs.build_version }}
+      iso_folder: ${{ steps.set_vars.outputs.iso_folder }}
+      target: ${{ steps.set_vars.outputs.target }}
+    steps:
+    - name: Declare build variables
+      id: set_vars
+      env:
+        REF_NAME: ${{ github.ref_name }}
+        BUCKET: ${{ secrets.PRIME_BUCKET_NAME }}
+      run: |
+        # Fail before building anything rather than at the ISO upload.
+        if [[ -z "$BUCKET" ]]; then
+          echo "PRIME_BUCKET_NAME secret is not set" >&2
+          exit 1
+        fi
+
+        # The prime- prefix only selects the ref; names are the same as community's.
+        # Tag refs come from tag pushes and from release events alike.
+        version=${REF_NAME#prime-}
+        if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+          target=prime
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Prime release tags must be prime-<version>, such as prime-v1.9.1 or prime-v1.9.1-rc1" >&2
+            exit 1
+          fi
+          tag=$version
+          image_tag=$version
+          build_version=$version
+          iso_folder=$version
+        else
+          target=staging
+          tag=
+          image_tag=$version-head
+          build_version=$version-${GITHUB_SHA::8}-head
+          iso_folder=$version
+        fi
+        {
+          echo "architectures=$ARCHITECTURES"
+          echo "tag=$tag"
+          echo "image_tag=$image_tag"
+          echo "build_version=$build_version"
+          echo "iso_folder=$iso_folder"
+          echo "target=$target"
+        } >> "$GITHUB_OUTPUT"
+
+  build-binaries:
+    name: Build binaries
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-{0},hdd=50,run-id={1}', matrix.arch, github.run_id) }}
+    needs: configure
+    strategy:
+      matrix:
+        arch: ${{ fromJSON(needs.configure.outputs.architectures) }}
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    env:
+      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
+      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Prime build
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: ${{ needs.configure.outputs.target }}
+        rke2-image-repo: ${{ secrets.PRIME_RKE2_IMAGE_REPO }}
+
+    - name: Validate Prime configuration
+      if: ${{ matrix.arch == 'x64' }}
+      run: make validate-prime
+
+    # Build binaries
+    - name: Run make ci
+      if: ${{ matrix.arch == 'x64' }}
+      run: make ci
+    - name: Run make arm
+      if: ${{ matrix.arch == 'arm64' }}
+      run: make arm
+
+    - name: Upload binaries
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: binaries_${{ matrix.arch }}_artifact
+        path: ./bin/*
+
+    - name: Upload add-ons manifests
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: addons_${{ matrix.arch }}_artifact
+        path: ./dist/prepare-addons/addons-manifests
+
+  build-push-images:
+    name: Build and push images
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-{0},run-id={1}', matrix.arch, github.run_id) }}
+    needs: [configure, build-binaries]
+    strategy:
+      matrix:
+        arch: ${{ fromJSON(needs.configure.outputs.architectures) }}
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Configure arch to amd64/arm64
+      run: |
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
+    - name: Download binaries
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: binaries_${{ matrix.arch }}_artifact
+        path: ./bin/
+
+    - name: Add executable permission
+      run: |
+        chmod +x ./bin/*
+
+    - name: Copy bin folder to package
+      run: |
+        cp -r ./bin/harvester ./package/
+        cp -r ./bin/harvester-webhook ./package/
+        cp -r ./bin/upgrade-helper ./package/upgrade/
+        cp -r ./bin/harvester-installer ./package/upgrade/
+
+    - name: Download add-ons manifests
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: addons_${{ matrix.arch }}_artifact
+        path: ./dist/prepare-addons/addons-manifests
+
+    - name: Copy add-ons manifests to package/upgrade
+      run: |
+        cp -r ./dist/prepare-addons/addons-manifests ./package/upgrade/addons
+
+    - name: Set up Prime build
+      id: prime
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: ${{ needs.configure.outputs.target }}
+
+    - name: Publish harvester
+      uses: &publish-prime-image harvester/harvester-actions/actions/publish-prime-image@76572fec5f9a3b807e726b173b730b93ef6dc3ff # main
+      with:
+        context: package/
+        dockerfile: package/Dockerfile
+        image: harvester
+        tag: ${{ needs.configure.outputs.image_tag }}-${{ env.arch }}
+        platforms: linux/${{ env.arch }}
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        cache-scope: prime-harvester-${{ env.arch }}
+        sign: ${{ steps.prime.outputs.sign }}
+        attest: ${{ steps.prime.outputs.attest }}
+        allow-docker-hub: ${{ steps.prime.outputs.allow-docker-hub }}
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ needs.configure.outputs.build_version }}
+          SERVER_FLAVOR=prime
+          HARVESTER_UI_VERSION=${{ needs.configure.outputs.tag }}
+          HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${{ needs.configure.outputs.tag }}
+
+    - name: Publish harvester-webhook
+      uses: *publish-prime-image
+      with:
+        context: package/
+        dockerfile: package/Dockerfile.webhook
+        image: harvester-webhook
+        tag: ${{ needs.configure.outputs.image_tag }}-${{ env.arch }}
+        platforms: linux/${{ env.arch }}
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        cache-scope: prime-harvester-webhook-${{ env.arch }}
+        sign: ${{ steps.prime.outputs.sign }}
+        attest: ${{ steps.prime.outputs.attest }}
+        allow-docker-hub: ${{ steps.prime.outputs.allow-docker-hub }}
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ needs.configure.outputs.build_version }}
+
+    - name: Publish harvester-upgrade
+      uses: *publish-prime-image
+      with:
+        context: package/upgrade
+        dockerfile: package/upgrade/Dockerfile
+        image: harvester-upgrade
+        tag: ${{ needs.configure.outputs.image_tag }}-${{ env.arch }}
+        platforms: linux/${{ env.arch }}
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        cache-scope: prime-harvester-upgrade-${{ env.arch }}
+        sign: ${{ steps.prime.outputs.sign }}
+        attest: ${{ steps.prime.outputs.attest }}
+        allow-docker-hub: ${{ steps.prime.outputs.allow-docker-hub }}
+        build-args: |
+          ARCH=${{ env.arch }}
+          VERSION=${{ needs.configure.outputs.build_version }}
+
+  manifest-images:
+    name: Manifest images
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-x64,run-id={0}', github.run_id) }}
+    needs: [configure, build-push-images]
+    permissions:
+      contents: read
+      id-token: write # Vault and keyless image signing
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Set up Prime build
+      id: prime
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: ${{ needs.configure.outputs.target }}
+
+    - name: Publish manifests
+      uses: ./.github/actions/publish-manifests
+      with:
+        images: harvester harvester-webhook harvester-upgrade
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        tag: ${{ needs.configure.outputs.image_tag }}
+        architectures: ${{ needs.configure.outputs.architectures }}
+        sign: ${{ steps.prime.outputs.sign }}
+
+  build-iso:
+    name: Build ISO
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-{0},hdd=50,run-id={1}', matrix.arch, github.run_id) }}
+    needs: [configure, manifest-images]
+    strategy:
+      matrix:
+        arch: ${{ fromJSON(needs.configure.outputs.architectures) }}
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    env:
+      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
+      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Prime build
+      id: prime
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: ${{ needs.configure.outputs.target }}
+        rke2-image-repo: ${{ secrets.PRIME_RKE2_IMAGE_REPO }}
+        suse-storage-username: ${{ secrets.DP_APPS_RANCHER_IO_USERNAME }}
+        suse-storage-token: ${{ secrets.DP_APPS_RANCHER_IO_TOKEN }}
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Configure arch to amd64/arm64
+      run: |
+        if [ "${{ matrix.arch }}" == "x64" ]; then
+          echo "arch=amd64" >> "$GITHUB_ENV"
+        else
+          echo "arch=arm64" >> "$GITHUB_ENV"
+        fi
+
+    # REPO is exported by setup-prime-build.
+    - name: Build ISO
+      run: make build-iso
+      env:
+        DRONE_BRANCH: ${{ github.ref_type == 'branch' && github.ref_name || '' }}
+        DRONE_TAG: ${{ needs.configure.outputs.tag }}
+
+    - name: Publish harvester-cluster-repo
+      uses: *publish-prime-image
+      with:
+        context: dist/harvester-cluster-repo
+        dockerfile: dist/harvester-cluster-repo/Dockerfile
+        image: harvester-cluster-repo
+        tag: ${{ needs.configure.outputs.image_tag }}-${{ env.arch }}
+        platforms: linux/${{ env.arch }}
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        cache-scope: prime-harvester-cluster-repo-${{ env.arch }}
+        sign: ${{ steps.prime.outputs.sign }}
+        attest: ${{ steps.prime.outputs.attest }}
+        allow-docker-hub: ${{ steps.prime.outputs.allow-docker-hub }}
+
+    - name: Read Prime artifacts credentials
+      if: steps.prime.outputs.test-mode != 'true'
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # v3
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/credentials AWS_ACCESS_KEY_ID | PRIME_ARTIFACTS_ACCESS_KEY ;
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/credentials AWS_SECRET_ACCESS_KEY | PRIME_ARTIFACTS_SECRET_KEY
+
+    - name: Install AWS CLI
+      run: |
+        if command -v aws > /dev/null; then
+          exit 0
+        fi
+        curl --fail --silent --show-error --location --retry 3 \
+          "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "$RUNNER_TEMP/awscli.zip"
+        unzip -q "$RUNNER_TEMP/awscli.zip" -d "$RUNNER_TEMP"
+        "$RUNNER_TEMP/aws/install" --install-dir "$RUNNER_TEMP/aws-cli" --bin-dir "$RUNNER_TEMP/bin"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+    # AWS_ENDPOINT_URL is exported by setup-prime-build in test mode.
+    - name: Upload Prime artifacts
+      env:
+        AWS_ACCESS_KEY_ID: ${{ env.PRIME_ARTIFACTS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.PRIME_ARTIFACTS_SECRET_KEY }}
+        AWS_REGION: ${{ vars.PRIME_ARTIFACTS_AWS_REGION }}
+        AWS_EC2_METADATA_DISABLED: 'true' # never fall back to the runner's instance role
+        BUCKET: ${{ secrets.PRIME_BUCKET_NAME }}
+        ISO_FOLDER: ${{ needs.configure.outputs.iso_folder }}
+      # Copy only: each architecture uploads into the same folder.
+      run: |
+        aws s3 cp dist/artifacts/ "s3://$BUCKET/suse-virtualization/$ISO_FOLDER/" \
+          --recursive --no-follow-symlinks --only-show-errors
+
+  manifest-cluster-repo-image:
+    name: Manifest harvester-cluster-repo image
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-x64,run-id={0}', github.run_id) }}
+    needs: [configure, build-iso]
+    permissions:
+      contents: read
+      id-token: write # Vault and keyless image signing
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Set up Prime build
+      id: prime
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: ${{ needs.configure.outputs.target }}
+
+    - name: Publish manifest
+      uses: ./.github/actions/publish-manifests
+      with:
+        images: harvester-cluster-repo
+        registry: ${{ steps.prime.outputs.registry }}
+        repository: ${{ steps.prime.outputs.repository }}
+        tag: ${{ needs.configure.outputs.image_tag }}
+        architectures: ${{ needs.configure.outputs.architectures }}
+        sign: ${{ steps.prime.outputs.sign }}

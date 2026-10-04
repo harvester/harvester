@@ -1,0 +1,188 @@
+name: Set up Prime build
+description: Log in to the Prime publication registry and export the Prime build environment
+
+# Publishes to the staging or Prime registry as selected by the target input;
+# build-prime.yml's configure job decides which, so trigger changes stay there.
+#
+# Forks can test the workflow without Vault by setting the PRIME_TEST_CONFIG
+# environment variable (from a repository secret) to a JSON object. Store the
+# raw JSON in the secret, not a quoted or escaped JSON string; only a dotenv
+# secret file for act needs the escaped form. Every field is required:
+#
+#   {
+#     "registry": "registry.example.com",
+#     "repository": "harvester",
+#     "username": "...",
+#     "password": "...",
+#     "rancher_prime_registry": "...",
+#     "harvester_prime_registry": "...",
+#     "rke2_image_repo": "https://.../",
+#     "s3_endpoint": "http://host:port",
+#     "aws_access_key_id": "...",
+#     "aws_secret_access_key": "...",
+#     "sign": false,
+#     "attest": false
+#   }
+#
+# Fields:
+#   registry, repository      publication registry hostname and repository
+#   username, password        publication registry login
+#   rancher_prime_registry    Rancher Prime registry
+#   harvester_prime_registry  Harvester Prime registry
+#   rke2_image_repo           RKE2 artifact base URL, ending in /
+#   s3_endpoint               S3-compatible endpoint for the Prime artifacts upload
+#   aws_access_key_id,
+#   aws_secret_access_key     Prime artifacts upload credentials
+#   sign                      sign images and manifests (boolean)
+#   attest                    publish SLSA provenance attestations (boolean)
+#
+# Test mode allows docker.io as the publication registry, and skips image
+# signing unless sign is true and SLSA attestation unless attest is true.
+
+inputs:
+  target:
+    description: Publication registry, staging or prime
+    required: true
+  rke2-image-repo:
+    description: RKE2 artifact base URL; set in jobs that build binaries or the ISO
+    default: ''
+  suse-storage-username:
+    description: dp.apps.rancher.io username; set to log in before pulling SUSE Storage artifacts
+    default: ''
+  suse-storage-token:
+    description: dp.apps.rancher.io token
+    default: ''
+
+outputs:
+  registry:
+    description: Publication registry hostname
+    value: ${{ steps.login-staging.outputs.registry || steps.login-prime.outputs.registry || steps.test.outputs.registry }}
+  repository:
+    description: Publication registry repository
+    value: ${{ steps.login-staging.outputs.repository || steps.login-prime.outputs.repository || steps.test.outputs.repository }}
+  test-mode:
+    description: '"true" when credentials come from PRIME_TEST_CONFIG instead of Vault'
+    value: ${{ steps.mode.outputs.test }}
+  sign:
+    description: '"true" when published images and manifests should be signed'
+    value: ${{ steps.mode.outputs.test != 'true' || steps.test.outputs.sign == 'true' }}
+  attest:
+    description: '"true" when published images should carry a signed SLSA provenance attestation'
+    value: ${{ steps.mode.outputs.test != 'true' || steps.test.outputs.attest == 'true' }}
+  allow-docker-hub:
+    description: '"true" when docker.io is allowed as the publication registry'
+    value: ${{ steps.mode.outputs.test == 'true' }}
+
+runs:
+  using: composite
+  steps:
+    - name: Select credential source
+      id: mode
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: |
+        if [[ "$TARGET" != staging && "$TARGET" != prime ]]; then
+          echo "target must be staging or prime, got '$TARGET'" >&2
+          exit 1
+        fi
+        if [[ -z "${PRIME_TEST_CONFIG:-}" ]]; then
+          echo "test=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::Prime build is running in test mode with PRIME_TEST_CONFIG"
+          echo "test=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Login to staging registry
+      id: login-staging
+      if: steps.mode.outputs.test != 'true' && inputs.target == 'staging'
+      uses: harvester/harvester-actions/actions/login-staging-registry@b4aee419059d4d0cc86ccabe6f1d600b58c21e68 # main
+
+    - name: Login to Prime registry
+      id: login-prime
+      if: steps.mode.outputs.test != 'true' && inputs.target == 'prime'
+      uses: harvester/harvester-actions/actions/login-prime-registry@b4aee419059d4d0cc86ccabe6f1d600b58c21e68 # main
+
+    - name: Read Rancher Prime registry
+      if: steps.mode.outputs.test != 'true'
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # v3
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | MK_RANCHER_PRIME_REGISTRY
+
+    - name: Apply test configuration
+      id: test
+      if: steps.mode.outputs.test == 'true'
+      shell: bash
+      run: |
+        # GitHub masks the secret as a whole, not the values extracted from it.
+        config() { jq -er "$1" <<< "$PRIME_TEST_CONFIG"; }
+        if ! jq -e 'type == "object"' <<< "$PRIME_TEST_CONFIG" > /dev/null; then
+          echo "PRIME_TEST_CONFIG must be a raw JSON object (not a quoted or escaped JSON string)" >&2
+          exit 1
+        fi
+        required=(registry repository username password rancher_prime_registry harvester_prime_registry
+          rke2_image_repo s3_endpoint aws_access_key_id aws_secret_access_key sign attest)
+        missing=$(jq -r '[$ARGS.positional[] as $k | select(.[$k] == null or .[$k] == "") | $k] | join(", ")' \
+          --args "${required[@]}" <<< "$PRIME_TEST_CONFIG")
+        if [[ -n "$missing" ]]; then
+          echo "PRIME_TEST_CONFIG is missing required fields: $missing" >&2
+          exit 1
+        fi
+        for key in sign attest; do
+          if ! jq -e --arg k "$key" '.[$k] | type == "boolean"' <<< "$PRIME_TEST_CONFIG" > /dev/null; then
+            echo "PRIME_TEST_CONFIG field $key must be a boolean" >&2
+            exit 1
+          fi
+        done
+        for key in registry rancher_prime_registry harvester_prime_registry \
+          password aws_access_key_id aws_secret_access_key; do
+          echo "::add-mask::$(config ".$key")"
+        done
+
+        registry=$(config .registry)
+        config .password | docker login "$registry" --username "$(config .username)" --password-stdin
+
+        {
+          echo "MK_RANCHER_PRIME_REGISTRY=$(config .rancher_prime_registry)"
+          echo "RKE2_IMAGE_REPO=$(config .rke2_image_repo)"
+          echo "AWS_ENDPOINT_URL=$(config .s3_endpoint)"
+          # Same names as the Vault step in build-iso, so the upload step is unchanged.
+          echo "PRIME_ARTIFACTS_ACCESS_KEY=$(config .aws_access_key_id)"
+          echo "PRIME_ARTIFACTS_SECRET_KEY=$(config .aws_secret_access_key)"
+        } >> "$GITHUB_ENV"
+        {
+          echo "registry=$registry"
+          echo "repository=$(config .repository)"
+          echo "harvester-prime-registry=$(config .harvester_prime_registry)"
+          echo "sign=$(jq -r .sign <<< "$PRIME_TEST_CONFIG")"
+          echo "attest=$(jq -r .attest <<< "$PRIME_TEST_CONFIG")"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Login to SUSE Storage
+      if: inputs.suse-storage-username != ''
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+      with:
+        registry: dp.apps.rancher.io
+        username: ${{ inputs.suse-storage-username }}
+        password: ${{ inputs.suse-storage-token }}
+
+    - name: Export Prime build environment
+      shell: bash
+      env:
+        REGISTRY: ${{ steps.login-staging.outputs.registry || steps.login-prime.outputs.registry || steps.test.outputs.registry }}
+        REPOSITORY: ${{ steps.login-staging.outputs.repository || steps.login-prime.outputs.repository || steps.test.outputs.repository }}
+        HARVESTER_PRIME_REGISTRY: ${{ steps.test.outputs.harvester-prime-registry }}
+        RKE2_URL: ${{ inputs.rke2-image-repo }}
+      run: |
+        {
+          echo "MK_PRIME_BUILD=true"
+          echo "MK_DOCKER_CLI_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json"
+          echo "MK_HARVESTER_PRIME_REGISTRY=${HARVESTER_PRIME_REGISTRY:-$REGISTRY}"
+          # Monitoring and logging images are pulled from the Rancher Prime registry.
+          echo "MK_MONITORING_REGISTRY=$MK_RANCHER_PRIME_REGISTRY"
+          echo "REPO=$REGISTRY/$REPOSITORY"
+          if [[ -n "$RKE2_URL" ]]; then
+            echo "RKE2_IMAGE_REPO=$RKE2_URL"
+          fi
+        } >> "$GITHUB_ENV"

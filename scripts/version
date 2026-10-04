@@ -33,9 +33,16 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 COMMIT=$(git rev-parse --short=8 HEAD)
+# Prime refs (prime-v1.8 branch, prime-v1.8.0 tag) are named like the community ones
+# once the prime- prefix is dropped.
 COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+COMMIT_BRANCH=${COMMIT_BRANCH#prime-}
 COMMIT_BRANCH_FORMATTED=$(echo "${COMMIT_BRANCH}" | sed -E 's/[^a-zA-Z0-9.]+/-/g')
-GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
+GIT_TAG=$(git tag -l --contains HEAD 'prime-*' | head -n 1)
+if [[ -z "$GIT_TAG" ]]; then
+    GIT_TAG=$(git tag -l --contains HEAD | head -n 1)
+fi
+GIT_TAG=${GIT_TAG#prime-}
 SPRINT_RELEASE=""
 if [[ "$GIT_TAG" == *"-dev-"* ]]; then
     SPRINT_RELEASE="-dev-"
