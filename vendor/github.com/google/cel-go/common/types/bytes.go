@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/cel-go/common/types/ref"
@@ -43,7 +44,10 @@ func (b Bytes) Add(other ref.Val) ref.Val {
 	if !ok {
 		return ValOrErr(other, "no such overload")
 	}
-	return append(b, otherBytes...)
+	sum := make([]byte, 0, len(b)+len(otherBytes))
+	sum = append(sum, b...)
+	sum = append(sum, otherBytes...)
+	return Bytes(sum)
 }
 
 // Compare implements traits.Comparer interface method by lexicographic ordering.
@@ -78,7 +82,7 @@ func (b Bytes) ConvertToNative(typeDesc reflect.Type) (any, error) {
 		case byteWrapperType:
 			// Convert the bytes to a wrapperspb.BytesValue.
 			return wrapperspb.Bytes([]byte(b)), nil
-		case jsonValueType:
+		case JSONValueType:
 			// CEL follows the proto3 to JSON conversion by encoding bytes to a string via base64.
 			// The encoding below matches the golang 'encoding/json' behavior during marshaling,
 			// which uses base64.StdEncoding.
@@ -137,4 +141,18 @@ func (b Bytes) Type() ref.Type {
 // Value implements the ref.Val interface method.
 func (b Bytes) Value() any {
 	return []byte(b)
+}
+
+func (b Bytes) format(sb *strings.Builder) {
+	fmt.Fprintf(sb, "b\"%s\"", bytesToOctets([]byte(b)))
+}
+
+// bytesToOctets converts byte sequences to a string using a three digit octal encoded value
+// per byte.
+func bytesToOctets(byteVal []byte) string {
+	var b strings.Builder
+	for _, c := range byteVal {
+		fmt.Fprintf(&b, "\\%03o", c)
+	}
+	return b.String()
 }
