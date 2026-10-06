@@ -227,6 +227,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		nodeEnqueueAfter: func(nodeName string, timeout time.Duration) {
 			nodes.EnqueueAfter(nodeName, timeout)
 		},
+		sendRestoreVMJob: jobHandler.sendRestoreVMJob,
 	}
 	nodes.OnChange(ctx, nodeControllerName, nodeHandler.OnChanged)
 
