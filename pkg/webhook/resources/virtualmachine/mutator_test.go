@@ -2366,3 +2366,54 @@ func Test_ForkliftPatch(t *testing.T) {
 		}
 	}
 }
+
+func Test_ForkliftCreateAppliesOvercommit(t *testing.T) {
+	memory := resource.MustParse("8Gi")
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "forklift-vm",
+			Namespace: "default",
+			Labels: map[string]string{
+				migrationKey: "sample-migration",
+				planKey:      "plan-uid",
+				vmIDKey:      "vm-id",
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU:    &kubevirtv1.CPU{Cores: 2, Sockets: 2, Threads: 1},
+						Memory: &kubevirtv1.Memory{Guest: &memory},
+					},
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset()
+	createDefaultKubeVirt(clientset)
+	err := clientset.Tracker().Add(&harvesterv1.Setting{
+		ObjectMeta: metav1.ObjectMeta{Name: settings.OvercommitConfigSettingName},
+		Default:    `{"cpu":1000,"memory":150,"storage":200}`,
+	})
+	require.NoError(t, err)
+
+	original, err := json.Marshal(vm)
+	require.NoError(t, err)
+	patchOps, err := setupTestMutator(clientset).(*vmMutator).Create(newMutatorControllerRequest(), vm.DeepCopy())
+	require.NoError(t, err)
+
+	patched, err := patch.Apply(original, []byte(fmt.Sprintf("[%s]", strings.Join(patchOps, ","))))
+	require.NoError(t, err)
+	patchedVM := &kubevirtv1.VirtualMachine{}
+	require.NoError(t, json.Unmarshal(patched, patchedVM))
+
+	resources := patchedVM.Spec.Template.Spec.Domain.Resources
+	assert.True(t, resources.Limits.Cpu().Equal(resource.MustParse("4")), "cpu limit = total vCPUs, got %v", resources.Limits.Cpu())
+	assert.True(t, resources.Limits.Memory().Equal(memory), "memory limit = guest memory, got %v", resources.Limits.Memory())
+	// 4 vCPU at 1000% overcommit -> 400m, not a full core per vCPU.
+	assert.Equal(t, int64(400), resources.Requests.Cpu().MilliValue(), "cpu request should be overcommitted")
+	// 8Gi at 150% overcommit, truncated to MiB.
+	assert.Equal(t, memory.Value()*100/150/1048576*1048576, resources.Requests.Memory().Value(), "memory request should be overcommitted")
+}
