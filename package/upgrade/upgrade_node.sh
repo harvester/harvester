@@ -771,7 +771,7 @@ stages:
    initramfs:
      - directories:
        - path: "/etc/multipath/conf.d"
-         permissions: 0644
+         permissions: 0755
          owner: 0
          group: 0
      - files:
