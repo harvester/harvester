@@ -414,3 +414,18 @@ func TestBootstrapTemplates_IPFamilyPolicy(t *testing.T) {
 		})
 	}
 }
+
+// qemu-pr-helper (virt-handler) drops capabilities and must traverse /etc/multipath
+// to read prkeys for SCSI-3 persistent reservations on multipath devices.
+func TestDisableLonghornMultipathing_DirectoryIsTraversable(t *testing.T) {
+	stage := yipSchema.Stage{}
+	disableLonghornMultipathing(&stage)
+
+	for _, dir := range stage.Directories {
+		if dir.Path == "/etc/multipath/conf.d" {
+			assert.Equal(t, uint32(0755), dir.Permissions)
+			return
+		}
+	}
+	t.Fatal("expected /etc/multipath/conf.d in the stage directories")
+}
