@@ -14,6 +14,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -783,6 +784,113 @@ func TestUpgradeValidator_checkStaleHotplugVolumes(t *testing.T) {
 				assert.Contains(t, err.Error(), tc.errorKey, tc.name)
 			} else {
 				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}
+
+func TestUpgradeValidator_checkNodes_PendingDrainRequest(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+		},
+	}
+	drainhelper.SetDrainRequest(node, false)
+
+	clientset := fake.NewSimpleClientset(node)
+	validator := &upgradeValidator{
+		nodes: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+	}
+	upgrade := &harvesterv1.Upgrade{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				util.AnnotationSkipGarbageCollectionThresholdCheck: util.AnnotationValueTrue,
+			},
+		},
+	}
+
+	err := validator.checkNodes(upgrade)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "pending maintenance mode request")
+}
+
+func TestUpgradeValidator_checkNodes_MaintenanceMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      corev1.ConditionStatus
+		reason      string
+		expectError bool
+	}{
+		{
+			name:        "no condition",
+			expectError: false,
+		},
+		{
+			name:        "validating blocks upgrade",
+			status:      corev1.ConditionTrue,
+			reason:      util.NodeConditionReasonValidating,
+			expectError: true,
+		},
+		{
+			name:        "completed blocks upgrade",
+			status:      corev1.ConditionTrue,
+			reason:      util.NodeConditionReasonCompleted,
+			expectError: true,
+		},
+		{
+			name:        "false error blocks upgrade",
+			status:      corev1.ConditionFalse,
+			reason:      util.NodeConditionReasonError,
+			expectError: true,
+		},
+		{
+			name:        "true error blocks upgrade",
+			status:      corev1.ConditionTrue,
+			reason:      util.NodeConditionReasonError,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node",
+				},
+				Status: corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			}
+			if tc.reason != "" {
+				util.SetMaintenanceModeCondition(node, tc.status, tc.reason, "test")
+			}
+
+			clientset := fake.NewSimpleClientset(node)
+			validator := &upgradeValidator{
+				nodes: fakeclients.NodeCache(clientset.CoreV1().Nodes),
+			}
+
+			// Skip garbage collection threshold check so checkDiskSpace is not invoked
+			upgrade := &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						util.AnnotationSkipGarbageCollectionThresholdCheck: util.AnnotationValueTrue,
+					},
+				},
+			}
+
+			err := validator.checkNodes(upgrade)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "disable or clear maintenance mode before upgrading")
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

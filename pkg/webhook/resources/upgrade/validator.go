@@ -36,6 +36,7 @@ import (
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/util"
 	addonutil "github.com/harvester/harvester/pkg/util/addon"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -396,6 +397,17 @@ func (v *upgradeValidator) checkNodes(upgrade *v1beta1.Upgrade) error {
 	}
 
 	for _, node := range nodes {
+		// Maintenance must be resolved before an upgrade. This includes a
+		// False/Error pre-check result, which the user must clear explicitly.
+		if condition := util.GetMaintenanceModeCondition(node); condition != nil {
+			return werror.NewBadRequest(fmt.Sprintf("node %s has maintenance mode state %s/%s; disable or clear maintenance mode before upgrading", node.Name, condition.Status, condition.Reason))
+		}
+
+		// A pending request is not yet visible as a condition.
+		if drainhelper.HasDrainRequest(node) {
+			return werror.NewBadRequest(fmt.Sprintf("node %s has a pending maintenance mode request; wait for it to finish or disable maintenance mode before upgrading", node.Name))
+		}
+
 		for _, condition := range node.Status.Conditions {
 			if condition.Type == corev1.NodeReady {
 				if condition.Status != corev1.ConditionTrue {

@@ -79,7 +79,7 @@ var _ = Describe("verify host APIs", func() {
 				}, 30*time.Second, 5*time.Second)
 			})
 
-			By("then the node is unschedulable and maintain-status is set", func() {
+			By("then the node is unschedulable and maintenance mode is completed", func() {
 				Eventually(func() error {
 					var retNode corev1.Node
 					respCode, respBody, err = helper.GetObject(nodeObjectAPI, &retNode)
@@ -94,9 +94,9 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("expected node to be unschedulable")
 					}
 
-					_, ok := retNode.Annotations[util.MaintainStatusAnnotationKey]
-					if !ok {
-						return fmt.Errorf("unable to find maintenance annotation")
+					condition := util.GetMaintenanceModeCondition(&retNode)
+					if condition == nil || condition.Status != corev1.ConditionTrue || condition.Reason != util.NodeConditionReasonCompleted {
+						return fmt.Errorf("expected completed maintenance condition, got %#v", condition)
 					}
 					return nil
 				}, "300s", "10s").ShouldNot(HaveOccurred())
@@ -107,7 +107,7 @@ var _ = Describe("verify host APIs", func() {
 				MustRespCodeIs(http.StatusNoContent, "post disableMaintenanceMode action", err, respCode, respBody)
 			})
 
-			By("then the node is schedulable and maintain-status is removed", func() {
+			By("then the node is schedulable and the maintenance condition is removed", func() {
 				MustFinallyBeTrue(func() bool {
 					var retNode corev1.Node
 					respCode, respBody, err = helper.GetObject(nodeObjectAPI, &retNode)
@@ -117,7 +117,7 @@ var _ = Describe("verify host APIs", func() {
 					if !Expect(retNode.Spec.Unschedulable).To(BeEquivalentTo(false)) {
 						return false
 					}
-					return Expect(retNode.Annotations[util.MaintainStatusAnnotationKey]).To(BeEmpty())
+					return Expect(util.GetMaintenanceModeCondition(&retNode)).To(BeNil())
 				}, 30*time.Second, 1*time.Second)
 
 			})
@@ -154,11 +154,11 @@ var _ = Describe("verify host APIs", func() {
 
 			By("attempting to enable maintenance mode on controlplane host", func() {
 				respCode, respBody, err = helper.PostObjectAction(nodeObjectAPI, nodeapi.MaintenanceModeInput{Force: ""}, "enableMaintenanceMode")
-				MustRespCodeIs(http.StatusInternalServerError, "enable maintenance", err, respCode, respBody)
+				MustRespCodeIs(http.StatusNoContent, "enable maintenance", err, respCode, respBody)
 			})
 
-			By("then the node maintain-status is not set", func() {
-				Consistently(func() error {
+			By("then the node records the maintenance pre-check error", func() {
+				Eventually(func() error {
 					var retNode corev1.Node
 					respCode, respBody, err = helper.GetObject(nodeObjectAPI, &retNode)
 					if err != nil {
@@ -172,12 +172,28 @@ var _ = Describe("verify host APIs", func() {
 						return fmt.Errorf("expected node to be schedulable")
 					}
 
-					_, ok := retNode.Annotations[util.MaintainStatusAnnotationKey]
-					if ok {
-						return fmt.Errorf("should not find maintenance annotation")
+					condition := util.GetMaintenanceModeCondition(&retNode)
+					if condition == nil || condition.Status != corev1.ConditionFalse || condition.Reason != util.NodeConditionReasonError {
+						return fmt.Errorf("expected maintenance pre-check error, got %#v", condition)
 					}
 					return nil
 				}, "300s", "10s").ShouldNot(HaveOccurred())
+			})
+
+			By("clear maintenance mode error", func() {
+				respCode, respBody, err = helper.PostAction(nodeObjectAPI, "clearMaintenanceMode")
+				MustRespCodeIs(http.StatusNoContent, "post clearMaintenanceMode action", err, respCode, respBody)
+			})
+
+			By("then the maintenance condition is removed", func() {
+				MustFinallyBeTrue(func() bool {
+					var retNode corev1.Node
+					respCode, respBody, err = helper.GetObject(nodeObjectAPI, &retNode)
+					if err != nil || respCode != http.StatusOK {
+						return false
+					}
+					return util.GetMaintenanceModeCondition(&retNode) == nil
+				}, 30*time.Second, 1*time.Second)
 			})
 
 		})

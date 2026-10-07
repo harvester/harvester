@@ -3,16 +3,22 @@ package nodedrain
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -282,6 +288,313 @@ func Test_listVMI(t *testing.T) {
 	assert.NoError(err, "expected no error")
 	assert.Len(vmiList, 1, "expected to find only 1 vmi")
 	assert.Contains(vmiList, failingVM, "expected to find failingVM only")
+}
+
+func TestOnNodeChangeCreatesValidatingCondition(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{drainhelper.DrainAnnotation: util.AnnotationValueTrue}}}
+	clientset := fake.NewSimpleClientset(node)
+	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes)}
+
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	condition := util.GetMaintenanceModeCondition(updated)
+	require.NotNil(t, condition)
+	require.Equal(t, corev1.ConditionTrue, condition.Status)
+	require.Equal(t, util.NodeConditionReasonValidating, condition.Reason)
+	require.Contains(t, updated.Annotations, drainhelper.DrainAnnotation)
+}
+
+func TestOnNodeChangeTerminatesExpiredDrain(t *testing.T) {
+	require.NoError(t, settings.MaintenanceModeDrainTimeout.Set("1"))
+	t.Cleanup(func() { _ = settings.MaintenanceModeDrainTimeout.Set("15") })
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{
+			drainhelper.DrainAnnotation: util.AnnotationValueTrue,
+			drainhelper.ForcedDrain:     util.AnnotationValueTrue,
+		}},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
+			Reason: util.NodeConditionReasonDraining, LastTransitionTime: metav1.NewTime(time.Now().Add(-2 * time.Minute)),
+		}}},
+	}
+	clientset := fake.NewSimpleClientset(node)
+	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes), context: context.Background()}
+
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	condition := util.GetMaintenanceModeCondition(updated)
+	require.NotNil(t, condition)
+	require.Equal(t, corev1.ConditionTrue, condition.Status)
+	require.Equal(t, util.NodeConditionReasonError, condition.Reason)
+	require.Contains(t, condition.Message, "node-1 after 1 minutes")
+	require.NotContains(t, updated.Annotations, drainhelper.DrainAnnotation)
+	require.NotContains(t, updated.Annotations, drainhelper.ForcedDrain)
+}
+
+func TestOnNodeChangeRetriesIntentCleanupAfterDrain(t *testing.T) {
+	for _, reason := range []string{util.NodeConditionReasonEvacuating, util.NodeConditionReasonCompleted} {
+		t.Run(reason, func(t *testing.T) {
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{
+					drainhelper.DrainAnnotation: util.AnnotationValueTrue,
+					drainhelper.ForcedDrain:     util.AnnotationValueTrue,
+				}},
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+					Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue, Reason: reason,
+				}}},
+			}
+			clientset := fake.NewSimpleClientset(node)
+			handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes)}
+
+			_, err := handler.OnNodeChange(node.Name, node)
+			require.NoError(t, err)
+
+			updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.NotContains(t, updated.Annotations, drainhelper.DrainAnnotation)
+			require.NotContains(t, updated.Annotations, drainhelper.ForcedDrain)
+			require.Equal(t, reason, util.GetMaintenanceModeCondition(updated).Reason)
+		})
+	}
+}
+
+func TestDrainPassesRemainingTimeoutToDrainNode(t *testing.T) {
+	require.NoError(t, settings.MaintenanceModeDrainTimeout.Set("2"))
+	t.Cleanup(func() { _ = settings.MaintenanceModeDrainTimeout.Set("15") })
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "node-1",
+			Annotations: map[string]string{drainhelper.DrainAnnotation: util.AnnotationValueTrue},
+		},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
+			Reason: util.NodeConditionReasonDraining, LastTransitionTime: metav1.NewTime(time.Now().Add(-time.Minute)),
+		}}},
+	}
+	clientset := fake.NewSimpleClientset(node)
+
+	var gotTimeout time.Duration
+	var gotDeadline time.Time
+	handler := &ControllerHandler{
+		nodes:                       fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		virtualMachineCache:         fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+		longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		context:                     context.Background(),
+		drainNode: func(ctx context.Context, _ *rest.Config, _ *corev1.Node, timeout time.Duration) error {
+			gotTimeout = timeout
+			gotDeadline, _ = ctx.Deadline()
+			return nil
+		},
+	}
+
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	// About one of the two configured minutes is left.
+	require.Greater(t, gotTimeout, 30*time.Second)
+	require.LessOrEqual(t, gotTimeout, time.Minute)
+	require.WithinDuration(t, time.Now().Add(gotTimeout), gotDeadline, 5*time.Second)
+}
+
+func TestDrainDeadlineHandlingAfterDrainNode(t *testing.T) {
+	tests := []struct {
+		name       string
+		drainNode  func(ctx context.Context, deadline time.Time) error
+		wantErr    bool
+		wantReason string
+	}{
+		{
+			name: "success after deadline continues with evacuating",
+			drainNode: func(_ context.Context, deadline time.Time) error {
+				time.Sleep(time.Until(deadline) + 20*time.Millisecond)
+				return nil
+			},
+			wantReason: util.NodeConditionReasonEvacuating,
+		},
+		{
+			name: "unwrapped error after context deadline fails with timeout",
+			drainNode: func(ctx context.Context, _ time.Time) error {
+				<-ctx.Done()
+				return errors.New("global timeout reached")
+			},
+			wantReason: util.NodeConditionReasonError,
+		},
+		{
+			name: "error before deadline is retried",
+			drainNode: func(_ context.Context, _ time.Time) error {
+				return errors.New("temporary failure")
+			},
+			wantErr:    true,
+			wantReason: util.NodeConditionReasonDraining,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, settings.MaintenanceModeDrainTimeout.Set("1"))
+			t.Cleanup(func() { _ = settings.MaintenanceModeDrainTimeout.Set("15") })
+
+			// The deadline is reached shortly after the drain starts.
+			deadline := time.Now().Add(time.Second)
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "node-1",
+					Annotations: map[string]string{drainhelper.DrainAnnotation: util.AnnotationValueTrue},
+				},
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+					Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
+					Reason: util.NodeConditionReasonDraining, LastTransitionTime: metav1.NewTime(deadline.Add(-time.Minute)),
+				}}},
+			}
+			clientset := fake.NewSimpleClientset(node)
+
+			handler := &ControllerHandler{
+				nodes:                       fakeclients.NodeClient(clientset.CoreV1().Nodes),
+				nodeCache:                   fakeclients.NodeCache(clientset.CoreV1().Nodes),
+				virtualMachineCache:         fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+				virtualMachineInstanceCache: fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+				longhornVolumeCache:         fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+				longhornReplicaCache:        fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+				context:                     context.Background(),
+				drainNode: func(ctx context.Context, _ *rest.Config, _ *corev1.Node, _ time.Duration) error {
+					return tt.drainNode(ctx, deadline)
+				},
+			}
+
+			_, err := handler.OnNodeChange(node.Name, node)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			updated, err := clientset.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			condition := util.GetMaintenanceModeCondition(updated)
+			require.NotNil(t, condition)
+			require.Equal(t, tt.wantReason, condition.Reason)
+			if !tt.wantErr {
+				require.NotContains(t, updated.Annotations, drainhelper.DrainAnnotation)
+			}
+		})
+	}
+}
+
+func TestStaleDrainingNodeDoesNotOverwriteEvacuating(t *testing.T) {
+	require.NoError(t, settings.MaintenanceModeDrainTimeout.Set("1"))
+	t.Cleanup(func() { _ = settings.MaintenanceModeDrainTimeout.Set("15") })
+
+	newNode := func(reason string) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: "node-1", Annotations: map[string]string{drainhelper.DrainAnnotation: util.AnnotationValueTrue}},
+			Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+				Type: util.NodeConditionTypeMaintenanceMode, Status: corev1.ConditionTrue,
+				Reason: reason, LastTransitionTime: metav1.NewTime(time.Now().Add(-2 * time.Minute)),
+			}}},
+		}
+	}
+	// The cache still shows Draining, but the live node already is Evacuating.
+	stale := newNode(util.NodeConditionReasonDraining)
+	clientset := fake.NewSimpleClientset(newNode(util.NodeConditionReasonEvacuating))
+	handler := &ControllerHandler{nodes: fakeclients.NodeClient(clientset.CoreV1().Nodes), context: context.Background()}
+
+	_, err := handler.OnNodeChange(stale.Name, stale)
+	require.NoError(t, err)
+
+	live, err := clientset.CoreV1().Nodes().Get(context.Background(), stale.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, util.NodeConditionReasonEvacuating, util.GetMaintenanceModeCondition(live).Reason)
+}
+
+func TestForcedDrainStopsMaintainModeStrategyVMs(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-1",
+			Annotations: map[string]string{
+				drainhelper.DrainAnnotation: util.AnnotationValueTrue,
+				drainhelper.ForcedDrain:     util.AnnotationValueTrue,
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:               util.NodeConditionTypeMaintenanceMode,
+				Status:             corev1.ConditionTrue,
+				Reason:             util.NodeConditionReasonDraining,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		},
+	}
+
+	runningStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-1",
+			Namespace: "default",
+			Labels: map[string]string{
+				util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			RunStrategy: &runningStrategy,
+		},
+	}
+	vmi := &kubevirtv1.VirtualMachineInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-1",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubevirtv1.NodeNameLabel:       node.Name,
+				util.LabelMaintainModeStrategy: util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "kubevirt.io/v1",
+					Kind:       "VirtualMachine",
+					Name:       vm.Name,
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset(node, vm, vmi)
+	var stoppedVMs []string
+	handler := &ControllerHandler{
+		nodes:                        fakeclients.NodeClient(clientset.CoreV1().Nodes),
+		nodeCache:                    fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		virtualMachineClient:         fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineCache:          fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+		virtualMachineInstanceCache:  fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances),
+		virtualMachineInstanceClient: fakeclients.VirtualMachineInstanceClient(clientset.KubevirtV1().VirtualMachineInstances),
+		longhornVolumeCache:          fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+		longhornReplicaCache:         fakeclients.LonghornReplicaCache(clientset.LonghornV1beta2().Replicas),
+		context:                      context.Background(),
+		drainNode: func(ctx context.Context, cfg *rest.Config, n *corev1.Node, timeout time.Duration) error {
+			return nil
+		},
+	}
+
+	// Override findAndStopVM behavior by checking actual update on VM
+	_, err := handler.OnNodeChange(node.Name, node)
+	require.NoError(t, err)
+
+	updatedVM, err := clientset.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.Background(), vm.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	// VM must be stopped (RunStrategyHalted)
+	require.Equal(t, kubevirtv1.RunStrategyHalted, *updatedVM.Spec.RunStrategy)
+	// VM with restart strategy must be annotated for restart even under force
+	require.Equal(t, node.Name, updatedVM.Annotations[util.AnnotationMaintainModeStrategyNodeName])
+	_ = stoppedVMs
 }
 
 const vmiListString = `
