@@ -134,6 +134,10 @@ func New(ctx context.Context, clientConfig clientcmd.ClientConfig, options confi
 	if err := server.generateSteveServer(options); err != nil {
 		return nil, err
 	}
+	server.steve.APIServer.AccessControl = &actionAccessControl{
+		AccessControl: server.steve.APIServer.AccessControl,
+		sar:           server.ClientSet.AuthorizationV1().SubjectAccessReviews(),
+	}
 
 	ui.ConfigureAPIUI(server.steve.APIServer)
 
