@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -21,6 +23,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
 	"github.com/harvester/harvester/pkg/util/virtualmachineinstance"
@@ -46,6 +49,7 @@ type ControllerHandler struct {
 	longhornReplicaCache         ctllhv1.ReplicaCache
 	restConfig                   *rest.Config
 	context                      context.Context
+	drainNode                    func(context.Context, *rest.Config, *corev1.Node, time.Duration) error
 }
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
@@ -65,6 +69,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		longhornVolumeCache:          lhv.Cache(),
 		restConfig:                   management.RestConfig,
 		context:                      ctx,
+		drainNode:                    drainhelper.DrainNodeWithTimeout,
 	}
 
 	nodes.OnChange(ctx, nodeDrainController, ndc.OnNodeChange)
@@ -77,12 +82,45 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return node, nil
 	}
 
-	_, ok := node.Annotations[drainhelper.DrainAnnotation]
-	if !ok {
-		return node, nil
+	condition := util.GetMaintenanceModeCondition(node)
+	requested := drainhelper.HasDrainRequest(node)
+
+	if condition == nil {
+		if !requested {
+			// Ignore ordinary node updates that are not maintenance requests.
+			return node, nil
+		}
+
+		// Persist the initial phase before pre-checks or drain side effects so
+		// every maintenance attempt has an observable, resumable state.
+		return ndc.updateMaintenanceCondition(node.Name, corev1.ConditionTrue, util.NodeConditionReasonValidating,
+			util.MaintenanceModeMessageValidating)
 	}
 
-	_, forced := node.Annotations[drainhelper.ForcedDrain]
+	switch condition.Reason {
+	case util.NodeConditionReasonValidating:
+		if !requested {
+			return node, nil
+		}
+		return ndc.validate(node)
+	case util.NodeConditionReasonDraining:
+		return ndc.drain(node, condition)
+	case util.NodeConditionReasonEvacuating, util.NodeConditionReasonCompleted:
+		// Retry intent cleanup if it failed after the drain succeeded.
+		if requested || drainhelper.IsForcedDrainRequested(node) {
+			return ndc.clearDrainRequest(node)
+		}
+	case util.NodeConditionReasonError:
+		if requested || drainhelper.IsForcedDrainRequested(node) {
+			return ndc.clearDrainRequest(node)
+		}
+	}
+
+	return node, nil
+}
+
+func (ndc *ControllerHandler) validate(node *corev1.Node) (*corev1.Node, error) {
+	forced := drainhelper.IsForcedDrainRequested(node)
 
 	logrus.WithFields(logrus.Fields{
 		"node_name": node.Name,
@@ -94,11 +132,8 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 	err := drainhelper.DrainPossible(ndc.nodeCache, node)
 	if err != nil {
 		if errors.Is(err, drainhelper.ErrNodeDrainNotPossible) {
-			nodeUpdate, errUpdate := ndc.cleanupMaintenanceModeAnnotations(node)
-			if errUpdate != nil {
-				return node, errors.Join(err, errUpdate)
-			}
-			return nodeUpdate, fmt.Errorf("enabling maintenance mode is impossible: %w", err)
+			message := fmt.Sprintf("enabling maintenance mode is impossible: %v", err)
+			return ndc.failPreCheck(node, message)
 		}
 
 		return node, err
@@ -109,93 +144,107 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 		return node, fmt.Errorf("error getting non-migratable VMs: %w", err)
 	}
 
-	// List of VMs that need to be forcibly shutdown before maintenance
-	// mode.
-	shutdownVMs := make(map[string][]string)
-
-	if !forced {
-		var maintainModeStrategyVMs []string
-
-		// Make sure there are no VMs that are non-migratable. Abort the
-		// approach to place a node into maintenance mode if there are
-		// such VMs.
-		if len(nonMigratableVMs) > 0 {
-			nodeUpdate, err := ndc.cleanupMaintenanceModeAnnotations(node)
-			if err != nil {
-				return node, err
-			}
-
-			reasons := make([]string, 0, len(nonMigratableVMs))
-			for condition, vms := range nonMigratableVMs {
-				reasons = append(reasons, fmt.Sprintf("%s cannot be migrated due to %s", strings.Join(vms, ","), condition))
-			}
-
-			return nodeUpdate, fmt.Errorf("enabling maintenance mode is impossible. Non-migratable VMs found: %s. Use 'force drain' to perform a collective shutdown",
-				strings.Join(reasons, "; "))
-		}
-
-		// Get the list of VMs that are labeled to forcibly shut down
-		// before maintenance mode.
-		maintainModeStrategyVMIs, err := ndc.listVMILabelMaintainModeStrategy(node)
-		if err != nil {
-			return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
-		}
-
-		// Annotate these VMs so that they can be restarted immediately
-		// when the node has finally switched into maintenance mode or
-		// when the maintenance mode is disabled for the node.
-		//
-		// Note, forcing a shutdown of all VMs via the UI setting will
-		// override the individual settings of VMs that are labelled
-		// with 'harvesterhci.io/maintain-mode-strategy'. These VMs are
-		// NOT restarted in this case.
-		maintainModeStrategyLabelsToSkip := []string{
-			util.MaintainModeStrategyShutdownAndRestartAfterEnable,
-			util.MaintainModeStrategyShutdownAndRestartAfterDisable,
-		}
-		for _, vmi := range maintainModeStrategyVMIs {
-			vmName, err := findVM(vmi)
-			if err != nil {
-				return node, err
-			}
-
-			// Append the VM to the list of VMs that need to be shut down.
-			maintainModeStrategyVMs = append(maintainModeStrategyVMs, fmt.Sprintf("%s/%s", vmi.Namespace, vmName))
-
-			// Skip and do not annotate VMs that do not have to be restarted
-			// at several stages of the maintenance mode. These are VMs with
-			// the label values:
-			// - Shutdown
-			if !slices.Contains(maintainModeStrategyLabelsToSkip, vmi.Labels[util.LabelMaintainModeStrategy]) {
-				continue
-			}
-
-			vm, err := ndc.virtualMachineCache.Get(vmi.Namespace, vmName)
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					continue
-				}
-				return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
-			}
-
-			if vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
-				vmCopy := vm.DeepCopy()
-				vmCopy.Annotations[util.AnnotationMaintainModeStrategyNodeName] = node.Name
-
-				_, err = ndc.virtualMachineClient.Update(vmCopy)
-				if err != nil {
-					return node, err
-				}
-			}
-		}
-
-		shutdownVMs[util.MaintainModeStrategyKey] = maintainModeStrategyVMs
+	if !forced && len(nonMigratableVMs) > 0 {
+		return ndc.failPreCheck(node, nonMigratableVMsMessage(nonMigratableVMs))
 	}
 
-	// Shutdown ALL VMs on that node forcibly? This is activated by a
-	// checkbox in the maintenance mode dialog in the UI.
+	// Entering Draining persists the absolute deadline start time. The next
+	// reconcile performs VM shutdown and the synchronous DrainNode call.
+	return ndc.updateMaintenanceCondition(node.Name, corev1.ConditionTrue, util.NodeConditionReasonDraining, util.MaintenanceModeMessageDraining)
+}
+
+func nonMigratableVMsMessage(nonMigratableVMs map[string][]string) string {
+	reasons := make([]string, 0, len(nonMigratableVMs))
+
+	// Sort for a stable message, so repeated evaluations produce the same condition.
+	for _, condition := range slices.Sorted(maps.Keys(nonMigratableVMs)) {
+		reasons = append(reasons, fmt.Sprintf("%s cannot be migrated due to %s", strings.Join(nonMigratableVMs[condition], ","), condition))
+	}
+
+	return fmt.Sprintf("enabling maintenance mode is impossible. Non-migratable VMs found: %s. Use 'force drain' to perform a collective shutdown", strings.Join(reasons, "; "))
+}
+
+func (ndc *ControllerHandler) drain(node *corev1.Node, condition *corev1.NodeCondition) (*corev1.Node, error) {
+	timeoutMinutes := settings.MaintenanceModeDrainTimeout.GetInt()
+	deadline := time.Time{}
+
+	if timeoutMinutes > 0 {
+		deadline = condition.LastTransitionTime.Add(time.Duration(timeoutMinutes) * time.Minute)
+		if !time.Now().Before(deadline) {
+			return ndc.failDrainTimeout(node, timeoutMinutes, context.DeadlineExceeded)
+		}
+	}
+
+	forced := drainhelper.IsForcedDrainRequested(node)
+	var nonMigratableVMs map[string][]string
+	var err error
 	if forced {
-		shutdownVMs = nonMigratableVMs
+		nonMigratableVMs, err = ndc.FindNonMigratableVMS(node)
+		if err != nil {
+			return node, fmt.Errorf("error getting non-migratable VMs: %w", err)
+		}
+	}
+
+	shutdownVMs := make(map[string][]string)
+
+	// Get the list of VMs that are labeled to forcibly shut down
+	// before maintenance mode.
+	maintainModeStrategyVMIs, err := ndc.listVMILabelMaintainModeStrategy(node)
+	if err != nil {
+		return node, fmt.Errorf("error in the listing of VMIs that are to be administratively stopped before migration: %w", err)
+	}
+
+	// Annotate these VMs so that they can be restarted immediately
+	// when the node has finally switched into maintenance mode or
+	// when the maintenance mode is disabled for the node.
+	maintainModeStrategyLabelsToSkip := []string{
+		util.MaintainModeStrategyShutdownAndRestartAfterEnable,
+		util.MaintainModeStrategyShutdownAndRestartAfterDisable,
+	}
+	for _, vmi := range maintainModeStrategyVMIs {
+		vmName, err := findVM(vmi)
+		if err != nil {
+			return node, err
+		}
+
+		// Append the VM to the list of VMs that need to be shut down.
+		shutdownVMs[util.MaintainModeStrategyKey] = append(shutdownVMs[util.MaintainModeStrategyKey], fmt.Sprintf("%s/%s", vmi.Namespace, vmName))
+
+		// Skip and do not annotate VMs that do not have to be restarted
+		// at several stages of the maintenance mode. These are VMs with
+		// the label values:
+		// - Shutdown
+		if !slices.Contains(maintainModeStrategyLabelsToSkip, vmi.Labels[util.LabelMaintainModeStrategy]) {
+			continue
+		}
+
+		vm, err := ndc.virtualMachineCache.Get(vmi.Namespace, vmName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return node, fmt.Errorf("error looking up VM %s/%s: %w", vmi.Namespace, vmName, err)
+		}
+
+		if vm.Annotations == nil || vm.Annotations[util.AnnotationMaintainModeStrategyNodeName] != node.Name {
+			vmCopy := vm.DeepCopy()
+			if vmCopy.Annotations == nil {
+				vmCopy.Annotations = make(map[string]string)
+			}
+			vmCopy.Annotations[util.AnnotationMaintainModeStrategyNodeName] = node.Name
+
+			_, err = ndc.virtualMachineClient.Update(vmCopy)
+			if err != nil {
+				return node, err
+			}
+		}
+	}
+
+	// If forced is requested, also include all non-migratable VMs for shutdown.
+	if forced {
+		for k, v := range nonMigratableVMs {
+			shutdownVMs[k] = v
+		}
 	}
 
 	for _, v := range getUniqueVMSfromConditionMap(shutdownVMs) {
@@ -213,22 +262,82 @@ func (ndc *ControllerHandler) OnNodeChange(_ string, node *corev1.Node) (*corev1
 			"node_name":           node.Name,
 			"namespace":           ns,
 			"virtualmachine_name": name,
-		}).Info("force stopping VM")
+		}).Info("stopping VM for node maintenance")
 	}
 
 	nodeCopy := node.DeepCopy()
 
-	// run node drain
-	err = drainhelper.DrainNode(ndc.context, ndc.restConfig, nodeCopy)
+	drainContext, cancel := context.WithCancel(ndc.context)
+	defer cancel()
+	drainTimeout := time.Duration(0)
+	if timeoutMinutes > 0 {
+		// Pass the remaining budget, not the configured duration, because VM
+		// preprocessing may already have consumed part of it.
+		drainTimeout = time.Until(deadline)
+		var cancelTimeout context.CancelFunc
+		drainContext, cancelTimeout = context.WithTimeout(drainContext, drainTimeout)
+		defer cancelTimeout()
+	}
+
+	err = ndc.drainNode(drainContext, ndc.restConfig, nodeCopy, drainTimeout)
+
+	// A successful drain is not failed afterwards because of the deadline; the
+	// remaining steps are short and do not depend on it.
+	if err != nil {
+		if timeoutMinutes > 0 && errors.Is(drainContext.Err(), context.DeadlineExceeded) {
+			return ndc.failDrainTimeout(node, timeoutMinutes, err)
+		}
+		return node, err
+	}
+
+	// Persist the controller handoff before removing intent so a restart cannot
+	// leave a successfully drained node without a visible maintenance phase.
+	// Only transition the live node from Draining, so a stale reconcile cannot
+	// overwrite a later phase.
+	updated, err := util.TransitionMaintenanceModeCondition(ndc.nodes, node.Name,
+		corev1.ConditionTrue, util.NodeConditionReasonDraining,
+		corev1.ConditionTrue, util.NodeConditionReasonEvacuating, util.MaintenanceModeMessageEvacuating)
 	if err != nil {
 		return node, err
 	}
 
-	nodeCopy.Annotations[util.MaintainStatusAnnotationKey] = util.MaintainStatusRunning
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
+	// A concurrent transition may leave the live node in a different phase.
+	if !util.IsMaintenanceModeDrainComplete(util.GetMaintenanceModeCondition(updated)) {
+		return updated, nil
+	}
+	return ndc.clearDrainRequest(updated)
+}
 
-	return ndc.nodes.Update(nodeCopy)
+func (ndc *ControllerHandler) failDrainTimeout(node *corev1.Node, timeoutMinutes int, drainErr error) (*corev1.Node, error) {
+	message := fmt.Sprintf("Maintenance mode timed out while draining node %s after %d minutes: %v. The node remains cordoned and drain-related taints are unchanged. Disable maintenance mode before starting a new attempt.", node.Name, timeoutMinutes, drainErr)
+
+	// Only transition the live node from Draining, so a stale reconcile cannot
+	// overwrite a later phase with a timeout error.
+	updated, err := util.TransitionMaintenanceModeCondition(ndc.nodes, node.Name,
+		corev1.ConditionTrue, util.NodeConditionReasonDraining,
+		corev1.ConditionTrue, util.NodeConditionReasonError, message)
+	if err != nil {
+		return node, err
+	}
+	// Surface the terminal error before removing intent; status and metadata
+	// cannot be updated atomically.
+	// A concurrent transition may leave the live node in a different phase.
+	if !util.IsMaintenanceModeError(util.GetMaintenanceModeCondition(updated)) {
+		return updated, nil
+	}
+	return ndc.clearDrainRequest(updated)
+}
+
+func (ndc *ControllerHandler) failPreCheck(node *corev1.Node, message string) (*corev1.Node, error) {
+	updated, err := ndc.updateMaintenanceCondition(node.Name, corev1.ConditionFalse, util.NodeConditionReasonError, message)
+	if err != nil {
+		return node, err
+	}
+	return ndc.clearDrainRequest(updated)
+}
+
+func (ndc *ControllerHandler) updateMaintenanceCondition(nodeName string, status corev1.ConditionStatus, reason, message string) (*corev1.Node, error) {
+	return util.UpdateMaintenanceModeCondition(ndc.nodes, nodeName, status, reason, message)
 }
 
 // findAndStopVM is a wrapper function to identify the owner VM for a VMI, and patch the run strategy
@@ -251,7 +360,7 @@ func (ndc *ControllerHandler) findAndStopVM(vmiName string) error {
 	}
 
 	vmObjCopy := vmObj.DeepCopy()
-	vmObjCopy.Spec.RunStrategy = &[]kubevirtv1.VirtualMachineRunStrategy{desiredRunStrategy}[0]
+	vmObjCopy.Spec.RunStrategy = new(desiredRunStrategy)
 	_, err = ndc.virtualMachineClient.Update(vmObjCopy)
 	if err != nil {
 		return fmt.Errorf("error updating run strategy for vm %s in namespace %s: %v", vmObj.Name, vmObj.Namespace, err)
@@ -493,7 +602,7 @@ func filterNodesForNodeSelector(possibleNodes []*corev1.Node, vmi *kubevirtv1.Vi
 }
 
 func isNodeReady(node *corev1.Node) bool {
-	if node.Spec.Unschedulable {
+	if node.Spec.Unschedulable || util.IsMaintenanceModeEngaged(node) {
 		return false
 	}
 
@@ -531,14 +640,17 @@ func (ndc *ControllerHandler) listVMILabelMaintainModeStrategy(node *corev1.Node
 		ndc.virtualMachineInstanceCache)
 }
 
-func (ndc *ControllerHandler) cleanupMaintenanceModeAnnotations(node *corev1.Node) (*corev1.Node, error) {
+// clearDrainRequest persists removal of drain intent. Callers ensure that the
+// node is in a phase where removing the intent is valid.
+func (ndc *ControllerHandler) clearDrainRequest(node *corev1.Node) (*corev1.Node, error) {
 	nodeCopy := node.DeepCopy()
-	delete(nodeCopy.Annotations, util.MaintainStatusAnnotationKey)
-	delete(nodeCopy.Annotations, drainhelper.DrainAnnotation)
-	delete(nodeCopy.Annotations, drainhelper.ForcedDrain)
-	nodeUpdate, err := ndc.nodes.Update(nodeCopy)
-	if err != nil {
-		return node, fmt.Errorf("failed to clean up maintenance mode annotations: %w", err)
+	if !drainhelper.ClearDrainRequest(nodeCopy) {
+		return node, nil
 	}
-	return nodeUpdate, nil
+
+	updated, err := ndc.nodes.Update(nodeCopy)
+	if err != nil {
+		return node, fmt.Errorf("failed to clean up drain request: %w", err)
+	}
+	return updated, nil
 }

@@ -216,6 +216,7 @@ func (m *Manager) getExcludeResources() string {
 	resources = append(resources, rancherv3.Resource(rancherv3.SamlTokenResourceName).String())
 	resources = append(resources, rancherv3.Resource(rancherv3.TokenResourceName).String())
 	resources = append(resources, rancherv3.Resource(rancherv3.UserResourceName).String())
+	resources = append(resources, rancherv3.Resource(rancherv3.ClusterRegistrationTokenResourceName).String()) // Cluster registration token
 
 	return strings.Join(resources, ",")
 }
