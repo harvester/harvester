@@ -40,6 +40,7 @@ const (
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"
 	LabelHarvesterLatestUpgrade         = prefix + "/latestUpgrade"
+	LabelServerFlavor                   = prefix + "/serverFlavor" // flavor of the ISO a Version points to
 	AnnotationStorageClassName          = prefix + "/storageClassName"
 	AnnotationStorageProvisioner        = prefix + "/storageProvisioner"
 	AnnotationIsDefaultStorageClassName = "storageclass.kubernetes.io/is-default-class"
