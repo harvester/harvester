@@ -264,6 +264,8 @@ fi
 # Write version.yaml
 if [[ -n "${DRONE_TAG-}" ]]; then
 	RELEASE_DATE=$(date +'%Y%m%d')
+	RELEASE_DOWNLOAD_URL="${RELEASE_DOWNLOAD_URL:-https://releases.rancher.com/harvester}"
+	RELEASE_DOWNLOAD_URL="${RELEASE_DOWNLOAD_URL%/}"
 	cat > ${VERSION_FILE} <<EOF
 apiVersion: harvesterhci.io/v1beta1
 kind: Version
@@ -272,7 +274,7 @@ metadata:
   namespace: harvester-system
 spec:
   isoChecksum: '${ISO_CHECKSUM}'
-  isoURL: https://releases.rancher.com/harvester/${VERSION}/${ISO_PREFIX}.iso
+  isoURL: ${RELEASE_DOWNLOAD_URL}/${VERSION}/${ISO_PREFIX}.iso
   releaseDate: '${RELEASE_DATE}'
 EOF
 fi
