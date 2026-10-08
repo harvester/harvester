@@ -35,6 +35,9 @@ const (
 	extraInfoCPUCount   = "cpuCount"
 	extraInfoMemorySize = "memorySize"
 	extraInfoClusterUID = "clusterUID"
+
+	versionTagCommunity = "community"
+	versionTagPrime     = "prime"
 )
 
 type CheckUpgradeRequest struct {
@@ -123,8 +126,29 @@ func (s *versionSyncer) sync() error {
 		return err
 	}
 
+	checkResp.Versions = filterVersionsByFlavor(checkResp.Versions, settings.ServerFlavor.Get())
 	current := settings.ServerVersion.Get()
 	return s.syncVersions(checkResp, current)
+}
+
+// filterVersionsByFlavor keeps the versions released for the given server flavor.
+// A Prime cluster keeps versions tagged "prime". Any other cluster is treated as
+// community and keeps versions tagged "community".
+func filterVersionsByFlavor(versions []Version, flavor string) []Version {
+	tag := versionTagCommunity
+	if flavor == settings.ServerFlavorPrime {
+		tag = versionTagPrime
+	}
+
+	logrus.Debugf("filtering %d upgrade responder versions by tag %q for server flavor %q", len(versions), tag, flavor)
+	filtered := make([]Version, 0, len(versions))
+	for _, v := range versions {
+		logrus.Debugf("upgrade responder version %s has tags %v", v.Name, v.Tags)
+		if slice.ContainsString(v.Tags, tag) {
+			filtered = append(filtered, v)
+		}
+	}
+	return filtered
 }
 
 func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
