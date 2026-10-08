@@ -311,6 +311,50 @@ func Test_syncVersions(t *testing.T) {
 
 }
 
+func Test_filterVersionsByFlavor(t *testing.T) {
+	versions := []Version{
+		{Name: "v1.6.0", Tags: []string{"v1.6.0"}},
+		{Name: "v1.6.1", Tags: []string{"v1.6.1", "community"}},
+		{Name: "v1.6.2", Tags: []string{"v1.6.2", "prime"}},
+		{Name: "v1.7.0", Tags: []string{"v1.7.0", "prime", "community"}},
+		{Name: "v1.7.1", Tags: []string{"prime", "dev"}},
+		{Name: "v1.7.2", Tags: []string{"dev"}},
+		{Name: "v1.7.3"},
+	}
+
+	tests := []struct {
+		name     string
+		flavor   string
+		expected []string
+	}{
+		{
+			name:     "community keeps only community versions",
+			flavor:   settings.ServerFlavorCommunity,
+			expected: []string{"v1.6.1", "v1.7.0"},
+		},
+		{
+			name:     "empty flavor is treated as community",
+			flavor:   "",
+			expected: []string{"v1.6.1", "v1.7.0"},
+		},
+		{
+			name:     "prime keeps only prime versions",
+			flavor:   settings.ServerFlavorPrime,
+			expected: []string{"v1.6.2", "v1.7.0", "v1.7.1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var names []string
+			for _, v := range filterVersionsByFlavor(versions, tc.flavor) {
+				names = append(names, v.Name)
+			}
+			assert.Equal(t, tc.expected, names)
+		})
+	}
+}
+
 type fakeResponder struct {
 	resp CheckUpgradeResponse
 }
