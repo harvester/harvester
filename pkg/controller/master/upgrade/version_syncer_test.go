@@ -18,6 +18,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -303,12 +304,232 @@ func Test_syncVersions(t *testing.T) {
 		httpClient:    server.Client(),
 		versionClient: vc,
 	}
-	err = vs.syncVersions(resp, "v1.3.0")
+	err = vs.syncVersions(resp, "v1.3.0", settings.ServerFlavorCommunity)
 	assert.NoError(err)
 	versionList, err := vc.List(defaultNamespace, metav1.ListOptions{})
 	assert.NoError(err)
-	assert.Len(versionList.Items, 1, "expected to find 1 version object only")
 
+	// v1.3.0 can't be upgraded to and v1.3.1 has no ISO URL, so both are removed.
+	// v1.3.1 is then recreated from the remote version. v1.4.0 has no remote version
+	// and is kept.
+	names := map[string]map[string]string{}
+	for _, v := range versionList.Items {
+		names[v.Name] = v.Labels
+	}
+	assert.Equal(map[string]map[string]string{
+		"v1.3.1": {versionSourceLabel: versionSourceUpgradeChecker},
+		"v1.4.0": nil,
+	}, names)
+}
+
+func Test_cleanupVersions(t *testing.T) {
+	newVersion := func(name, releaseDate string, labels map[string]string) *harvesterv1.Version {
+		return &harvesterv1.Version{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: defaultNamespace,
+				Labels:    labels,
+			},
+			Spec: harvesterv1.VersionSpec{
+				ISOURL:      "server/harvester.iso",
+				ISOChecksum: "xxx",
+				ReleaseDate: releaseDate,
+			},
+		}
+	}
+	synced := map[string]string{versionSourceLabel: versionSourceUpgradeChecker}
+	manual := map[string]string{versionSourceLabel: "manual"}
+	communityRelease := map[string]string{util.LabelServerFlavor: settings.ServerFlavorCommunity}
+	primeRelease := map[string]string{util.LabelServerFlavor: settings.ServerFlavorPrime}
+	const releaseDate = "2026-09-01T00:00:00Z"
+
+	tests := []struct {
+		name           string
+		existing       *harvesterv1.Version
+		remote         []Version
+		currentVersion string
+		flavor         string
+		kept           bool
+		expectedLabels map[string]string
+	}{
+		{
+			name:     "synced version that can't be upgraded to is removed",
+			existing: newVersion("v1.9.0", "", synced),
+			remote:   []Version{{Name: "v1.9.0"}},
+		},
+		{
+			name:     "synced version that can be upgraded to is kept",
+			existing: newVersion("v1.9.2", "", synced),
+			remote:   []Version{{Name: "v1.9.0"}, {Name: "v1.9.2"}},
+			kept:     true,
+		},
+		{
+			name:     "version without a remote version is kept",
+			existing: newVersion("v1.9.0", "", synced),
+			remote:   []Version{{Name: "v1.8.0"}},
+			kept:     true,
+		},
+		{
+			name:     "unlabeled version created by an older release is removed",
+			existing: newVersion("v1.9.1", "2026-09-01T00:00:00Z", nil),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: "2026-09-01T00:00:00Z"}},
+		},
+		{
+			name:     "unlabeled version created by a user is kept",
+			existing: newVersion("v1.9.1", "20260905", nil),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: "2026-09-01T00:00:00Z"}},
+			kept:     true,
+		},
+		{
+			name:     "version labeled by a user is kept",
+			existing: newVersion("v1.9.1", "2026-09-01T00:00:00Z", manual),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: "2026-09-01T00:00:00Z"}},
+			kept:     true,
+		},
+		{
+			name:     "flavor-labeled version created by an older release is removed",
+			existing: newVersion("v1.9.1", releaseDate, communityRelease),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: releaseDate}},
+		},
+		{
+			name:     "Prime version imported on a community cluster is kept",
+			existing: newVersion("v1.9.1", releaseDate, primeRelease),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: releaseDate}},
+			kept:     true,
+		},
+		{
+			name:     "imported Prime version is removed once the cluster is Prime",
+			existing: newVersion("v1.9.1", releaseDate, primeRelease),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+		},
+		{
+			name:     "unlabeled version on a Prime cluster is kept",
+			existing: newVersion("v1.9.1", releaseDate, nil),
+			remote:   []Version{{Name: "v1.9.1", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+			kept:     true,
+		},
+		{
+			name:           "upgradable version created by an older release is adopted",
+			existing:       newVersion("v1.10.1", releaseDate, communityRelease),
+			remote:         []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			kept:           true,
+			expectedLabels: map[string]string{util.LabelServerFlavor: settings.ServerFlavorCommunity, versionSourceLabel: versionSourceUpgradeChecker},
+		},
+		{
+			name:           "upgradable unlabeled version created by an older release is adopted",
+			existing:       newVersion("v1.10.1", releaseDate, nil),
+			remote:         []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			kept:           true,
+			expectedLabels: synced,
+		},
+		{
+			name:     "synced community version without a remote is removed on a Prime cluster",
+			existing: newVersion("v1.10.0", releaseDate, map[string]string{util.LabelServerFlavor: settings.ServerFlavorCommunity, versionSourceLabel: versionSourceUpgradeChecker}),
+			remote:   []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+		},
+		{
+			name:     "synced version without a flavor label is removed on a Prime cluster",
+			existing: newVersion("v1.10.0", releaseDate, synced),
+			remote:   []Version{{Name: "v1.10.0", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+		},
+		{
+			name:     "synced Prime version is kept on a Prime cluster",
+			existing: newVersion("v1.10.1", releaseDate, map[string]string{util.LabelServerFlavor: settings.ServerFlavorPrime, versionSourceLabel: versionSourceUpgradeChecker}),
+			remote:   []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+			kept:     true,
+		},
+		{
+			name:     "user-imported community version is kept on a Prime cluster",
+			existing: newVersion("v1.10.0", "20260905", communityRelease),
+			remote:   []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			flavor:   settings.ServerFlavorPrime,
+			kept:     true,
+		},
+		{
+			name:           "upgradable user-created version is not adopted",
+			existing:       newVersion("v1.10.1", "20260905", nil),
+			remote:         []Version{{Name: "v1.10.1", ReleaseDate: releaseDate}},
+			kept:           true,
+			expectedLabels: map[string]string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset(tc.existing)
+			vc := fakeclients.VersionClient(client.HarvesterhciV1beta1().Versions)
+			vs := versionSyncer{
+				ctx:           context.TODO(),
+				namespace:     defaultNamespace,
+				versionClient: vc,
+			}
+
+			flavor := tc.flavor
+			if flavor == "" {
+				flavor = settings.ServerFlavorCommunity
+			}
+			require.NoError(t, vs.cleanupVersions("v1.9.1", flavor, tc.remote))
+
+			versionList, err := vc.List(defaultNamespace, metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Equal(t, tc.kept, len(versionList.Items) == 1)
+			if tc.expectedLabels != nil {
+				labels := versionList.Items[0].Labels
+				if labels == nil {
+					labels = map[string]string{}
+				}
+				assert.Equal(t, tc.expectedLabels, labels)
+			}
+		})
+	}
+}
+
+// Test_syncVersionsAfterFlavorSwitch covers a cluster that switched from community
+// to Prime with a synced community Version sharing its name with a Prime remote
+// version: the community Version is replaced by the Prime one.
+func Test_syncVersionsAfterFlavorSwitch(t *testing.T) {
+	resp := CheckUpgradeResponse{
+		Versions: []Version{
+			{Name: "v1.10.1", MinUpgradableVersion: "v1.9.0", Tags: []string{"v1.10.1", "community", "prime"}},
+		},
+	}
+	server := fakeHTTPEndpoint(resp)
+	server.Start()
+	defer server.Close()
+	require.NoError(t, settings.ReleaseDownloadURL.Set(server.URL))
+
+	client := fake.NewSimpleClientset(&harvesterv1.Version{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "v1.10.1",
+			Namespace: defaultNamespace,
+			Labels: map[string]string{
+				util.LabelServerFlavor: settings.ServerFlavorCommunity,
+				versionSourceLabel:     versionSourceUpgradeChecker,
+			},
+		},
+		Spec: harvesterv1.VersionSpec{
+			ISOURL:      "community/harvester.iso",
+			ISOChecksum: "xxx",
+		},
+	})
+	vc := fakeclients.VersionClient(client.HarvesterhciV1beta1().Versions)
+	vs := versionSyncer{
+		ctx:           context.TODO(),
+		namespace:     defaultNamespace,
+		httpClient:    server.Client(),
+		versionClient: vc,
+	}
+
+	require.NoError(t, vs.syncVersions(resp, "v1.9.1", settings.ServerFlavorPrime))
+
+	version, err := vc.Get(defaultNamespace, "v1.10.1", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "fakeurl/image.iso", version.Spec.ISOURL)
 }
 
 func Test_filterVersionsByFlavor(t *testing.T) {

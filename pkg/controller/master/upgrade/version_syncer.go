@@ -38,6 +38,11 @@ const (
 
 	versionTagCommunity = "community"
 	versionTagPrime     = "prime"
+
+	// versionSourceLabel marks Version objects created by the version syncer.
+	// Only these, and unlabeled ones created by older releases, are cleaned up.
+	versionSourceLabel          = "harvesterhci.io/versionSource"
+	versionSourceUpgradeChecker = "upgrade-checker"
 )
 
 type CheckUpgradeRequest struct {
@@ -126,9 +131,10 @@ func (s *versionSyncer) sync() error {
 		return err
 	}
 
-	checkResp.Versions = filterVersionsByFlavor(checkResp.Versions, settings.ServerFlavor.Get())
+	flavor := settings.ServerFlavor.Get()
+	checkResp.Versions = filterVersionsByFlavor(checkResp.Versions, flavor)
 	current := settings.ServerVersion.Get()
-	return s.syncVersions(checkResp, current)
+	return s.syncVersions(checkResp, current, flavor)
 }
 
 // filterVersionsByFlavor keeps the versions released for the given server flavor.
@@ -174,8 +180,8 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 	return extraInfo, nil
 }
 
-func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion string) error {
-	if err := s.cleanupVersions(currentVersion, resp.Versions); err != nil {
+func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion, flavor string) error {
+	if err := s.cleanupVersions(currentVersion, flavor, resp.Versions); err != nil {
 		return err
 	}
 
@@ -211,34 +217,102 @@ func (s *versionSyncer) syncVersions(resp CheckUpgradeResponse, currentVersion s
 	return nil
 }
 
-// cleanupVersions remove version resources that's can't be upgraded to anymore
-func (s *versionSyncer) cleanupVersions(currentVersion string, remoteVersions []Version) error {
+// cleanupVersions removes the Version objects created by the syncer that can't be
+// upgraded to anymore. Each object is checked against the remote version of the
+// same name; objects without a remote version and objects created by users are kept.
+// Objects inferred to be synced and still upgradable are labeled as synced.
+//
+// Synced objects of the other flavor, left from before a community to Prime switch,
+// are removed whether or not a remote version exists. Otherwise one sharing a name
+// with a Prime remote version would block the Prime Version from being created.
+func (s *versionSyncer) cleanupVersions(currentVersion, flavor string, remoteVersions []Version) error {
 	versionList, err := s.versionClient.List(s.namespace, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
-	remainingVersions := versionList.Items
-
+	remotes := make(map[string]Version, len(remoteVersions))
 	for _, remote := range remoteVersions {
-		versions := remainingVersions
-		remainingVersions = []harvesterv1.Version{}
+		remotes[remote.Name] = remote
+	}
 
-		for _, version := range versions {
-			if !canUpgrade(currentVersion, &version, remote) {
-				if err := s.versionClient.Delete(version.Namespace, version.Name, &metav1.DeleteOptions{}); err != nil {
-					if apierrors.IsNotFound(err) {
-						continue // likely object has been removed so we can continue
-					}
-					return err
-				}
-			} else {
-				remainingVersions = append(remainingVersions, version)
+	for _, version := range versionList.Items {
+		if version.Labels[versionSourceLabel] == versionSourceUpgradeChecker && versionFlavor(&version) != clusterFlavor(flavor) {
+			if err := s.deleteVersion(&version); err != nil {
+				return err
 			}
+			continue
+		}
+
+		remote, ok := remotes[version.Name]
+		if !ok || !isSyncedVersion(&version, remote, flavor) {
+			continue
+		}
+		if canUpgrade(currentVersion, &version, remote) {
+			if err := s.adoptVersion(&version); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := s.deleteVersion(&version); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func (s *versionSyncer) deleteVersion(version *harvesterv1.Version) error {
+	if err := s.versionClient.Delete(version.Namespace, version.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+// adoptVersion labels a Version inferred to be synced, so later syncs, such as
+// those after a flavor switch, don't depend on the inference.
+func (s *versionSyncer) adoptVersion(version *harvesterv1.Version) error {
+	if _, ok := version.Labels[versionSourceLabel]; ok {
+		return nil
+	}
+	toUpdate := version.DeepCopy()
+	if toUpdate.Labels == nil {
+		toUpdate.Labels = map[string]string{}
+	}
+	toUpdate.Labels[versionSourceLabel] = versionSourceUpgradeChecker
+	if _, err := s.versionClient.Update(toUpdate); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+// isSyncedVersion reports whether the Version object was created by the syncer.
+// Objects created by releases before the versionSource label carry no such label.
+// They are treated as synced when they match the remote version: same flavor as
+// the cluster and the release date the syncer copied from the upgrade checker.
+// The flavor check keeps a user-imported Version of the other flavor, such as a
+// Prime version.yaml imported to switch a community cluster, which shares the
+// remote version's name.
+func isSyncedVersion(version *harvesterv1.Version, remote Version, flavor string) bool {
+	if source, ok := version.Labels[versionSourceLabel]; ok {
+		return source == versionSourceUpgradeChecker
+	}
+	return versionFlavor(version) == clusterFlavor(flavor) && version.Spec.ReleaseDate == remote.ReleaseDate
+}
+
+// versionFlavor returns the flavor of the ISO a Version points to. Versions from
+// releases before the flavor label are community.
+func versionFlavor(version *harvesterv1.Version) string {
+	return clusterFlavor(version.Labels[util.LabelServerFlavor])
+}
+
+// clusterFlavor normalizes a server flavor; anything but Prime is community, as in
+// filterVersionsByFlavor.
+func clusterFlavor(flavor string) string {
+	if flavor == settings.ServerFlavorPrime {
+		return settings.ServerFlavorPrime
+	}
+	return settings.ServerFlavorCommunity
 }
 
 func (s *versionSyncer) getNewVersion(v Version) (*harvesterv1.Version, error) {
@@ -269,6 +343,10 @@ func (s *versionSyncer) getNewVersion(v Version) (*harvesterv1.Version, error) {
 	}
 
 	newVersion.Namespace = s.namespace
+	if newVersion.Labels == nil {
+		newVersion.Labels = map[string]string{}
+	}
+	newVersion.Labels[versionSourceLabel] = versionSourceUpgradeChecker
 	newVersion.Spec.ReleaseDate = v.ReleaseDate
 	newVersion.Spec.MinUpgradableVersion = v.MinUpgradableVersion
 	newVersion.Spec.Tags = v.Tags
