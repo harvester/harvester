@@ -698,6 +698,16 @@ func TestCheckImageSize(t *testing.T) {
 		},
 	}
 
+	nonAlignedImage := &harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "non-aligned-image",
+			Namespace: "default",
+		},
+		Status: harvesterv1.VirtualMachineImageStatus{
+			VirtualSize: 2252 * 1024 * 1024, // 2252Mi
+		},
+	}
+
 	tests := []struct {
 		name          string
 		pvc           *corev1.PersistentVolumeClaim
@@ -763,6 +773,26 @@ func TestCheckImageSize(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "golden image volume matching non-GiB-aligned virtual size is allowed",
+			pvc: &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "non-aligned-image",
+					Namespace: "default",
+					Annotations: map[string]string{
+						util.AnnotationGoldenImage: "true",
+					},
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("2252Mi"),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
 			name: "golden image volume smaller than image virtual size is rejected",
 			pvc: &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
@@ -807,7 +837,7 @@ func TestCheckImageSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset(image, goldenImage)
+			clientset := fake.NewSimpleClientset(image, goldenImage, nonAlignedImage)
 			validator := &pvcValidator{
 				imageCache: fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 			}

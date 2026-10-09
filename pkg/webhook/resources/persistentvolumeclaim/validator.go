@@ -179,11 +179,7 @@ func (v *pvcValidator) checkImageSize(pvc *corev1.PersistentVolumeClaim) error {
 		return nil
 	}
 
-	minSize, err := util.GetImageDiskSizeQuantity(image)
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to calculate the minimum size for image %q: %v", util.GetNamespacedName(image), err))
-	}
-
+	minSize := util.GetImageMinimumSizeQuantity(image)
 	pvcSize := pvc.Spec.Resources.Requests.Storage()
 	if pvcSize.Cmp(*minSize) < 0 {
 		message := fmt.Sprintf("volume %q size (%s) must be at least %s to match the virtual size of image %q",
