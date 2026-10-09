@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -302,6 +302,43 @@ func (h *Handler) setNadAnnotations(setting *harvesterv1.Setting, newNad string)
 	return setting
 }
 
+// rwxReservedExcludes returns the RWX hostIPRange and vipRange a new NAD for the setting
+// must exclude, so that it never hands them out before the rwx-network controller
+// reserves them.
+func (h *Handler) rwxReservedExcludes(setting *harvesterv1.Setting) ([]string, error) {
+	rwxValue := setting.EffectiveValue()
+	switch setting.Name {
+	case settings.RWXNetworkSettingName:
+	case settings.StorageNetworkName:
+		rwxSetting, err := h.settingsCache.Get(settings.RWXNetworkSettingName)
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		} else if err != nil {
+			return nil, err
+		}
+		rwxValue = rwxSetting.EffectiveValue()
+	default:
+		return nil, nil
+	}
+	return rwxReservedExcludes(setting.Name, rwxValue)
+}
+
+func rwxReservedExcludes(settingName, rwxValue string) ([]string, error) {
+	rwxConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](rwxValue)
+	if err != nil {
+		return nil, err
+	}
+	if rwxConfig.HostIPRange == "" || rwxConfig.VIPRange == "" {
+		return nil, nil
+	}
+	// The ranges belong to the storage network NAD in share mode, and to the dedicated
+	// RWX NAD otherwise.
+	if rwxConfig.ShareStorageNetwork != (settingName == settings.StorageNetworkName) {
+		return nil, nil
+	}
+	return []string{rwxConfig.HostIPRange, rwxConfig.VIPRange}, nil
+}
+
 // getNetworkConfig returns the network.Config to use for NAD creation.
 // For the rwx-network composite setting, it extracts the inner Network field.
 func (h *Handler) getNetworkConfig(setting *harvesterv1.Setting) (network.Config, error) {
@@ -327,6 +364,11 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	if err != nil {
 		return nil, err
 	}
+	reserved, err := h.rwxReservedExcludes(setting)
+	if err != nil {
+		return nil, err
+	}
+	config.Exclude = append(slices.Clone(config.Exclude), reserved...)
 	bridgeConfig := network.CreateBridgeConfig(config)
 
 	nadConfig, err := json.Marshal(bridgeConfig)
@@ -348,6 +390,13 @@ func (h *Handler) createNad(setting *harvesterv1.Setting) (*nadv1.NetworkAttachm
 	}
 	nad.Annotations = map[string]string{
 		keys.nadAnno: "true",
+	}
+	if len(reserved) > 0 {
+		reservedJSON, err := json.Marshal(reserved)
+		if err != nil {
+			return nil, err
+		}
+		nad.Annotations[util.RWXManagedExcludeAnnotation] = string(reservedJSON)
 	}
 
 	nad.Labels = map[string]string{
@@ -492,20 +541,6 @@ func (h *Handler) removeOldNad(setting *harvesterv1.Setting) error {
 	return nil
 }
 
-// poolNameFromCIDR derives the Whereabouts IPPool Kubernetes object name from a
-// CIDR string. The name is the masked network address with the prefix length
-// appended via a dash. Colons in IPv6 addresses are replaced with dashes so the
-// result is a valid Kubernetes object name (e.g. "fd00::/64" -> "fd00---64").
-func poolNameFromCIDR(cidr string) (string, error) {
-	_, network, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return "", fmt.Errorf("invalid CIDR %q: %w", cidr, err)
-	}
-	parts := strings.SplitN(network.String(), "/", 2)
-	addr := strings.ReplaceAll(parts[0], ":", "-")
-	return addr + "-" + parts[1], nil
-}
-
 func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) error {
 	if setting.Value == "" {
 		return nil
@@ -527,7 +562,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 		return fmt.Errorf("parsing value error %v", err)
 	}
 
-	ippoolName, err := poolNameFromCIDR(config.Range)
+	ippoolName, err := network.WhereaboutsIPPoolName(config.Range)
 	if err != nil {
 		return fmt.Errorf("deriving IPv4 IPPool name: %w", err)
 	}
@@ -540,7 +575,7 @@ func (h *Handler) validateIPAddressesAllocations(setting *harvesterv1.Setting) e
 	allocated := len(ippool.Spec.Allocations)
 
 	if config.RangeV6 != "" {
-		v6PoolName, err := poolNameFromCIDR(config.RangeV6)
+		v6PoolName, err := network.WhereaboutsIPPoolName(config.RangeV6)
 		if err != nil {
 			return fmt.Errorf("deriving IPv6 IPPool name: %w", err)
 		}

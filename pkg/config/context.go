@@ -39,6 +39,7 @@ import (
 	loggingv1 "github.com/harvester/harvester/pkg/generated/controllers/logging.banzaicloud.io"
 	longhornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	monitoringv1 "github.com/harvester/harvester/pkg/generated/controllers/monitoring.coreos.com"
+	harvnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io"
 	"github.com/harvester/harvester/pkg/generated/controllers/networking.k8s.io"
 	snapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
 	ctlharvstoragev1 "github.com/harvester/harvester/pkg/generated/controllers/storage.k8s.io"
@@ -105,6 +106,7 @@ type Management struct {
 	DiscoveryFactory          *ctldiscoveryv1.Factory
 	CniFactory                *cniv1.Factory
 	WhereaboutsCNIFactory     *whereaboutcniv1.Factory
+	HarvesterNetworkFactory   *harvnetworkv1.Factory
 	AppsFactory               *appsv1.Factory
 	BatchFactory              *batchv1.Factory
 	RbacFactory               *rbacv1.Factory
@@ -343,6 +345,13 @@ func setupManagement(ctx context.Context, restConfig *rest.Config, opts *generic
 	}
 	management.WhereaboutsCNIFactory = whereaboutscni
 	management.starters = append(management.starters, whereaboutscni)
+
+	harvesterNetwork, err := harvnetworkv1.NewFactoryFromConfigWithOptions(restConfig, (*harvnetworkv1.FactoryOptions)(opts))
+	if err != nil {
+		return nil, err
+	}
+	management.HarvesterNetworkFactory = harvesterNetwork
+	management.starters = append(management.starters, harvesterNetwork)
 
 	apps, err := appsv1.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {

@@ -1,6 +1,6 @@
 module github.com/harvester/harvester
 
-go 1.26.0
+go 1.26.4
 
 replace (
 	github.com/cilium/ebpf => github.com/cilium/ebpf v0.7.0
@@ -10,7 +10,7 @@ replace (
 	github.com/docker/docker => github.com/docker/docker v25.0.6+incompatible // oras dep requires a replace is set
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/google/gnostic-models => github.com/google/gnostic-models v0.7.1
-	github.com/harvester/harvester-network-controller => github.com/harvester/harvester-network-controller v1.6.0-rc3
+	github.com/harvester/harvester-network-controller => github.com/harvester/harvester-network-controller v1.9.1-rc2
 	github.com/nsf/termbox-go => github.com/Harvester/termbox-go v1.1.1-0.20210318083914-8ab92204a400
 	github.com/opencontainers/runc => github.com/opencontainers/runc v1.1.14
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
@@ -60,7 +60,7 @@ replace (
 require (
 	github.com/cisco-open/operator-tools v0.37.0
 	github.com/containernetworking/cni v1.3.0
-	github.com/deckarep/golang-set/v2 v2.6.0
+	github.com/deckarep/golang-set/v2 v2.9.0
 	github.com/dell/goiscsi v1.9.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.13.0
@@ -69,7 +69,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/guonaihong/gout v0.1.3
 	github.com/harvester/go-common v0.0.0-20260119194217-0f17176ce67e
-	github.com/harvester/harvester-network-controller v1.6.0-rc3
+	github.com/harvester/harvester-network-controller v1.9.1-rc2
 	github.com/harvester/node-manager v1.7.0-rc1.0.20260616060042-1afd5765b4b9
 	github.com/iancoleman/strcase v0.3.0
 	github.com/imdario/mergo v0.3.16
@@ -252,6 +252,7 @@ require (
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
+	github.com/harvester/webhook v0.1.5 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
@@ -340,7 +341,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/twpayne/go-vfs/v4 v4.3.0 // indirect
-	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
+	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
@@ -352,6 +353,7 @@ require (
 	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.14 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.4 // indirect
+	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect

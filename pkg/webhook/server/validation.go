@@ -197,6 +197,8 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.LonghornFactory.Longhorn().V1beta2().Node().Cache(),
 			clients.Core.Secret().Cache(),
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
+			clients.HarvesterNetworkFactory.Network().V1beta1().HostNetworkConfig().Cache(),
+			clients.WhereaboutsFactory.Whereabouts().V1alpha1().IPPool().Cache(),
 		),
 		templateversion.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineTemplate().Cache(),

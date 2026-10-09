@@ -24,6 +24,7 @@ import (
 	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io"
 	ctlnetwork "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io"
+	ctlwhereaboutsv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io"
 )
 
 type Clients struct {
@@ -45,6 +46,7 @@ type Clients struct {
 	LoggingFactory           *ctlloggingv1.Factory
 	AppsFactory              *ctlappsv1.Factory
 	KubeovnFactory           *ctlkubeovnv1.Factory
+	WhereaboutsFactory       *ctlwhereaboutsv1.Factory
 }
 
 func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool) (*Clients, error) {
@@ -170,6 +172,11 @@ func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool
 		return nil, err
 	}
 
+	whereaboutsFactory, err := ctlwhereaboutsv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	var kubeovnFactory *ctlkubeovnv1.Factory
 	if crdExists {
 		kubeovnFactory, err = ctlkubeovnv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
@@ -199,5 +206,6 @@ func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool
 		LoggingFactory:           loggingFactory,
 		AppsFactory:              appsFactory,
 		KubeovnFactory:           kubeovnFactory,
+		WhereaboutsFactory:       whereaboutsFactory,
 	}, nil
 }

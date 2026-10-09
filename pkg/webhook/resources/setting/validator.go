@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -49,6 +51,7 @@ import (
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/containerd"
+	"github.com/harvester/harvester/pkg/controller/master/rwxnetwork"
 	settingctl "github.com/harvester/harvester/pkg/controller/master/setting"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	ctlv1beta1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -57,6 +60,7 @@ import (
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	ctlwhereaboutsv1 "github.com/harvester/harvester/pkg/generated/controllers/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -163,6 +167,8 @@ func NewValidator(
 	lhNodeCache ctllhv1b2.NodeCache,
 	secretCache ctlcorev1.SecretCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
+	hncCache ctlnetworkv1.HostNetworkConfigCache,
+	ipPoolCache ctlwhereaboutsv1.IPPoolCache,
 ) types.Validator {
 	validator := &settingValidator{
 		settingCache:       settingCache,
@@ -182,6 +188,8 @@ func NewValidator(
 		lhNodeCache:        lhNodeCache,
 		secretCache:        secretCache,
 		nadCache:           nadCache,
+		hncCache:           hncCache,
+		ipPoolCache:        ipPoolCache,
 		vmbr:               common.NewVMBackupReader(),
 	}
 
@@ -246,6 +254,8 @@ type settingValidator struct {
 	lhNodeCache        ctllhv1b2.NodeCache
 	secretCache        ctlcorev1.SecretCache
 	nadCache           ctlcniv1.NetworkAttachmentDefinitionCache
+	hncCache           ctlnetworkv1.HostNetworkConfigCache
+	ipPoolCache        ctlwhereaboutsv1.IPPoolCache
 	vmbr               common.VMBackupReader
 }
 
@@ -1316,6 +1326,10 @@ func (v *settingValidator) validateUpdateStorageNetwork(_ *types.Request, oldSet
 		))
 	}
 
+	if err := v.checkStorageNetworkNotLockedByRWX(oldSetting, newSetting); err != nil {
+		return err
+	}
+
 	var (
 		config *networkutil.Config
 		err    error
@@ -1394,6 +1408,10 @@ func (v *settingValidator) validateUpdateRWXNetwork(request *types.Request, oldS
 	}
 
 	if err := v.checkRWXNotInProgress(oldSetting, newSetting); err != nil {
+		return err
+	}
+
+	if err := checkRWXNetworkNotLocked(oldSetting, newSetting); err != nil {
 		return err
 	}
 
@@ -1477,7 +1495,7 @@ func (v *settingValidator) validateRWXNetworkHelper(setting *v1beta1.Setting) er
 	}
 
 	if rwxConfig.Network == nil {
-		return nil
+		return v.checkRWXReservedRanges(&rwxConfig)
 	}
 
 	networkJSON, err := json.Marshal(rwxConfig.Network)
@@ -1506,7 +1524,7 @@ func (v *settingValidator) validateRWXNetworkHelper(setting *v1beta1.Setting) er
 		return werror.NewInvalidError(err.Error(), settings.RWXNetworkSettingName)
 	}
 
-	return nil
+	return v.checkRWXReservedRanges(&rwxConfig)
 }
 
 func (v *settingValidator) validateDeleteRWXNetwork(_ *v1beta1.Setting) error {
@@ -2079,6 +2097,14 @@ func (v *settingValidator) checkNetworkRangeValidV6(config *networkutil.Config) 
 }
 
 func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Config) error {
+	isShared, err := util.IsShareStorageNetwork(v.settingCache)
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	return v.checkStorageNetworkCapacity(config, isShared)
+}
+
+func (v *settingValidator) checkStorageNetworkCapacity(config *networkutil.Config, carriesRWX bool) error {
 	lhnodes, err := v.lhNodeCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(err.Error())
@@ -2094,11 +2120,7 @@ func (v *settingValidator) checkStorageNetworkRangeValid(config *networkutil.Con
 
 	// In shared mode the storage network also carries RWX traffic, so add
 	// 1 IP per non-witness node for the longhorn-csi-plugin DaemonSet.
-	isShared, err := util.IsShareStorageNetwork(v.settingCache)
-	if err != nil {
-		return werror.NewInternalError(err.Error())
-	}
-	if isShared {
+	if carriesRWX {
 		nonWitnessCount, err := v.countNonWitnessNodes()
 		if err != nil {
 			return err
@@ -2837,4 +2859,215 @@ func validateTraefikDefaultTLSOptions(setting *v1beta1.Setting) error {
 
 func validateTraefikDefaultTLSOptionsUpdate(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateTraefikDefaultTLSOptions(newSetting)
+}
+
+// checkRWXReservedRanges validates hostIPRange and vipRange against the network that
+// carries RWX traffic, which is the storage network in share mode.
+func (v *settingValidator) checkRWXReservedRanges(rwxConfig *settings.RWXNetworkConfig) error {
+	if rwxConfig.HostIPRange == "" && rwxConfig.VIPRange == "" {
+		return nil
+	}
+	if rwxConfig.HostIPRange == "" || rwxConfig.VIPRange == "" {
+		return werror.NewInvalidError("hostIPRange and vipRange must be set together", settings.KeywordValue)
+	}
+
+	source := rwxConfig.Network
+	if rwxConfig.ShareStorageNetwork {
+		storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
+		if err != nil {
+			return werror.NewInternalError(err.Error())
+		}
+		source = storageNetworkConfig
+	}
+	if source == nil || source.Range == "" {
+		return werror.NewInvalidError("hostIPRange and vipRange require a dedicated network or share-storage-network", settings.KeywordValue)
+	}
+
+	if err := v.validateRWXReservedRanges(source, rwxConfig.HostIPRange, rwxConfig.VIPRange); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+
+	reserved := withExcludes(source, rwxConfig.HostIPRange, rwxConfig.VIPRange)
+	var err error
+	if rwxConfig.ShareStorageNetwork {
+		err = v.checkStorageNetworkCapacity(reserved, true)
+	} else {
+		err = v.checkRWXNetworkRangeValid(reserved)
+	}
+	if err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+// checkStorageNetworkNotLockedByRWX rejects storage network changes while rwx-network
+// shares it with hostIPRange and vipRange set, as the RWX host network is built on it.
+func (v *settingValidator) checkStorageNetworkNotLockedByRWX(oldSetting, newSetting *v1beta1.Setting) error {
+	rwxSetting, err := v.settingCache.Get(settings.RWXNetworkSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return werror.NewInternalError(err.Error())
+	}
+	rwxConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](rwxSetting.EffectiveValue())
+	if err != nil {
+		return werror.NewInternalError(err.Error())
+	}
+	if !rwxConfig.ShareStorageNetwork || !rwxReservedRangesSet(rwxConfig) {
+		return nil
+	}
+
+	oldConfig, oldErr := settings.DecodeConfig[networkutil.Config](oldSetting.EffectiveValue())
+	newConfig, newErr := settings.DecodeConfig[networkutil.Config](newSetting.EffectiveValue())
+	if oldErr == nil && newErr == nil && reflect.DeepEqual(oldConfig, newConfig) {
+		return nil
+	}
+	return werror.NewInvalidError(fmt.Sprintf("%s cannot be changed while %s shares it with hostIPRange and vipRange set, remove them from %s first",
+		settings.StorageNetworkName, settings.RWXNetworkSettingName, settings.RWXNetworkSettingName), settings.KeywordValue)
+}
+
+// checkRWXNetworkNotLocked rejects rwx-network changes while hostIPRange and vipRange are
+// set, other than removing them, so the RWX host network is never rebuilt in place.
+func checkRWXNetworkNotLocked(oldSetting, newSetting *v1beta1.Setting) error {
+	oldConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](oldSetting.EffectiveValue())
+	if err != nil || !rwxReservedRangesSet(oldConfig) {
+		return nil
+	}
+	newConfig, err := settings.DecodeConfig[settings.RWXNetworkConfig](newSetting.EffectiveValue())
+	if err != nil || !rwxReservedRangesSet(newConfig) || reflect.DeepEqual(oldConfig, newConfig) {
+		return nil
+	}
+	return werror.NewInvalidError(fmt.Sprintf("%s cannot be changed while hostIPRange and vipRange are set, remove them first",
+		settings.RWXNetworkSettingName), settings.KeywordValue)
+}
+
+func rwxReservedRangesSet(rwxConfig *settings.RWXNetworkConfig) bool {
+	return rwxConfig.HostIPRange != "" || rwxConfig.VIPRange != ""
+}
+
+func (v *settingValidator) validateRWXReservedRanges(config *networkutil.Config, hostIPRange, vipRange string) error {
+	subnet, err := netip.ParsePrefix(config.Range)
+	if err != nil {
+		return fmt.Errorf("invalid range %q: %w", config.Range, err)
+	}
+	subnet = subnet.Masked()
+	broadcast := lastAddr(subnet)
+
+	parse := func(name, value string) (netip.Prefix, error) {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return netip.Prefix{}, fmt.Errorf("invalid %s %q: %w", name, value, err)
+		}
+		if !prefix.Addr().Is4() {
+			return netip.Prefix{}, fmt.Errorf("%s %s must be an IPv4 CIDR", name, value)
+		}
+		if prefix != prefix.Masked() {
+			return netip.Prefix{}, fmt.Errorf("%s should be subnet CIDR %v", name, prefix.Masked())
+		}
+		if prefix.Bits() < subnet.Bits() || !subnet.Contains(prefix.Addr()) {
+			return netip.Prefix{}, fmt.Errorf("%s %s is not within range %s", name, value, config.Range)
+		}
+		if prefix.Contains(subnet.Addr()) || prefix.Contains(broadcast) {
+			return netip.Prefix{}, fmt.Errorf("%s %s must not include the network or broadcast address of %s", name, value, config.Range)
+		}
+		for _, exclude := range config.Exclude {
+			excludePrefix, err := netip.ParsePrefix(exclude)
+			if err == nil && prefix.Overlaps(excludePrefix) {
+				return netip.Prefix{}, fmt.Errorf("%s %s overlaps exclude entry %s", name, value, exclude)
+			}
+		}
+		return prefix, nil
+	}
+
+	hostPrefix, err := parse("hostIPRange", hostIPRange)
+	if err != nil {
+		return err
+	}
+	vipPrefix, err := parse("vipRange", vipRange)
+	if err != nil {
+		return err
+	}
+	if hostPrefix.Overlaps(vipPrefix) {
+		return fmt.Errorf("hostIPRange %s overlaps vipRange %s", hostIPRange, vipRange)
+	}
+
+	// The hosts join the network through a VLAN sub-interface, which cannot carry untagged traffic.
+	if config.Vlan < 2 {
+		return fmt.Errorf("hostIPRange and vipRange require a tagged VLAN (2-4094), got %d", config.Vlan)
+	}
+	if err := utils.IsHostNetworkIntfNameValid(config.ClusterNetwork, config.Vlan); err != nil {
+		return err
+	}
+
+	nonWitnessCount, err := v.countNonWitnessNodes()
+	if err != nil {
+		return err
+	}
+	if hostCount := 1 << (32 - hostPrefix.Bits()); hostCount < nonWitnessCount {
+		return fmt.Errorf("hostIPRange %s has %d addresses, fewer than the %d non-witness nodes", hostIPRange, hostCount, nonWitnessCount)
+	}
+
+	if err := v.checkForeignHostNetworkConfig(config.ClusterNetwork, config.Vlan); err != nil {
+		return err
+	}
+
+	return v.checkRangesNotAllocated(config.Range, hostPrefix, vipPrefix)
+}
+
+func (v *settingValidator) checkForeignHostNetworkConfig(clusterNetwork string, vlan uint16) error {
+	hncs, err := v.hncCache.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, hnc := range hncs {
+		if hnc.DeletionTimestamp != nil || hnc.Labels[util.RWXNetworkManagedLabel] == "true" {
+			continue
+		}
+		if hnc.Name == rwxnetwork.HostNetworkConfigName {
+			return fmt.Errorf("HostNetworkConfig %s is reserved for %s but is not managed by Harvester", hnc.Name, settings.RWXNetworkSettingName)
+		}
+		if hnc.Spec.ClusterNetwork == clusterNetwork && hnc.Spec.VlanID == vlan {
+			return fmt.Errorf("HostNetworkConfig %s already configures cluster network %s with VLAN %d", hnc.Name, clusterNetwork, vlan)
+		}
+	}
+	return nil
+}
+
+func (v *settingValidator) checkRangesNotAllocated(subnet string, prefixes ...netip.Prefix) error {
+	poolName, err := networkutil.WhereaboutsIPPoolName(subnet)
+	if err != nil {
+		return err
+	}
+	pool, err := v.ipPoolCache.Get(util.KubeSystemNamespace, poolName)
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	allocations, err := networkutil.IPPoolAllocations(pool)
+	if err != nil {
+		return err
+	}
+	for addr := range allocations {
+		for _, prefix := range prefixes {
+			if prefix.Contains(addr) {
+				return fmt.Errorf("address %s in %s is already allocated by Whereabouts", addr, prefix)
+			}
+		}
+	}
+	return nil
+}
+
+func withExcludes(config *networkutil.Config, excludes ...string) *networkutil.Config {
+	c := *config
+	c.Exclude = append(slices.Clone(config.Exclude), excludes...)
+	return &c
+}
+
+func lastAddr(prefix netip.Prefix) netip.Addr {
+	b := prefix.Addr().As4()
+	binary.BigEndian.PutUint32(b[:], binary.BigEndian.Uint32(b[:])|(uint32(1)<<(32-prefix.Bits())-1))
+	return netip.AddrFrom4(b)
 }

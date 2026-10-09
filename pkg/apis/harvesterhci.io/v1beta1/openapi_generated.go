@@ -39,6 +39,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkList":                    schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkList(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.ClusterNetworkStatus":                  schema_pkg_apis_networkharvesterhciio_v1beta1_ClusterNetworkStatus(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition":                             schema_pkg_apis_networkharvesterhciio_v1beta1_Condition(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfig":                     schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfig(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigList":                 schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigList(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigNodeStatus":           schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigNodeStatus(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigSpec":                 schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigSpec(ref),
+		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigStatus":               schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigStatus(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkAttrs":                             schema_pkg_apis_networkharvesterhciio_v1beta1_LinkAttrs(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitor":                           schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitor(ref),
 		"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.LinkMonitorList":                       schema_pkg_apis_networkharvesterhciio_v1beta1_LinkMonitorList(ref),
@@ -1100,6 +1105,272 @@ func schema_pkg_apis_networkharvesterhciio_v1beta1_Condition(ref common.Referenc
 				Required: []string{"type", "status"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigSpec", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HostNetworkConfigList is a list of HostNetworkConfig resources",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfig"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfig", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigNodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"clusterNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Description: "cluster network",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"vlanID": {
+						SchemaProps: spec.SchemaProps{
+							Description: "vlan id",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "mode static or dhcp",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Node-specific conditions",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"clusterNetwork", "vlanID", "mode"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Optional: select target nodes by labels If empty, applies to all nodes",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"clusterNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Required, non-empty",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"underlay": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"vlanID": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Required, must be 1-4094",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Required, non-empty, only 'static' or 'dhcp'",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"ips": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Optional map, validated if mode=static",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"clusterNetwork", "vlanID", "mode"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_pkg_apis_networkharvesterhciio_v1beta1_HostNetworkConfigStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "global observed state",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition"),
+									},
+								},
+							},
+						},
+					},
+					"nodeStatus": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Per-node observed state key = node name",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigNodeStatus"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.Condition", "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1.HostNetworkConfigNodeStatus"},
 	}
 }
 
