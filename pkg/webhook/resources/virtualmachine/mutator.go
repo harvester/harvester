@@ -80,7 +80,13 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 
 	logrus.Debugf("create VM %s/%s", vm.Namespace, vm.Name)
 
-	patchOps, err := m.patchResourceOvercommit(vm)
+	// Forklift-created VMs carry no resource limits. Fill them in before the
+	// overcommit patch so requests are derived from them; otherwise KubeVirt
+	// defaults requests to the limits and the VM reserves a full core per vCPU.
+	patchOps := m.patchMissingForkliftLimits(vm, nil)
+
+	overcommitOps, err := m.patchResourceOvercommit(vm)
+	patchOps = append(patchOps, overcommitOps...)
 	if err != nil {
 		return patchOps, err
 	}
@@ -111,7 +117,6 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 		return nil, err
 	}
 
-	patchOps = m.patchMissingForkliftLimits(vm, patchOps)
 	return patchOps, err
 }
 
@@ -881,6 +886,7 @@ func (m *vmMutator) patchMissingForkliftLimits(vm *kubevirtv1.VirtualMachine, pa
 		logrus.Errorf("error generating resource limit patch for vm %s/%s: %v", vm.Namespace, vm.Name, err)
 		return patchOps
 	}
+	vm.Spec.Template.Spec.Domain.Resources.Limits = limits
 	return append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/limits", "value": %s}`, string(bytes)))
 }
 
