@@ -174,6 +174,11 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -190,26 +195,14 @@ jobs:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ env.DOCKER_PASSWORD }}
 
-    # rancher/harvester image
-    - name: docker-manifest-harvester
-      run: |
-        docker buildx imagetools create -t rancher/harvester:${{ inputs.image_tag }} \
-          rancher/harvester:${{ inputs.image_tag }}-amd64 \
-          rancher/harvester:${{ inputs.image_tag }}-arm64
-
-    # rancher/harvester-webhook image
-    - name: docker-manifest-harvester-webhook
-      run: |
-        docker buildx imagetools create -t rancher/harvester-webhook:${{ inputs.image_tag }} \
-          rancher/harvester-webhook:${{ inputs.image_tag }}-amd64 \
-          rancher/harvester-webhook:${{ inputs.image_tag }}-arm64
-        
-    # rancher/harvester-upgrade image
-    - name: docker-manifest-harvester-upgrade
-      run: |
-        docker buildx imagetools create -t rancher/harvester-upgrade:${{ inputs.image_tag }} \
-          rancher/harvester-upgrade:${{ inputs.image_tag }}-amd64 \
-          rancher/harvester-upgrade:${{ inputs.image_tag }}-arm64
+    - name: Publish manifests
+      uses: ./.github/actions/publish-manifests
+      with:
+        images: harvester harvester-webhook harvester-upgrade
+        registry: docker.io
+        repository: rancher
+        tag: ${{ inputs.image_tag }}
+        architectures: '["x64", "arm64"]'
 
   build-iso:
     name: Build ISO
@@ -325,6 +318,11 @@ jobs:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
     steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -341,9 +339,11 @@ jobs:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ env.DOCKER_PASSWORD }}
 
-    # rancher/harvester-cluster-repo image
-    - name: docker-manifest-harvester-cluster-repo
-      run: |
-        docker buildx imagetools create -t rancher/harvester-cluster-repo:${{ inputs.image_tag }} \
-          rancher/harvester-cluster-repo:${{ inputs.image_tag }}-amd64 \
-          rancher/harvester-cluster-repo:${{ inputs.image_tag }}-arm64
+    - name: Publish manifest
+      uses: ./.github/actions/publish-manifests
+      with:
+        images: harvester-cluster-repo
+        registry: docker.io
+        repository: rancher
+        tag: ${{ inputs.image_tag }}
+        architectures: '["x64", "arm64"]'

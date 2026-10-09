@@ -13,11 +13,16 @@ NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY="rancher/harvester-nvidia-driver-toolkit"
 NVIDIA_DRIVER_TOOLKIT_IMAGE_TAG="sle-micro-head"
 RANCHER_LOGGING_CHART_VERSION="109.0.0+up4.10.0-rancher.23"
 RANCHER_MONITORING_CHART_VERSION="109.0.3+up80.9.1-rancher.14"
+# Community builds leave the chart's own systemDefaultRegistry default in
+# place (empty). Prime builds have prepare-addons-prime fill this in with the
+# same registry patch_addon_chart_registry writes into the chart tarball, so
+# the addon manifest's valuesContent and the chart default stay in lockstep.
+MONITORING_REGISTRY=""
 HARVESTER_EVENTROUTER_IMAGE_REPOSITORY="rancher/harvester-eventrouter"
 HARVESTER_EVENTROUTER_IMAGE_TAG="master-head"
 KUBEOVN_OPERATOR_CHART_VERSION="1.16.2"
 KUBEOVN_OPERATOR_IMAGE_REPOSITORY="rancher/harvester-kubeovn-operator"
-KUBEOVN_OPERATOR_IMAGE_TAG="v1.16.2"
+KUBEOVN_OPERATOR_IMAGE_TAG="main-head"
 DESCHEDULER_CHART_VERSION="0.36.0"
 DESCHEDULER_IMAGE_REPOSITORY="registry.k8s.io/descheduler/descheduler"
 DESCHEDULER_IMAGE_TAG="v0.36.0"

@@ -1,0 +1,55 @@
+name: Publish manifests
+description: Combine per-architecture images into multi-arch manifests, optionally signing each index
+
+inputs:
+  images:
+    description: Space-separated image names, without registry or tag
+    required: true
+  registry:
+    description: Registry hostname
+    required: true
+  repository:
+    description: Registry repository or organization
+    required: true
+  tag:
+    description: Manifest tag; per-architecture images are tagged <tag>-<arch>
+    required: true
+  architectures:
+    description: Runner architectures as a JSON array, e.g. ["x64", "arm64"]
+    required: true
+  sign:
+    description: Sign each manifest with keyless Cosign
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Cosign
+      if: inputs.sign == 'true'
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    - name: Create manifests
+      shell: bash
+      env:
+        IMAGES: ${{ inputs.images }}
+        REGISTRY: ${{ inputs.registry }}
+        REPOSITORY: ${{ inputs.repository }}
+        TAG: ${{ inputs.tag }}
+        ARCHITECTURES: ${{ inputs.architectures }}
+        SIGN: ${{ inputs.sign }}
+      run: |
+        for image in $IMAGES; do
+          target="$REGISTRY/$REPOSITORY/$image"
+          sources=()
+          for arch in $(jq -r '.[] | sub("^x64$"; "amd64")' <<< "$ARCHITECTURES"); do
+            sources+=("$target:$TAG-$arch")
+          done
+          # Per-architecture SBOM and provenance attestations are carried over.
+          docker buildx imagetools create --tag "$target:$TAG" "${sources[@]}"
+          if [[ "$SIGN" == true ]]; then
+            # Read the digest back instead of using --metadata-file, which older
+            # runner-provided buildx versions lack.
+            digest=$(docker buildx imagetools inspect "$target:$TAG" --format '{{json .Manifest}}' | jq -er .digest)
+            cosign sign --oidc-provider=github-actions --yes "$target@$digest"
+          fi
+        done
