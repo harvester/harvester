@@ -13,7 +13,8 @@ import (
 
 // Kubernetes resource API verbs for use with CheckObjectAccess.
 const (
-	VerbGet = "get"
+	VerbGet    = "get"
+	VerbUpdate = "update"
 )
 
 // GVRs used with CheckObjectAccess.
