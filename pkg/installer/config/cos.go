@@ -958,7 +958,7 @@ func disableLonghornMultipathing(stage *yipSchema.Stage) {
 	directives := base64.StdEncoding.EncodeToString(ignoreLonghorn)
 	stage.Directories = append(stage.Directories, yipSchema.Directory{
 		Path:        "/etc/multipath/conf.d",
-		Permissions: 0644,
+		Permissions: 0755,
 		Owner:       0,
 		Group:       0,
 	})
