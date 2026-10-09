@@ -63,6 +63,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	resourceQuotas := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota()
 	jobs := scaled.Management.BatchFactory.Batch().V1().Job()
+	namespaces := scaled.CoreFactory.Core().V1().Namespace()
 
 	vmiOperator, err := common.GetVMIOperator(vmImages, vmImages.Cache(), storageClasses.Cache(), http.Client{})
 	if err != nil {
@@ -130,7 +131,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	}
 
 	vmStore := &vmStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
+		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, namespaces.Cache()),
 		vms:      scaled.VirtFactory.Kubevirt().V1().VirtualMachine(),
 		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
