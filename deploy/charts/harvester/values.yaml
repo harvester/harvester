@@ -99,6 +99,7 @@ kubevirt:
           - ExpandDisks
           - EnableVirtioFsConfigVolumes
           - HostDevices
+          - PersistentReservation
 
       vmRolloutStrategy: "LiveUpdate"
 
