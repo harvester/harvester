@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -855,6 +856,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionClient:      fakeclients.VersionClient(clientset.HarvesterhciV1beta1().Versions),
 			versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
 			vmClient:           fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
@@ -1368,6 +1370,76 @@ func TestRestoreKubevirtWorkloadUpdateMethodsInValues(t *testing.T) {
 			if tc.wantKeyPresent {
 				assert.Equal(t, tc.wantValue, got)
 			}
+		})
+	}
+}
+
+func TestDeleteUsedVersion(t *testing.T) {
+	newVersion := func(labels map[string]string) *harvesterv1.Version {
+		return &harvesterv1.Version{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "v1.9.1",
+				Namespace: util.HarvesterSystemNamespaceName,
+				Labels:    labels,
+			},
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		existing *harvesterv1.Version
+		spec     harvesterv1.UpgradeSpec
+		deleted  bool
+	}{
+		{
+			name:     "user-created Version is deleted",
+			existing: newVersion(map[string]string{util.LabelServerFlavor: settings.ServerFlavorPrime}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+			deleted:  true,
+		},
+		{
+			name:     "Version labeled by a user is deleted",
+			existing: newVersion(map[string]string{versionSourceLabel: "manual"}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+			deleted:  true,
+		},
+		{
+			name:     "synced Version is kept",
+			existing: newVersion(map[string]string{versionSourceLabel: versionSourceUpgradeChecker}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+		},
+		{
+			name:     "Version is kept on an upgrade by image",
+			existing: newVersion(nil),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1", Image: "harvester-system/image"},
+		},
+		{
+			name:     "missing Version is not an error",
+			existing: newVersion(nil),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.10.0"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(testCase.existing)
+			h := &upgradeHandler{
+				namespace:     util.HarvesterSystemNamespaceName,
+				versionClient: fakeclients.VersionClient(clientset.HarvesterhciV1beta1().Versions),
+				versionCache:  fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			}
+			upgrade := &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{Name: testUpgradeName, Namespace: util.HarvesterSystemNamespaceName},
+				Spec:       testCase.spec,
+			}
+
+			require.NoError(t, h.deleteUsedVersion(upgrade))
+			// Deleting again must be a no-op.
+			require.NoError(t, h.deleteUsedVersion(upgrade))
+
+			versions, err := clientset.HarvesterhciV1beta1().Versions(util.HarvesterSystemNamespaceName).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.deleted, len(versions.Items) == 0)
 		})
 	}
 }
