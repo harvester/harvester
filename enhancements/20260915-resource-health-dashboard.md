@@ -25,13 +25,13 @@ When a user-reported issue is vague, there is no single place to determine the r
 
 ## Introduction
 
-There are two architectural layers to this enhancement, each building on the previous:
+This enhancement introduces two important CRDs:
 
-**Layer 1 — ComponentHealth CRD**
+**ComponentHealth CRD**
 
 Each component runs one or more reconcile loops that evaluate its own health rules and write the results to the `ComponentHealth` CR(s) it owns (one per resource kind it checks, see [ComponentHealth](#componenthealth) below). This makes health status visible rather than discoverable only when someone happens to look.
 
-**Layer 2 — HealthSummary CRD**
+**HealthSummary CRD**
 
 A summary controller watches all `ComponentHealth` CRs and maintains a single `HealthSummary` CR, grouping CRs by their `health.harvesterhci.io/component` label so a component that owns several CRs still contributes one entry. The dashboard reads only the summary CR for the overview. When a user drills down into a component, the Harvester UI extension lists that component's `ComponentHealth` CRs by label selector and aggregates them client-side, since a component's detail is no longer guaranteed to be a single CR.
 
@@ -239,6 +239,10 @@ Each component decides its own check logic. There is no shared interface or abst
 `ComponentHealth` is not restricted to reporting "a resource is not supposed to do something." A component may also use it to surface arbitrary state it wants visible on the dashboard, even when that state is expected or benign — for example, `node.spec.unschedulable` being `true`, or the current phase of a `VirtualMachineBackup`. These are reported the same way as any other check, using `Severity: Info` (or `Warning`/`Error` if the component judges the state worth flagging), so no new mechanism is needed to support them. This keeps the framework useful as a general status/observability surface for a component, not just an anomaly detector.
 
 #### Component Health Controller
+
+The sequence below shows how `OnChange` enqueues are de-duplicated and processed by the workers (default `threadiness` is 10, so different keys run in parallel, while the same key is never run by two workers at the same time):
+
+![](20260915-resource-health-dashboard/image-04.png)
 
 Each component's health controller owns one `Handler`. The resource `OnChange` callbacks do not compute checks themselves; they only enqueue the key of the `ComponentHealth` CR that owns that resource kind. The actual check is done by a single `OnChange` handler registered on `ComponentHealth` itself, which dispatches by key to the matching `reconcileXxx()` function:
 
