@@ -11,9 +11,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -210,6 +212,46 @@ func Test_formatQuantityToGi(t *testing.T) {
 			q, err := resource.ParseQuantity(tc.args.qs)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, formatQuantityToGi(&q))
+		})
+	}
+}
+
+func Test_getExtraInfo(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-0"},
+		Status: corev1.NodeStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("4"),
+				corev1.ResourceMemory: resource.MustParse("8Gi"),
+			},
+		},
+	}
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: util.HarvesterSystemNamespaceName, UID: "cluster-uid"},
+	}
+
+	for _, flavor := range []string{settings.ServerFlavorCommunity, settings.ServerFlavorPrime} {
+		t.Run(flavor, func(t *testing.T) {
+			defaultFlavor := settings.ServerFlavor.Get()
+			require.NoError(t, settings.ServerFlavor.Set(flavor))
+			t.Cleanup(func() { _ = settings.ServerFlavor.Set(defaultFlavor) })
+
+			nodeClientset := fake.NewSimpleClientset(node)
+			namespaceClientset := k8sfake.NewClientset(namespace)
+			vs := versionSyncer{
+				nodeClient:      fakeclients.NodeClient(nodeClientset.CoreV1().Nodes),
+				namespaceClient: fakeclients.NamespaceClient(namespaceClientset.CoreV1().Namespaces),
+			}
+
+			extraInfo, err := vs.getExtraInfo()
+			require.NoError(t, err)
+			assert.Equal(t, map[string]string{
+				extraInfoCPUCount:     "4",
+				extraInfoMemorySize:   "8Gi",
+				extraInfoNodeCount:    "1",
+				extraInfoClusterUID:   "cluster-uid",
+				extraInfoServerFlavor: flavor,
+			}, extraInfo)
 		})
 	}
 }
