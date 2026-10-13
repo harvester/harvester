@@ -35,6 +35,9 @@ const (
 	extraInfoCPUCount   = "cpuCount"
 	extraInfoMemorySize = "memorySize"
 	extraInfoClusterUID = "clusterUID"
+	// extraInfoServerFlavor reports the cluster flavor so the upgrade checker
+	// can tell community and Prime clusters apart.
+	extraInfoServerFlavor = "serverFlavor"
 
 	versionTagCommunity = "community"
 	versionTagPrime     = "prime"
@@ -177,6 +180,7 @@ func (s *versionSyncer) getExtraInfo() (map[string]string, error) {
 	extraInfo[extraInfoMemorySize] = formatQuantityToGi(memory)
 	extraInfo[extraInfoNodeCount] = strconv.Itoa(len(nodes.Items))
 	extraInfo[extraInfoClusterUID] = string(sysNamespace.UID)
+	extraInfo[extraInfoServerFlavor] = settings.ServerFlavor.Get()
 	return extraInfo, nil
 }
 
