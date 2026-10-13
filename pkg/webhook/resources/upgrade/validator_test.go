@@ -13,6 +13,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -784,6 +785,87 @@ func TestUpgradeValidator_checkStaleHotplugVolumes(t *testing.T) {
 			} else {
 				assert.Nil(t, err, tc.name)
 			}
+		})
+	}
+}
+
+func TestUpgradeValidator_checkVersionFlavor(t *testing.T) {
+	newVersion := func(flavor string) *harvesterv1.Version {
+		version := &harvesterv1.Version{ObjectMeta: metav1.ObjectMeta{Name: "v1.10.0"}}
+		if flavor != "" {
+			version.Labels = map[string]string{util.LabelServerFlavor: flavor}
+		}
+		return version
+	}
+	newFlavorSetting := func(value, defaultValue string) *harvesterv1.Setting {
+		return &harvesterv1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.ServerFlavorSettingName},
+			Value:      value,
+			Default:    defaultValue,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		setting   *harvesterv1.Setting
+		version   *harvesterv1.Version
+		expectErr bool
+	}{
+		{
+			name:      "community Version on a Prime cluster is rejected",
+			setting:   newFlavorSetting(settings.ServerFlavorPrime, settings.ServerFlavorCommunity),
+			version:   newVersion(settings.ServerFlavorCommunity),
+			expectErr: true,
+		},
+		{
+			name:      "community Version on a cluster with Prime default is rejected",
+			setting:   newFlavorSetting("", settings.ServerFlavorPrime),
+			version:   newVersion(settings.ServerFlavorCommunity),
+			expectErr: true,
+		},
+		{
+			name:    "unlabeled Version on a Prime cluster is left to the controller",
+			setting: newFlavorSetting(settings.ServerFlavorPrime, settings.ServerFlavorCommunity),
+			version: newVersion(""),
+		},
+		{
+			name:    "Prime Version on a Prime cluster is allowed",
+			setting: newFlavorSetting(settings.ServerFlavorPrime, settings.ServerFlavorCommunity),
+			version: newVersion(settings.ServerFlavorPrime),
+		},
+		{
+			name:    "community Version on a community cluster is allowed",
+			setting: newFlavorSetting("", settings.ServerFlavorCommunity),
+			version: newVersion(settings.ServerFlavorCommunity),
+		},
+		{
+			name:    "Prime Version on a community cluster is allowed",
+			setting: newFlavorSetting("", settings.ServerFlavorCommunity),
+			version: newVersion(settings.ServerFlavorPrime),
+		},
+		{
+			name:    "missing flavor setting is treated as community",
+			version: newVersion(settings.ServerFlavorCommunity),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var objs []runtime.Object
+			if tc.setting != nil {
+				objs = append(objs, tc.setting)
+			}
+			clientset := fake.NewSimpleClientset(objs...)
+			v := &upgradeValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+			}
+
+			err := v.checkVersionFlavor(tc.version)
+			if tc.expectErr {
+				assert.ErrorContains(t, err, "upgrading from a Prime release to a community release is not supported")
+				return
+			}
+			assert.NoError(t, err)
 		})
 	}
 }
