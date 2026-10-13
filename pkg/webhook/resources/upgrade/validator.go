@@ -34,6 +34,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
+	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	addonutil "github.com/harvester/harvester/pkg/util/addon"
 	"github.com/harvester/harvester/pkg/util/drainhelper"
@@ -126,6 +127,31 @@ func (v *upgradeValidator) Resource() types.Resource {
 	}
 }
 
+// checkVersionFlavor rejects a community Version on a Prime cluster before the ISO
+// is downloaded. Only an explicit community label is rejected: Versions without the
+// label, such as ones made by hand for dev ISOs, are left to the upgrade
+// controller, which checks the flavor recorded in the ISO.
+func (v *upgradeValidator) checkVersionFlavor(version *v1beta1.Version) error {
+	if version.Labels[util.LabelServerFlavor] != settings.ServerFlavorCommunity {
+		return nil
+	}
+	setting, err := v.settingCache.Get(settings.ServerFlavorSettingName)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("can't get setting %s, err: %v", settings.ServerFlavorSettingName, err))
+	}
+	flavor := setting.Value
+	if flavor == "" {
+		flavor = setting.Default
+	}
+	if flavor == settings.ServerFlavorPrime {
+		return werror.NewBadRequest(fmt.Sprintf("version %s is a community release; upgrading from a Prime release to a community release is not supported", version.Name))
+	}
+	return nil
+}
+
 func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newUpgrade := newObj.(*v1beta1.Upgrade)
 
@@ -134,9 +160,12 @@ func (v *upgradeValidator) Create(_ *types.Request, newObj runtime.Object) error
 	}
 
 	if newUpgrade.Spec.Version != "" && newUpgrade.Spec.Image == "" {
-		_, err := v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
+		version, err := v.versionCache.Get(newUpgrade.Namespace, newUpgrade.Spec.Version)
 		if err != nil {
 			return werror.NewBadRequest(fmt.Sprintf("version %s is not found", newUpgrade.Spec.Version))
+		}
+		if err := v.checkVersionFlavor(version); err != nil {
+			return err
 		}
 	}
 
