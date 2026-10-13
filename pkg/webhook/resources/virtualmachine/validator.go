@@ -902,17 +902,10 @@ func (v *vmValidator) checkEmptyMemory(vm *kubevirtv1.VirtualMachine) error {
 func (v *vmValidator) checkMaintenanceModeStrategyIsValid(newVM, oldVM *kubevirtv1.VirtualMachine) error {
 	newLabels := newVM.ObjectMeta.Labels
 	newStrategy, newOk := newLabels[util.LabelMaintainModeStrategy]
-	// Creating a new VM without maintenance mode strategy is ok, since
-	// integrators (e.g. Rancher) may omit it. Similarly removing the label is ok.
-	// Therefore just log that the label is missing
 	if !newOk {
-		logrus.WithFields(logrus.Fields{
-			"name":      newVM.Name,
-			"namespace": newVM.Namespace,
-		}).Warnf(
-			"no maintenance-mode strategy for VM, behavior will be equivalent to default `%v`",
-			util.MaintainModeStrategyMigrate,
-		)
+		// Third-party integrators (e.g., Rancher) may omit this label, or it
+		// may have been removed during an update. Silently accept the missing
+		// label to maintain backward compatibility and avoid log spam.
 		return nil
 	}
 
