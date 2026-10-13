@@ -266,6 +266,8 @@ kind: Version
 metadata:
   name: ${VERSION}
   namespace: harvester-system
+  labels:
+    harvesterhci.io/serverFlavor: ${SERVER_FLAVOR}
 spec:
   isoChecksum: '${ISO_CHECKSUM}'
   isoURL: ${RELEASE_DOWNLOAD_URL}/${VERSION}/${ISO_PREFIX}.iso
