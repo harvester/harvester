@@ -291,7 +291,7 @@ func (m *vmMutator) patchResourceOvercommit(vm *kubevirtv1.VirtualMachine) ([]st
 		if err != nil {
 			return patchOps, err
 		}
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": %s}`, string(bytes)))
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/domain/resources/requests", "value": %s}`, string(bytes)))
 	}
 	return patchOps, nil
 }

@@ -198,7 +198,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"256Mi"}}`,
+				`{"op": "add", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m","memory":"256Mi"}}`,
 			},
 		},
 		{
@@ -213,7 +213,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory", "value": {"guest":"924Mi"}}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
+				`{"op": "add", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},
@@ -231,7 +231,7 @@ func TestPatchResourceOvercommit(t *testing.T) {
 			patchOps: []string{
 				`{"op": "replace", "path": "/spec/template/spec/domain/memory/guest", "value": "924Mi"}`, // 1Gi - 100Mi
 				`{"op": "replace", "path": "/spec/template/spec/domain/cpu/maxSockets", "value": 1}`,
-				`{"op": "replace", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
+				`{"op": "add", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"100m","memory":"102Mi"}}`,
 			},
 			setting: `{"cpu":1000,"memory":1000,"storage":800}`,
 		},
@@ -358,6 +358,58 @@ func TestPatchResourceOvercommit(t *testing.T) {
 		},
 	}
 
+	tests5 := []struct {
+		name        string
+		resourceReq kubevirtv1.ResourceRequirements
+		cpu         *kubevirtv1.CPU
+		memory      *kubevirtv1.Memory
+		patchOps    []string
+		setting     string
+	}{
+		{
+			name:        "completely nil limits and requests",
+			resourceReq: kubevirtv1.ResourceRequirements{},
+			patchOps:    nil,
+			setting:     "",
+		},
+		{
+			name: "nil limits with non-nil requests",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(500, resource.DecimalSI),
+				},
+			},
+			patchOps: nil,
+			setting:  "",
+		},
+		{
+			name: "non-nil limits and requests with zero quantities",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(0, resource.DecimalSI),
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(500, resource.DecimalSI),
+				},
+			},
+			patchOps: nil,
+			setting:  "",
+		},
+		{
+			name: "nil requests with cpu limit only",
+			resourceReq: kubevirtv1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					v1.ResourceCPU: *resource.NewMilliQuantity(1000, resource.DecimalSI),
+				},
+				Requests: nil, // explicitly nil requests
+			},
+			patchOps: []string{
+				`{"op": "add", "path": "/spec/template/spec/domain/resources/requests", "value": {"cpu":"500m"}}`,
+			},
+			setting: "",
+		},
+	}
+
 	setting := &harvesterv1.Setting{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "overcommit-config",
@@ -412,6 +464,10 @@ func TestPatchResourceOvercommit(t *testing.T) {
 
 	for _, tc := range tests4 {
 		runTestCase(tc, map[string]string{"harvesterhci.io/reservedMemory": "384Mi"}, true, "guest memory is under the minimum requirement")
+	}
+
+	for _, tc := range tests5 {
+		runTestCase(tc, nil, false, "works correctly in those cases")
 	}
 }
 
@@ -653,7 +709,7 @@ func TestPatchResourceOvercommitWithDedicatedCPUPlacement(t *testing.T) {
 		[]string{
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/memory\", \"value\": {\"guest\":\"924Mi\"}}",
 			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/cpu/maxSockets\", \"value\": 1}",
-			"{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/resources/requests\", \"value\": {\"cpu\":\"8\",\"memory\":\"1Gi\"}}"},
+			"{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/resources/requests\", \"value\": {\"cpu\":\"8\",\"memory\":\"1Gi\"}}"},
 		actual)
 }
 
