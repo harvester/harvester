@@ -107,6 +107,7 @@ type upgradeHandler struct {
 	upgradeController ctlharvesterv1.UpgradeController
 	upgradeLogClient  ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache   ctlharvesterv1.UpgradeLogCache
+	versionClient     ctlharvesterv1.VersionClient
 	versionCache      ctlharvesterv1.VersionCache
 	planClient        upgradectlv1.PlanClient
 	planCache         upgradectlv1.PlanCache
@@ -253,6 +254,9 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return upgrade, nil
 			}
 
+			if err := h.deleteUsedVersion(upgrade); err != nil {
+				return nil, err
+			}
 			latest, err := h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 			if err != nil {
 				return nil, err
@@ -900,6 +904,34 @@ func validateFlavorSwitchVersion(currentVersion, targetVersion string, allowSame
 func isDevVersion(v *hversion.HarvesterVersion) bool {
 	_, err := v.IsNewer(v)
 	return errors.Is(err, hversion.ErrIncomparableVersion)
+}
+
+// deleteUsedVersion deletes the user-created Version the upgrade used. It doesn't
+// check the upgrade's outcome: call it only after the upgrade completes, so a
+// failed upgrade keeps its Version for a retry. The version syncer never deletes
+// user-created Versions, so it would otherwise stay listed, pointing at the
+// version the cluster now runs. Synced Versions are left to the syncer, and an
+// upgrade by image didn't use its Version.
+func (h *upgradeHandler) deleteUsedVersion(upgrade *harvesterv1.Upgrade) error {
+	if upgrade.Spec.Image != "" || upgrade.Spec.Version == "" {
+		return nil
+	}
+	version, err := h.versionCache.Get(h.namespace, upgrade.Spec.Version)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if version.Labels[versionSourceLabel] == versionSourceUpgradeChecker {
+		return nil
+	}
+
+	logrus.Infof("Deleting version %s/%s used by upgrade %s", version.Namespace, version.Name, upgrade.Name)
+	if err := h.versionClient.Delete(version.Namespace, version.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
 
 // allowsSameVersionFlavorSwitch reports whether the Version the upgrade uses
