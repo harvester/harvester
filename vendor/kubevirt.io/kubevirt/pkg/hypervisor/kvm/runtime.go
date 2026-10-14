@@ -37,6 +37,7 @@ import (
 	"kubevirt.io/kubevirt/pkg/virt-handler/cgroup"
 	"kubevirt.io/kubevirt/pkg/virt-handler/isolation"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
+	"kubevirt.io/kubevirt/pkg/vmitrait"
 )
 
 type KvmVirtRuntime struct {
@@ -54,7 +55,7 @@ func NewKvmVirtRuntime(podIsoDetector isolation.PodIsolationDetector, logger *lo
 }
 
 func (k *KvmVirtRuntime) AdjustResources(vmi *v1.VirtualMachineInstance, config *v1.KubeVirtConfiguration) error {
-	if !util.IsVFIOVMI(vmi) && !vmi.IsRealtimeEnabled() && !util.IsSEVVMI(vmi) && !util.RequiresLockingMemory(vmi) {
+	if !vmitrait.HasVFIO(vmi) && !vmi.IsRealtimeEnabled() && !util.IsSEVVMI(vmi) && !util.RequiresLockingMemory(vmi) {
 		return nil
 	}
 
@@ -64,9 +65,13 @@ func (k *KvmVirtRuntime) AdjustResources(vmi *v1.VirtualMachineInstance, config 
 	}
 
 	// If the VMI is running, we adjust the QEMU process
-	// otherwise, we adjust the virtqemud process
+	// otherwise, we adjust the virtqemud process unless this VMI is a migration target
+	// in which case the VMI status is Running (on the source) but no local QEMU process has been spawned yet,
+	// so we must again adjust the virtqemud process instead
+	isMigrationTargetAwaitingDomain := vmi.Status.MigrationState != nil &&
+		!vmi.Status.MigrationState.TargetNodeDomainDetected
 	var targetProcess ps.Process
-	if vmi.IsRunning() {
+	if vmi.IsRunning() && !isMigrationTargetAwaitingDomain {
 		targetProcess, err = GetQEMUProcess(isolationResult)
 		if err != nil {
 			return err
@@ -109,7 +114,11 @@ func (k *KvmVirtRuntime) CalculateMemlockSize(vmi *v1.VirtualMachineInstance, co
 	} else {
 		// TODO: Remove this fallback once VmiMemoryOverheadReport feature gate is GA
 		// and we are sure that all VMIs include the MemoryOverhead status field
-		memlockSize = k.GetMemoryOverhead(vmi, runtime.GOARCH, config.AdditionalGuestMemoryOverheadRatio)
+		cpuArch := runtime.GOARCH
+		if vmi.Spec.Architecture != "" {
+			cpuArch = vmi.Spec.Architecture
+		}
+		memlockSize = k.GetMemoryOverhead(vmi, cpuArch, config.AdditionalGuestMemoryOverheadRatio)
 	}
 
 	vmiBaseMemory := getVMIBaseMemory(vmi)

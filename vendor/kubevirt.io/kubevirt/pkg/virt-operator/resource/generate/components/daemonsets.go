@@ -164,6 +164,7 @@ func NewHandlerDaemonSet(config *operatorutil.KubeVirtDeploymentConfig, productN
 			},
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: pointer.P(true),
+				RunAsUser:  pointer.P(int64(0)),
 			},
 			VolumeMounts: []corev1.VolumeMount{
 				{
@@ -222,6 +223,8 @@ func NewHandlerDaemonSet(config *operatorutil.KubeVirtDeploymentConfig, productN
 		"3",
 		"--console-server-port",
 		"8186",
+		"--vmstats-server-port",
+		"8187",
 		"--graceful-shutdown-seconds",
 		fmt.Sprintf("%d", handlerGracePeriod),
 		"-v",
@@ -232,6 +235,11 @@ func NewHandlerDaemonSet(config *operatorutil.KubeVirtDeploymentConfig, productN
 			Name:          "metrics",
 			Protocol:      corev1.ProtocolTCP,
 			ContainerPort: 8443,
+		},
+		{
+			Name:          "vmstats",
+			Protocol:      corev1.ProtocolTCP,
+			ContainerPort: 8187,
 		},
 	}
 	container.SecurityContext = &corev1.SecurityContext{
@@ -306,6 +314,7 @@ func NewHandlerDaemonSet(config *operatorutil.KubeVirtDeploymentConfig, productN
 	attachProfileVolume(pod)
 
 	bidi := corev1.MountPropagationBidirectional
+	hostToContainer := corev1.MountPropagationHostToContainer
 	// NOTE: the 'kubelet-pods' volume mount exists because that path holds unix socket files.
 	// Socket files fail when their path is longer than 108 characters,
 	//   so that shortened volume path is to allow domain socket connections.
@@ -315,7 +324,7 @@ func NewHandlerDaemonSet(config *operatorutil.KubeVirtDeploymentConfig, productN
 		{"virt-share-dir", util.VirtShareDir, util.VirtShareDir, &bidi},
 		{"virt-private-dir", util.VirtPrivateDir, util.VirtPrivateDir, nil},
 		{"kubelet-pods", kubeletPodsPath, "/pods", nil},
-		{"kubelet", util.KubeletRoot, util.KubeletRoot, &bidi},
+		{"kubelet", util.KubeletRoot, util.KubeletRoot, &hostToContainer},
 		{"node-labeller", nodeLabellerVolumePath, nodeLabellerVolumePath, nil},
 	}
 

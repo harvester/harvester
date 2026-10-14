@@ -35,6 +35,7 @@ import (
 	"kubevirt.io/kubevirt/pkg/virt-handler/cgroup"
 	"kubevirt.io/kubevirt/pkg/virt-handler/isolation"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
+	"kubevirt.io/kubevirt/pkg/vmitrait"
 )
 
 type MshvVirtRuntime struct {
@@ -51,7 +52,7 @@ func NewMshvVirtRuntime(podIsoDetector isolation.PodIsolationDetector, logger *l
 }
 
 func (m *MshvVirtRuntime) AdjustResources(vmi *v1.VirtualMachineInstance, config *v1.KubeVirtConfiguration) error {
-	if !util.IsVFIOVMI(vmi) && !vmi.IsRealtimeEnabled() && !util.IsSEVVMI(vmi) {
+	if !vmitrait.HasVFIO(vmi) && !vmi.IsRealtimeEnabled() && !util.IsSEVVMI(vmi) {
 		return nil
 	}
 
@@ -60,8 +61,14 @@ func (m *MshvVirtRuntime) AdjustResources(vmi *v1.VirtualMachineInstance, config
 		return err
 	}
 
+	// If the VMI is running, we adjust the QEMU process
+	// otherwise, we adjust the virtqemud process unless this VMI is a migration target
+	// in which case the VMI status is Running (on the source) but no local QEMU process has been spawned yet,
+	// so we must again adjust the virtqemud process instead
+	isMigrationTargetAwaitingDomain := vmi.Status.MigrationState != nil &&
+		!vmi.Status.MigrationState.TargetNodeDomainDetected
 	var targetProcess ps.Process
-	if vmi.IsRunning() {
+	if vmi.IsRunning() && !isMigrationTargetAwaitingDomain {
 		targetProcess, err = getQEMUProcess(isolationResult)
 		if err != nil {
 			return err

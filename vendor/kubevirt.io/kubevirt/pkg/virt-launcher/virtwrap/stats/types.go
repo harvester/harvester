@@ -70,7 +70,6 @@ type DomainStats struct {
 	// extra stats
 	CPUMapSet bool
 	CPUMap    [][]bool
-	NrVirtCpu uint
 	DirtyRate *DomainStatsDirtyRate
 	Load      *DomainStatsLoad
 }
@@ -212,4 +211,24 @@ type DomainStatsDirtyRate struct {
 	CalcPeriod            int
 	MegabytesPerSecondSet bool
 	MegabytesPerSecond    int64
+}
+
+type VMStats struct {
+	DomainStats               DomainStats
+	DirtyRateMbps             *int64
+	GuestAgentVersion         string
+	GuestGetLoad              string
+	GuestGetCpuStats          string
+	GuestGetDiskStats         string
+	GuestGetTime              string
+	GuestGetVcpus             string
+	GuestGetMemoryBlockInfo   string
+	GuestGetUsers             string
+	GuestGetOsInfo            string
+	GuestGetDisks             string
+	GuestGetHostName          string
+	GuestGetTimezone          string
+	GuestNetworkGetRoute      string
+	GuestNetworkGetInterfaces string
+	GuestGetMemoryBlocks      string
 }

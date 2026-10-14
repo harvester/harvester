@@ -101,6 +101,12 @@ const (
 	AdditionalPropertiesOptOutRoleAggregation = "OptOutRoleAggregation"
 
 	// lookup key in AdditionalProperties
+	AdditionalPropertiesVMStatsCollectorEnabled = "VMStatsCollectorEnabled"
+
+	// lookup key in AdditionalProperties
+	AdditionalPropertiesPluginsEnabled = "PluginsEnabled"
+
+	// lookup key in AdditionalProperties
 	AdditionalPropertiesSynchronizationPort       = "SynchronizationPort"
 	DefaultSynchronizationPort              int32 = 9185
 
@@ -177,8 +183,16 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 		additionalProperties[AdditionalPropertiesMigrationNetwork] = *kv.Spec.Configuration.MigrationConfiguration.Network
 	}
 
-	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.PersistentReservation) {
-		additionalProperties[AdditionalPropertiesPersistentReservationEnabled] = ""
+	// TODO: consider passing in clusterconfig and use it's existing persistent reservation enabled state
+	if prcfg := kv.Spec.Configuration.PersistentReservationConfiguration; prcfg != nil && prcfg.Enabled != nil {
+		if *prcfg.Enabled {
+			additionalProperties[AdditionalPropertiesPersistentReservationEnabled] = ""
+		}
+	} else {
+		if devcfg := kv.Spec.Configuration.DeveloperConfiguration; devcfg != nil &&
+			slices.Contains(devcfg.FeatureGates, featuregate.PersistentReservation) {
+			additionalProperties[AdditionalPropertiesPersistentReservationEnabled] = ""
+		}
 	}
 
 	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.Template) {
@@ -195,6 +209,14 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 	hypervisor := virtconfig.GetHypervisorFromKvConfig(&kv.Spec.Configuration, isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.ConfigurableHypervisor))
 	additionalProperties[AdditionalPropertiesHypervisorName] = hypervisor.Name
 
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.VMStatsCollector) {
+		additionalProperties[AdditionalPropertiesVMStatsCollectorEnabled] = ""
+	}
+
+	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.PluginsGate) {
+		additionalProperties[AdditionalPropertiesPluginsEnabled] = ""
+	}
+
 	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.OptOutRoleAggregation) {
 		if kv.Spec.Configuration.RoleAggregationStrategy != nil &&
 			*kv.Spec.Configuration.RoleAggregationStrategy == v1.RoleAggregationStrategyManual {
@@ -210,11 +232,8 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 		envVarManager)
 }
 
-func isFeatureGateEnabledInKvConfig(kvConfig *v1.KubeVirtConfiguration, featureGate string) bool {
-	if kvConfig.DeveloperConfiguration != nil && len(kvConfig.DeveloperConfiguration.FeatureGates) > 0 {
-		return slices.Contains(kvConfig.DeveloperConfiguration.FeatureGates, featureGate)
-	}
-	return false
+func isFeatureGateEnabledInKvConfig(kvConfig *v1.KubeVirtConfiguration, fg string) bool {
+	return featuregate.IsEnabled(fg, kvConfig.DeveloperConfiguration)
 }
 
 func getKVMapFromSpec(spec v1.KubeVirtSpec) map[string]string {
@@ -562,8 +581,18 @@ func (c *KubeVirtDeploymentConfig) ExternalNetResourceInjectionEnabled() bool {
 	return enabled
 }
 
+func (c *KubeVirtDeploymentConfig) VMStatsCollectorEnabled() bool {
+	_, enabled := c.AdditionalProperties[AdditionalPropertiesVMStatsCollectorEnabled]
+	return enabled
+}
+
 func (c *KubeVirtDeploymentConfig) OptOutRoleAggregationEnabled() bool {
 	_, enabled := c.AdditionalProperties[AdditionalPropertiesOptOutRoleAggregation]
+	return enabled
+}
+
+func (c *KubeVirtDeploymentConfig) PluginsEnabled() bool {
+	_, enabled := c.AdditionalProperties[AdditionalPropertiesPluginsEnabled]
 	return enabled
 }
 
