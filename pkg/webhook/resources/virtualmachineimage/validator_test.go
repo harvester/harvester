@@ -68,6 +68,56 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 			sarDenied:   false,
 			expectError: true,
 		},
+		{
+			name: "CDI: download image with valid URL - pass",
+			vmi: &harvesterv1.VirtualMachineImage{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cdi-img", Namespace: "default"},
+				Spec: harvesterv1.VirtualMachineImageSpec{
+					Backend:     harvesterv1.VMIBackendCDI,
+					DisplayName: "test-cdi-image",
+					SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
+					URL:         "http://example.com/image.iso",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "CDI: clone image, SAR denied for source image - fail",
+			vmi: &harvesterv1.VirtualMachineImage{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cdi-clone", Namespace: "default"},
+				Spec: harvesterv1.VirtualMachineImageSpec{
+					Backend:     harvesterv1.VMIBackendCDI,
+					DisplayName: "test-cdi-clone-image",
+					SourceType:  harvesterv1.VirtualMachineImageSourceTypeClone,
+					SecurityParameters: &harvesterv1.VirtualMachineImageSecurityParameters{
+						CryptoOperation:      harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt,
+						SourceImageName:      "source-image",
+						SourceImageNamespace: "default",
+					},
+				},
+			},
+			sarDenied:   true,
+			expectError: true,
+		},
+		{
+			// SAR passes but source image doesn't exist — confirms the check proceeds past SAR
+			name: "CDI: clone image, SAR allowed, source not found - fail",
+			vmi: &harvesterv1.VirtualMachineImage{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cdi-clone-2", Namespace: "default"},
+				Spec: harvesterv1.VirtualMachineImageSpec{
+					Backend:     harvesterv1.VMIBackendCDI,
+					DisplayName: "test-cdi-clone-image-2",
+					SourceType:  harvesterv1.VirtualMachineImageSourceTypeClone,
+					SecurityParameters: &harvesterv1.VirtualMachineImageSecurityParameters{
+						CryptoOperation:      harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt,
+						SourceImageName:      "source-image",
+						SourceImageNamespace: "default",
+					},
+				},
+			},
+			sarDenied:   false,
+			expectError: true,
+		},
 	}
 
 	allowedFakeSAR := fakeclients.AllowedSARClient()
@@ -99,6 +149,54 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestImageSecurityParametersAreImmutable(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	validator := NewValidator(
+		fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		fakeclients.PodCache(clientset.CoreV1().Pods), nil, nil,
+		fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses), nil,
+		fakeclients.AllowedSARClient(),
+	)
+	for _, backend := range []harvesterv1.VMIBackend{
+		harvesterv1.VMIBackendCDI,
+		harvesterv1.VMIBackendBackingImage,
+	} {
+		t.Run(string(backend), func(t *testing.T) {
+			oldImage := &harvesterv1.VirtualMachineImage{Spec: harvesterv1.VirtualMachineImageSpec{
+				Backend: backend, SourceType: harvesterv1.VirtualMachineImageSourceTypeClone,
+				SecurityParameters: &harvesterv1.VirtualMachineImageSecurityParameters{
+					CryptoOperation: harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt,
+					SourceImageName: "source", SourceImageNamespace: "default",
+				},
+			}}
+
+			t.Run("reject changing crypto operation", func(t *testing.T) {
+				updated := oldImage.DeepCopy()
+				updated.Spec.SecurityParameters.CryptoOperation = harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt
+				assert.EqualError(t, validator.Update(nil, oldImage, updated), "securityParameters cannot be modified")
+			})
+
+			t.Run("reject changing source image name", func(t *testing.T) {
+				updated := oldImage.DeepCopy()
+				updated.Spec.SecurityParameters.SourceImageName = "another-source"
+				assert.EqualError(t, validator.Update(nil, oldImage, updated), "securityParameters cannot be modified")
+			})
+
+			t.Run("reject changing source image namespace", func(t *testing.T) {
+				updated := oldImage.DeepCopy()
+				updated.Spec.SecurityParameters.SourceImageNamespace = "another-namespace"
+				assert.EqualError(t, validator.Update(nil, oldImage, updated), "securityParameters cannot be modified")
+			})
+
+			t.Run("reject removing security parameters", func(t *testing.T) {
+				updated := oldImage.DeepCopy()
+				updated.Spec.SecurityParameters = nil
+				assert.EqualError(t, validator.Update(nil, oldImage, updated), "securityParameters cannot be modified")
+			})
 		})
 	}
 }
