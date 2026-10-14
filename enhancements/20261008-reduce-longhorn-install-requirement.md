@@ -1,113 +1,134 @@
-# Reduce resources required by Longhorn as an install option
+# External Storage Installation Mode
 
 ## Summary
 
-Harvester currently require minimal 250Gi of disk to install
+Harvester currently installs Longhorn on every cluster. The installer either creates the `HARV_LH_DEFAULT` partition on the OS disk or formats a separate `DataDisk`, and the Harvester chart deploys Longhorn and its default `harvester-longhorn` StorageClass.
 
-### Related Issues
+This proposal adds an install-time **external-storage** mode for fresh clusters. In this mode Harvester does not install Longhorn, does not create or format a Longhorn data disk, and uses an administrator-provided third-party CSI StorageClass for features that need persistent storage. The existing Longhorn installation remains the default **standard** mode and is unchanged.
 
-<https://github.com/harvester/harvester/issues/9098>
+### Related issues
 
+- <https://github.com/harvester/harvester/issues/9098>
 ## Motivation
 
-### Goals
+Users with an existing storage system do not want Harvester to install a second local storage system or reserve a dedicated disk for it. Reducing Longhorn replicas or resource reservations does not solve this: Longhorn still requires its disk layout and its components remain installed.
 
-- Allow Harvester to install on a single disk of ~100 GiB or larger (reduced from 250 GiB)
-- Introduce a longhornFootprint: minimal install config option, when it set
-  - Reduce replica to 1
-  - Zero out CPU reservations for Longhorn manager and instance manager.
-  - Remove reservation space for longhorn in installation.
-- Support both interactive (TUI) and automated (config file) install paths
+The installation choice must therefore be explicit:
 
-### Non-goals [optional]
+- **standard**: current Longhorn installation and behavior.
+- **external-storage**: no Longhorn installation; persistent workloads use a compatible third-party CSI driver.
 
-- Completely removing Longhorn as a dependency, ship Longhorn as an addon.
+Longhorn must not be replaced in place. Existing PersistentVolumes retain their provisioner; conversion of an existing cluster is a separate migration problem.
+
+## Goals
+
+Auditing the codebase reveals the following components that depend on Longhorn. Each must have a defined behavior in external-storage mode:
+
+| Component | Longhorn dependency | With external SC | Without SC |
+|---|---|---|---|
+| Rancher Monitoring | `harvester-longhorn` (Prometheus 50Gi, Alertmanager 5Gi, Grafana 2Gi) | Use external RWO SC | Ephemeral on kubelet; reserve ≥57Gi in `COS_PERSISTENT`; data lost on Pod restart |
+| CDI | `harvester-longhorn` as scratch SC | Use external SC | Reject; scratch-dependent operations fail |
+| k3k addon | `harvester-longhorn` SC | Use external SC | Cannot be enabled |
+| `vmstate-persistence` | Longhorn-backed TPM/UEFI state | Use external SC | Ephemeral on kubelet; state lost on VM Pod restart |
+| `longhorn-static` | Longhorn RWX SC for upgrade ISO | Use external RWX SC | Block upgrade at preflight |
+
+Based on this audit, the goals are:
+
+- Keep the existing standard Longhorn installation as the default, with no behavior or disk-layout changes.
+- Add **external-storage** mode for fresh installations:
+  - Do not install Longhorn or Longhorn-only chart resources.
+  - Do not create, mount, or format `HARV_LH_DEFAULT`; reject `DataDisk`.
+  - Use a selected third-party CSI StorageClass for persistent platform and VM workloads.
+  - Retain CDI for supported third-party CSI image workflows.
+  - Run Monitoring without persistence when no StorageClass is available.
+  - Block features that cannot operate without compatible persistent storage, with clear and actionable errors.
+- Support both interactive installer and automated configuration.
+
+## Non-Goals
+
+- Automatically installing, configuring, or certifying a third-party CSI driver.
+- Providing storage-network or RWX-network functionality without Longhorn.
+- Handling upgrade cases from existing clusters, including:
+  - Replacing the provisioner of `harvester-longhorn`, `longhorn-static`, or `vmstate-persistence`.
+  - Automatically converting an existing standard cluster to external-storage mode.
+  - Automatically migrating VM images, VM volumes, monitoring data, VM state, or upgrade PVCs.
+- In external-storage mode, `harvester-longhorn`, `longhorn-static`, and `vmstate-persistence` are never created; removing them from existing clusters is out of scope.
 
 ## Proposal
 
-### User Stories
+### User Story
 
-The experience details should be in the `User Experience In Detail` later.
+#### Install Harvester without Longhorn using an external CSI driver
 
-#### Story 1
+A user with an existing third-party storage system installs Harvester. They do not want Harvester to provision a separate Longhorn disk or install Longhorn components. They select **external-storage** at install time, skip Longhorn provisioning, and configure their own CSI driver after installation.
 
-Users re-utilizing hardware who use 3rd-party storage (majority of deployments) — they have no extra disks, and Harvester's 250 GiB requirement blocks them.
+### User Experience
 
-### User Experience In Detail
+The installer presents a storage mode choice:
 
-When installing Harvester on a single disk, the user sees a new option in the TUI: "Longhorn footprint: standard / minimal". If they choose minimal, the disk requirement drops from 250 GiB to 100 GiB. The installer shows a warning: "No data redundancy — single replica only. Not for production use." Install proceeds normally on any disk ≥ 100 GiB.
-
-### API changes
-
-pkg/installer/config/config.go — Add new field to Install struct:
-
-```go
-type Install struct {
-    // ... existing fields ...
-    LonghornFootprint string `json:"longhornFootprint,omitempty"` // "" (default) or "minimal"
-}
+```text
+Storage mode
+  [x] Standard          — install built-in Longhorn storage (default)
+  [ ] External storage  — do not install Longhorn; configure a third-party
+                          CSI StorageClass for persistent workloads
 ```
 
-pkg/installer/config/constants.go — Add new constants:
+When external-storage mode is selected:
+
+- The installer explains that Longhorn backup/restore, snapshots, storage-network, and RWX-network are unavailable.
+- `DataDisk` is hidden or disabled; a supplied automated-install `dataDisk` is rejected.
+- The installer does not create or mount `HARV_LH_DEFAULT`.
+- Harvester does not create `harvester-longhorn`, `longhorn-static`, or `vmstate-persistence`.
+- If no compatible class is configured, each affected feature is disabled or rejected instead of silently falling back to a default class or local disk.
+
+### API
+
+Add an explicit mode. An unset value defaults to `standard` for compatibility.
 
 ```go
 const (
-    LonghornFootprintDefault = ""
-    LonghornFootprintMinimal = "minimal"
-
-    MinimalDiskMinSizeGiB      uint64 = 100
-    MinimalReplicaManagerCPU = 0
-    MinimalEngineManagerCPU = 0
-    MinimalInstanceManagerCPU = 0
-    
-    MinimalReplicaCount = 1
+    StorageModeStandard = "standard"
+    StorageModeExternal = "external-storage"
 )
+
+type Install struct {
+    // StorageMode controls storage installation for a new cluster.
+    // An empty value defaults to standard.
+    StorageMode string `json:"storageMode,omitempty"`
+}
 ```
 
-pkg/installer/config/cos.go — Branch Longhorn defaults on LonghornFootprint:
-• replicaCount: 1 (minimal) vs 3 (default)
-• GuaranteedEngineManagerCPU: 0 (minimal) vs 12 (default)
-• GuaranteedReplicaManagerCPU: 0 (minimal) vs 12 (default)
-• GuaranteedInstanceManagerCPU: 0 (minimal) vs 12 (default)
-pkg/installer/console/validator.go — Branch disk size check on LonghornFootprint:
-• Single disk minimum: 100 GiB (minimal) vs 250 GiB (default)
+```yaml
+# Existing/default behavior
+install:
+  storageMode: standard
 
-## Design
+# No bundled Longhorn; persistent features require third-party CSI storage
+install:
+  storageMode: external-storage
+```
 
-### Implementation Overview
+Harvester-owned components must not silently use the cluster default StorageClass; the external class must be explicit per workload.
 
-1. `config.go` — add `LonghornFootprint string` to Install; validate in `validator.go`
-2. `validator.go` / `util.go` — disk threshold: 100 GiB (minimal) vs 250 GiB (default)
-3. `cos.go` — persistent partition min: 25 GiB (minimal) vs 150 GiB (default)
-4. `cos.go` — Longhorn defaults: replicaCount 1, all CPU reservations 0 (minimal)
-5. TUI — warning on minimal mode selection (scope TBD)
+## Implementation
 
-### Test plan
+WIP
 
-TBD — needs input from QA.
+## Open Questions
 
-#### Fresh install
+### Should upgrade cases be covered in this issue?
 
-1. `minimal` + 100 GiB disk: passes disk check, Longhorn replica = 1, CPU reservations = 0, VM boots
-2. `minimal` + 99 GiB disk: rejected at disk validation step
-3. `standard` + 250 GiB disk: behaviour unchanged from today
+This HEP targets fresh installations only. However, existing clusters will eventually need a migration path. The following cases have been identified:
 
-#### Upgrade
+| Case | Scenario | Action |
+|---|---|---|
+| 1 | Existing non-Longhorn user → keep Longhorn | No action required |
+| 2 | Existing non-Longhorn user → remove Longhorn | (1) Normal upgrade → (2) Migrate Monitoring/vmstate PVCs to new SC → (3) Switch upgrade SC to third-party |
+| 3 | Existing Longhorn user → keep Longhorn | No action required |
+| 4 | Existing Longhorn user → remove Longhorn | (1) Normal upgrade → (2) Storage-migrate VM volumes → (3) Switch upgrade SC to third-party |
 
-1. `minimal` cluster upgrades successfully (`upgrade_node.sh` robustness check does not false-positive on replica = 1)
-2. `standard` cluster upgrades successfully: no regression
+Cases 2 and 4 are non-trivial. Open questions before committing to scope:
 
-### Upgrade strategy
-
-#### Existing installs
-
-During upgrade, check whether any VM or PVC is backed by the Longhorn storage class:
-
-- **Longhorn in use** — keep current settings unchanged
-- **Longhorn not in use** — apply minimal settings: `default-replica-count: 1`, all CPU reservations set to `0`
-
-Disk partitioning is not modified in either case.
-
-## Note [optional]
-
-Additional notes.
+- Is there an existing, safe migration path for Monitoring and vmstate PVCs?
+- Is it safe to remove Longhorn after storage migration completes? What is the validation criteria?
+- Should this be tracked as a separate issue given the complexity?
