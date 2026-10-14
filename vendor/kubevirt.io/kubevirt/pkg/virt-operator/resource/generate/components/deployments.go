@@ -48,6 +48,7 @@ const (
 	VirtOperatorName                  = "virt-operator"
 	VirtExportProxyName               = "virt-exportproxy"
 	VirtSynchronizationControllerName = "virt-synchronization-controller"
+	VirtObservabilityControllerName   = "virt-observability-controller"
 
 	kubevirtLabelKey = "kubevirt.io"
 
@@ -680,7 +681,8 @@ func NewExportProxyDeployment(config *operatorutil.KubeVirtDeploymentConfig, pro
 	pod := &deployment.Spec.Template.Spec
 	pod.ServiceAccountName = ExportProxyServiceAccountName
 	pod.SecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot: pointer.P(true),
+		RunAsNonRoot:   pointer.P(true),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
 
 	const shortName = "exportproxy"
@@ -729,6 +731,14 @@ func NewExportProxyDeployment(config *operatorutil.KubeVirtDeploymentConfig, pro
 		},
 	}
 
+	container.SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: pointer.P(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+
 	return deployment
 }
 
@@ -769,7 +779,8 @@ func NewSynchronizationControllerDeployment(config *operatorutil.KubeVirtDeploym
 	pod := &deployment.Spec.Template.Spec
 	pod.ServiceAccountName = SynchronizationControllerServiceAccountName
 	pod.SecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot: pointer.P(true),
+		RunAsNonRoot:   pointer.P(true),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
 
 	const shortName = "sync"
@@ -817,6 +828,14 @@ func NewSynchronizationControllerDeployment(config *operatorutil.KubeVirtDeploym
 			corev1.ResourceCPU:    resource.MustParse("5m"),
 			corev1.ResourceMemory: resource.MustParse("150Mi"),
 		},
+	}
+
+	container.SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: pointer.P(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 	}
 
 	return deployment

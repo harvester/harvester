@@ -38,6 +38,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/utils/ptr"
 
 	backupv1 "kubevirt.io/api/backup/v1alpha1"
 	v1 "kubevirt.io/api/core/v1"
@@ -66,15 +67,29 @@ const StandardLauncherSocketFileName = "launcher-sock"
 const StandardInitLauncherSocketFileName = "launcher-init-sock"
 const StandardLauncherUnresponsiveFileName = "launcher-unresponsive"
 
+type StallDetectorOptions struct {
+	StallMargin               float64
+	StallProgressTimeout      uint64
+	SwitchoverTimeout         uint64
+	EwmaAlpha                 float64
+	PrecopyPossibleFactor     float64
+	PatienceWindowDecayFactor float64
+	SearchLocalMinima         bool
+	CompletionTimeoutFactor   float64
+}
+
 type MigrationOptions struct {
 	Bandwidth                resource.Quantity
 	ProgressTimeout          int64
 	CompletionTimeoutPerGiB  int64
+	MaxDowntimeMs            uint64
 	UnsafeMigration          bool
 	AllowAutoConverge        bool
 	AllowPostCopy            bool
 	ParallelMigrationThreads *uint
 	AllowWorkloadDisruption  bool
+	StallDetectorOptions     *StallDetectorOptions
+	Compression              *string
 }
 
 type LauncherClient interface {
@@ -114,6 +129,7 @@ type LauncherClient interface {
 	GetScreenshot(*v1.VirtualMachineInstance) (*cmdv1.ScreenshotResponse, error)
 	VirtualMachineBackup(vmi *v1.VirtualMachineInstance, options *backupv1.BackupOptions) error
 	RedefineCheckpoint(vmi *v1.VirtualMachineInstance, checkpoint *backupv1.BackupCheckpoint) (checkpointInvalid bool, err error)
+	GetVMStats(request *cmdv1.VMStatsRequest) (*stats.VMStats, error)
 }
 
 type VirtLauncherClient struct {
@@ -204,7 +220,7 @@ func FindPodDirOnHost(vmi *v1.VirtualMachineInstance, socketDirFunc func(string)
 // Finds exactly one socket on a host based on the hostname.
 // A empty hostname is wildcard.
 // Returns error otherwise.
-func FindSocketOnHost(vmi *v1.VirtualMachineInstance, host string) (string, error) {
+func findSocketOnHost(vmi *v1.VirtualMachineInstance, host string) (string, error) {
 	socketsFound := 0
 	foundSocket := ""
 	// It is possible for multiple pods to be active on a single VMI
@@ -236,8 +252,13 @@ func FindSocketOnHost(vmi *v1.VirtualMachineInstance, host string) (string, erro
 // Finds exactly one socket on a host based on the NODE_NAME env. Returns error otherwise.
 func FindSocket(vmi *v1.VirtualMachineInstance) (string, error) {
 	host, _ := os.LookupEnv("NODE_NAME")
-	return FindSocketOnHost(vmi, host)
+	return findSocketOnHost(vmi, host)
 }
+
+// Do not use this low level function unless you know what you are doing.
+// Particularly testing is challenging as you need to instance a fully functional GRPC server.
+//
+// It is also not wise to have unbound number of clients to the launcher, or duplicate implementation of caching or  future recognition of source/target client(in case of same node migration).
 func NewClient(socketPath string) (LauncherClient, error) {
 	// dial socket
 	conn, err := grpcutil.DialSocket(socketPath)
@@ -248,10 +269,10 @@ func NewClient(socketPath string) (LauncherClient, error) {
 
 	// create info client and find cmd version to use
 	infoClient := info.NewCmdInfoClient(conn)
-	return NewClientWithInfoClient(infoClient, conn)
+	return newClientWithInfoClient(infoClient, conn)
 }
 
-func NewClientWithInfoClient(infoClient info.CmdInfoClient, conn *grpc.ClientConn) (LauncherClient, error) {
+func newClientWithInfoClient(infoClient info.CmdInfoClient, conn *grpc.ClientConn) (LauncherClient, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	info, err := infoClient.Info(ctx, &info.CmdInfoRequest{})
@@ -483,6 +504,50 @@ func (c *VirtLauncherClient) GetDomainDirtyRateStats() (dirtyRateMbps int64, err
 	}
 
 	return domainDirtyRateStatsResponse.DirtyRateMbs, nil
+}
+
+func (c *VirtLauncherClient) GetVMStats(request *cmdv1.VMStatsRequest) (*stats.VMStats, error) {
+	result := &stats.VMStats{}
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
+	defer cancel()
+
+	vmstatsResponse, err := c.v1client.GetVMStats(ctx, request)
+	var response *cmdv1.Response
+	if vmstatsResponse != nil {
+		response = vmstatsResponse.Response
+	}
+
+	if err := handleError(err, "GetVMStats", response); err != nil || vmstatsResponse == nil {
+		return result, err
+	}
+
+	if vmstatsResponse.GetDomainStats() != nil && vmstatsResponse.GetDomainStats().GetDomainStats() != "" {
+		if err := json.Unmarshal([]byte(vmstatsResponse.DomainStats.DomainStats), &result.DomainStats); err != nil {
+			return nil, err
+		}
+	}
+
+	if vmstatsResponse.GetDirtyRateStats() != nil {
+		result.DirtyRateMbps = ptr.To(vmstatsResponse.GetDirtyRateStats().GetDirtyRateMbs())
+	}
+
+	result.GuestAgentVersion = vmstatsResponse.GetGuestAgentVersion().GetMessage()
+	result.GuestGetLoad = vmstatsResponse.GetGuestGetLoad().GetMessage()
+	result.GuestGetCpuStats = vmstatsResponse.GetGuestGetCpuStats().GetMessage()
+	result.GuestGetDiskStats = vmstatsResponse.GetGuestGetDiskStats().GetMessage()
+	result.GuestGetTime = vmstatsResponse.GetGuestGetTime().GetMessage()
+	result.GuestGetVcpus = vmstatsResponse.GetGuestGetVcpus().GetMessage()
+	result.GuestGetMemoryBlockInfo = vmstatsResponse.GetGuestGetMemoryBlockInfo().GetMessage()
+	result.GuestGetUsers = vmstatsResponse.GetGuestGetUsers().GetMessage()
+	result.GuestGetOsInfo = vmstatsResponse.GetGuestGetOsInfo().GetMessage()
+	result.GuestGetDisks = vmstatsResponse.GetGuestGetDisks().GetMessage()
+	result.GuestGetHostName = vmstatsResponse.GetGuestGetHostName().GetMessage()
+	result.GuestGetTimezone = vmstatsResponse.GetGuestGetTimezone().GetMessage()
+	result.GuestNetworkGetRoute = vmstatsResponse.GetGuestNetworkGetRoute().GetMessage()
+	result.GuestNetworkGetInterfaces = vmstatsResponse.GetGuestNetworkGetInterfaces().GetMessage()
+	result.GuestGetMemoryBlocks = vmstatsResponse.GetGuestGetMemoryBlocks().GetMessage()
+
+	return result, err
 }
 
 func (c *VirtLauncherClient) GetQemuVersion() (string, error) {

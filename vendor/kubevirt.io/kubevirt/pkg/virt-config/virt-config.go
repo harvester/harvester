@@ -24,6 +24,12 @@ package virtconfig
 */
 
 import (
+	"fmt"
+	"math"
+	"slices"
+	"strconv"
+	"strings"
+
 	"kubevirt.io/client-go/log"
 
 	k8sv1 "k8s.io/api/core/v1"
@@ -42,7 +48,17 @@ const (
 	MigrationAllowPostCopy                   bool   = false
 	MigrationProgressTimeout                 int64  = 150
 	MigrationCompletionTimeoutPerGiB         int64  = 150
+	DefaultMigrationMaxDowntimeMs            uint64 = 900
 	MigrationUtilityVolumesTimeoutSeconds    int64  = 150
+	DefaultStallMargin                       int64  = 4
+	DefaultStallProgressTimeout              uint64 = 40
+	DefaultSwitchoverTimeout                 uint64 = 60
+	DefaultEwmaAlpha                                = "0.4"
+	DefaultPrecopyPossibleFactor                    = "1.5"
+	DefaultPatienceWindowDecayFactor                = "0.5"
+	DefaultSearchLocalMinima                 bool   = true
+	DefaultCompletionTimeoutFactor                  = "2"
+	StallDetectorFactorPrecision                    = 3
 	DefaultAMD64MachineType                         = "q35"
 	DefaultAARCH64MachineType                       = "virt"
 	DefaultS390XMachineType                         = "s390-ccw-virtio"
@@ -65,7 +81,7 @@ const (
 	DefaultPermitBridgeInterfaceOnPodNetwork        = true
 	DefaultSELinuxLauncherType                      = ""
 	SupportedGuestAgentVersions                     = "2.*,3.*,4.*,5.*"
-	DefaultARCHOVMFPath                             = "/usr/share/OVMF"
+	DefaultARCHOVMFPath                             = "/usr/share/edk2/ovmf"
 	DefaultAARCH64OVMFPath                          = "/usr/share/AAVMF"
 	DefaultS390xOVMFPath                            = ""
 	DefaultMemBalloonStatsPeriod             uint32 = 10
@@ -76,6 +92,8 @@ const (
 	DefaultVirtHandlerLogVerbosity                  = 2
 	DefaultVirtLauncherLogVerbosity                 = 2
 	DefaultVirtOperatorLogVerbosity                 = 2
+	DefaultTDXAttestationEnforced                   = false
+	DefaultQGSSocketPath                            = "/var/run/tdx-qgs/qgs.socket"
 
 	// Default REST configuration settings
 	DefaultVirtHandlerQPS         float32 = 50
@@ -93,6 +111,39 @@ const (
 	DefaultVMRolloutStrategy = v1.VMRolloutStrategyLiveUpdate
 )
 
+func ParseFactor(s string, precision int) (float64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("invalid factor %q", s)
+	}
+	if precision < 0 {
+		return 0, fmt.Errorf("invalid precision %d", precision)
+	}
+
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid factor %q: %w", s, err)
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("invalid factor %q", s)
+	}
+	if err := validateFactorValuePrecision(value, precision); err != nil {
+		return 0, fmt.Errorf("invalid factor %q: %w", s, err)
+	}
+	return value, nil
+}
+
+func validateFactorValuePrecision(value float64, precision int) error {
+	rounded, err := strconv.ParseFloat(strconv.FormatFloat(value, 'f', precision, 64), 64)
+	if err != nil {
+		return fmt.Errorf("must have at most %d decimal places", precision)
+	}
+	if math.Abs(value-rounded) > 1e-9 {
+		return fmt.Errorf("must have at most %d decimal places", precision)
+	}
+	return nil
+}
+
 func IsARM64(arch string) bool {
 	return arch == "arm64"
 }
@@ -103,6 +154,22 @@ func (c *ClusterConfig) GetMemBalloonStatsPeriod() uint32 {
 
 func (c *ClusterConfig) AllowEmulation() bool {
 	return c.GetConfig().DeveloperConfiguration.UseEmulation
+}
+
+func (c *ClusterConfig) RequireQGS() bool {
+	cfg := c.GetConfig().ConfidentialCompute
+	if cfg == nil || cfg.TDX == nil || cfg.TDX.Attestation == nil || cfg.TDX.Attestation.Enforced == nil {
+		return DefaultTDXAttestationEnforced
+	}
+	return *cfg.TDX.Attestation.Enforced
+}
+
+func (c *ClusterConfig) GetQGSSocketPath() string {
+	cfg := c.GetConfig().ConfidentialCompute
+	if cfg == nil || cfg.TDX == nil || cfg.TDX.Attestation == nil || cfg.TDX.Attestation.QgsSocketPath == nil {
+		return DefaultQGSSocketPath
+	}
+	return *cfg.TDX.Attestation.QgsSocketPath
 }
 
 func (c *ClusterConfig) GetMigrationConfiguration() *v1.MigrationConfiguration {
@@ -506,4 +573,13 @@ func GetHypervisorFromKvConfig(kvConfig *v1.KubeVirtConfiguration, configHypervi
 	return &v1.HypervisorConfiguration{
 		Name: v1.KvmHypervisorName,
 	}
+}
+
+func (c *ClusterConfig) PersistentReservationEnabled() bool {
+	config := c.GetConfig().PersistentReservationConfiguration
+	if config != nil && config.Enabled != nil {
+		return *config.Enabled
+	}
+
+	return slices.Contains(c.GetConfig().DeveloperConfiguration.FeatureGates, featuregate.PersistentReservation)
 }

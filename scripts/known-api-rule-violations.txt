@@ -218,10 +218,12 @@ API rule violation: names_match,kubevirt.io/api/core/v1,NetworkConfiguration,Dep
 API rule violation: names_match,kubevirt.io/api/core/v1,NetworkConfiguration,NetworkInterface
 API rule violation: names_match,kubevirt.io/api/core/v1,PITTimer,Enabled
 API rule violation: names_match,kubevirt.io/api/core/v1,RTCTimer,Enabled
+API rule violation: names_match,kubevirt.io/api/core/v1,VMIMConfigurationOptions,ExperimentalMigrationOptions
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceFileSystemInfo,Filesystems
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceGuestAgentInfo,GAVersion
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceGuestOSInfo,VersionID
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceMigrationState,MigrationUID
+API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceMigrationState,VMIMConfigurationOptions
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceNetworkInterface,IP
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceNetworkInterface,IPs
 API rule violation: names_match,kubevirt.io/api/core/v1,VirtualMachineInstanceStatus,VSOCKCID

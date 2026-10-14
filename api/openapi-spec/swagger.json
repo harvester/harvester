@@ -10556,24 +10556,6 @@
           }
         }
       },
-      "k8s.io.v1.PodResourceClaim": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "default": ""
-          },
-          "resourceClaimName": {
-            "type": "string"
-          },
-          "resourceClaimTemplateName": {
-            "type": "string"
-          }
-        }
-      },
       "k8s.io.v1.Preconditions": {
         "type": "object",
         "properties": {
@@ -11052,6 +11034,17 @@
             "type": "string"
           },
           "version": {
+            "type": "string"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.ClaimRequest": {
+        "type": "object",
+        "properties": {
+          "claimName": {
+            "type": "string"
+          },
+          "requestName": {
             "type": "string"
           }
         }
@@ -11681,6 +11674,17 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.ExperimentalMigrationOptions": {
+        "type": "object",
+        "properties": {
+          "compression": {
+            "type": "string"
+          },
+          "stallDetector": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.StallDetectorOptions"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.FeatureAPIC": {
         "type": "object",
         "properties": {
@@ -12107,6 +12111,18 @@
           "pciAddress": {
             "type": "string"
           },
+          "portRanges": {
+            "type": "array",
+            "items": {
+              "default": {},
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PortRange"
+                }
+              ]
+            },
+            "x-kubernetes-list-type": "atomic"
+          },
           "ports": {
             "type": "array",
             "items": {
@@ -12301,58 +12317,6 @@
           }
         }
       },
-      "kubevirt.io.api.core.v1.MigrationConfiguration": {
-        "type": "object",
-        "properties": {
-          "allowAutoConverge": {
-            "type": "boolean"
-          },
-          "allowPostCopy": {
-            "type": "boolean"
-          },
-          "allowWorkloadDisruption": {
-            "type": "boolean"
-          },
-          "bandwidthPerMigration": {
-            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
-          },
-          "completionTimeoutPerGiB": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "disableTLS": {
-            "type": "boolean"
-          },
-          "matchSELinuxLevelOnMigration": {
-            "type": "boolean"
-          },
-          "network": {
-            "type": "string"
-          },
-          "nodeDrainTaintKey": {
-            "type": "string"
-          },
-          "parallelMigrationsPerCluster": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "parallelOutboundMigrationsPerNode": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "progressTimeout": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "unsafeMigrationOverride": {
-            "type": "boolean"
-          },
-          "utilityVolumesTimeout": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
       "kubevirt.io.api.core.v1.MultusNetwork": {
         "type": "object",
         "required": [
@@ -12394,6 +12358,9 @@
           },
           "pod": {
             "$ref": "#/components/schemas/kubevirt.io.api.core.v1.PodNetwork"
+          },
+          "resourceClaim": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ClaimRequest"
           }
         }
       },
@@ -12518,6 +12485,30 @@
           },
           "protocol": {
             "type": "string"
+          }
+        }
+      },
+      "kubevirt.io.api.core.v1.PortRange": {
+        "type": "object",
+        "required": [
+          "end",
+          "protocol",
+          "start"
+        ],
+        "properties": {
+          "end": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "protocol": {
+            "type": "string",
+            "default": ""
+          },
+          "start": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
           }
         }
       },
@@ -12788,6 +12779,38 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.StallDetectorOptions": {
+        "type": "object",
+        "properties": {
+          "completionTimeoutFactor": {
+            "type": "string"
+          },
+          "ewmaAlpha": {
+            "type": "string"
+          },
+          "patienceWindowDecayFactor": {
+            "type": "string"
+          },
+          "precopyPossibleFactor": {
+            "type": "string"
+          },
+          "searchLocalMinima": {
+            "type": "boolean"
+          },
+          "stallMargin": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stallProgressTimeout": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "switchoverTimeout": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.StorageMigratedVolumeInfo": {
         "type": "object",
         "required": [
@@ -12968,6 +12991,65 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.VMIMConfigurationOptions": {
+        "type": "object",
+        "properties": {
+          "allowAutoConverge": {
+            "type": "boolean"
+          },
+          "allowPostCopy": {
+            "type": "boolean"
+          },
+          "allowWorkloadDisruption": {
+            "type": "boolean"
+          },
+          "bandwidthPerMigration": {
+            "$ref": "#/components/schemas/k8s.io.apimachinery.pkg.api.resource.Quantity"
+          },
+          "completionTimeoutPerGiB": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "disableTLS": {
+            "type": "boolean"
+          },
+          "experimental": {
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.ExperimentalMigrationOptions"
+          },
+          "matchSELinuxLevelOnMigration": {
+            "type": "boolean"
+          },
+          "maxDowntimeMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "network": {
+            "type": "string"
+          },
+          "nodeDrainTaintKey": {
+            "type": "string"
+          },
+          "parallelMigrationsPerCluster": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "parallelOutboundMigrationsPerNode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "progressTimeout": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unsafeMigrationOverride": {
+            "type": "boolean"
+          },
+          "utilityVolumesTimeout": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.VideoDevice": {
         "type": "object",
         "properties": {
@@ -13100,6 +13182,9 @@
           },
           "failed": {
             "type": "boolean"
+          },
+          "quiesceStatus": {
+            "type": "string"
           },
           "startTimestamp": {
             "$ref": "#/components/schemas/k8s.io.v1.Time"
@@ -13428,7 +13513,7 @@
             "type": "string"
           },
           "migrationConfiguration": {
-            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.MigrationConfiguration"
+            "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VMIMConfigurationOptions"
           },
           "migrationNetworkType": {
             "type": "string"
@@ -13672,6 +13757,24 @@
           }
         }
       },
+      "kubevirt.io.api.core.v1.VirtualMachineInstanceResourceClaim": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "default": ""
+          },
+          "resourceClaimName": {
+            "type": "string"
+          },
+          "resourceClaimTemplateName": {
+            "type": "string"
+          }
+        }
+      },
       "kubevirt.io.api.core.v1.VirtualMachineInstanceSpec": {
         "type": "object",
         "required": [
@@ -13755,7 +13858,7 @@
               "default": {},
               "allOf": [
                 {
-                  "$ref": "#/components/schemas/k8s.io.v1.PodResourceClaim"
+                  "$ref": "#/components/schemas/kubevirt.io.api.core.v1.VirtualMachineInstanceResourceClaim"
                 }
               ]
             },
@@ -13765,6 +13868,9 @@
             "x-kubernetes-list-type": "map"
           },
           "schedulerName": {
+            "type": "string"
+          },
+          "serviceAccountName": {
             "type": "string"
           },
           "startStrategy": {
