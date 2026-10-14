@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
+	imagecommon "github.com/harvester/harvester/pkg/image/common"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
@@ -74,6 +75,17 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 		kubeovnSubnetCache = clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache()
 	}
 
+	imageController := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
+	vmio, err := imagecommon.GetVMIOperator(
+		imageController,
+		imageController.Cache(),
+		clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+		http.Client{},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	resources := []types.Resource{}
 	validators := []types.Validator{
 		node.NewValidator(
@@ -135,7 +147,8 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.CdiFactory.Cdi().V1beta1().DataVolume().Cache(),
-			clients.K8s.AuthorizationV1().SubjectAccessReviews()),
+			clients.K8s.AuthorizationV1().SubjectAccessReviews(),
+			vmio),
 		upgrade.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Upgrade().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Addon().Cache(),
