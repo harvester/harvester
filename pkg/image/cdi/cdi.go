@@ -63,6 +63,8 @@ func (b *Backend) Initialize(vmImg *harvesterv1.VirtualMachineImage) (*harvester
 		return vmImg, nil
 	case harvesterv1.VirtualMachineImageSourceTypeExportVolume:
 		return b.initializeExportFromVolume(vmImg)
+	case harvesterv1.VirtualMachineImageSourceTypeClone:
+		return b.initializeClone(vmImg)
 	default:
 		return vmImg, fmt.Errorf("unsupported source type: %s", vmImg.Spec.SourceType)
 	}
@@ -78,9 +80,10 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 
 	// upload source type will update the progress on the upload handler
 	if vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload ||
-		vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume {
+		vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume ||
+		vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeClone {
 		progress := string(targetDV.Status.Progress)
-		if progress != "N/A" && progress != "" {
+		if targetDV.Status.Phase != cdiv1.Succeeded && progress != "N/A" && progress != "" {
 			// progress format looks like "88.82%", we just need the integer part
 			parsedInt := strings.Split(progress, ".")[0]
 			progressInt, err := strconv.Atoi(parsedInt)
