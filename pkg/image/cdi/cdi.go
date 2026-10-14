@@ -63,6 +63,8 @@ func (b *Backend) Initialize(vmImg *harvesterv1.VirtualMachineImage) (*harvester
 		return vmImg, nil
 	case harvesterv1.VirtualMachineImageSourceTypeExportVolume:
 		return b.initializeExportFromVolume(vmImg)
+	case harvesterv1.VirtualMachineImageSourceTypeClone:
+		return b.initializeClone(vmImg)
 	default:
 		return vmImg, fmt.Errorf("unsupported source type: %s", vmImg.Spec.SourceType)
 	}
@@ -76,25 +78,8 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 		return b.handleDataVolumeError(err, targetDVNs, targetDVName)
 	}
 
-	// upload source type will update the progress on the upload handler
-	if vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeDownload ||
-		vmImg.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeExportVolume {
-		progress := string(targetDV.Status.Progress)
-		if progress != "N/A" && progress != "" {
-			// progress format looks like "88.82%", we just need the integer part
-			parsedInt := strings.Split(progress, ".")[0]
-			progressInt, err := strconv.Atoi(parsedInt)
-			if err != nil {
-				return fmt.Errorf("failed to convert progress to int: %v", err)
-			}
-			logrus.Infof("Update CDI DataVolume %s/%s progress: %v", targetDVNs, targetDVName, progressInt)
-			_, err = b.vmio.Importing(vmImg, "Image Importing", progressInt)
-			if err != nil {
-				// just log, we don't care the temporary error here
-				logrus.Errorf("failed to update VM Image progress: %v", err)
-			}
-		}
-		logrus.Infof("CDI DataVolume %s/%s status: %s, progress: %v", targetDVNs, targetDVName, targetDV.Status.Phase, progress)
+	if err := b.updateImportProgress(vmImg, targetDV); err != nil {
+		return err
 	}
 	if targetDV.Status.Phase != cdiv1.Succeeded {
 		return common.ErrRetryLater
@@ -103,6 +88,40 @@ func (b *Backend) Check(vmImg *harvesterv1.VirtualMachineImage) error {
 		return fmt.Errorf("failed to update VM Image status to Imported: %v", err)
 	}
 
+	return nil
+}
+
+func (b *Backend) updateImportProgress(
+	vmImg *harvesterv1.VirtualMachineImage,
+	dv *cdiv1.DataVolume,
+) error {
+	// Upload progress is managed by the upload handler.
+	switch vmImg.Spec.SourceType {
+	case harvesterv1.VirtualMachineImageSourceTypeDownload,
+		harvesterv1.VirtualMachineImageSourceTypeExportVolume,
+		harvesterv1.VirtualMachineImageSourceTypeClone:
+	default:
+		return nil
+	}
+
+	progress := string(dv.Status.Progress)
+	logrus.Infof("CDI DataVolume %s/%s status: %s, progress: %v",
+		dv.Namespace, dv.Name, dv.Status.Phase, progress)
+	if dv.Status.Phase == cdiv1.Succeeded || progress == "" || progress == "N/A" {
+		return nil
+	}
+
+	// Progress looks like "88.82%"; only the integer part is used.
+	progressInt, err := strconv.Atoi(strings.Split(progress, ".")[0])
+	if err != nil {
+		return fmt.Errorf("failed to convert progress to int: %v", err)
+	}
+	logrus.Infof("Update CDI DataVolume %s/%s progress: %v",
+		dv.Namespace, dv.Name, progressInt)
+	if _, err := b.vmio.Importing(vmImg, "Image Importing", progressInt); err != nil {
+		// A temporary progress update failure should not block the check.
+		logrus.Errorf("failed to update VM Image progress: %v", err)
+	}
 	return nil
 }
 

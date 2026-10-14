@@ -483,11 +483,25 @@ func Test_storageClassValidator_validateEncryption(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
-			err := validator.validateEncryption(tc.storageClass)
-			if tc.expectError {
-				assert.NotNil(t, err, tc.name)
-			} else {
-				assert.Nil(t, err, tc.name)
+			for _, dataEngine := range []longhornv1.DataEngineType{"", longhornv1.DataEngineTypeV1, longhornv1.DataEngineTypeV2} {
+				name := string(dataEngine)
+				if name == "" {
+					name = "default"
+				}
+				t.Run(name, func(t *testing.T) {
+					sc := tc.storageClass.DeepCopy()
+					sc.Provisioner = util.CSIProvisionerLonghorn
+					if dataEngine != "" {
+						sc.Parameters[util.ParamDataEngine] = string(dataEngine)
+					}
+
+					err := validator.Create(nil, sc)
+					if tc.expectError {
+						assert.Error(t, err)
+					} else {
+						assert.NoError(t, err)
+					}
+				})
 			}
 
 			if tc.secret != nil {
