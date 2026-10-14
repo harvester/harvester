@@ -72,6 +72,39 @@ RUN curl -Lo /usr/bin/codecov https://uploader.codecov.io/${CODECOV_VERSION}/lin
 ENV HOME=/go/src/github.com/harvester/harvester
 
 
+# ---- CI Go cache transfer ----
+# Use the same mount IDs as the build stages. These targets only copy data;
+# scripts/ci-go-cache forces them to run even when Docker layers are cached.
+FROM builder AS go-cache-restore
+ARG MK_REPO_ID
+ARG CI_CACHE_BUSTER
+
+RUN --network=none \
+    --mount=type=bind,from=go-cache,target=/cache-source \
+    --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/golangci-lint,id=harvester-golangci-${MK_REPO_ID} \
+    cp -a /cache-source/go-mod/. /go/pkg/mod/ && \
+    cp -a /cache-source/go-build/. /go/src/github.com/harvester/harvester/.cache/go-build/ && \
+    cp -a /cache-source/golangci-lint/. /go/src/github.com/harvester/harvester/.cache/golangci-lint/
+
+FROM builder AS go-cache-export
+ARG MK_REPO_ID
+ARG CI_CACHE_BUSTER
+
+RUN --network=none \
+    --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID},readonly \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID},readonly \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/golangci-lint,id=harvester-golangci-${MK_REPO_ID},readonly \
+    mkdir -p /cache-output && \
+    cp -a /go/pkg/mod /cache-output/go-mod && \
+    cp -a /go/src/github.com/harvester/harvester/.cache/go-build /cache-output/go-build && \
+    cp -a /go/src/github.com/harvester/harvester/.cache/golangci-lint /cache-output/golangci-lint
+
+FROM scratch AS go-cache-output
+COPY --from=go-cache-export /cache-output/ /
+
+
 # ---- base ----
 FROM builder AS base
 WORKDIR /go/src/github.com/harvester/harvester
@@ -117,6 +150,7 @@ ARG MK_REPO_ID
 
 RUN --mount=type=cache,target=/go/pkg/mod,id=harvester-go-mod-${MK_REPO_ID} \
     --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/go-build,id=harvester-go-build-${MK_REPO_ID} \
+    --mount=type=cache,target=/go/src/github.com/harvester/harvester/.cache/golangci-lint,id=harvester-golangci-${MK_REPO_ID} \
     ./scripts/validate
 
 

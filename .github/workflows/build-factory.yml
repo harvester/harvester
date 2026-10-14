@@ -27,9 +27,41 @@ jobs:
     strategy:
       matrix:
         arch: [x64, arm64]
+    env:
+      # Cache injection and the existing docker build commands must use the
+      # same builder. The docker driver also keeps packaged images available.
+      BUILDX_BUILDER: default
+      MK_CI_REPO_ID: ci-${{ matrix.arch }}
+      # build.yml already selects master, v*, and release-* push builds.
+      # GitHub scopes cache writes to the pushed branch, so no version list
+      # is needed here. PR and tag builds remain restore-only.
+      GO_CACHE_WRITE: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Prepare Go caches
+      id: cache-config
+      env:
+        CACHE_PREFIX: harvester-go-v1-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('Dockerfile', 'go.mod', 'go.sum', '.golangci.yaml') }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/harvester-go-cache"/{go-mod,go-build,golangci-lint}
+        echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+        echo "key=$CACHE_PREFIX-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+    # PRs can read their base branch's cache. Only successful branch pushes
+    # save updated caches below, in the pushed branch's scope.
+    - name: Restore Go caches
+      id: cache
+      uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      with:
+        path: ${{ runner.temp }}/harvester-go-cache
+        key: ${{ steps.cache-config.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-config.outputs.prefix }}-
+
+    - name: Restore Docker cache mounts
+      run: bash scripts/ci-go-cache restore "$RUNNER_TEMP/harvester-go-cache" "$MK_CI_REPO_ID"
 
     - name: Set Build Environment Variables
       if: ${{ inputs.tag != '' }}
@@ -41,10 +73,10 @@ jobs:
     # Build binaries
     - name: Run make ci
       if: ${{ matrix.arch == 'x64' }}
-      run: make ci
+      run: make ci MK_REPO_ID="$MK_CI_REPO_ID"
     - name: Run make arm
       if: ${{ matrix.arch == 'arm64' }}
-      run: make arm
+      run: make arm MK_REPO_ID="$MK_CI_REPO_ID"
 
     - name: Upload binaries
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -57,6 +89,17 @@ jobs:
       with:
         name: addons_${{ matrix.arch }}_artifact
         path: ./dist/prepare-addons/addons-manifests
+
+    - name: Export Docker cache mounts
+      if: ${{ env.GO_CACHE_WRITE == 'true' && steps.cache.outputs.cache-hit != 'true' }}
+      run: bash scripts/ci-go-cache export "$RUNNER_TEMP/harvester-go-cache" "$MK_CI_REPO_ID"
+
+    - name: Save Go caches
+      if: ${{ env.GO_CACHE_WRITE == 'true' && steps.cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      with:
+        path: ${{ runner.temp }}/harvester-go-cache
+        key: ${{ steps.cache-config.outputs.key }}
 
   build-push-images:
     name: Build and push images
