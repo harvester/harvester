@@ -32,6 +32,8 @@ detect_repo()
   REPO_HARVESTER_CHART_VERSION=$(yq -e e '.harvesterChart' $release_file)
   REPO_OS_PRETTY_NAME="$(yq -e e '.os' $release_file)"
   REPO_OS_VERSION="${REPO_OS_PRETTY_NAME#Harvester }"
+  # Releases built before serverFlavor was introduced are community builds
+  REPO_SERVER_FLAVOR=$(yq e '.serverFlavor // "community"' $release_file)
   REPO_RKE2_VERSION=$(yq -e e '.kubernetes' $release_file)
   REPO_RANCHER_VERSION=$(yq -e e '.rancher' $release_file)
   REPO_RANCHER_SYSTEM_DEFAULT_REGISTRY=$(yq e '.rancherSystemDefaultRegistry // ""' $release_file)
