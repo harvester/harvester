@@ -2,8 +2,10 @@ package fakeclients
 
 import (
 	"context"
+	"slices"
 
 	corev1type "github.com/harvester/harvester/pkg/generated/clientset/versioned/typed/v1"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,5 +77,24 @@ func (c PodCache) AddIndexer(_ string, _ generic.Indexer[*corev1.Pod]) {
 }
 
 func (c PodCache) GetByIndex(indexName, key string) ([]*corev1.Pod, error) {
-	panic("implement me for index: " + indexName)
+	switch indexName {
+	case util.IndexPodByPVC:
+		pods, err := c.List(metav1.NamespaceAll, labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		var result []*corev1.Pod
+		for _, pod := range pods {
+			keys, err := util.IndexPodByPVCFunc(pod)
+			if err != nil {
+				return nil, err
+			}
+			if slices.Contains(keys, key) {
+				result = append(result, pod)
+			}
+		}
+		return result, nil
+	default:
+		panic("implement me for index: " + indexName)
+	}
 }
