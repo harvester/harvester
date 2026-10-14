@@ -359,6 +359,33 @@ spec:
                         nullable: true
                         type: boolean
                     type: object
+                  confidentialCompute:
+                    description: QGS configuration for attestation on the Intel TDX
+                      Platform
+                    nullable: true
+                    properties:
+                      tdx:
+                        description: TDX configuration for attestation on the Intel
+                          TDX Platform
+                        nullable: true
+                        properties:
+                          attestation:
+                            description: QGSConfiguration holds QGS configuration
+                            properties:
+                              enforced:
+                                default: false
+                                description: Indicates whether TDX VM should enforce
+                                  the existence of QGS (required for attestation)
+                                  to be scheduled
+                                type: boolean
+                              qgsSocketPath:
+                                default: /var/run/tdx-qgs/qgs.socket
+                                description: Socket path pointing to the Quote Generation
+                                  Service
+                                type: string
+                            type: object
+                        type: object
+                    type: object
                   controllerConfiguration:
                     description: |-
                       ReloadableComponentConfiguration holds all generic k8s configuration options which can
@@ -418,6 +445,14 @@ spec:
                           https://kubevirt.io/user-guide/operations/node_overcommit/#node-cpu-allocation-ratio
                           Defaults to 10
                         type: integer
+                      disabledFeatureGates:
+                        description: |-
+                          DisabledFeatureGates specifies a list of experimental feature gates to disable.
+                          A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
                       diskVerification:
                         description: DiskVerification holds container disks verification
                           limits
@@ -432,11 +467,13 @@ spec:
                         - memoryLimit
                         type: object
                       featureGates:
-                        description: FeatureGates is the list of experimental features
-                          to enable. Defaults to none
+                        description: |-
+                          FeatureGates specifies a list of experimental feature gates to enable. Defaults to none.
+                          A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
                         items:
                           type: string
                         type: array
+                        x-kubernetes-list-type: atomic
                       logVerbosity:
                         description: LogVerbosity sets log verbosity level of  various
                           components
@@ -543,9 +580,30 @@ spec:
                             type: object
                         type: object
                     type: object
+                  hypervisors:
+                    description: Hypervisors holds information regarding the hypervisor
+                      configurations supported on this cluster.
+                    items:
+                      description: HypervisorConfiguration holds information regarding
+                        the hypervisor present on cluster nodes.
+                      properties:
+                        name:
+                          description: |-
+                            Name is the name of the hypervisor.
+                            Supported values are: "kvm", "hyperv-direct".
+                          enum:
+                          - kvm
+                          - hyperv-direct
+                          type: string
+                      type: object
+                    maxItems: 1
+                    type: array
+                    x-kubernetes-list-type: atomic
                   imagePullPolicy:
-                    description: PullPolicy describes a policy for if/when to pull
-                      a container image
+                    description: |-
+                      The ImagePullPolicy to use for user workload pods and their containers
+                      (launcher pods, exporter pods, etc.).
+                      For KubeVirt infrastructure images, use spec.imagePullPolicy instead.
                     type: string
                   instancetype:
                     description: Instancetype configuration
@@ -654,6 +712,12 @@ spec:
                     description: MediatedDevicesConfiguration holds information about
                       MDEV types to be defined, if available
                     properties:
+                      enabled:
+                        description: |-
+                          Enable the creation and removal of mediated devices by virt-handler
+                          Replaces the deprecated DisableMDEVConfiguration feature gate
+                          Defaults to true
+                        type: boolean
                       mediatedDeviceTypes:
                         items:
                           type: string
@@ -752,6 +816,14 @@ spec:
                           That will ensure the target virt-launcher doesn't share categories with another pod on the node.
                           However, migrations will fail when using RWX volumes that don't automatically deal with SELinux levels.
                         type: boolean
+                      maxDowntimeMs:
+                        description: |-
+                          MaxDowntimeMs specifies the maximum tolerable downtime (in milliseconds) during switchover.
+                          Defaults to 900
+                        format: int64
+                        maximum: 2000000
+                        minimum: 1
+                        type: integer
                       network:
                         description: |-
                           Network is the name of the CNI network to use for live migrations. By default, migrations go
@@ -786,8 +858,16 @@ spec:
                           UnsafeMigrationOverride allows live migrations to occur even if the compatibility check
                           indicates the migration will be unsafe to the guest. Defaults to false
                         type: boolean
+                      utilityVolumesTimeout:
+                        description: |-
+                          UtilityVolumesTimeout is the maximum number of seconds a migration can wait in Pending state
+                          for utility volumes to be detached. If utility volumes are still present after this timeout,
+                          the migration will be marked as Failed. Defaults to 150
+                        format: int64
+                        type: integer
                     type: object
                   minCPUModel:
+                    description: deprecated
                     type: string
                   network:
                     description: NetworkConfiguration holds network options
@@ -960,6 +1040,31 @@ spec:
                         type: array
                         x-kubernetes-list-type: atomic
                     type: object
+                  persistentReservationConfiguration:
+                    description: PersistentReservationConfiguration controls the deployment
+                      of additional resources required for using SCSI persistent reservation
+                      in VMs
+                    nullable: true
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled controls the deployment of additional resources like the pr-helper container
+                          for enabling the use of the SCSI persistent reservation VMs, defaults to False.
+                        nullable: true
+                        type: boolean
+                    type: object
+                  roleAggregationStrategy:
+                    description: |-
+                      RoleAggregationStrategy controls whether RBAC cluster roles should be aggregated
+                      to the default Kubernetes roles (admin, edit, view).
+                      When set to "AggregateToDefault" (default) or not specified, the aggregate-to-* labels are added to the cluster roles.
+                      When set to "Manual", the labels are not added, and roles will not be aggregated to the default roles.
+                      Setting RoleAggregationStrategy to "Manual" requires the OptOutRoleAggregation feature gate
+                      to be enabled (Beta, enabled by default since v1.9.0).
+                    enum:
+                    - AggregateToDefault
+                    - Manual
+                    type: string
                   seccompConfiguration:
                     description: SeccompConfiguration holds Seccomp configuration
                       for Kubevirt components
@@ -1074,6 +1179,17 @@ spec:
                         - VersionTLS13
                         type: string
                     type: object
+                  virtTemplateDeployment:
+                    description: VirtTemplateDeployment controls the deployment of
+                      virt-template components
+                    nullable: true
+                    properties:
+                      enabled:
+                        description: Enabled controls the deployment of virt-template
+                          resources, defaults to True when feature gate is enabled.
+                        nullable: true
+                        type: boolean
+                    type: object
                   virtualMachineInstancesPerNode:
                     type: integer
                   virtualMachineOptions:
@@ -1182,7 +1298,11 @@ spec:
                     x-kubernetes-list-type: atomic
                 type: object
               imagePullPolicy:
-                description: The ImagePullPolicy to use.
+                description: |-
+                  The ImagePullPolicy to use for KubeVirt operator-managed infrastructure
+                  images (virt-api, virt-controller, virt-handler, virt-exportproxy, etc.).
+                  For pull policy of user workload pods, see
+                  spec.configuration.imagePullPolicy.
                 type: string
               imagePullSecrets:
                 description: |-
@@ -1805,8 +1925,8 @@ spec:
                                   most preferred is the one with the greatest sum of weights, i.e.
                                   for each node that meets all of the scheduling requirements (resource
                                   request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                  compute a sum by iterating through the elements of this field and adding
-                                  "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                  compute a sum by iterating through the elements of this field and subtracting
+                                  "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                   node(s) with the highest sum are the most preferred.
                                 items:
                                   description: The weights of all of the matched WeightedPodAffinityTerm
@@ -2878,8 +2998,8 @@ spec:
                                   most preferred is the one with the greatest sum of weights, i.e.
                                   for each node that meets all of the scheduling requirements (resource
                                   request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                  compute a sum by iterating through the elements of this field and adding
-                                  "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                  compute a sum by iterating through the elements of this field and subtracting
+                                  "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                   node(s) with the highest sum are the most preferred.
                                 items:
                                   description: The weights of all of the matched WeightedPodAffinityTerm
@@ -3739,6 +3859,33 @@ spec:
                         nullable: true
                         type: boolean
                     type: object
+                  confidentialCompute:
+                    description: QGS configuration for attestation on the Intel TDX
+                      Platform
+                    nullable: true
+                    properties:
+                      tdx:
+                        description: TDX configuration for attestation on the Intel
+                          TDX Platform
+                        nullable: true
+                        properties:
+                          attestation:
+                            description: QGSConfiguration holds QGS configuration
+                            properties:
+                              enforced:
+                                default: false
+                                description: Indicates whether TDX VM should enforce
+                                  the existence of QGS (required for attestation)
+                                  to be scheduled
+                                type: boolean
+                              qgsSocketPath:
+                                default: /var/run/tdx-qgs/qgs.socket
+                                description: Socket path pointing to the Quote Generation
+                                  Service
+                                type: string
+                            type: object
+                        type: object
+                    type: object
                   controllerConfiguration:
                     description: |-
                       ReloadableComponentConfiguration holds all generic k8s configuration options which can
@@ -3798,6 +3945,14 @@ spec:
                           https://kubevirt.io/user-guide/operations/node_overcommit/#node-cpu-allocation-ratio
                           Defaults to 10
                         type: integer
+                      disabledFeatureGates:
+                        description: |-
+                          DisabledFeatureGates specifies a list of experimental feature gates to disable.
+                          A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
                       diskVerification:
                         description: DiskVerification holds container disks verification
                           limits
@@ -3812,11 +3967,13 @@ spec:
                         - memoryLimit
                         type: object
                       featureGates:
-                        description: FeatureGates is the list of experimental features
-                          to enable. Defaults to none
+                        description: |-
+                          FeatureGates specifies a list of experimental feature gates to enable. Defaults to none.
+                          A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
                         items:
                           type: string
                         type: array
+                        x-kubernetes-list-type: atomic
                       logVerbosity:
                         description: LogVerbosity sets log verbosity level of  various
                           components
@@ -3923,9 +4080,30 @@ spec:
                             type: object
                         type: object
                     type: object
+                  hypervisors:
+                    description: Hypervisors holds information regarding the hypervisor
+                      configurations supported on this cluster.
+                    items:
+                      description: HypervisorConfiguration holds information regarding
+                        the hypervisor present on cluster nodes.
+                      properties:
+                        name:
+                          description: |-
+                            Name is the name of the hypervisor.
+                            Supported values are: "kvm", "hyperv-direct".
+                          enum:
+                          - kvm
+                          - hyperv-direct
+                          type: string
+                      type: object
+                    maxItems: 1
+                    type: array
+                    x-kubernetes-list-type: atomic
                   imagePullPolicy:
-                    description: PullPolicy describes a policy for if/when to pull
-                      a container image
+                    description: |-
+                      The ImagePullPolicy to use for user workload pods and their containers
+                      (launcher pods, exporter pods, etc.).
+                      For KubeVirt infrastructure images, use spec.imagePullPolicy instead.
                     type: string
                   instancetype:
                     description: Instancetype configuration
@@ -4034,6 +4212,12 @@ spec:
                     description: MediatedDevicesConfiguration holds information about
                       MDEV types to be defined, if available
                     properties:
+                      enabled:
+                        description: |-
+                          Enable the creation and removal of mediated devices by virt-handler
+                          Replaces the deprecated DisableMDEVConfiguration feature gate
+                          Defaults to true
+                        type: boolean
                       mediatedDeviceTypes:
                         items:
                           type: string
@@ -4132,6 +4316,14 @@ spec:
                           That will ensure the target virt-launcher doesn't share categories with another pod on the node.
                           However, migrations will fail when using RWX volumes that don't automatically deal with SELinux levels.
                         type: boolean
+                      maxDowntimeMs:
+                        description: |-
+                          MaxDowntimeMs specifies the maximum tolerable downtime (in milliseconds) during switchover.
+                          Defaults to 900
+                        format: int64
+                        maximum: 2000000
+                        minimum: 1
+                        type: integer
                       network:
                         description: |-
                           Network is the name of the CNI network to use for live migrations. By default, migrations go
@@ -4166,8 +4358,16 @@ spec:
                           UnsafeMigrationOverride allows live migrations to occur even if the compatibility check
                           indicates the migration will be unsafe to the guest. Defaults to false
                         type: boolean
+                      utilityVolumesTimeout:
+                        description: |-
+                          UtilityVolumesTimeout is the maximum number of seconds a migration can wait in Pending state
+                          for utility volumes to be detached. If utility volumes are still present after this timeout,
+                          the migration will be marked as Failed. Defaults to 150
+                        format: int64
+                        type: integer
                     type: object
                   minCPUModel:
+                    description: deprecated
                     type: string
                   network:
                     description: NetworkConfiguration holds network options
@@ -4340,6 +4540,31 @@ spec:
                         type: array
                         x-kubernetes-list-type: atomic
                     type: object
+                  persistentReservationConfiguration:
+                    description: PersistentReservationConfiguration controls the deployment
+                      of additional resources required for using SCSI persistent reservation
+                      in VMs
+                    nullable: true
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled controls the deployment of additional resources like the pr-helper container
+                          for enabling the use of the SCSI persistent reservation VMs, defaults to False.
+                        nullable: true
+                        type: boolean
+                    type: object
+                  roleAggregationStrategy:
+                    description: |-
+                      RoleAggregationStrategy controls whether RBAC cluster roles should be aggregated
+                      to the default Kubernetes roles (admin, edit, view).
+                      When set to "AggregateToDefault" (default) or not specified, the aggregate-to-* labels are added to the cluster roles.
+                      When set to "Manual", the labels are not added, and roles will not be aggregated to the default roles.
+                      Setting RoleAggregationStrategy to "Manual" requires the OptOutRoleAggregation feature gate
+                      to be enabled (Beta, enabled by default since v1.9.0).
+                    enum:
+                    - AggregateToDefault
+                    - Manual
+                    type: string
                   seccompConfiguration:
                     description: SeccompConfiguration holds Seccomp configuration
                       for Kubevirt components
@@ -4454,6 +4679,17 @@ spec:
                         - VersionTLS13
                         type: string
                     type: object
+                  virtTemplateDeployment:
+                    description: VirtTemplateDeployment controls the deployment of
+                      virt-template components
+                    nullable: true
+                    properties:
+                      enabled:
+                        description: Enabled controls the deployment of virt-template
+                          resources, defaults to True when feature gate is enabled.
+                        nullable: true
+                        type: boolean
+                    type: object
                   virtualMachineInstancesPerNode:
                     type: integer
                   virtualMachineOptions:
@@ -4562,7 +4798,11 @@ spec:
                     x-kubernetes-list-type: atomic
                 type: object
               imagePullPolicy:
-                description: The ImagePullPolicy to use.
+                description: |-
+                  The ImagePullPolicy to use for KubeVirt operator-managed infrastructure
+                  images (virt-api, virt-controller, virt-handler, virt-exportproxy, etc.).
+                  For pull policy of user workload pods, see
+                  spec.configuration.imagePullPolicy.
                 type: string
               imagePullSecrets:
                 description: |-
@@ -5185,8 +5425,8 @@ spec:
                                   most preferred is the one with the greatest sum of weights, i.e.
                                   for each node that meets all of the scheduling requirements (resource
                                   request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                  compute a sum by iterating through the elements of this field and adding
-                                  "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                  compute a sum by iterating through the elements of this field and subtracting
+                                  "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                   node(s) with the highest sum are the most preferred.
                                 items:
                                   description: The weights of all of the matched WeightedPodAffinityTerm
@@ -6258,8 +6498,8 @@ spec:
                                   most preferred is the one with the greatest sum of weights, i.e.
                                   for each node that meets all of the scheduling requirements (resource
                                   request, requiredDuringScheduling anti-affinity expressions, etc.),
-                                  compute a sum by iterating through the elements of this field and adding
-                                  "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+                                  compute a sum by iterating through the elements of this field and subtracting
+                                  "weight" from the sum if the node has pods which matches the corresponding podAffinityTerm; the
                                   node(s) with the highest sum are the most preferred.
                                 items:
                                   description: The weights of all of the matched WeightedPodAffinityTerm

@@ -49,7 +49,7 @@ kubevirt-operator:
     operator:
       image:
         repository: registry.suse.com/suse/sles/16.0/virt-operator
-        tag: &kubevirtVersion 1.8.4-11.9
+        tag: &kubevirtVersion 1.9.0-2.9
     ## The following images are placeholder for images in use.
     ## They are not used by the kubevirt-operator chart.
     controller:
@@ -68,8 +68,14 @@ kubevirt-operator:
       image:
         repository: registry.suse.com/suse/sles/16.0/virt-launcher
         tag: *kubevirtVersion
-    ## libguestfs image is missing in the 16.0 registry, so we use the 15.7 one instead.
-    ## we will have it with kubevirt v1.8.4, so we can remove this override then.
+    exportproxy:
+      image:
+        repository: registry.suse.com/suse/sles/16.0/virt-exportproxy
+        tag: *kubevirtVersion
+    exportserver:
+      image:
+        repository: registry.suse.com/suse/sles/16.0/virt-exportserver
+        tag: *kubevirtVersion
     libguestfs: # introduced from kubevirt v0.44.0
       image:
         repository: registry.suse.com/suse/sles/16.0/libguestfs-tools
@@ -99,6 +105,25 @@ kubevirt:
           - ExpandDisks
           - EnableVirtioFsConfigVolumes
           - HostDevices
+        ## Since kubevirt v1.9.0, Beta gates are enabled unless disabled here.
+        ## Disable the Beta gates not listed above to keep the same effective
+        ## feature gates as before v1.9.0; enable them explicitly once verified.
+        disabledFeatureGates:
+          - ExternalNetResourceInjection
+          - GPUsWithDRA
+          - HostDevicesWithDRA
+          - ImageVolume
+          - KubevirtSeccompProfile
+          - LibvirtHooksServerAndClient
+          - NodeRestriction
+          - OptOutRoleAggregation
+          - PasstBinding
+          - PodSecondaryInterfaceNamingUpgrade
+          - RebootPolicy
+          - Snapshot
+          - Template
+          - VmiMemoryOverheadReport
+          - WorkloadEncryptionSEV
 
       vmRolloutStrategy: "LiveUpdate"
 
