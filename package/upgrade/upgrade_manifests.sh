@@ -73,6 +73,8 @@ pre_upgrade_manifest() {
   fi
 
   if [[ "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]+$ ]]; then
+    # The hook only exists under v1.9.0, but the patch applies to every v1.9.x
+    source "/usr/local/share/migrations/upgrade_manifests/v1.9.0/pre-hook.sh"
     patch_harvester_vm_migration_details_dashboard
   fi
 
