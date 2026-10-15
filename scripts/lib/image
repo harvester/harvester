@@ -148,19 +148,24 @@ save_image_list()
 
   local repository
   local want
+  local allowed
+  local allow_list
+
+  allow_list=$(yq e ".${app}[]" ${SCRIPTS_DIR}/images/allow.yaml)
 
   for image in $images; do
+    # Add docker.io prefix if there is no prefixed registry URL
+    image=$(normalize_image $image)
     repository=${image%:*}
 
-    # Add docker.io prefix if there is no prefixed registry URL
-    repository=$(normalize_image $repository)
-
-    # The allow list identifies repositories independently of their registry.
-    repository=${repository#*/}
-
-    if yq -e e ".${app}[] | select(. == \"${repository}\")" ${SCRIPTS_DIR}/images/allow.yaml &>/dev/null; then
-      want+="$(normalize_image $image)"$'\n'
-    fi
+    # Allow list entries are registry-less; match them as a path suffix so
+    # registries with path prefixes (host/containers/...) still match.
+    for allowed in $allow_list; do
+      if [[ "${repository}" == */"${allowed}" ]]; then
+        want+="${image}"$'\n'
+        break
+      fi
+    done
   done
 
   if [ -z "$want" ]; then
