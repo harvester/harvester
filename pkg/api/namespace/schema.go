@@ -29,12 +29,14 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, _ config.Optio
 		clientSet: scaled.Management.ClientSet,
 	}
 
+	nsCache := scaled.CoreFactory.Core().V1().Namespace().Cache()
+
 	t := schema.Template{
 		ID: "namespace",
 		Customize: func(s *types.APISchema) {
 			s.Store = &Store{
-				Store:   proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nil),
-				nsCache: scaled.CoreFactory.Core().V1().Namespace().Cache(),
+				Store:   proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, nsCache),
+				nsCache: nsCache,
 			}
 			s.Formatter = nsformatter.formatter
 			s.ResourceActions = map[string]schemas.Action{

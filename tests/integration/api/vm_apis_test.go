@@ -3,6 +3,7 @@ package api_test
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -277,6 +278,41 @@ var _ = Describe("verify vm APIs", func() {
 
 			By("and the spare disk is also deleted")
 			MustPVCDeleted(pvcController, vmNamespace, testVMRemoveDiskName)
+		})
+
+		Specify("listing vms filtered by projectsornamespaces", func() {
+			By("create a virtual machine that is not running")
+			vmName := testVMGenerateName + fuzz.String(5)
+			vm, err := NewDefaultTestVMBuilder(testResourceLabels).Name(vmName).
+				NetworkInterface(testVMInterfaceName, testVMInterfaceModel, "", builder.NetworkInterfaceTypeMasquerade, "").
+				ContainerDisk(testVMContainerDiskName, testVMDefaultDiskBus, false, 1, testVMContainerDiskImageName, testVMContainerDiskImagePullPolicy).
+				VM()
+			MustNotError(err)
+			respCode, respBody, err := helper.PostObject(vmsAPI, vm)
+			MustRespCodeIs(http.StatusCreated, "create vm", err, respCode, respBody)
+
+			vmID := fmt.Sprintf("%s/%s", vmNamespace, vmName)
+			listIDs := func(query string) []string {
+				collection, respCode, respBody, err := helper.GetCollection(vmsAPI + query)
+				MustRespCodeIs(http.StatusOK, "list vms with "+query, err, respCode, respBody)
+				ids := make([]string, 0, len(collection.Data))
+				for _, item := range collection.Data {
+					ids = append(ids, item.ID)
+				}
+				return ids
+			}
+
+			By("when listing the virtual machines of its namespace")
+			ids := listIDs("?projectsornamespaces=" + vmNamespace)
+
+			By("then the virtual machine is listed")
+			Expect(slices.Contains(ids, vmID)).To(BeTrue(), fmt.Sprintf("%s should be listed in %v", vmID, ids))
+
+			By("when listing the virtual machines of all other namespaces")
+			ids = listIDs("?projectsornamespaces!=" + vmNamespace)
+
+			By("then the virtual machine is not listed")
+			Expect(slices.Contains(ids, vmID)).To(Equal(false), fmt.Sprintf("%s should not be listed in %v", vmID, ids))
 		})
 	})
 })
