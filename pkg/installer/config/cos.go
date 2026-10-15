@@ -640,27 +640,17 @@ func UpdateManagementInterfaceConfig(mgmtInterface Network, dnsNameServers []str
 			logrus.Error(err, string(output))
 			return err
 		}
-		// Wait (up to the timeout) for NetworkManager to finish (re)starting the
-		// management network before continuing.
+		// Wait up to 100 seconds for local, site, or global connectivity. An
+		// isolated management network may never reach global connectivity.
 		//
-		// Use "-s" (wait for startup to complete) instead of "-x": "-x" exits
-		// immediately and defeats the intended wait, and startup (interfaces
-		// finished activating) is the right signal rather than *global*
-		// connectivity, which an isolated management network may never reach.
+		// The timeout covers three slow-rate LACP intervals of 30 seconds.
+		// nm-online returns when the network connects; only a slow or degraded
+		// link consumes the full timeout.
 		//
-		// The 100s timeout gives a slow-rate LACP bond headroom to converge:
-		// lacp_rate=slow emits an LACPDU only every 30s, so a single missed
-		// interval can cost ~30s before the bond syncs.  100s gives LACP room
-		// for three attempts.
-		// Because "-s" returns as soon as startup completes, this budget
-		// only costs time on a genuinely slow or degraded link.
-		//
-		// The check is best-effort and must NOT be fatal.  On the
-		// already-installed first-boot path it runs before the RancherD config is
-		// written, so aborting the install here on a briefly-degraded link (e.g. a
-		// bond still re-converging) leaves the node with no role until manual
-		// repair.  See harvester/harvester#10885.
-		output, err = exec.Command("nm-online", "-s", "-t", "100").CombinedOutput()
+		// The check is non-fatal. On the first boot of an installed node, it
+		// precedes the RancherD configuration; a fatal failure leaves the node
+		// without a role until manual repair. See harvester/harvester#10885.
+		output, err = exec.Command("nm-online", "-t", "100").CombinedOutput()
 		if err != nil {
 			logrus.Warnf("nm-online did not confirm the management network within the timeout; continuing anyway: %v: %s", err, string(output))
 		}
