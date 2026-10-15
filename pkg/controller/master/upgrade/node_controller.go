@@ -13,6 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/controller/master/upgrade/repoinfo"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 )
 
@@ -28,6 +30,7 @@ type nodeHandler struct {
 	upgradeCache     ctlharvesterv1.UpgradeCache
 	secretClient     ctlcorev1.SecretClient
 	nodeEnqueueAfter func(nodeName string, timeout time.Duration)
+	sendRestoreVMJob func(upgrade *harvesterv1.Upgrade, node *corev1.Node, repoInfo *repoinfo.RepoInfo) error
 }
 
 func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, error) {
@@ -83,6 +86,16 @@ func (h *nodeHandler) OnChanged(_ string, node *corev1.Node) (*corev1.Node, erro
 
 	logrus.Debugf("Waiting for node %s's OS to be upgraded (Want: %s, Got: %s).", node.Name, expectedVersion, node.Status.NodeInfo.OSImage)
 	if expectedVersion == node.Status.NodeInfo.OSImage {
+		// node has rebooted into the new OS image, so its upgrade is complete
+		// send the restore VM job before marking the node as succeeded so a failed attempt is retried
+		// if the repo info can't be loaded, log it and skip the restore
+		if repoInfo, err := getCachedRepoInfo(upgrade); err != nil {
+			logrus.WithFields(logrus.Fields{"upgrade": upgrade.Name, "node": node.Name}).WithError(err).
+				Error("Failed to get cached repo info, skip restore VM job")
+		} else if err = h.sendRestoreVMJob(upgrade, node, repoInfo); err != nil {
+			return nil, err
+		}
+
 		upgradeUpdate := upgrade.DeepCopy()
 		setNodeUpgradeStatus(upgradeUpdate, node.Name, StateSucceeded, "", "")
 		if _, err := h.upgradeClient.Update(upgradeUpdate); err != nil {
