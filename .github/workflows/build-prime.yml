@@ -351,8 +351,8 @@ jobs:
       uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # v3
       with:
         secrets: |
-          secret/data/github/repo/${{ github.repository }}/prime-artifacts/credentials AWS_ACCESS_KEY_ID | PRIME_ARTIFACTS_ACCESS_KEY ;
-          secret/data/github/repo/${{ github.repository }}/prime-artifacts/credentials AWS_SECRET_ACCESS_KEY | PRIME_ARTIFACTS_SECRET_KEY
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/suse-virtualization/credentials AWS_ACCESS_KEY_ID | PRIME_ARTIFACTS_ACCESS_KEY ;
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/suse-virtualization/credentials AWS_SECRET_ACCESS_KEY | PRIME_ARTIFACTS_SECRET_KEY
 
     - name: Install AWS CLI
       run: |
