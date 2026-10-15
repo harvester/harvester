@@ -581,6 +581,9 @@ longhorn:
   longhornUI:
     priorityClass: *longhornPriorityClass
 
+  longhornGlobalManager:
+    priorityClass: *longhornPriorityClass
+
   # Skip the check when bumping Harv from v1.2.1 to v1.3.0
   # TODO: remove this after harvester v1.3.1
   preUpgradeChecker:
