@@ -22,7 +22,7 @@ dependencies:
   version: 0.3.1
 - name: longhorn
   repository: https://charts.longhorn.io
-  version: 1.12.1
+  version: 1.13.0
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
   version: 0.11.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-dev.1
-digest: sha256:030d7e78c895979fb8b1dd59ceca68e1a53ed34ccf2337fca4d678f8eb7c8fcb
-generated: "2026-10-14T23:42:29.815904897+08:00"
+digest: sha256:994dba36b2cc7037fd30a375e65ba09b845116d8609d2c07221325caa8223419
+generated: "2026-10-16T00:43:41.433689303+08:00"
