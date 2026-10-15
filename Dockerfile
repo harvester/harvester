@@ -251,6 +251,11 @@ COPY scripts/prepare-addons-charts scripts/prepare-addons-charts
 RUN bash scripts/prepare-addons-charts
 
 
+# ---- generate-addons-charts-output ----
+FROM scratch AS generate-addons-charts-output
+COPY --from=prepare-addons-charts /dist/charts /dist/patched-charts
+
+
 # ---- prepare-harvester-charts ----
 FROM bundle-builder AS prepare-harvester-charts
 ARG PRIME_BUILD

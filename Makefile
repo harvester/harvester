@@ -115,7 +115,7 @@ DOCKER_BUILD = docker build $(MK_DOCKER_PULL) \
 	generate-manifest generate-openapi prepare-addons ci arm clean clean-all default \
 	image-cache-clean image-cache-show image-cache-debug \
 	gen-version-env gen-version-env-debug build-installer \
-	check-images fix collect-rancher-deps validate-prime-registries
+	check-images fix collect-rancher-deps validate-prime-registries generate-addons-charts
 
 
 # ---- Directories ----
@@ -244,9 +244,11 @@ generate-openapi: gen-version-env
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-openapi-output --output type=local,dest=$(ROOT)
 
+
 generate:
 	$(BANNER)
 	$(DOCKER_BUILD) --target generate-output --output type=local,dest=$(ROOT)
+
 
 # ---- Generate addon manifests from the in-tree addons directory ---
 prepare-addons: validate-prime-registries
@@ -254,9 +256,18 @@ prepare-addons: validate-prime-registries
 	$(ROOT)/scripts/prepare-addons
 
 
+# ---- Generate and output the (patched) charts to /dist/patched-charts for local usage ---
+# It is intended for a dedicated `patched-charts` folder to avoid affecting others
+generate-addons-charts: gen-version-env
+	$(BANNER)
+	rm -rf $(ROOT)/dist/patched-charts/*
+	$(DOCKER_BUILD) --target generate-addons-charts-output --output type=local,dest=$(ROOT)
+
+
 prepare-harvester-charts: validate-prime-registries
 	$(BANNER)
 	$(DOCKER_BUILD) --target prepare-harvester-charts
+
 
 # ---- Build ISO ----
 build-iso: validate-prime-registries gen-version-env build-installer check-images
@@ -276,14 +287,17 @@ clean:
 	@rm -rf $(ROOT)/dist/prepare-addons
 	@rm -rf $(ROOT)/dist/artifacts $(ROOT)/dist/harvester-cluster-repo
 
+
 clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
+
 
 # ---- Image cache management ----
 image-cache-clean:
 	$(BANNER)
 	docker volume rm $(MK_IMAGE_CACHE_VOLUME) || true
+
 
 image-cache-show:
 	$(BANNER)
@@ -292,12 +306,14 @@ image-cache-show:
 	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
 	    alpine image-cache show
 
+
 image-cache-debug:
 	$(BANNER)
 	docker run --rm -it \
 	    -v $(MK_IMAGE_CACHE_VOLUME):/image-caches:rw \
 	    -v $(ROOT)/scripts/image-cache:/bin/image-cache:ro \
 	    alpine sh
+
 
 .DEFAULT_GOAL := default
 
