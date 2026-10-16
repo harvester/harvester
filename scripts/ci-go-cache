@@ -1,0 +1,40 @@
+#!/bin/bash
+set -euo pipefail
+export DOCKER_BUILDKIT=1
+
+if [[ $# -ne 3 || ( "$1" != restore && "$1" != export ) ]]; then
+    echo "Usage: $0 {restore|export} CACHE_DIR MK_REPO_ID" >&2
+    exit 1
+fi
+
+mode=$1
+cache_dir=$2
+repo_id=$3
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+arch=$(uname -m)
+arch=${arch/x86_64/amd64}
+arch=${arch/aarch64/arm64}
+
+mkdir -p "$cache_dir"/{go-mod,go-build,golangci-lint}
+cache_dir=$(cd "$cache_dir" && pwd)
+
+build_args=(
+    --progress=plain
+    --file "$root/Dockerfile"
+    --build-arg "MK_HOST_ARCH=$arch"
+    --build-arg "MK_REPO_ID=$repo_id"
+    --build-arg "CI_CACHE_BUSTER=$(date +%s%N)"
+)
+
+# Mount contents are mutable and are not part of Docker's layer cache key.
+# The changing build argument forces the copy step to execute. Do not use
+# --no-cache or --no-cache-filter here: they also reset the cache mounts.
+if [[ "$mode" == restore ]]; then
+    docker build "${build_args[@]}" \
+        --build-context "go-cache=$cache_dir" \
+        --target go-cache-restore "$root"
+else
+    docker build "${build_args[@]}" \
+        --target go-cache-output \
+        --output "type=local,dest=$cache_dir" "$root"
+fi
