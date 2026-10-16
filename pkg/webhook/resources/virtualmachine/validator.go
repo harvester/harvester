@@ -342,6 +342,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 	if err := v.checkShareableVolumes(vm); err != nil {
 		return err
 	}
+	if err := checkDiskIOMode(vm); err != nil {
+		return err
+	}
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
 		return err
 	}
@@ -456,6 +459,26 @@ func (v *vmValidator) checkShareableVolumes(vm *kubevirtv1.VirtualMachine) error
 
 		if err := vmutil.CheckShareableVolume(v.pvcCache, v.scCache, vm.Namespace, pvcSource.ClaimName); err != nil {
 			return werror.NewInvalidError(err.Error(), "spec.template.spec.volumes")
+		}
+	}
+	return nil
+}
+
+// checkDiskIOMode rejects a disk with io mode native and a host cache mode
+// other than none. KubeVirt validates the two fields separately, so the VM is
+// accepted, but virt-launcher fails to start it: libvirt requires cache mode
+// none (or directsync, which KubeVirt doesn't offer) for native I/O. An unset
+// cache mode is allowed, since KubeVirt picks it per storage at start.
+func checkDiskIOMode(vm *kubevirtv1.VirtualMachine) error {
+	if vm.Spec.Template == nil {
+		return nil
+	}
+
+	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
+		if disk.IO == kubevirtv1.IONative && disk.Cache != "" && disk.Cache != kubevirtv1.CacheNone {
+			return werror.NewInvalidError(
+				fmt.Sprintf("disk %s: io mode native requires cache mode none, got %s", disk.Name, disk.Cache),
+				"spec.template.spec.domain.devices.disks")
 		}
 	}
 	return nil
