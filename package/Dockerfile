@@ -1,8 +1,9 @@
 FROM registry.suse.com/bci/bci-base:16.0
 
 # nfs-client is needed by the dep https://github.com/longhorn/backupstore to check backup store availability.
+# iputils provides arping, which announces the RWX network address of new Share Manager pods.
 RUN zypper -n rm container-suseconnect && \
-    zypper -n install curl gzip tar nfs-client util-linux && \
+    zypper -n install curl gzip tar nfs-client util-linux iputils && \
     zypper -n clean -a && rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/* && \
     useradd -M harvester && \
     mkdir -p /var/lib/harvester/harvester && \

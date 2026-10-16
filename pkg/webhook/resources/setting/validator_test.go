@@ -1682,7 +1682,7 @@ func Test_validateStorageNetworkConfig(t *testing.T) {
 		vmiCache := fakeclients.VirtualMachineInstanceCache(clientset.KubevirtV1().VirtualMachineInstances)
 		lhNodeCache := fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes)
 
-		v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nadCache)
+		v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nadCache, nil, nil)
 
 		nadGvr := schema.GroupVersionResource{
 			Group:    "k8s.cni.cncf.io",
@@ -1901,7 +1901,7 @@ func Test_validateStorageNetworkVlanConfig(t *testing.T) {
 		vmCache := fakeclients.VirtualMachineCache(nchclientset.KubevirtV1().VirtualMachines)
 		vmiCache := fakeclients.VirtualMachineInstanceCache(nchclientset.KubevirtV1().VirtualMachineInstances)
 
-		v := NewValidator(fakeclients.HarvesterSettingCache(nchclientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(nchclientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(nchclientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nil)
+		v := NewValidator(fakeclients.HarvesterSettingCache(nchclientset.HarvesterhciV1beta1().Settings), nodeCache, nil, nil, nil, vmCache, vmiCache, nil, nil, fakeclients.LonghornVolumeCache(nchclientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(nchclientset.CoreV1().PersistentVolumeClaims), cnCache, vcCache, vsCache, lhNodeCache, nil, nil, nil, nil)
 
 		if tt.currentCN != nil {
 			_, err := cnClient.Create(tt.currentCN)
@@ -2048,7 +2048,7 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 		},
 	}
 
-	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2063,7 +2063,7 @@ func Test_validateMaxHotplugRatio(t *testing.T) {
 
 func Test_validateStorageNetwork_Update_InProgress(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
-	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines), nil, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), nil, nil, nil, fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes), nil, nil)
+	v := NewValidator(fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings), nil, nil, nil, nil, fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines), nil, nil, nil, fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes), fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims), nil, nil, nil, fakeclients.LonghornNodeCache(clientset.LonghornV1beta2().Nodes), nil, nil, nil, nil)
 
 	t.Run("reject update when 'In Progress'", func(t *testing.T) {
 		oldSetting := &v1beta1.Setting{
@@ -2265,7 +2265,7 @@ func Test_validateLHIMResources(t *testing.T) {
 		},
 	}
 
-	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	v := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -3243,7 +3243,7 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 		fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 		fakeclients.NodeCache(clientset.CoreV1().Nodes),
 		nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 
 	oldSetting := &v1beta1.Setting{
