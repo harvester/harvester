@@ -72,6 +72,12 @@ pre_upgrade_manifest() {
     source "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh"
   fi
 
+  if [[ "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]+$ ]]; then
+    # The hook only exists under v1.9.0, but the patch applies to every v1.9.x
+    source "/usr/local/share/migrations/upgrade_manifests/v1.9.0/pre-hook.sh"
+    patch_harvester_vm_migration_details_dashboard
+  fi
+
   # Safety Gate: Ensure rke2-multus helmchart failurePolicy is 'abort' before proceeding.
   # Since 'set -e' is active, any failure here will safely halt the upgrade
   # to prevent potential NAD CRD deletion and VM networking loss.
