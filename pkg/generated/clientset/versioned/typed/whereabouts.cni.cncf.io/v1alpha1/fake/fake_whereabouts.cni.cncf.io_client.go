@@ -36,8 +36,8 @@ func (c *FakeWhereaboutsV1alpha1) NodeSlicePools(namespace string) v1alpha1.Node
 	return newFakeNodeSlicePools(c, namespace)
 }
 
-func (c *FakeWhereaboutsV1alpha1) OverlappingRangeIPReservations(namespace string) v1alpha1.OverlappingRangeIPReservationInterface {
-	return newFakeOverlappingRangeIPReservations(c, namespace)
+func (c *FakeWhereaboutsV1alpha1) OverlappingRangeIPReservations() v1alpha1.OverlappingRangeIPReservationInterface {
+	return newFakeOverlappingRangeIPReservations(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate
