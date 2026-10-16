@@ -101,9 +101,6 @@ kubevirt:
       developerConfiguration:
         featureGates:
           - CPUManager
-          - DeclarativeHotplugVolumes
-          - ExpandDisks
-          - EnableVirtioFsConfigVolumes
           - HostDevices
         ## Since kubevirt v1.9.0, Beta gates are enabled unless disabled here.
         ## Disable the Beta gates not listed above to keep the same effective
