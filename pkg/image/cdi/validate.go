@@ -32,6 +32,9 @@ func (cv *Validator) Create(req *types.Request, vmImg *harvesterv1.VirtualMachin
 		return err
 	}
 
+	if err := cv.vmiv.CheckSecurityParameters(req, vmImg); err != nil {
+		return err
+	}
 	if err := cv.vmiv.CheckImagePVC(req, vmImg); err != nil {
 		return err
 	}
@@ -39,6 +42,9 @@ func (cv *Validator) Create(req *types.Request, vmImg *harvesterv1.VirtualMachin
 }
 
 func (cv *Validator) Update(oldVMImg, newVMImg *harvesterv1.VirtualMachineImage) error {
+	if err := cv.vmiv.SecurityParameterConsistency(oldVMImg, newVMImg); err != nil {
+		return err
+	}
 	if err := cv.vmiv.SourceTypeConsistency(oldVMImg, newVMImg); err != nil {
 		return err
 	}
