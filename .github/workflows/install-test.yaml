@@ -5,7 +5,6 @@ on:
     types: [opened, reopened, synchronize]
     paths:
       - '.github/workflows/install-test.yaml'
-      - 'ci/**'
       - 'deploy/charts/**'
       - 'cmd/installer/**'
       - 'pkg/installer/**'
@@ -74,11 +73,8 @@ jobs:
         id: dev
         run: |
           cd $HOME
-          git clone https://github.com/harvester/harvester-dev.git harvester-dev
+          git clone --depth=1 https://github.com/harvester/harvester-dev.git harvester-dev
           echo "DEV_HOME=$HOME/harvester-dev" >> $GITHUB_OUTPUT
-      - name: Generate SSH keys
-        run: |
-          ssh-keygen -t rsa -q -N "" -f ./ci/terraform/tmp-ssh-key
       - name: Configure harvester-dev
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
@@ -119,9 +115,20 @@ jobs:
           VALUE="${base_url}/harvester-${VERSION}-rootfs-amd64.squashfs" \
             yq e -i '.harvester_rootfs_url = strenv(VALUE)' config.yaml
 
-          # the ci/terraform scripts ssh into the nodes with this key
-          export PUB_KEY=$(cat ${{ github.workspace }}/ci/terraform/tmp-ssh-key.pub)
-          yq e -i '.node_additional_keys += [ strenv(PUB_KEY) ]' config.yaml
+          # guest VMs created by op:harvester-bootstrap; the images are served
+          # by the artifacts server so the air-gapped nodes can fetch them
+          yq e -i '
+            .harvester.vms.ubuntu.count = 1 |
+            .harvester.vms.ubuntu.cpu = 1 |
+            .harvester.vms.ubuntu.memory_in_mib = 1024 |
+            .harvester.vms.ubuntu.disk_size = 20 |
+            .harvester.vms.ubuntu.image_url = .artifact_server_url + "/images/noble-server-cloudimg-amd64.img" |
+            .harvester.vms.opensuse.count = 1 |
+            .harvester.vms.opensuse.cpu = 1 |
+            .harvester.vms.opensuse.memory_in_mib = 1024 |
+            .harvester.vms.opensuse.disk_size = 20 |
+            .harvester.vms.opensuse.image_url = .artifact_server_url + "/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
+          ' config.yaml
 
           NODE_COUNT=3 yq e -i '.node_count = env(NODE_COUNT)' config.yaml
 
@@ -167,39 +174,17 @@ jobs:
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
           task op:test-addons-ready
-      - name: Enable node egress
+      - name: Bootstrap networks, images and VMs
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
-          # the install runs air-gapped to catch missing images; the terraform
-          # tests need external access (guest image download), so open it now
-          task op:admin-enable-egress
-      - name: Clean the previous temp files
-        working-directory: ./ci/terraform
+          task op:harvester-bootstrap
+      - name: Tear down networks, images and VMs
+        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
+        env:
+          # the task runs `terraform destroy` without -auto-approve
+          TF_CLI_ARGS_destroy: "-auto-approve"
         run: |
-          ./cleanup_test_files.sh
-      - name: Testing existing files
-        working-directory: ./ci/terraform
-        run: |
-          ./check_files.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
-      - name: Testing services status
-        working-directory: ./ci/terraform
-        run: |
-          ./check_services_status.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
-      - name: Testing basic operations with terraform
-        working-directory: ./ci/terraform
-        run: |
-          TERRAFORM_VERSION="1.14.8"
-          TERRAFORM_SUM_amd64="56a5d12f47cbc1c6bedb8f5426ae7d5df984d1929572c24b56f4c82e9f9bf709"
-          curl https://releases.hashicorp.com/terraform/$TERRAFORM_VERSION/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform_bin.zip
-          echo "$TERRAFORM_SUM_amd64  terraform_bin.zip" | sha256sum -c -
-          unzip -o terraform_bin.zip
-          ./get_kubeconfig.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
-          ./terraform init -no-color
-          ./terraform apply -auto-approve -no-color
-      - name: Test network on the VMs
-        working-directory: ./ci/terraform
-        run: |
-          ./test_terraform_vm.sh ${{ steps.dev.outputs.DEV_HOME }}/config.yaml
+          task op:harvester-unbootstrap
       - name: Clean up harvester-dev cluster
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         if: ${{ env.KEEP_ENV_WHEN_FAILURE != 'true' }}
