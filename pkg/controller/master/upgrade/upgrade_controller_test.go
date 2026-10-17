@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,9 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	k8stesting "k8s.io/client-go/testing"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -1580,4 +1584,111 @@ func TestDeleteUsedVersion(t *testing.T) {
 			assert.Equal(t, testCase.deleted, len(versions.Items) == 0)
 		})
 	}
+}
+
+func TestUpgradeHandler_OnChanged_ImageCreateConflict(t *testing.T) {
+	conflictErr := apierrors.NewConflict(harvesterv1.Resource("virtualmachineimages"), testUpgradeName, errors.New("A resource with the same name exists"))
+
+	t.Run("reuses the image from a previous reconcile", func(t *testing.T) {
+		// Creating the image again is rejected by the image webhook's display name check with a Conflict.
+		actual := runImageCreateConflict(t, conflictErr, newTestOwnedImage(testUpgradeUID))
+		assert.Equal(t, fmt.Sprintf("%s/%s", upgradeNamespace, testUpgradeName), actual.Status.ImageID)
+		assert.True(t, harvesterv1.UpgradeCompleted.IsUnknown(actual), "upgrade must not fail")
+		assert.True(t, harvesterv1.ImageReady.IsUnknown(actual))
+	})
+
+	t.Run("fails when the existing image belongs to another upgrade", func(t *testing.T) {
+		actual := runImageCreateConflict(t, conflictErr, newTestOwnedImage("another-upgrade-uid"))
+		assert.Empty(t, actual.Status.ImageID)
+		assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(actual), "upgrade must fail")
+		assert.Contains(t, harvesterv1.UpgradeCompleted.GetReason(actual), "is not owned by upgrade")
+	})
+
+	t.Run("fails with the conflict when another image has the display name", func(t *testing.T) {
+		actual := runImageCreateConflict(t, conflictErr)
+		assert.Empty(t, actual.Status.ImageID)
+		assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(actual), "upgrade must fail")
+		assert.Equal(t, conflictErr.Error(), harvesterv1.UpgradeCompleted.GetReason(actual))
+	})
+
+	t.Run("retries when the image lookup fails", func(t *testing.T) {
+		handler, upgrade, clientset := newImageCreateConflictHandler(conflictErr, newTestOwnedImage(testUpgradeUID))
+		lookupErr := apierrors.NewInternalError(errors.New("etcdserver: request timed out"))
+		clientset.PrependReactor("get", "virtualmachineimages", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, lookupErr
+		})
+
+		_, err := handler.OnChanged(testUpgradeName, upgrade)
+		require.ErrorIs(t, err, lookupErr)
+
+		stored, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.TODO(), testUpgradeName, metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.Empty(t, stored.Status.ImageID)
+		assert.True(t, harvesterv1.UpgradeCompleted.IsUnknown(stored), "upgrade must not fail")
+	})
+}
+
+func TestIsOwnedByUpgrade(t *testing.T) {
+	upgrade := newTestUpgradeBuilder().Build()
+	upgrade.UID = testUpgradeUID
+
+	testCases := []struct {
+		name     string
+		obj      metav1.Object
+		upgrade  *harvesterv1.Upgrade
+		expected bool
+	}{
+		{name: "owned by the upgrade", obj: newTestOwnedImage(testUpgradeUID), upgrade: upgrade, expected: true},
+		{name: "owned by another upgrade", obj: newTestOwnedImage("another-upgrade-uid"), upgrade: upgrade},
+		{name: "no owner references", obj: newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeName), upgrade: upgrade},
+		{name: "nil object", upgrade: upgrade},
+		{name: "nil upgrade", obj: newTestOwnedImage(testUpgradeUID)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isOwnedByUpgrade(tc.obj, tc.upgrade))
+		})
+	}
+}
+
+const testUpgradeUID = "test-upgrade-uid"
+
+func newTestOwnedImage(ownerUID types.UID) *harvesterv1.VirtualMachineImage {
+	image := newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeName)
+	image.OwnerReferences = []metav1.OwnerReference{{Name: testUpgradeName, UID: ownerUID}}
+	return image
+}
+
+func runImageCreateConflict(t *testing.T, createErr error, objects ...runtime.Object) *harvesterv1.Upgrade {
+	t.Helper()
+	handler, upgrade, clientset := newImageCreateConflictHandler(createErr, objects...)
+	actual, err := handler.OnChanged(testUpgradeName, upgrade)
+	require.NoError(t, err)
+	stored, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.TODO(), testUpgradeName, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, actual.Status.ImageID, stored.Status.ImageID)
+	return actual
+}
+
+func newImageCreateConflictHandler(createErr error, objects ...runtime.Object) (*upgradeHandler, *harvesterv1.Upgrade, *fake.Clientset) {
+	upgrade := newTestUpgradeBuilder().
+		InitStatus().
+		LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").Build()
+	upgrade.UID = testUpgradeUID
+
+	clientset := fake.NewSimpleClientset(append(objects, upgrade, newVersionBuilder(testVersion).Build())...)
+	clientset.PrependReactor("create", "virtualmachineimages", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, createErr
+	})
+
+	handler := &upgradeHandler{
+		namespace:     harvesterSystemNamespace,
+		upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+		upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+		versionCache:  fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+		vmImageClient: fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		vmImageCache:  fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+	}
+	return handler, upgrade, clientset
 }
