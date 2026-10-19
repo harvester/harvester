@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
-	"strconv"
 	"strings"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -33,7 +32,6 @@ type VMIValidator interface {
 	CheckDisplayName(vmi *v1beta1.VirtualMachineImage) error
 	CheckUpdateDisplayName(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 	CheckURL(vmi *v1beta1.VirtualMachineImage) error
-	CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
 	CheckImagePVC(request *types.Request, vmi *v1beta1.VirtualMachineImage) error
 	CheckPVCInUse(vmi *v1beta1.VirtualMachineImage) error
 
@@ -149,138 +147,6 @@ func (v *vmiValidator) CheckURL(vmi *v1beta1.VirtualMachineImage) error {
 	if vmi.Spec.URL != "" {
 		return werror.NewInvalidError(fmt.Sprintf(`url should be empty when image source type is "%s"`, vmi.Spec.SourceType), "spec.url")
 	}
-	return nil
-}
-
-func (v *vmiValidator) CheckSecurityParameters(request *types.Request, vmi *v1beta1.VirtualMachineImage) error {
-	if vmi.Spec.SourceType != v1beta1.VirtualMachineImageSourceTypeClone {
-		return nil
-	}
-
-	sp := vmi.Spec.SecurityParameters
-	if sp == nil {
-		return werror.NewInvalidError(`sourceParameters is required when image source type is "clone"`, "spec.sourceParameters")
-	}
-
-	if sp.CryptoOperation == "" {
-		return werror.NewInvalidError(`encryption is required when image source type is "clone"`, "spec.cryptoOperation")
-	}
-
-	if sp.SourceImageName == "" {
-		return werror.NewInvalidError(`SourceImageName is required when image source type is "clone"`, "spec.security.sourceImageName")
-	}
-
-	if sp.SourceImageNamespace == "" {
-		return werror.NewInvalidError(`SourceImageNamespace is required when image source type is "clone"`, "spec.security.sourceImageName")
-	}
-
-	allowed, err := util.CheckObjectAccess(request.Context, util.ResourceAccessCheck{
-		SAR:       v.sar,
-		Username:  request.UserInfo.Username,
-		Groups:    request.UserInfo.Groups,
-		Verb:      util.VerbGet,
-		GVR:       util.VirtualMachineImageGVR,
-		Namespace: sp.SourceImageNamespace,
-		Name:      sp.SourceImageName,
-	})
-	if err != nil {
-		return werror.NewInternalError(fmt.Sprintf("failed to check access to source image %s/%s: %v", sp.SourceImageNamespace, sp.SourceImageName, err))
-	}
-	if !allowed {
-		return werror.NewForbidden(fmt.Sprintf("user %q is not authorized to access source image %s/%s", request.UserInfo.Username, sp.SourceImageNamespace, sp.SourceImageName), "")
-	}
-
-	// Check if the source image exists
-	sourceImage, err := v.vmiCache.Get(sp.SourceImageNamespace, sp.SourceImageName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return werror.NewInvalidError(fmt.Sprintf("source image %s/%s not found", sp.SourceImageNamespace, sp.SourceImageName), "spec.securityParameters.sourceImageName")
-		}
-		return werror.NewInternalError(fmt.Sprintf("failed to get source image %s/%s: %v", sp.SourceImageNamespace, sp.SourceImageName, err))
-	}
-
-	if !v1beta1.ImageImported.IsTrue(sourceImage) {
-		return werror.NewInvalidError(fmt.Sprintf("source image %s/%s (%s) is not ready", sourceImage.Namespace, sourceImage.Name, sourceImage.Spec.DisplayName), "")
-	}
-	if sourceImage.Spec.Backend != vmi.Spec.Backend {
-		return werror.NewInvalidError("source and target image backends must match", "spec.backend")
-	}
-
-	// Check if storage class exits
-	scName, ok := vmi.Annotations[util.AnnotationStorageClassName]
-	if !ok {
-		return werror.NewInvalidError("storageClassName is required when using security params", fmt.Sprintf("metadata.annotations[%s]", util.AnnotationStorageClassName))
-	}
-
-	sc, err := v.scCache.Get(scName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return werror.NewInvalidError(fmt.Sprintf("storage class %s not found", scName), fmt.Sprintf("metadata.annotations[%s]", util.AnnotationStorageClassName))
-		}
-		return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", scName, err))
-	}
-
-	// Check if longhorn engine in both source and target storage class are the same
-	sourceSC, err := v.scCache.Get(sourceImage.Status.StorageClassName)
-	if err != nil {
-		return werror.NewInvalidError(fmt.Sprintf("failed to get source image StorageClass: %v", err), "spec.securityParameters.sourceImageName")
-	}
-	if sourceSC.Provisioner != util.CSIProvisionerLonghorn || sc.Provisioner != util.CSIProvisionerLonghorn {
-		return werror.NewInvalidError("image encryption and decryption are currently supported only with Longhorn", "spec.targetStorageClassName")
-	}
-
-	sourceEngine := sourceSC.Parameters[util.ParamDataEngine]
-	targetEngine := sc.Parameters[util.ParamDataEngine]
-	if sourceEngine == "" {
-		sourceEngine = "v1"
-	}
-	if targetEngine == "" {
-		targetEngine = "v1"
-	}
-	if sourceEngine != targetEngine {
-		return werror.NewInvalidError("source and target image StorageClasses must use the same Longhorn data engine", "spec.targetStorageClassName")
-	}
-
-	sourceSp := sourceImage.Spec.SecurityParameters
-	sourceEncrypted := sourceSp != nil && sourceSp.CryptoOperation == v1beta1.VirtualMachineImageCryptoOperationTypeEncrypt
-	if sourceImage.Spec.Backend == v1beta1.VMIBackendCDI {
-		// CDI downloads and uploads can use encrypted storage class
-		sourceEncrypted = false
-		if value, ok := sourceSC.Parameters[util.LonghornOptionEncrypted]; ok {
-			sourceEncrypted, err = strconv.ParseBool(value)
-			if err != nil {
-				return werror.NewInvalidError(fmt.Sprintf("source image StorageClass %s has an invalid encrypted parameter", sourceSC.Name), "spec.securityParameters.sourceImageName")
-			}
-		}
-	}
-	if sourceEncrypted && sp.CryptoOperation == v1beta1.VirtualMachineImageCryptoOperationTypeEncrypt {
-		return werror.NewInvalidError(fmt.Sprintf("can not re-encrypt, source image %s/%s (%s) is already encrypted", sourceImage.Namespace, sourceImage.Name, sourceImage.Spec.DisplayName), "")
-	}
-	if !sourceEncrypted && sp.CryptoOperation == v1beta1.VirtualMachineImageCryptoOperationTypeDecrypt {
-		return werror.NewInvalidError(fmt.Sprintf("can not re-decrypt, source image %s/%s (%s) is not encrypted", sourceImage.Namespace, sourceImage.Name, sourceImage.Spec.DisplayName), "")
-	}
-
-	// Check if the operation is encryption, make sure the storage class is configured for encryption
-	if sp.CryptoOperation == v1beta1.VirtualMachineImageCryptoOperationTypeDecrypt {
-		// CDI copies into a PVC, so its target StorageClass must not encrypt the result.
-		if value, ok := sc.Parameters[util.LonghornOptionEncrypted]; vmi.Spec.Backend == v1beta1.VMIBackendCDI && ok {
-			encrypted, err := strconv.ParseBool(value)
-			if err != nil || encrypted {
-				return werror.NewInvalidError("CDI image decryption requires an unencrypted target StorageClass", "spec.targetStorageClassName")
-			}
-		}
-		return nil
-	}
-	// Encryption requires a StorageClass configured for encryption.
-	value := sc.Parameters[util.LonghornOptionEncrypted]
-	if value != "true" {
-		return werror.NewInvalidError(fmt.Sprintf("storage class %s is not for encryption or decryption", scName), fmt.Sprintf("spec.parameters[%s] must be true", util.LonghornOptionEncrypted))
-	}
-
-	if sc.Parameters[util.LonghornOptionBackingImageName] != "" {
-		return werror.NewInvalidError(fmt.Sprintf("storage class %s is tied to a specific backing image and cannot be used as target for clone/encrypt", scName), fmt.Sprintf("metadata.annotations[%s]", util.AnnotationStorageClassName))
-	}
-
 	return nil
 }
 

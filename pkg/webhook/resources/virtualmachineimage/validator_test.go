@@ -4,19 +4,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
 func TestVirtualMachineImageValidator_Create(t *testing.T) {
 	tests := []struct {
-		name        string
-		vmi         *harvesterv1.VirtualMachineImage
-		sarDenied   bool
-		expectError bool
+		name          string
+		vmi           *harvesterv1.VirtualMachineImage
+		sarDenied     bool
+		expectedError string
 	}{
 		{
 			name: "download image with valid URL - pass",
@@ -29,7 +31,6 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					URL:         "http://example.com/image.iso",
 				},
 			},
-			expectError: false,
 		},
 		{
 			name: "clone image, SAR denied for source image - fail",
@@ -46,8 +47,8 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					},
 				},
 			},
-			sarDenied:   true,
-			expectError: true,
+			sarDenied:     true,
+			expectedError: `user "test-user" is not authorized to access source image default/source-image`,
 		},
 		{
 			// SAR passes but source image doesn't exist — confirms the check proceeds past SAR
@@ -65,8 +66,7 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					},
 				},
 			},
-			sarDenied:   false,
-			expectError: true,
+			expectedError: "source image default/source-image not found",
 		},
 		{
 			name: "CDI: download image with valid URL - pass",
@@ -79,7 +79,6 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					URL:         "http://example.com/image.iso",
 				},
 			},
-			expectError: false,
 		},
 		{
 			name: "CDI: clone image, SAR denied for source image - fail",
@@ -96,8 +95,8 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					},
 				},
 			},
-			sarDenied:   true,
-			expectError: true,
+			sarDenied:     true,
+			expectedError: `user "test-user" is not authorized to access source image default/source-image`,
 		},
 		{
 			// SAR passes but source image doesn't exist — confirms the check proceeds past SAR
@@ -115,13 +114,9 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 					},
 				},
 			},
-			sarDenied:   false,
-			expectError: true,
+			expectedError: "source image default/source-image not found",
 		},
 	}
-
-	allowedFakeSAR := fakeclients.AllowedSARClient()
-	denyFakeSAR := fakeclients.DeniedSARClient()
 
 	fakeRequest := fakeclients.NewFakeRequest("test-user")
 
@@ -129,10 +124,7 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
 
-			sar := allowedFakeSAR
-			if tc.sarDenied {
-				sar = denyFakeSAR
-			}
+			sar := fakeclients.SARClientSet(!tc.sarDenied)
 
 			validator := NewValidator(
 				fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
@@ -140,14 +132,85 @@ func TestVirtualMachineImageValidator_Create(t *testing.T) {
 				nil, nil,
 				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 				nil,
-				sar,
+				sar.AuthorizationV1().SubjectAccessReviews(),
 			)
 
 			err := validator.Create(fakeRequest, tc.vmi)
-			if tc.expectError {
-				assert.Error(t, err)
+			if tc.expectedError != "" {
+				assert.EqualError(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
+			}
+			if tc.vmi.Spec.SourceType == harvesterv1.VirtualMachineImageSourceTypeClone {
+				assert.Len(t, sar.Actions(), 1)
+			} else {
+				assert.Empty(t, sar.Actions())
+			}
+		})
+	}
+}
+
+func TestVirtualMachineImageValidator_CreateClone(t *testing.T) {
+	for _, backend := range []harvesterv1.VMIBackend{harvesterv1.VMIBackendBackingImage, harvesterv1.VMIBackendCDI} {
+		t.Run(string(backend), func(t *testing.T) {
+			for _, operation := range []harvesterv1.VirtualMachineImageCryptoOperationType{
+				harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt,
+				harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt,
+			} {
+				t.Run(string(operation), func(t *testing.T) {
+					sourceEncrypted, targetEncrypted := "false", "true"
+					if operation == harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt {
+						sourceEncrypted, targetEncrypted = "true", "false"
+					}
+					sourceSC := &storagev1.StorageClass{
+						ObjectMeta:  metav1.ObjectMeta{Name: "source-sc"},
+						Provisioner: util.CSIProvisionerLonghorn,
+						Parameters:  map[string]string{util.LonghornOptionEncrypted: sourceEncrypted},
+					}
+					targetSC := &storagev1.StorageClass{
+						ObjectMeta:  metav1.ObjectMeta{Name: "target-sc"},
+						Provisioner: util.CSIProvisionerLonghorn,
+						Parameters:  map[string]string{util.LonghornOptionEncrypted: targetEncrypted},
+					}
+					source := &harvesterv1.VirtualMachineImage{
+						ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "default"},
+						Spec: harvesterv1.VirtualMachineImageSpec{
+							Backend: backend, SourceType: harvesterv1.VirtualMachineImageSourceTypeDownload,
+						},
+						Status: harvesterv1.VirtualMachineImageStatus{StorageClassName: sourceSC.Name},
+					}
+					if backend == harvesterv1.VMIBackendBackingImage && operation == harvesterv1.VirtualMachineImageCryptoOperationTypeDecrypt {
+						source.Spec.SourceType = harvesterv1.VirtualMachineImageSourceTypeClone
+						source.Spec.SecurityParameters = &harvesterv1.VirtualMachineImageSecurityParameters{
+							CryptoOperation: harvesterv1.VirtualMachineImageCryptoOperationTypeEncrypt,
+							SourceImageName: "original", SourceImageNamespace: source.Namespace,
+						}
+					}
+					harvesterv1.ImageImported.True(source)
+					target := &harvesterv1.VirtualMachineImage{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "target", Namespace: "default",
+							Annotations: map[string]string{util.AnnotationStorageClassName: targetSC.Name},
+						},
+						Spec: harvesterv1.VirtualMachineImageSpec{
+							Backend: backend, DisplayName: "clone-image",
+							SourceType: harvesterv1.VirtualMachineImageSourceTypeClone,
+							SecurityParameters: &harvesterv1.VirtualMachineImageSecurityParameters{
+								CryptoOperation: operation, SourceImageName: source.Name, SourceImageNamespace: source.Namespace,
+							},
+						},
+					}
+					clientset := fake.NewSimpleClientset(source, sourceSC, targetSC)
+					sar := fakeclients.SARClientSet(true)
+					validator := NewValidator(
+						fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+						fakeclients.PodCache(clientset.CoreV1().Pods), nil, nil,
+						fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses), nil,
+						sar.AuthorizationV1().SubjectAccessReviews(),
+					)
+					assert.NoError(t, validator.Create(fakeclients.NewFakeRequest("test-user"), target))
+					assert.Len(t, sar.Actions(), 1, "clone security validation should check source access once")
+				})
 			}
 		})
 	}
