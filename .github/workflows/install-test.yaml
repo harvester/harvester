@@ -5,6 +5,7 @@ on:
     types: [opened, reopened, synchronize]
     paths:
       - '.github/workflows/install-test.yaml'
+      - 'addons/**'
       - 'ci/**'
       - 'deploy/charts/**'
       - 'cmd/installer/**'
