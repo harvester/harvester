@@ -93,9 +93,8 @@ sda                             250G
 | Rancher Monitoring | PVCs (Prometheus 50 Gi, Alertmanager 5 Gi, Grafana 2 Gi) use `harvester-system-rwo`. |
 | CDI | Scratch space uses `harvester-system-rwo`. |
 | k3k addon | Uses `harvester-system-rwo`. |
-| `vmstate-persistence` | Not created. Persistent TPM/UEFI state is unavailable until the administrator provides storage. |
-| Upgrade | Not supported. The upgrade webhook rejects every upgrade (see [Upgrade](#upgrade)). |
-| Cluster readiness | `/v1/harvester/readyz` skips the longhorn-manager check. |
+| Upgrade | The upgrade ISO PVC uses `harvester-upgrade-rwx`, which must support `ReadWriteMany` with `volumeMode: Filesystem` (see [Upgrade](#upgrade)). |
+| `vmstate-persistence` | Its StorageClass is not created. Persistent TPM/UEFI state is unavailable until the administrator creates one, and Harvester reminds the administrator to do so. |
 
 Longhorn-native backup/restore, snapshots, storage network, and RWX network are unavailable in a deferred cluster.
 
