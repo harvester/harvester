@@ -1,8 +1,11 @@
 name: Build Prime
 
-# Branch pushes publish to the staging registry; pushing a prime-<version> tag
-# (e.g. prime-v1.9.1 or prime-v1.9.1-rc1) publishes <version> to Prime.
-# The configure job sends every tag ref to Prime, so switching to
+# Branch pushes and prime-vX.Y.Z-rcN tags publish to the staging registry;
+# pushing a prime-vX.Y.Z tag (e.g. prime-v1.9.1) publishes v1.9.1 to Prime.
+# Staging builds pull every Harvester image from staging, so images pinned at
+# release tags (support-bundle-kit, dated harvester/os2 builds) must be
+# published to both registries.
+# The configure job routes every tag ref by its name, so switching to
 # `release: types: [published]` needs no other change. Release events cannot
 # filter by tag, and never use both triggers: one release would build twice.
 #
@@ -60,9 +63,12 @@ jobs:
         # Tag refs come from tag pushes and from release events alike.
         version=${REF_NAME#prime-}
         if [[ "$GITHUB_REF_TYPE" == tag ]]; then
-          target=prime
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Prime release tags must be prime-<version>, such as prime-v1.9.1 or prime-v1.9.1-rc1" >&2
+          if [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            target=prime
+          elif [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]]; then
+            target=staging
+          else
+            echo "Prime release tags must be prime-vX.Y.Z or prime-vX.Y.Z-rcN, such as prime-v1.9.1 or prime-v1.9.1-rc1" >&2
             exit 1
           fi
           tag=$version
