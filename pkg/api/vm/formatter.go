@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/controller/master/migration"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
+	ctllonghornv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
@@ -65,6 +66,7 @@ type vmformatter struct {
 	scCache       ctlstoragev1.StorageClassCache
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache
 	settingCache  ctlharvesterv1.SettingCache
+	volumeCache   ctllonghornv1.VolumeCache
 	clientSet     kubernetes.Interface
 }
 
@@ -327,7 +329,6 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		return false
 	}
 
-	// additional check, we did not support backup with CDI volume
 	volumes := vm.Spec.Template.Spec.Volumes
 	for _, vol := range volumes {
 		if vol.PersistentVolumeClaim == nil {
@@ -341,11 +342,36 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 			logrus.Errorf("Can't get PVC %s/%s, err: %+v", vm.Namespace, vol.PersistentVolumeClaim.ClaimName, err)
 			return false
 		}
-		if _, find := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; find {
+		if !vf.canBackupPVC(pvc) {
 			return false
 		}
 	}
 
+	return vf.hasBackupTarget()
+}
+
+func (vf *vmformatter) canBackupPVC(pvc *corev1.PersistentVolumeClaim) bool {
+	// additional check, we did not support backup with CDI volume
+	if _, found := pvc.Annotations[cdicommon.AnnCreatedForDataVolume]; found {
+		return false
+	}
+
+	// Longhorn v2 volumes do not support remote VM backups, the webhook
+	// rejects them. Do not offer an action that would fail anyway.
+	// PVCs that are not bound yet cannot be classified, so keep the action.
+	if pvc.Spec.VolumeName == "" {
+		return true
+	}
+
+	isV2, err := util.IsLonghornV2Volume(pvc, vf.scCache, vf.volumeCache)
+	if err != nil {
+		logrus.Errorf("Can't check data engine of PVC %s, err: %+v", util.GetNamespacedName(pvc), err)
+		return false
+	}
+	return !isV2
+}
+
+func (vf *vmformatter) hasBackupTarget() bool {
 	backupTargetSetting, err := vf.settingCache.Get(settings.BackupTargetSettingName)
 	if err != nil {
 		logrus.WithError(err).Errorf("Can't get setting %s", settings.BackupTargetSettingName)
@@ -356,10 +382,7 @@ func (vf *vmformatter) canDoBackup(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv
 		logrus.WithError(err).Errorf("Can't decode %s setting %s", settings.BackupTargetSettingName, backupTargetSetting.Value)
 		return false
 	}
-	if target.IsDefaultBackupTarget() {
-		return false
-	}
-	return true
+	return !target.IsDefaultBackupTarget()
 }
 
 func (vf *vmformatter) canDoSnapshot(vm *kubevirtv1.VirtualMachine, vmi *kubevirtv1.VirtualMachineInstance) bool {
