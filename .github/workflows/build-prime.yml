@@ -117,7 +117,6 @@ jobs:
         rke2-image-repo: ${{ secrets.PRIME_RKE2_IMAGE_REPO }}
 
     - name: Validate Prime configuration
-      if: ${{ matrix.arch == 'x64' }}
       run: make validate-prime
 
     # Build binaries
