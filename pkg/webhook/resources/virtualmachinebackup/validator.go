@@ -185,8 +185,12 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
 			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
-		if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
-			return err
+		// Longhorn v2 volumes do not support remote VM backups yet, but local
+		// CSI snapshots (type=snapshot) stay in the cluster and are supported.
+		if v.vmbr.GetType(newVMBackup).UsesRemoteBackupTarget() {
+			if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
+				return err
+			}
 		}
 
 		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, v.vmbr.GetType(newVMBackup), cdc); err != nil {

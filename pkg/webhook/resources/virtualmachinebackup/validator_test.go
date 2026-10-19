@@ -19,7 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
+func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 	const (
 		namespace = "default"
 		vmName    = "test-vm"
@@ -32,12 +32,14 @@ func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		backupType  v1beta1.BackupType
 		objects     []runtime.Object
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name: "rejects Longhorn v2 volume",
+			name:       "rejects backup of Longhorn v2 volume",
+			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
 				newPVC(namespace, pvcName, pvName, longhornSC),
@@ -48,7 +50,18 @@ func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
 			errContains: "contains Longhorn v2 volume",
 		},
 		{
-			name: "allows Longhorn v1 volume",
+			name:       "allows snapshot of Longhorn v2 volume",
+			backupType: v1beta1.Snapshot,
+			objects: []runtime.Object{
+				newCSIDriverConfigSetting(),
+				newPVC(namespace, pvcName, pvName, longhornSC),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newLonghornVolume(pvName, longhornv1beta2.DataEngineTypeV2),
+			},
+		},
+		{
+			name:       "allows backup of Longhorn v1 volume",
+			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
 				newPVC(namespace, pvcName, pvName, longhornSC),
@@ -57,7 +70,18 @@ func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
 			},
 		},
 		{
-			name: "ignores non-Longhorn volume",
+			name:       "allows snapshot of Longhorn v1 volume",
+			backupType: v1beta1.Snapshot,
+			objects: []runtime.Object{
+				newCSIDriverConfigSetting(),
+				newPVC(namespace, pvcName, pvName, longhornSC),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newLonghornVolume(pvName, longhornv1beta2.DataEngineTypeV1),
+			},
+		},
+		{
+			name:       "ignores non-Longhorn volume",
+			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
 				newPVC(namespace, pvcName, pvName, otherSC),
@@ -77,7 +101,7 @@ func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
 				vmbr:        common.NewVMBackupReader(),
 			}
 
-			err := validator.checkBackupVolumeSnapshotClass(newVM(namespace, vmName, pvcName), newVMBackup(namespace, vmName))
+			err := validator.checkBackupVolumeSnapshotClass(newVM(namespace, vmName, pvcName), newVMBackup(namespace, vmName, tt.backupType))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -94,7 +118,7 @@ func TestCheckBackupVolumeSnapshotClassRejectsLonghornV2Volumes(t *testing.T) {
 	}
 }
 
-func newVMBackup(namespace, sourceName string) *v1beta1.VirtualMachineBackup {
+func newVMBackup(namespace, sourceName string, backupType v1beta1.BackupType) *v1beta1.VirtualMachineBackup {
 	return &v1beta1.VirtualMachineBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -106,7 +130,7 @@ func newVMBackup(namespace, sourceName string) *v1beta1.VirtualMachineBackup {
 				Kind:     "VirtualMachine",
 				Name:     sourceName,
 			},
-			Type: v1beta1.Backup,
+			Type: backupType,
 		},
 	}
 }
