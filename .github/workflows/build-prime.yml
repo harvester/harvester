@@ -1,13 +1,14 @@
 name: Build Prime
 
-# Branch pushes and prime-vX.Y.Z-rcN tags publish to the staging registry;
-# pushing a prime-vX.Y.Z tag (e.g. prime-v1.9.1) publishes v1.9.1 to Prime.
-# Staging builds pull every Harvester image from staging, so images pinned at
-# release tags (support-bundle-kit, dated harvester/os2 builds) must be
-# published to both registries.
-# The configure job routes every tag ref by its name, so switching to
-# `release: types: [published]` needs no other change. Release events cannot
-# filter by tag, and never use both triggers: one release would build twice.
+# Branch pushes and prime-vX.Y.Z-rcN releases publish to the staging registry;
+# publishing a prime-vX.Y.Z release (e.g. prime-v1.9.1) publishes v1.9.1 to
+# Prime. Staging builds pull every Harvester image from staging, so images
+# pinned at release tags (support-bundle-kit, dated harvester/os2 builds) must
+# be published to both registries.
+# Release events cannot filter by tag: the configure job skips releases
+# without the prime- prefix, and build-for-tag.yml skips those with it. Never
+# also trigger on tag pushes: creating a release with a new tag would build
+# it twice.
 #
 # Branch builds: push events use the workflow file from the pushed branch, so
 # each release line controls its own merge builds through `branches` below.
@@ -18,11 +19,11 @@ name: Build Prime
 #      'prime-v1.*' on prime-v1.x.
 # Never list both: v1.x and prime-v1.x publish the same image tag and ISO folder.
 on:
-  push:
-    # branches:
-    # - 'v1.*'
-    tags:
-    - 'prime-v*'
+  release:
+    types: [published]
+  # push:
+  #   branches:
+  #   - 'v1.*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,6 +37,8 @@ env:
 jobs:
   configure:
     name: Configure Prime build
+    # Community releases also send release events; skip them.
+    if: github.ref_type == 'branch' || startsWith(github.ref_name, 'prime-')
     runs-on: ubuntu-latest
     permissions:
       contents: read
