@@ -30,6 +30,7 @@ data:
         Systemd_Filter    _SYSTEMD_UNIT=NetworkManager.service
         Systemd_Filter    _SYSTEMD_UNIT=iscsid.service
         Systemd_Filter    _TRANSPORT=kernel
+        DB                /fluent-bit/db/systemd.db
         {{- if .Values.additionalLoggingSources.rke2.stripUnderscores }}
         Strip_Underscores On
         {{- end }}
@@ -38,11 +39,13 @@ data:
         Name              tail
         Tag               rke2_kubelet
         Path              {{ .Values.additionalLoggingSources.rke2.kubeletLog.path | default "/var/lib/rancher/rke2/agent/logs/kubelet.log" }}
+        DB                /fluent-bit/db/tail-kubelet.db
 
     [INPUT]
         Name              tail
         Tag               rke2_audit
         Path              /var/log/audit/audit.log
+        DB                /fluent-bit/db/tail-audit.db
 
     [FILTER]
         Name              parser
