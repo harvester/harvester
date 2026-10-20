@@ -309,6 +309,37 @@ jobs:
         gh release upload ${{ github.ref_name }} dist/artifacts/harvester*vmlinuz-${{ env.arch }}
         gh release upload ${{ github.ref_name }} dist/artifacts/harvester*images-list-${{ env.arch }}.txt
 
+  upload-standalone-addons:
+    name: Upload standalone addon manifests
+    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    # Only attach the manifests once the ISO build (and its own release
+    # uploads) succeeded, so a failed tag build does not leave a release
+    # with addon assets but no ISO.
+    needs: build-iso
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    permissions:
+      contents: write # for gh release upload
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Package standalone addon manifests
+      run: ./scripts/package-standalone-addons
+
+    # One asset per addon so each can be applied straight from the release:
+    #   kubectl apply -f https://github.com/harvester/harvester/releases/download/<tag>/<name>-addon.yaml
+    # --clobber keeps re-runs of the workflow from failing on existing assets.
+    - name: Upload standalone addon manifests to release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        if gh release view ${{ github.ref_name }} > /dev/null; then
+          echo ${{ github.ref_name }} release exists
+        else
+          gh release create ${{ github.ref_name }} --draft --notes "Draft release for ${{ github.ref_name }}"
+        fi
+        gh release upload --clobber ${{ github.ref_name }} dist/standalone-addons/*-addon.yaml
+
   manifest-cluster-repo-image:
     name: Manifest harvester-cluster-repo image
     runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
