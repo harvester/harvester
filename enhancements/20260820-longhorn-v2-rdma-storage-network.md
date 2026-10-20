@@ -8,10 +8,10 @@ carried over the Harvester storage network, which is always a Linux-bridge NAD.
 This proposal adds the ability to run the V2 engine⇄replica fabric over **RDMA
 (RoCEv2)** on Harvester: a bridgeless storage network bound directly to a
 dedicated RDMA-capable interface (macvlan/ipvlan over the RoCE PF, with
-host-device or SR-IOV as alternatives), RDMA device access into the pod via the
-shared RDMA device plugin, the host-side enablement (kernel modules, hugepages,
-QoS) needed for RoCEv2, and a way to select the RDMA transport per volume through
-a StorageClass.
+host-device or SR-IOV as alternatives), the host-side enablement (kernel
+modules, hugepages) needed for RoCEv2, and a way to select the RDMA transport per
+volume through a StorageClass. The V2 instance-manager pod is already privileged
+and sees the host RDMA devices, so no device plugin is needed.
 
 RDMA lowers CPU cost and tail latency for the replica fabric. On an arm64 /
 BlueField-2 RoCEv2 test bed we measured up to **3× sequential-read throughput**,
@@ -19,17 +19,21 @@ BlueField-2 RoCEv2 test bed we measured up to **3× sequential-read throughput**
 for the V2 engine⇄replica path, on both the `nvme` and `aio` disk backends. Full
 matrix under [Benchmark evidence](#benchmark-evidence).
 
-The base OS already ships everything on the data path (`rdma-core` incl. the
-`mlx5` provider, and inbox `mlx5_ib`/`rdma_cm`/`nvme-rdma` kernel modules), so
-this is primarily a networking + enablement + Longhorn-plumbing change, not an
-OS-driver-packaging change.
+The base OS ships the inbox RDMA kernel modules (`mlx5_ib`, `ib_uverbs`,
+`rdma_cm`, `rdma_ucm`), and the RDMA userspace (`rdma-core`, verbs providers)
+ships inside the Longhorn instance-manager image, so this is a networking +
+enablement + Longhorn-plumbing change, not an OS-driver-packaging change.
 
 ### Related Issues
 
 - Harvester feature request: https://github.com/harvester/harvester/issues/11460
 - Harvester storage-network EPIC: https://github.com/harvester/harvester/issues/9628
+- Harvester RDMA epic: https://github.com/harvester/harvester/issues/11989
+- NAD webhook rejects non-bridge NADs: https://github.com/harvester/harvester/issues/11990
+- UI: Data Engine Transport option in the V2 StorageClass form: https://github.com/harvester/harvester/issues/11991
 - Longhorn V2 RDMA transport (upstream, working implementation + benchmarks):
   https://github.com/longhorn/longhorn/issues/13796
+- `longhornctl` RDMA preflight: https://github.com/longhorn/longhorn/issues/14329
 
 ## Motivation
 
@@ -71,12 +75,34 @@ smaller and the random gap slightly larger (transport help matters more when CPU
 is scarce). Full per-leg tables and methodology are in the upstream Longhorn
 tracking issue (#13796).
 
+#### CPU cost (Longhorn master, Harvester v1.9.1, 2026-10-20)
+
+Same hardware, Harvester v1.9.1-rc3 with Longhorn master and the RDMA PR set,
+ipvlan NAD on the RDMA port as Longhorn's storage network, 3-replica V2 volume.
+SPDK reactors busy-poll, so CPU was measured with SPDK's own reactor accounting
+(busy vs idle ticks) at equal load:
+
+| fio test (2 reactors) | SPDK busy per IO, engine TCP / RDMA | replicas TCP / RDMA |
+|---|--:|--:|
+| 4k randread @ 10k IOPS | 61 / 42 µs | 23 / 14 µs |
+| 4k randwrite @ 5k IOPS | 116 / 61 µs | 65 / 31 µs |
+| 1M write @ 300 MiB/s | 3494 / 1164 µs | 2017 / 468 µs |
+
+PostgreSQL 17 (pgbench, 32 clients) in two Harvester VMs with data disks on
+`dataEngineTransport: tcp` vs `rdma` StorageClasses, 8 SPDK reactors: read-write
+4663 vs 5061 TPS, read-only 12426 vs 17145 TPS, and lower SPDK busy time per
+transaction with RDMA (engine 198 vs 122 µs, replicas 84 vs 33 µs). Going from 2
+to 8 reactors raised TPS for both transports, so the CPU RDMA saves is best spent
+on more reactors for the work that stays TCP (the frontend) and for more volumes.
+
 #### Network-layer validation (the Harvester attachment + device-access path)
 
 The table above measures RDMA *through Longhorn*. This second set validates the
 **Harvester-specific mechanism this HEP proposes** — the bridgeless
-`ipvlan-over-PF` NAD (A) plus the `k8s-rdma-shared-dev-plugin` (B) — at the raw
-fabric layer, independent of Longhorn, so the two concerns are not conflated.
+`ipvlan-over-PF` NAD (A) — at the raw fabric layer, independent of Longhorn, so
+the two concerns are not conflated. (This August run used the
+`k8s-rdma-shared-dev-plugin` for device access; it turned out to be unnecessary,
+see (B).)
 Measured 2026-08-21, cross-node pod↔pod (`ib_write_bw`/`ib_write_lat`) over the
 proposed attachment, buffers bound to NUMA node0 (both NICs on node0):
 
@@ -88,9 +114,8 @@ proposed attachment, buffers bound to NUMA node0 (both NICs on node0):
 | QD1 write latency (typical / p99) | **~3.5 µs / ~6 µs** |
 
 Takeaways: (1) the proposed pod-attachment mechanism reaches **wire-rate
-RoCEv2** — the ipvlan child carries a correct v2 GID and the shared-dev-plugin
-scopes the right `/dev/infiniband` device into the pod, no bind-mount. (2) Using
-**both PFs independently** (advertised as two shared resources) linearly
+RoCEv2** — the ipvlan child carries a correct v2 GID. (2) Using **both PFs
+independently** linearly
 aggregates to ~2× a single port with **zero switch or DPU configuration** —
 which motivates the bond reframe below. (3) NUMA locality is mandatory for the
 aggregate: parallel streams collapse (~1 Gb/s) unless each is bound to the NIC's
@@ -110,6 +135,7 @@ queues) → **ipvlan is the recommended attachment**, consistent with the matrix
   diagnostic/firmware tooling), delivered through existing Harvester mechanisms.
 - Report RDMA capability/health per node so an RDMA storage network is only
   offered where the hardware and stack are present.
+- Let users pick the transport when creating a V2 StorageClass in the UI.
 - Keep the default behavior unchanged: TCP over the existing bridge NAD remains
   the default; RDMA is strictly opt-in.
 
@@ -159,16 +185,19 @@ volume's replica controllers report `trtype=RDMA`.
 
 1. Prerequisites (operator, before configuring the storage network — this
    ordering is enforced by the webhook, see Design): each participating node has
-   a RoCE-capable NIC on a dedicated interface; host RoCE QoS (trust=dscp / PFC
-   prio3) and MTU are set; the switch is configured lossless.
+   a RoCE-capable NIC on a dedicated interface and the RDMA kernel modules
+   loaded (`longhornctl check preflight --enable-rdma` verifies this); MTU and any
+   lossless-fabric settings (PFC/ECN) are the operator's choice — the reference
+   bed ran without PFC.
 2. The operator configures the RDMA storage network (extended `storage-network`
    setting in `rdma` mode, or the equivalent UI), naming the dedicated interface
    and the subnet. Harvester validates readiness on all nodes, quiesces
    workloads (all VMs stopped / all Longhorn volumes detached — same disruptive
    day-2 flow as today's storage network), builds a bridgeless NAD, and syncs it
    to Longhorn.
-3. The operator (or the Harvester UI) creates/uses a V2 StorageClass with
-   `dataEngineTransport: rdma`.
+3. The operator creates a V2 StorageClass and picks "Data Engine Transport:
+   RDMA" in the UI (#11991), which sets `dataEngineTransport: rdma`. The option is
+   disabled when no Longhorn node reports `RDMACapable`.
 4. Users create PVCs from that StorageClass; replica traffic runs over RoCEv2.
 5. Verification commands and expected output are in the Test plan.
 
@@ -212,11 +241,10 @@ volume's replica controllers report `trtype=RDMA`.
 - **Longhorn `storage-network` setting**: Harvester keeps syncing the NAD ref
   into it (unchanged mechanism); only the NAD it points at changes shape.
 
-- **Longhorn `v2-data-engine-rdma-device-resource` setting** (new, upstream
-  #13796): Harvester sets this to the shared-dev-plugin resource name (e.g.
-  `rdma/hca_shared_f0`) so the instance-manager pod requests the RDMA device
-  declaratively. Empty by default (legacy host-mount behavior). This is the
-  concrete shared interface between the Harvester device plugin (B) and Longhorn.
+- No device-plugin resource or Longhorn setting for device access: the V2
+  instance-manager pod is privileged and already sees `/dev/infiniband` (an
+  earlier draft proposed a `v2-data-engine-rdma-device-resource` setting; Longhorn
+  maintainers asked to drop it, and RDMA volumes ran without it).
 
 - No new guest-facing (KubeVirt/VM) API.
 
@@ -257,6 +285,26 @@ CNI type, so it works identically whether the main plugin is `bridge`,
 `macvlan`, `ipvlan`, `host-device`, or `sriov`; confirmed on the homelab with an
 ipvlan-over-PF NAD.
 
+Two existing behaviors block this today and must change:
+- harvester-network-controller's NAD webhook parses every non-kube-ovn NAD as a
+  bridge NAD and rejects it ("the length of bridge name is less than 3"). The fix
+  (#11990) applies the bridge-specific mutation and validation only to bridge and
+  kube-ovn NADs; it was validated on the reference cluster (ipvlan NAD created and
+  updated, CNI type change and bridge NADs on a missing cluster network still
+  rejected).
+- The storage-network controller writes its own NAD back into Longhorn's
+  `storage-network` setting whenever they differ, so a manual override only holds
+  with Harvester's setting empty. The `rdma` mode makes the controller build and
+  sync the non-bridge NAD itself.
+
+Per-node interface names: ipvlan and macvlan take a single `master` name in a
+global NAD. Proposed: the network-controller agent (already a per-node
+DaemonSet that applies VlanConfig) gives the selected NIC the same alternative
+name on every node (`ip link property add dev <nic> altname <cn>-rdma`), and the
+NAD uses `"master": "<cn>-rdma"`. The kernel resolves altnames on link lookups
+(verified on the reference nodes, kernel 6.12); an end-to-end check with the
+ipvlan CNI is pending.
+
 Rationale for bridgeless: Harvester's Linux bridge is fundamental to the
 *cluster-network* model because it is the substrate for VM VLAN trunking
 (`harvester-network-controller` `network/vlan/vlan.go`, `iface/bridge.go`); the
@@ -264,43 +312,42 @@ storage network merely inherits it. RoCEv2 cannot traverse a Linux software
 bridge (veth has no PF-backed GID). A dedicated backend-only interface does not
 need a bridge, so we bypass it.
 
-**(B) RDMA device access (device plugin).**
-The pod also needs the RDMA verbs devices. On the homelab we proved this with a
-manual `/dev/infiniband` bind-mount in shared RDMA mode — functional, but not a
-supportable product mechanism. **Primary:** the NVIDIA-maintained,
-open-source [`k8s-rdma-shared-dev-plugin`](https://github.com/Mellanox/k8s-rdma-shared-dev-plugin),
-a device plugin that advertises a PF's RDMA device as a **shared** resource
-(`rdma/<name>`) that many pods can request at once — no SR-IOV, no VF pool. It is
-the declarative, sanctioned form of the bind-mount, and its sharing is what keeps
-a **future frontend consumer** (or a second port) able to use the same PF (see
-Dual-port). **Alternative:** the SR-IOV device plugin, which advertises VFs
-(exclusive per pod) and adds hardware isolation/QoS — the right tool for
-VM-facing RDMA, already owned by the SR-IOV network devices HEP.
-
-Delivery: this is a **container workload** (DaemonSet), not an OS package — so it
-carries no OS-image licensing/packaging concern and ships through an existing
-Harvester mechanism (managed Helm chart / AddOn, the same model as Multus and
-Whereabouts today). The NVIDIA Network Operator bundles the plugin + RDMA-CNI +
-Multus + Whereabouts; Harvester would more likely vendor just the shared-dev
-plugin chart rather than adopt the whole operator. (License to confirm for the
-HEP; expected Apache-2.0.)
+**(B) RDMA device access.**
+The pod also needs the RDMA verbs devices (`/dev/infiniband/*`). The V2
+instance-manager pod is already privileged and mounts the host root, so it sees
+every host device, including `/dev/infiniband`, with no extra mechanism. This was
+verified on the reference cluster: RDMA volumes ran with no device plugin and no
+Longhorn device setting. An RDMA device plugin (`k8s-rdma-shared-dev-plugin`, or
+the SR-IOV device plugin for VFs) would only become necessary if the instance
+manager stopped being privileged, which is not planned; the SR-IOV device plugin
+remains the tool for VM-facing RDMA, owned by the SR-IOV network devices HEP.
 
 **(C) Host RoCEv2 enablement (OS / node-manager).**
 Reuse the Longhorn V2 data-engine host-prep mechanism
 (`20240709-longhorn-v2-data-engine`): today node-manager loads
 `vfio_pci`/`nvme_tcp` and allocates hugepages, persisted in
 `/oem/99_settings.yaml` (Elemental/yip). Extend that list with the RDMA stack —
-`mlx5_ib`, `ib_core`, `rdma_cm`/`rdma_ucm`, `nvme_rdma` — and persist host RoCE
-QoS (trust=dscp, PFC prio3) analogous to a `host-roce-qos` unit. All of these
-modules are inbox in the shipping OS (SUSE Linux Micro 6.2, kernel 6.12); the
-`rdma-core` userspace (incl. the `mlx5` provider) is already shipped (v56.1).
-No proprietary NVIDIA MOFED/DOCA component is required or added.
+`ib_core`, `ib_uverbs`, `rdma_cm`, `rdma_ucm` and the NIC's provider (e.g.
+`mlx5_ib`). On the reference nodes these were already loaded at boot; persisting
+them makes it explicit. `nvme_rdma` is not needed for the engine⇄replica path
+(SPDK does RDMA in userspace); it only matters for a future host-side RDMA
+frontend. The RDMA userspace (`rdma-core`, `libibverbs`, `librdmacm`, providers)
+ships in the Longhorn instance-manager image (longhorn/longhorn-instance-manager#1616),
+not on the host. All modules are inbox in SUSE Linux Micro 6.2 (kernel 6.12). No
+proprietary NVIDIA MOFED/DOCA component is required or added. Host PFC was not
+needed on the reference bed (and enabling it on the BlueField-2 DPU uplink broke
+the fabric), so lossless configuration stays an operator choice.
 
-Base-OS tooling deliverables (via OBS baseos requests + `harvester/os2` wiring,
-per the kernel-module-devel HEP process): keep `rdma-core`/`libibverbs`/
-`librdmacm`/`mlx5` provider (already present); optionally add `mstflint` (host
-firmware/RoCE inspection) and the `rdma-core` diagnostic CLIs
-(`ibv_devinfo`/`ibstat`, iproute2 `rdma`) for bring-up/support. Hugepages
+`longhornctl check preflight --enable-rdma` (longhorn/longhorn#14329,
+longhorn/cli#660) checks the modules, ACTIVE RoCE v2 ports, `/dev/infiniband`,
+`ib_core` netns mode, the NIC's NUMA node versus the V2 CPU mask, and the iobuf
+pools versus the reactor count; `install preflight --enable-rdma` loads and
+persists the modules. Harvester can reuse these checks.
+
+Base-OS tooling (optional, via OBS baseos requests + `harvester/os2` wiring,
+per the kernel-module-devel HEP process): `mstflint` (host firmware/RoCE
+inspection) and the `rdma-core` diagnostic CLIs (`ibv_devinfo`/`ibstat`,
+iproute2 `rdma`, which the reference nodes lack) for bring-up/support. Hugepages
 enablement is inherited from the V2 data-engine flow (not RDMA-specific).
 
 Fallback (documented, not required): if a future kernel/NIC ever needs an
@@ -310,41 +357,35 @@ for Secure Boot), or an NVIDIA MOFED driver-container delivered as a Harvester
 AddOn. This keeps SUSE shipping nothing proprietary — the operator pulls
 NVIDIA's container under NVIDIA's EULA at their discretion.
 
-**(D) Longhorn transport selection + shared-device interface.**
+**(D) Longhorn transport selection.**
 Harvester exposes the StorageClass parameter `dataEngineTransport: rdma`, which
 maps to Longhorn's per-volume `dataEngineTransport` (upstream #13796). Transport
-is chosen per volume (changeable only while detached) — a single RDMA-capable storage network
-carries both TCP and RDMA volumes simultaneously (validated: sibling TCP and
-RDMA volumes on the same fabric).
+is chosen per volume (changeable only while detached) — a single RDMA-capable
+storage network carries both TCP and RDMA volumes simultaneously (validated:
+sibling TCP and RDMA volumes on the same fabric). Harvester's StorageClass mutator
+already adds the CDI clone/snapshot annotations to any `dataEngine: v2` class,
+including RDMA ones, and VM data disks on an RDMA class worked unchanged.
 
-The device-access handoff between (B) and Longhorn is now a **concrete, shared
-interface** rather than a bind-mount: the upstream V2 data engine gained a
-cluster setting **`v2-data-engine-rdma-device-resource`** (longhorn-manager,
-tracked in #13796). Its value is the name of the extended resource the V2
-instance-manager pod should request; when non-empty, longhorn-manager injects
-`resources.limits[<name>] = 1` into the IM pod. Harvester's role is therefore
-minimal and declarative: deploy the shared-dev-plugin (B) so it advertises e.g.
-`rdma/hca_shared_f0`, then set the Longhorn setting to that same string. The
-plugin scopes the correct `/dev/infiniband` device into the pod and the NAD from
-(A) supplies the GID-bearing interface — no privileged host mount, and many IM
-pods (and a future frontend consumer) share the one PF. Leaving the setting
-empty preserves the legacy privileged-host-mount behavior, so the change is
-backward compatible.
-
-Longhorn also now reports an **`RDMACapable` node condition**, rejects an RDMA
+Longhorn also reports an **`RDMACapable` node condition**, rejects an RDMA
 volume at admission unless the data engine is V2 and at least one RDMA-capable
 node exists, rejects attaching it to a node that is not RDMA-capable, and
 confines RDMA replicas to capable nodes (longhorn-manager, #13796).
 
-**SPDK buffer pools.** An RDMA volume makes the engine node's SPDK target run two
-NVMe-oF transports (RDMA for replicas, TCP for the frontend). With Longhorn's
-default iobuf pools (`data-engine-iobuf-small-pool-size` 8192 /
-`data-engine-iobuf-large-pool-size` 1024), heavy writes stalled on the engine
-node during validation; 32768 / 4096 ran clean. How Longhorn will size these for
-RDMA is an open question upstream (longhorn/longhorn-manager#5107); Harvester
-should follow that outcome, and until then set the larger values when it enables
-the RDMA storage network. Harvester's capability
-discovery (E) can surface this condition directly instead of re-detecting.
+**CPU mask and SPDK buffer pools.** RDMA lowers SPDK busy time per IO, and more
+reactors (`data-engine-cpu-mask`) raised throughput for both transports. With
+RDMA the engine node's target runs two NVMe-oF transports (TCP for the frontend,
+RDMA for the local replica), and each takes a per-poll-group iobuf cache, so the
+iobuf pools must grow with the reactor count. At 8 reactors with the default
+pools (`data-engine-iobuf-small-pool-size` 8192 / `-large-pool-size` 1024), the
+engine node logged 126,912 large-pool retries for `nvmf_TCP` and 9,145 for
+`nvmf_RDMA` during 1M writes; 32768 / 4096 gave zero retries. A rule of 4096
+small / 512 large buffers per reactor matches both data points (the defaults at 2
+reactors). Users need to be able to set both the CPU allocation and the pools;
+Longhorn already exposes them as settings, and Harvester exposes the V2 hugepage
+settings since v1.9. Upstream is discussing whether Longhorn should derive the
+pool defaults from the reactor count (longhorn/longhorn-manager#5107); Harvester
+should follow that outcome and, until then, document the rule and surface the
+preflight check.
 
 **(E) RDMA capability discovery & health.**
 Longhorn now publishes an `RDMACapable` node condition (set by its environment
@@ -363,14 +404,15 @@ volumes-detached / VMs-stopped guard.
 
 ### Mechanism decision matrix
 
-Picking (A) × (B) is a trade between simplicity, sharing, and isolation. The
-recommended default is **macvlan/ipvlan + shared-dev-plugin** — proven, shareable,
-and it does not spend the frontend option.
+Picking the attachment is a trade between simplicity, sharing, and isolation.
+The recommended default is **ipvlan over the PF** — proven at line rate,
+shareable, and it does not spend the frontend option (macvlan also works but ran
+~20× slower on BlueField-2).
 
 | Attachment (A) | Device access (B) | NIC sharing | Frontend later? | Isolation/QoS | Complexity |
 |---|---|---|---|---|---|
-| macvlan / ipvlan over PF | shared-dev-plugin | host + many pods share PF | **yes** | none | low — **recommended** |
-| host-device (whole PF) | shared-dev-plugin / bind-mount | **exclusive** to the pod | no (PF is gone from host) | full (owns PF) | low, but forecloses frontend |
+| ipvlan (or macvlan) over PF | privileged IM pod (no plugin) | host + many pods share PF | **yes** | none | low — **recommended** |
+| host-device (whole PF) | privileged IM pod | **exclusive** to the pod | no (PF is gone from host) | full (owns PF) | low, but forecloses frontend |
 | SR-IOV VF | SR-IOV device plugin | VFs partitioned per consumer | yes (spare VFs) | hardware per-VF | high (firmware SR-IOV + VF pool) |
 
 ### Dual-port topology & frontend forward-compatibility
@@ -385,8 +427,8 @@ Typical RoCE NICs are dual-port (the reference bed has two: `mlx5_0`/PF0 and
 - **Does using these ports for the backend foreclose a future RDMA frontend?**
   Only with **exclusive** mechanisms. `host-device` moves the whole PF into the
   IM pod, so a same-node frontend initiator (host-kernel `nvme-rdma` or a
-  virt-launcher pod) can no longer use it. The **shared-dev-plugin (+
-  macvlan/ipvlan)** path shares the PF, and **SR-IOV** partitions it — both keep
+  virt-launcher pod) can no longer use it. The **ipvlan** path shares the PF,
+  and **SR-IOV** partitions it — both keep
   the frontend door open. Because frontend RDMA is a current non-goal but a
   plausible Phase 2, the recommended default deliberately preserves it; operators
   who want the clean exclusive `host-device` model can also **reserve PF1 for the
@@ -397,11 +439,10 @@ Typical RoCE NICs are dual-port (the reference bed has two: `mlx5_0`/PF0 and
 For HA / higher aggregate bandwidth there are two options; the reference bed
 tested both and **recommends dual-PF-independent over a bond.**
 
-**Recommended — both PFs, independently, via the device plugin.** The
-shared-dev-plugin advertises each PF as its own resource (`rdma/hca_shared_f0`,
-`rdma/hca_shared_f1`); a single pod can request both and receives both
-`/dev/infiniband` devices (`mlx5_0`+`mlx5_1`) = two independent active RoCEv2
-paths. This **linearly aggregates to 49 Gb/s** (measured, Network-layer
+**Recommended — both PFs, independently.** Each PF carries its own ipvlan
+attachment; the privileged pod already sees both RDMA devices (`mlx5_0`+`mlx5_1`)
+= two independent active RoCEv2 paths. This **linearly aggregates to 49 Gb/s**
+(measured with two shared-device resources in August, Network-layer
 validation above) with **zero switch or DPU-side configuration**, and HA lives at
 Longhorn's existing cross-node replica layer (a dead port loses one replica leg,
 not the volume). This is the design's default and needs no bond at all.
@@ -461,6 +502,10 @@ asserted, which upstream tests do not do):
    succeed.
 6. Negative: on a node without a RoCE NIC, the RDMA storage network is rejected
    / reported unhealthy.
+7. `longhornctl check preflight --enable-rdma --rdma-interface <nic>` passes on
+   every node (modules, RoCE v2 ports, NUMA locality, iobuf pools vs reactors).
+8. UI: the V2 StorageClass form shows "Data Engine Transport"; RDMA is disabled
+   when no node is `RDMACapable`.
 
 ### Upgrade strategy
 
@@ -485,14 +530,14 @@ clusternetwork L3), @Yu-Jack (NAD↔interface, driver-by-annotation),
 @ibrokethecloud (SR-IOV network devices).
 
 Open technical questions:
-- HA fabric: the reference bed recommends **dual-PF-independent** (both PFs as
-  separate shared resources → 49 Gb/s aggregate, HA at Longhorn's replica layer,
+- HA fabric: the reference bed recommends **dual-PF-independent** (both PFs
+  used independently → 49 Gb/s aggregate, HA at Longhorn's replica layer,
   zero switch/DPU config) over a bond. A host-side active-backup bond did **not**
   form a RoCE LAG on our BlueField-2 (DPU eSwitch owns the physical ports → LAG
   is a DPU-ARM-side change; see Design → HA storage NIC). Is dual-PF-independent
   acceptable as the shipped HA story, with RoCE LAG left as an advanced/plain-
   ConnectX option? Maintainer input welcome.
 - Re-implementing the "spans all nodes" guarantee against a raw interface name
-  rather than a cluster network.
+  rather than a cluster network, or via the per-node altname proposed in (A).
 - Interaction with the SR-IOV HEP exclusion rule (a NIC is today either a
   cluster-network bridge member or an SR-IOV device, never both).
