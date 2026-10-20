@@ -29,6 +29,10 @@ deprecated: true | false   # optional, defaults to false
   kubectl apply -f https://raw.githubusercontent.com/harvester/harvester/<version>/addons/standalone/<name>/addon.yaml
   ```
   where `<version>` is a release tag (e.g. `v1.10.0`) or matching branch; `master` for the dev version.
+  Releases also attach each standalone manifest as a `<name>-addon.yaml` asset:
+  ```
+  kubectl apply -f https://github.com/harvester/harvester/releases/download/<tag>/<name>-addon.yaml
+  ```
 - `deprecated: true` addons must be under `standalone/`; retirement starts by removing the addon from the ISO. `stage` keeps its pre-retirement value. An addon deprecated in release N is removed from the repository in release N+1 (its directory and manifest deleted).
 
 Labels (`addon.harvesterhci.io/{experimental,preview,ga,deprecated}`) are derived from `metadata.yaml` by the generator; hand-written label drift fails CI.
