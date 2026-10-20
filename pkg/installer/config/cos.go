@@ -625,14 +625,19 @@ func UpdateManagementInterfaceConfig(mgmtInterface Network, dnsNameServers []str
 			logrus.Error(err, string(output))
 			return err
 		}
-		// This next command waits up to 30 seconds to ensure there's
-		// a connection.  Without this, it's possible that a slow DHCP
-		// server won't return in time, and the installer will subsequently
-		// fail the check for a default route.
-		output, err = exec.Command("nm-online", "-x").CombinedOutput()
+		// Wait up to 100 seconds for local, site, or global connectivity. An
+		// isolated management network may never reach global connectivity.
+		//
+		// The timeout covers three slow-rate LACP intervals of 30 seconds.
+		// nm-online returns when the network connects; only a slow or degraded
+		// link consumes the full timeout.
+		//
+		// The check is non-fatal. On the first boot of an installed node, it
+		// precedes the RancherD configuration; a fatal failure leaves the node
+		// without a role until manual repair. See harvester/harvester#10885.
+		output, err = exec.Command("nm-online", "-t", "100").CombinedOutput()
 		if err != nil {
-			logrus.Error(err, string(output))
-			return err
+			logrus.Warnf("nm-online did not confirm the management network within the timeout; continuing anyway: %v: %s", err, string(output))
 		}
 	}
 
