@@ -21,9 +21,9 @@ name: Build Prime
 on:
   release:
     types: [published]
-  # push:
-  #   branches:
-  #   - 'v1.*'
+  push:
+    branches:
+    - 'v1.*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
