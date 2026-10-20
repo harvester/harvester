@@ -1,0 +1,25 @@
+#!/bin/bash
+# Collect the standalone addon manifests (addons/standalone/<name>/addon.yaml)
+# as one file per addon so the release workflow can attach them to the GitHub
+# release. Standalone manifests are complete Addon CRs and are not rendered;
+# they are validated by `addon-generator -validate` in the generate-addons
+# Docker stage, so this only copies them.
+set -e
+
+TOP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SRC_DIR="${TOP_DIR}/addons/standalone"
+OUT_DIR="${TOP_DIR}/dist/standalone-addons"
+
+rm -rf "${OUT_DIR}"
+mkdir -p "${OUT_DIR}"
+
+for dir in "${SRC_DIR}"/*/; do
+    name=$(basename "${dir}")
+    manifest="${dir}addon.yaml"
+    if [ ! -f "${manifest}" ]; then
+        echo "[ERROR] ${manifest} is missing" >&2
+        exit 1
+    fi
+    cp "${manifest}" "${OUT_DIR}/${name}-addon.yaml"
+    echo "${OUT_DIR}/${name}-addon.yaml"
+done
