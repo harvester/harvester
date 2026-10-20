@@ -55,7 +55,11 @@ if [[ -z "$DIRTY" && -n "$GIT_TAG" ]]; then
         echo "Checking minimum upgradable version, if no minimum upgradeable version, will fail with \`Error: no matches found\`"
         # Search for minimum upgradable version.
         # If the release does not come with a corresponding minimum upgradable version, the build will error out.
-        MIN_UPGRADABLE_VERSION=$(yq -e e ".versions | map(select(.name == \"$VERSION\")) | .[0].minUpgradableVersion" "${PACKAGE_DIR}"/upgrade-matrix.yaml)
+        # Fail explicitly: callers do not always run this script with set -e.
+        if ! MIN_UPGRADABLE_VERSION=$(yq -e e ".versions | map(select(.name == \"$VERSION\")) | .[0].minUpgradableVersion" "${PACKAGE_DIR}"/upgrade-matrix.yaml); then
+            echo "ERROR: no minUpgradableVersion for ${VERSION} in package/upgrade-matrix.yaml" >&2
+            return 1 2>/dev/null || exit 1
+        fi
     fi
 else
     VERSION="${COMMIT}${DIRTY}"
