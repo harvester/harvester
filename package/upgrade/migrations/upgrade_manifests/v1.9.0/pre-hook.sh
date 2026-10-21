@@ -8,7 +8,7 @@ patch_harvester_vm_migration_details_dashboard() {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "description": "Convergence ratio: dirty_rate / transfer_rate. < 1: converging — ≥ 1: not converging, migration will abort. Shows -1 when transfer rate is zero (migration not yet active).",
+        "description": "Convergence ratio: dirty_rate / transfer_rate. < 1: converging — ≥ 1: not converging. If the non-converging state persists, migration may time out and abort. Shows -1 when transfer rate is zero (migration not yet active).",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "palette-classic"},
