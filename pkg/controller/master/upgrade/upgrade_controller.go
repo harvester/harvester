@@ -3,9 +3,11 @@ package upgrade
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -796,7 +798,51 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error)
 	return repoInfo, nil
 }
 
+func validateUpgradeRepo(currentFlavor string, repoInfo *repoinfo.RepoInfo) error {
+	targetRegistry := repoInfo.Release.RancherSystemDefaultRegistry
+	if targetRegistry != "" {
+		if strings.Contains(targetRegistry, "://") {
+			return errors.New("rancherSystemDefaultRegistry must not include a URL scheme")
+		}
+		if strings.HasSuffix(targetRegistry, "/") {
+			return errors.New("rancherSystemDefaultRegistry must not end with '/'")
+		}
+	}
+
+	return validateUpgradeFlavor(currentFlavor, repoInfo.Release.ServerFlavor)
+}
+
+func validateUpgradeFlavor(currentFlavor, targetFlavor string) error {
+	if currentFlavor == "" {
+		currentFlavor = settings.ServerFlavorCommunity
+	}
+	if targetFlavor == "" {
+		targetFlavor = settings.ServerFlavorCommunity
+	}
+
+	if currentFlavor != settings.ServerFlavorCommunity && currentFlavor != settings.ServerFlavorPrime {
+		return fmt.Errorf("unsupported current server flavor %q", currentFlavor)
+	}
+	if targetFlavor != settings.ServerFlavorCommunity && targetFlavor != settings.ServerFlavorPrime {
+		return fmt.Errorf("unsupported target server flavor %q", targetFlavor)
+	}
+	if currentFlavor == settings.ServerFlavorPrime && targetFlavor == settings.ServerFlavorCommunity {
+		return errors.New("upgrading from a Prime release to a community release is not supported")
+	}
+
+	return nil
+}
+
 func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) (bool, string) {
+	repoInfo, err := getCachedRepoInfo(upgrade)
+	if err != nil {
+		return false, err.Error()
+	}
+
+	if err := validateUpgradeRepo(settings.ServerFlavor.Get(), repoInfo); err != nil {
+		return false, err.Error()
+	}
+
 	skipVersionCheckStr, ok := upgrade.Annotations[skipVersionCheckAnnotation]
 	if ok {
 		skipVersionCheck, err := strconv.ParseBool(skipVersionCheckStr)

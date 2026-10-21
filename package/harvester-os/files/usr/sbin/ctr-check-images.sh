@@ -1,19 +1,24 @@
 #!/bin/bash -eu
-# The script reads a image list and waits until images in the list are presented.
+# Verify that every image in the supplied lists is present in containerd.
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 IMAGE_LIST [IMAGE_LIST ...]" >&2
+    exit 1
+fi
 
 sorted_list_file=$(mktemp)
-sort $1 > $sorted_list_file
+sort -u "$@" > "$sorted_list_file"
 
-trap "rm -f $sorted_list_file" EXIT
+trap 'rm -f "$sorted_list_file"' EXIT
 
-lines=$(wc -l < $sorted_list_file)
-echo Checking $lines images in $1...
+lines=$(wc -l < "$sorted_list_file")
+echo "Checking $lines imported images..."
 
-while true; do
-    missing=$(ctr -n k8s.io images ls -q | grep -v ^sha256 | sort | comm -23 $sorted_list_file -)
-    if [ -z "$missing" ]; then
-        echo done
-        break
-    fi
-    sleep 2
-done
+missing=$(ctr -n k8s.io images ls -q | grep -v '^sha256' | sort -u | comm -23 "$sorted_list_file" -)
+if [[ -n "$missing" ]]; then
+    echo "The following images are missing from containerd:" >&2
+    echo "$missing" >&2
+    exit 1
+fi
+
+echo done

@@ -667,8 +667,17 @@ upgrade_os() {
 
   CURRENT_OS_VERSION=$(source $HOST_DIR/etc/os-release && echo $PRETTY_NAME)
 
-  if [ "$REPO_OS_PRETTY_NAME" = "$CURRENT_OS_VERSION" ]; then
-    echo "Skip upgrading OS. The OS version is already \"$CURRENT_OS_VERSION\"."
+  # Community and Prime builds of the same release share the same OS
+  # version, so the server flavor must also match to skip the upgrade.
+  local current_server_flavor="community"
+  local host_release_file="$HOST_DIR/etc/harvester-release.yaml"
+  if [ -f "$host_release_file" ]; then
+    current_server_flavor=$(yq e '.serverFlavor // "community"' "$host_release_file")
+  fi
+  echo "Current server flavor: $current_server_flavor, repo server flavor: $REPO_SERVER_FLAVOR"
+
+  if [ "$REPO_OS_PRETTY_NAME" = "$CURRENT_OS_VERSION" ] && [ "$REPO_SERVER_FLAVOR" = "$current_server_flavor" ]; then
+    echo "Skip upgrading OS. The OS version is already \"$CURRENT_OS_VERSION\" ($current_server_flavor)."
     return
   fi
 
