@@ -1,65 +1,105 @@
-# Defer Longhorn Installation for Fresh Clusters
+# Install Fresh Clusters Without the Default Longhorn Data Disk
 
 ## Summary
 
-Harvester installs Longhorn on every cluster: the installer creates the `HARV_LH_DEFAULT` partition (or formats a `DataDisk`), and the chart deploys Longhorn and its `harvester-longhorn` StorageClass. Users with external storage still have to reserve that disk.
+Harvester currently installs Longhorn on every cluster. The installer creates a `HARV_LH_DEFAULT` partition (or formats a `DataDisk`), and the Harvester chart deploys Longhorn and its StorageClasses. This prevents users that supply their own storage from installing Harvester without reserving capacity for Longhorn.
 
-This HEP adds an install-time `deferLonghornInstall` option, for **fresh installations only**. When set, the installer creates no Longhorn disk (no `HARV_LH_DEFAULT`, no `DataDisk`) and the chart deploys no Longhorn workloads. The default install is unchanged.
+This HEP adds an opt-in, **fresh-install-only** setting, `install.skipLonghornInstall`, that is the single source for the behavior below. It applies to every source of installer configuration: the TUI, `harvester.install.config_url`, and kernel parameters.
 
-With `deferLonghornInstall`, the administrator names two CSI provisioners in the install config. Harvester creates the fixed StorageClasses `harvester-system-rwo` (RWO) and `harvester-upgrade-rwx` (RWX, Filesystem) from them. It does not install, configure, or verify the CSI drivers; that is a Day-2 task. See [Implementation](#implementation).
+When enabled:
+- The installer does not provision a Longhorn data disk.
+- Harvester blocks Longhorn StorageClasses and Longhorn-only features, so no workload can use Longhorn storage.
 
-The root disk then holds only the OS partitions (ESP, `COS_OEM`, `COS_STATE`, `COS_RECOVERY`, `COS_PERSISTENT`); see [Root-disk layout](#root-disk-layout).
+In this first step the Longhorn workloads and CRDs are still deployed by the chart (`longhorn.enabled` stays `true`).
 
-### Related issues
+The default installation is unchanged. Upgrading an existing cluster into or out of this mode is out of scope.
+
+Harvester does not install or manage the replacement CSI driver and never creates a StorageClass for an administrator's provisioner. Administrators supply the names of existing StorageClasses instead.
+
+### Related issue
 
 - <https://github.com/harvester/harvester/issues/9098>
 
 ## Motivation
 
-Users may already have an external storage solution or may want to defer storage configuration. They should be able to install Harvester without reserving a Longhorn disk or deploying Longhorn by default.
+Users can already run workloads on external storage, but they must currently reserve a Longhorn disk even when they do not intend to use Longhorn. On a single 250 GiB root disk, the default Longhorn partition consumes about **77 GiB**; on larger disks it consumes all space beyond the fixed partition sizes, more details in [Root-disk layout](#root-disk-layout).
 
-The installation choice must be explicit:
-
-- **Default**: retain the current Longhorn installation and behavior.
-- **`deferLonghornInstall`**: defer Longhorn installation. Storage is provided by CSI drivers that the administrator installs after installation.
-
-The option does not turn an existing cluster into a non-Longhorn cluster. Existing PersistentVolumes retain their provisioner, and removal or replacement of Longhorn in an existing cluster requires a separate migration design.
+Removing Longhorn in fresh clusters makes better use of constrained hardware and lets administrators bring their own storage. However, this does not imply that every external CSI driver provides Longhorn features such as share-manager-backed RWX, storage networks, snapshots, or backup integration.
 
 ## Goals
 
-- Keep the current Longhorn installation as the default, with no behavior or disk-layout changes.
-- Add a `deferLonghornInstall` option for a fresh initial installation:
-  - Keep the 250 GiB minimum root-disk size, and give all space after the fixed partitions to `COS_PERSISTENT` (see [Root-disk layout](#root-disk-layout)).
-  - Do not create, mount, or format `HARV_LH_DEFAULT`; reject `DataDisk`.
-  - Do not deploy Longhorn workloads or the Longhorn StorageClasses `harvester-longhorn`, `longhorn-static`, and `vmstate-persistence`. The Longhorn CRDs and the `longhorn-system` namespace are still installed; no Longhorn workloads or CRs are created.
-  - Require two CSI provisioner names and create the fixed StorageClasses `harvester-system-rwo` and `harvester-upgrade-rwx` from them (see [System StorageClasses](#system-storageclasses)).
-  - Clearly tell the administrator that no default CSI storage is available after installation and that the named CSI drivers must be installed and configured in Day 2.
-- Support the option in both the interactive installer and automated installation configuration.
+- Preserve the current Longhorn installation and disk layout as the default.
+- Provide an explicit fresh-install choice that:
+  - creates no `HARV_LH_DEFAULT` partition and rejects `DataDisk`;
+  - blocks Longhorn StorageClasses and Longhorn-only settings, APIs, and UI entries through Harvester admission;
+  - leaves the Longhorn deployment and CRDs unchanged for now;
+  - records the choice in the cluster, so joining nodes use the same disk layout;
+  - lets an administrator supply the names of existing StorageClasses for each supported system consumer, through that consumer's own configuration path (add-on, Helm values, or CDI configuration), without manufacturing StorageClasses.
+- Keep the root-disk minimum at 250 GiB for the first release. The recovered Longhorn space belongs to `COS_PERSISTENT`; reducing the minimum disk size is a separate sizing proposal.
+- Webhooks provide centralized validation to block unsupported operations when Longhorn is not usable because it has no data disk.
+- Enable each storage consumer only after its storage requirements and failure behavior have been validated.
 
-### System StorageClasses
+## Non-goals
 
-When Longhorn is installed (the default), Harvester creates `harvester-system-rwo` and `harvester-upgrade-rwx` with the Longhorn provisioner, so every system workload uses the same StorageClass names on every cluster.
+- Installing, configuring, certifying, or health-checking a third-party CSI driver during Harvester installation.
+- Creating a StorageClass from a CSI provisioner name, or making an external StorageClass the Kubernetes default automatically.
+- Converting an existing Longhorn-backed cluster into a cluster without Longhorn, replacing existing PV provisioners, or migrating data.
+- Providing Longhorn storage-network, RWX-network, backup/restore, snapshots, or guest-cluster CSI compatibility through another storage backend.
+- Removing the Longhorn workloads or changing how the Longhorn CRDs are installed. This is deferred to a follow-up, together with the CRD-only install question under [Open questions](#open-questions).
 
-When Longhorn is deferred, Harvester creates both classes with the provisioners the administrator supplied:
+## Proposal
 
-| StorageClass | Access mode | Used by | Provisioner setting |
-|---|---|---|---|
-| `harvester-system-rwo` | RWO | Rancher Monitoring PVCs, CDI scratch space, k3k addon | `harvester.storageClass.system.provisioner` |
-| `harvester-upgrade-rwx` | RWX | Upgrade repository (reserved, see [Upgrade](#upgrade)) | `harvester.storageClass.upgrade.provisioner` |
+### User Story
 
-Both settings are required when `deferLonghornInstall` is true. The installer checks only that each value is a valid DNS-1123 subdomain. It does not check that the CSI driver exists or works.
+#### Install Harvester without the default Longhorn data disk
 
-The administrator must install the matching CSI drivers after installation. Until they do, PVCs that use these classes stay `Pending`.
+A user installs a new Harvester cluster and does not want Longhorn. They select `skipLonghornInstall` in the installer, and Harvester installs without a Longhorn data disk and blocks the use of Longhorn StorageClasses.
+
+After installation, the user installs their own CSI driver and tells each Harvester component which existing StorageClass to use. The components below currently hard-code a Longhorn StorageClass:
+
+| Consumer | Hard-coded value | Where it is defined |
+|---|---|---|
+| Rancher Monitoring | `harvester-longhorn` (Prometheus, Alertmanager, Grafana) | `addons/built-in/rancher-monitoring/addon-template.yaml` |
+| K3K | `harvester-longhorn` | `addons/standalone/rancher-k3k/addon.yaml` |
+| CDI | `harvester-longhorn` (scratch space) | `scratchSpaceStorageClass` in `deploy/charts/harvester/values.yaml` |
+| KubeVirt VM state | `vmstate-persistence` | `vmStateStorageClass` in `deploy/charts/harvester/values.yaml` |
+| Upgrade repository | `longhorn-static` (RWX, `Filesystem`, via the upgrade ISO image) | `pkg/controller/master/upgrade/upgrade_repo.go` |
+
+### User Experience
+
+```text
+Choose default storage
+  (*) Install Longhorn (default)
+  ( ) Do not install Longhorn
+
+If you choose not to install Longhorn, no data disk or HARV_LH_DEFAULT partition will be created, Longhorn StorageClasses are blocked, and Longhorn cannot be enabled later. No default CSI storage is available after installation. You must install your own CSI driver and configure a StorageClass:
+
+  - Monitoring and K3K: set the StorageClass in the add-on before you enable it.
+  - VM state and upgrade: set the StorageClass through Helm values.
+
+Minimum root disk: 250 GiB.
+```
+
+The installer does not ask for any CSI provisioner or StorageClass name.
+
+When `skipLonghornInstall` is selected:
+
+- `DataDisk` is hidden, and an automated-install `dataDisk` value is rejected.
+- The installer does not create or mount `HARV_LH_DEFAULT`.
+- Harvester blocks Longhorn StorageClasses and Longhorn-only features (see [Blocking Longhorn StorageClasses](#blocking-longhorn-storageclasses)). The Longhorn deployment itself is unchanged.
+- The confirmation page prints the resulting `skipLonghornInstall` value.
+
+A joining node does not see this choice. It follows the cluster (see [Node Join Consistency](#node-join-consistency)).
 
 ### Root-disk layout
 
-A deferred install changes the partition layout up front, because changing it later needs destructive disk operations. The extra space goes to `COS_PERSISTENT` (it is the last partition and fills the disk); nothing is left unallocated.
+The disk layout changes at installation time, because reclaiming the Longhorn partition later is destructive. The extra space goes to `COS_PERSISTENT`, the last partition, and no capacity is left unallocated.
 
-Example: single 250 GiB disk, sizes from `pkg/installer/config/constants.go` and `pkg/installer/util/disk.go`.
-
-Default install:
+For a single 250 GiB disk, using the current installer constants:
 
 ```text
+Default installation
+
 NAME   FSTYPE  LABEL            SIZE   MOUNTPOINT
 sda                             250G
 ├─sda1 vfat    COS_GRUB          64M   /boot/efi
@@ -68,11 +108,9 @@ sda                             250G
 ├─sda4 ext4    COS_RECOVERY       8G   /run/initramfs/cos-recovery
 ├─sda5 ext4    COS_PERSISTENT   150G   /usr/local
 └─sda6 ext4    HARV_LH_DEFAULT  ~77G   /var/lib/harvester/defaultdisk
-```
 
-With `deferLonghornInstall`: `HARV_LH_DEFAULT` is not created. `COS_PERSISTENT` takes the remaining space.
+Install without Longhorn
 
-```text
 NAME   FSTYPE  LABEL            SIZE   MOUNTPOINT
 sda                             250G
 ├─sda1 vfat    COS_GRUB          64M   /boot/efi
@@ -82,235 +120,184 @@ sda                             250G
 └─sda5 ext4    COS_PERSISTENT  ~226G   /usr/local
 ```
 
-#### Why 250 GiB
+The 250 GiB threshold is retained. `COS_PERSISTENT` still has its 150 GiB minimum, and the fixed OS partitions consume roughly 23 GiB. Changing this validation is outside this HEP.
 
-#3842 set the minimum size of `COS_PERSISTENT` to 150 GiB, and adding the other partitions in the disk layout (ESP, OEM, STATE, RECOVERY, about 23 GiB) brings the minimum to about 175 GiB. A 250 GiB disk therefore leaves a safe margin, so keeping 250 GiB as the deferred minimum requires no change to installer validation.
+### Blocking Longhorn StorageClasses
 
-### Effects of deferring the Longhorn installation
+With no `HARV_LH_DEFAULT` partition, Longhorn has no intended data disk, so Harvester must prevent anything from using it. When the install profile has `skipLonghornInstall: true`, Harvester admission:
 
-| Component | Behavior in a deferred cluster |
-|---|---|
-| Rancher Monitoring | PVCs (Prometheus 50 Gi, Alertmanager 5 Gi, Grafana 2 Gi) use `harvester-system-rwo`. |
-| CDI | Scratch space uses `harvester-system-rwo`. |
-| k3k addon | Uses `harvester-system-rwo`. |
-| Upgrade | The upgrade ISO PVC uses `harvester-upgrade-rwx`, which must support `ReadWriteMany` with `volumeMode: Filesystem` (see [Upgrade](#upgrade)). |
-| `vmstate-persistence` | Its StorageClass is not created. Persistent TPM/UEFI state is unavailable until the administrator creates one, and Harvester reminds the administrator to do so. |
+- rejects creating or updating a StorageClass whose provisioner is `driver.longhorn.io`;
+- rejects a PVC, VM volume, or image that references a Longhorn StorageClass, including the chart-created `harvester-longhorn`, `longhorn-static`, and `vmstate-persistence`;
+- hides Longhorn StorageClasses in the UI capability response.
 
-Longhorn-native backup/restore, snapshots, storage network, and RWX network are unavailable in a deferred cluster.
+The checks use the shared `LonghornAvailable` predicate defined in [Phase 1a](#1a--centralized-longhorn-availability-gate), and the error says the feature requires a Longhorn-enabled cluster. How the three chart-created classes are hidden or disabled (for example by gating them in the chart later) is an implementation decision for Phase 1b.
 
-The guest-cluster CSI driver needs a dedicated compatibility review. It must identify the Longhorn-specific defaults and validations (especially its default StorageClass, snapshot classes, and backup/restore settings) before this feature is implemented. This HEP does not add guest-cluster CSI-driver compatibility for another storage provider; existing Day-2 guest passthrough StorageClass configuration remains the mechanism for supported non-Longhorn host storage.
-
-## Non-Goals
-
-- Automatically installing, configuring, or certifying a third-party CSI driver.
-- Verifying at install time that a named CSI provisioner exists or works.
-- Making a third-party CSI driver the default StorageClass.
-- Providing storage-network or RWX-network functionality without Longhorn.
-- A supported Day-2 path to enable Longhorn in a deferred cluster (for example a UI page or editing the `harvester` ManagedChart).
-- Upgrading a deferred cluster.
-- Handling upgrade cases from existing clusters, including replacing the provisioner of `harvester-longhorn`, `longhorn-static`, or `vmstate-persistence`, removing Longhorn, or migrating existing data.
-
-## Proposal
-
-### User Story
-
-#### Install Harvester without the default Longhorn deployment
-
-A user installs a new Harvester cluster and wants to defer the default Longhorn installation. They select `deferLonghornInstall` and name the CSI provisioners for the system RWO and upgrade RWX classes. Harvester installs without a Longhorn disk or Longhorn workloads. The user then installs and configures those CSI drivers.
-
-### User Experience
-
-For a new cluster, the installer asks about default storage after the password page and before the disk page:
-
-```text
-Choose default storage
-  ( ) Install Longhorn (default)
-  (*) Defer Longhorn installation
-
-  Longhorn is not installed and no data disk or HARV_LH_DEFAULT partition is created.
-  No default CSI storage is available after installation. Storage-dependent features
-  (monitoring persistence, k3k, VM state, upgrade) need the CSI drivers you name next.
-  Install and configure them after installation. Minimum root disk: 250 GiB.
-```
-
-Selecting "Defer Longhorn installation" acknowledges that note. The installer then asks for two values, one per page:
-
-```text
-System provisioner     CSI provisioner for harvester-system-rwo (RWO)
-Upgrade provisioner    CSI provisioner for harvester-upgrade-rwx (RWX)
-```
-
-When `deferLonghornInstall` is selected:
-
-- `DataDisk` is hidden, and an automated-install `dataDisk` value is rejected.
-- The installer does not create or mount `HARV_LH_DEFAULT`.
-- Harvester deploys no Longhorn workloads and no Longhorn StorageClasses. The Longhorn CRDs and `longhorn-system` namespace remain.
-- The confirmation page prints the resulting `deferLonghornInstall` and provisioner values.
-
-A joining node does not see this choice. It follows the cluster (see [Node Join Consistency](#node-join-consistency)).
+Risk to verify: Longhorn still runs and its default disk path, `/var/lib/harvester/defaultdisk`, would then sit on `COS_PERSISTENT`. A Longhorn volume that bypasses admission would write to the system partition. Phase 2a step 5 must confirm how that path is created and whether Longhorn scheduling on it must be disabled.
 
 ### Node Join Consistency
 
-The first node records an immutable install profile that contains `deferLonghornInstall`. The profile is stored in the ConfigMap `harvester-install-profile` in `harvester-system`. The chart renders it with `immutable: true`. On a chart upgrade, the chart keeps the existing value instead of recomputing it from `longhorn.enabled`. A cluster that was created before this feature has no such ConfigMap and is treated as not deferred.
-
-```go
-// InstallProfile holds cluster-wide, install-time decisions.
-// Written once at cluster creation; immutable afterwards.
-type InstallProfile struct {
-    DeferLonghornInstall bool `json:"deferLonghornInstall"`
-}
-```
-
-The profile contains only `deferLonghornInstall` now. It can be extended with other cluster-wide, install-time decisions later.
-
-No Rancherd change is needed. The installer fetches the profile during the join step, before the node's disk is prepared and before the first boot.
-
-The disk page of the interactive installer comes before the network, server URL, and token pages, and a joining node has no Kubernetes API access. The installer therefore fetches the profile after the token page, with the same authentication that Rancherd uses for `/cacerts`:
-
-- The request carries a random nonce (`X-Cattle-Nonce`) and `Authorization: Bearer base64(sha256(token))`.
-- The server compares the bearer value with `base64(sha256(token))` of its own join token, in constant time.
-- The server answers with `X-Cattle-Hash`, an HMAC-SHA512 keyed with the token over the nonce and the response body.
-- The installer recomputes the HMAC with the token the user entered and rejects the response on a mismatch or a missing header.
-
-This proves that the server knows the join token, so a server that does not know the token cannot supply a forged profile.
-
-The installer builds the request URL from the server URL the user entered (for example `https://192.168.1.100`). The installer skips TLS certificate verification for this request; the HMAC provides the authenticity.
+A joining node must use the same disk layout as the cluster. Before preparing disks, the installer requests the setting from the cluster with the server URL and join token:
 
 ```text
 GET https://<server>/v1/harvester/installProfile
-X-Cattle-Nonce: <random nonce>
-Authorization: Bearer <base64(sha256(token))>
 
 200 OK
-X-Cattle-Hash: <base64(HMAC-SHA512(token, nonce \0 body \0))>
-{"deferLonghornInstall": true}
+{"skipLonghornInstall": true}
 ```
 
-The route sits next to the existing `/v1/harvester/ui-info` route and is registered before the generic `/v1/harvester/{type}` route. It returns only the `InstallProfile`.
+The installer overwrites `install.skipLonghornInstall` with the cluster's value. When it is `true`, the installer does not create the `HARV_LH_DEFAULT` partition in the [root-disk layout](#root-disk-layout), so the joining node matches the cluster.
 
-The installer handles the responses as follows:
+Failure handling, so the node never guesses a disk layout:
 
-| Response | Installer behavior |
+- `404` means an older cluster that does not know the setting. Longhorn is installed there, so the installer uses `false`.
+- If the server cannot be verified or the token is rejected, the installer stops and does not retry.
+- Network errors and `5xx` responses are retried with backoff. If they persist, the installer stops before it touches any disk.
+
+### Upgrade (TBD)
+
+The upgrade repository needs a StorageClass that supports `ReadWriteMany` access mode and `Filesystem` volume mode. Today the upgrade controller hard-codes `longhorn-static` for the upgrade ISO image. Harvester does not create a replacement StorageClass. How the administrator provides one is undecided and is tracked in [Phase 4](#phase-4--upgrade-tbd-the-details). The candidates are:
+
+- **Helm value (candidate):** the administrator sets `upgradeStorageClass`. When `skipLonghornInstall: true`, the upgrade validating webhook requires a non-empty value and verifies that the named StorageClass exists. The `skip-webhook` annotation does not bypass this validation.
+- **At upgrade time (candidate):** the administrator chooses the StorageClass before the upgrade starts.
+
+Whichever candidate is chosen, the following preflight applies. Before beginning the upgrade, the upgrade controller runs a storage preflight. It provisions a temporary `ReadWriteMany`, `Filesystem` PVC using the configured StorageClass and verifies that two test pods can mount it concurrently. If the preflight fails, the controller records an actionable failure in the Upgrade status, cleans up the temporary resources, and does not start the upgrade.
+
+## Delivery phases
+
+### Phase 1 Centralize Webhook (no behavior change)
+#### 1a — centralized Longhorn availability gate
+
+1. Record `skipLonghornInstall` as a cluster-level value (set through TUI or read from control-plane node), written once at bootstrap.
+2. Add a `LonghornAvailable` predicate that reads this value. A missing value means Longhorn is available, so existing clusters are unaffected.
+3. Add a central webhook entry point that calls the predicate. Validators call this gate instead of doing their own Longhorn checks.
+
+**Exit criterion:** the gate is merged and is a no-op on every existing cluster.
+
+#### 1b — deny rules, added incrementally
+
+Each rule is a small, independent change that calls the gate. When Longhorn is unavailable, Harvester admission rejects:
+
+1. creating or updating a StorageClass with provisioner `driver.longhorn.io`;
+2. a PVC, VM volume, or VM image that references a Longhorn provisioner;
+3. the Longhorn-only settings:
+   - `storage-network`
+   - `rwx-network`
+   - `longhorn-v2-data-engine-enabled`
+   - `longhorn-v2-data-engine-hugepage-enabled`
+   - `longhorn-v2-data-engine-memory-size`
+
+The UI capability response hides the same features. Every error says the feature requires a Longhorn-enabled cluster. An implementation audit adds every remaining setting, API action, and UI entry that assumes a Longhorn manager or a Longhorn volume.
+
+How the three chart-created StorageClasses are hidden or disabled (for example by gating them in the chart later) is an implementation decision.
+
+**Exit criterion:** each rule has a positive and a negative test.
+
+> [!IMPORTANT]
+> Phases 2, 3, and 4 must ship in the same release. A fresh install without Longhorn (Phase 2) is not supported on its own: without the storage consumers (Phase 3) and upgrade (Phase 4), the cluster cannot run monitoring, persistent VM state, or upgrade.
+
+### Phase 2 Fresh install without Longhorn data disk (user-visible)
+
+#### 2a — installer: skip the Longhorn data disk
+
+1. Add `install.skipLonghornInstall`. Valid only for a fresh install; `install.dataDisk` is rejected when it is `true`. Applies to the TUI, `config_url`, and kernel parameters.
+2. Add the TUI choice and confirmation text.
+3. Omit `HARV_LH_DEFAULT` during disk preparation and let `COS_PERSISTENT` take the remaining space. Keep the 250 GiB minimum.
+4. Write the choice to the cluster-level value defined in Phase 1a. Longhorn workloads and CRDs remain deployed.
+5. Ensure Longhorn creates no default disk on these nodes, so a volume that bypasses admission fails to schedule instead of writing to `COS_PERSISTENT`. Candidate: `createDefaultDiskLabeledNodes` without the default-disk label; must be verified.
+
+**Exit criterion:** a fresh cluster installs with no `HARV_LH_DEFAULT` partition, Longhorn reports no schedulable disk, the Phase 1 rules reject Longhorn use, and the control plane is ready. The default installation has no regression.
+
+#### 2b — node join consistency
+
+1. Add `GET /v1/harvester/installProfile`, authenticated with the join token. It returns the cluster-level value.
+2. The joining installer fetches the profile before partitioning and overwrites `install.skipLonghornInstall` with the cluster's value.
+
+**Exit criterion:** join tests cover a valid response, a failed verification, an older cluster (`404`), retryable failures, and data-disk clearing.
+
+### Phase 3 — administrator-configured storage consumers
+
+Each consumer is a separate change and is supported only after its end-to-end test passes. Harvester only stores and wires StorageClass **names**; it never creates a StorageClass. Each consumer has its own configuration path:
+
+| Consumer | Where the administrator sets the StorageClass |
 |---|---|
-| `200` with a valid `X-Cattle-Hash` | Use the profile. |
-| `200` with a missing or wrong `X-Cattle-Hash` | Show a token mismatch or tampering error and do not continue. Not retried. |
-| `404` (older cluster without the route) | Treat Longhorn as not deferred and show a notice on the confirmation page. The join continues. |
-| Other status, network error, or timeout | Retry up to 3 times, 2 seconds apart, like the existing `/ping` check. Then show the error and do not continue. |
+| Monitoring, K3K | In the add-on's configuration, before the add-on is enabled. |
+| VM state | Through the Harvester chart's Helm values (`vmStateStorageClass`). |
+| CDI | Selected from the existing StorageClasses, then written to `scratchSpaceStorageClass`. |
 
-The join flow is:
+1. **Monitoring / K3K:** the add-on lets the administrator **specify an existing StorageClass**.
+2. **VM state:** `vmStateStorageClass` is already a chart value that defaults to `vmstate-persistence`. The administrator overrides it, and Harvester validates that the named StorageClass exists before using it.
+3. **CDI:** the administrator selects an existing StorageClass, which Harvester applies to `scratchSpaceStorageClass`.
 
-1. The joiner enters the server URL and token on the existing panels.
-2. The installer fetches the `InstallProfile` from the cluster and verifies the response as described above.
-3. The installer sets `install.deferLonghornInstall` from the `InstallProfile`. The cluster value overrides any local value. If a `DataDisk` was already selected on the disk page and the cluster is deferred, the installer clears it and shows a notice on the confirmation page.
-4. The installation continues as usual. Partitioning and mounting already read `install.deferLonghornInstall`, and nothing is written to disk until the user confirms the installation.
+**Exit criterion:** each enabled consumer has an end-to-end test with an external StorageClass and a negative test for a missing StorageClass.
 
-Automated installation (PXE or a config file) is unaffected, because the flag arrives with the configuration.
+### Phase 4 — upgrade (TBD the details)
 
-The joiner does not need the provisioner settings: the two StorageClasses are cluster objects created once by the first node.
+The upgrade repository needs an RWX, `Filesystem` StorageClass. The way the administrator provides it is still under discussion; the candidates are not exclusive:
 
-### Upgrade
+- **Helm value:** the administrator sets `upgradeStorageClass` through Helm values (see [Upgrade](#upgrade-tbd)).
+- **At upgrade time:** the administrator chooses the StorageClass before the upgrade process starts.
 
-Upgrading a deferred cluster is not supported. The upgrade validating webhook rejects any `Upgrade` create request when the `harvester` ManagedChart has `longhorn.enabled: false`. The `skip-webhook` annotation does not bypass this check, because the current upgrade workflow needs Longhorn-backed RWX storage.
+**Exit criterion:** an upgrade of a Phase 1-3 cluster succeeds with an external RWX class, and the Longhorn-enabled upgrade regression suite still passes.
 
-`harvester-upgrade-rwx` is created now so that a future upgrade workflow for third-party RWX storage has a stable StorageClass name. No current workflow uses it.
+### Phase 5 — follow-up (not committed)
 
-### API
+Not part of this release. Each item needs its own design review and a Product Management decision:
 
-Add an explicit initial-installation option. An unset value preserves the current behavior.
+- **Remove the Longhorn workloads** (`longhorn.enabled: false`). Blocked by the CRD-only install question under [Open questions](#open-questions).
+- Day-2 Longhorn installation flow.
 
-```go
-type Install struct {
-    // DeferLonghornInstall defers Longhorn installation for a fresh
-    // installation. An empty or false value installs Longhorn as today.
-    DeferLonghornInstall bool `json:"deferLonghornInstall,omitempty"`
-}
 
-type StorageClass struct {
-    ReplicaCount uint32              `json:"replicaCount,omitempty"`
-    System       SystemStorageClass  `json:"system,omitempty"`
-    Upgrade      UpgradeStorageClass `json:"upgrade,omitempty"`
-}
 
-type SystemStorageClass struct {
-    // Provisioner of harvester-system-rwo. Required when deferLonghornInstall is true.
-    Provisioner string `json:"provisioner,omitempty"`
-}
+## Test plan
 
-type UpgradeStorageClass struct {
-    // Provisioner of harvester-upgrade-rwx. Required when deferLonghornInstall is true.
-    Provisioner string `json:"provisioner,omitempty"`
-}
-```
+Each phase's tests map to its exit criterion.
 
-```yaml
-# Existing/default behavior
-install:
-  deferLonghornInstall: false
+### Phase 1: webhook
 
-# Fresh installation without a default Longhorn deployment
-install:
-  deferLonghornInstall: true
-harvester:
-  storageClass:
-    system:
-      provisioner: rook-ceph.rbd.csi.ceph.com
-    upgrade:
-      provisioner: rook-ceph.cephfs.csi.ceph.com
-```
+- [ ] `LonghornAvailable` returns `true` when the value is missing or `false`, and `false` when it is `true`.
+- [ ] On a cluster without the value, every existing validator behaves as before (no-op).
+- [ ] When Longhorn is unavailable, each deny rule rejects (positive) and the same request is allowed when Longhorn is available (negative):
+  - StorageClass with provisioner `driver.longhorn.io`
+  - PVC, VM volume, or VM image that references a Longhorn provisioner
+  - the five Longhorn-only settings
+- [ ] The UI capability response hides Longhorn features.
+- [ ] Every rejection says the feature requires a Longhorn-enabled cluster.
 
-The Harvester chart maps these to `longhorn.enabled: false`, `storageClass.system.provisioner`, and `storageClass.upgrade.provisioner`. The chart fails to render when `longhorn.enabled` is false and either provisioner is empty.
+### Phase 2: fresh install and node join
 
-Validation (installer config):
+- [ ] `skipLonghornInstall: true` with `dataDisk` set is rejected; the flag works from the TUI.
+- [ ] Fresh install with the flag on a 250 GiB disk: no `HARV_LH_DEFAULT`, `COS_PERSISTENT` takes the rest, control plane is ready.
+- [ ] Longhorn reports no schedulable disk, and a volume that bypasses admission fails to schedule instead of writing to `COS_PERSISTENT`.
+- [ ] Joining node follows the cluster value, the disk layout has no `HARV_LH_DEFAULT` and `COS_PERSISTENT` takes the rest
+- [ ] Join handles: valid response, rejected token or unverifiable server (stop, no retry), older cluster (`404` uses `false`), retryable failures (backoff, then stop before touching any disk)
 
-- `install.dataDisk` must be empty when `install.deferLonghornInstall` is true.
-- Both provisioners are required when `install.deferLonghornInstall` is true, and each must be a valid DNS-1123 subdomain.
+### Phase 3: storage consumers
 
-## Implementation
+Run with an external StorageClass and **no cluster default**, so a silent fallback is visible.
 
-### Install config and chart rendering
+- [ ] Monitoring, K3K, VM state, and CDI each use only the StorageClass the administrator set.
+- [ ] No PVC uses `harvester-longhorn`, `longhorn-static`, or `vmstate-persistence`.
 
-With `deferLonghornInstall`, the administrator names two CSI provisioners in the install config:
+### Phase 4: upgrade (finalize once the design is decided)
 
-```yaml
-install:
-  defer_longhorn_install: true
-harvester:
-  storage_class:
-    system:
-      provisioner: rook-ceph.rbd.csi.ceph.com      # RWO
-    upgrade:
-      provisioner: rook-ceph.cephfs.csi.ceph.com   # RWX, Filesystem
-```
+- [ ] Upgrade of a Phase 1-3 cluster succeeds with an external RWX `Filesystem` StorageClass.
+- [ ] A missing or incompatible (RWO) StorageClass is rejected, with a recorded reason, and the upgrade does not start.
+- [ ] `skipLonghornInstall` is preserved after upgrade.
 
-The installer renders these values into the Harvester chart (`rancherd-10-harvester.yaml`). The two provisioner blocks are emitted only when `deferLonghornInstall` is true:
+### Regression in all Phases
 
-```yaml
-storageClass:
-  {{- if .Harvester.StorageClass.ReplicaCount }}
-  replicaCount: {{ .Harvester.StorageClass.ReplicaCount }}
-  {{- end }}
-  {{- if .Install.DeferLonghornInstall }}
-  system:
-    provisioner: "{{ .Harvester.StorageClass.System.Provisioner }}"
-  upgrade:
-    provisioner: "{{ .Harvester.StorageClass.Upgrade.Provisioner }}"
-  {{- end }}
-```
+With the flag absent, the existing install, join, and upgrade suites pass unchanged.
 
-The chart then creates two fixed StorageClasses:
+## Open questions
 
-| StorageClass | Provisioner from | Requirement |
-|---|---|---|
-| `harvester-system-rwo` | `storage_class.system.provisioner` | `ReadWriteOnce` |
-| `harvester-upgrade-rwx` | `storage_class.upgrade.provisioner` | `ReadWriteMany`, `volumeMode: Filesystem` |
+### Should Longhorn provide an upstream "CRDs only" install mode?
 
-Harvester only creates the StorageClasses. It does not install, configure, or verify the CSI drivers; that is a Day-2 task for the administrator.
+Deferred: while the Longhorn deployment is unchanged, the CRDs keep coming from the existing install path. This question applies only to a later step that removes the Longhorn workloads.
 
-### Steps
+Shared premise: a CRD object has one owner. Helm records it in the `meta.helm.sh/release-name` annotation, and `createCRDs` applies CRDs through its own wrangler apply set. If more than one owner manages the same Longhorn CRD, for example `harvester-crd`, the Longhorn subchart (`templates/crds.yaml`), or `createCRDs`, Helm rejects the install with an "invalid ownership metadata" error, or the owners overwrite each other and drift when their versions differ. Options 2 and 3 are only safe if exactly one owner is defined per CRD and handed over explicitly when Longhorn is later enabled.
 
-1. Add `deferLonghornInstall` and the two provisioner settings to the interactive installer and automated-installation configuration. Preserve the current Longhorn deployment as the default.
-2. Gate Longhorn manifests and bootstrap logic so this installation path deploys no Longhorn workloads and no Longhorn StorageClasses. Create `harvester-system-rwo` and `harvester-upgrade-rwx` on every cluster: with Longhorn when it is installed, with the administrator's provisioners when it is deferred. Point Rancher Monitoring, CDI scratch space, and the k3k addon at `harvester-system-rwo`.
-3. Audit each remaining Longhorn dependency (controllers, webhooks, and guest-cluster CSI paths). Ensure it either degrades safely when Longhorn is absent or returns an actionable error; it must not silently assume a Longhorn or cluster-default StorageClass. `/v1/harvester/readyz` skips the longhorn-manager check on a deferred cluster.
-4. Record the install profile when the cluster is created (immutable ConfigMap `harvester-install-profile`). Add the `GET /v1/harvester/installProfile` route to the Harvester server; it returns only the `InstallProfile` and signs the response as described in Node Join Consistency. Add an installer helper that fetches it after the token step, with retries like the existing `/ping` check, and applies it as described in Node Join Consistency.
-5. Reject upgrades of a deferred cluster in the upgrade webhook.
-6. Test the default-install regression, fresh installation with `deferLonghornInstall`, absence of Longhorn workloads and Longhorn StorageClasses, the 250 GiB minimum, `DataDisk` rejection, provisioner validation, upgrade rejection, readiness, and the profile fetch (valid hash, wrong hash, missing hash, 404, timeout).
+Options:
+
+1. **Upstream flag in the Longhorn chart.** Single source of truth and no CRD drift, but it depends on the Longhorn release cycle and acceptance.
+2. **Extend `createCRDs` in Harvester.** No external dependency, but the schemas are generated from Go structs. That already fails for `BackingImage`, so this risks drifting from the real Longhorn CRDs.
+3. **Vendor the Longhorn CRD manifests into `deploy/charts/harvester-crd`.** Version-pinned and independent of the Longhorn chart, but it must be refreshed on every Longhorn bump.
