@@ -49,6 +49,8 @@ replace_longhorn_image_registry()
 
 # Swaps the Longhorn dependency in the Harvester chart for the SUSE Storage chart tag pinned in
 # build.yaml, verifying the downloaded chart's own version matches the Longhorn version it replaces.
+# A mismatch is accepted only while the Longhorn version equals prime.suse-storage.chart.allowedLonghornVersion,
+# e.g. when Longhorn is on an RC that SUSE Storage has not released yet.
 replace_longhorn_chart_with_suse_storage()
 {
   local chart_dir=./deploy/charts/harvester
@@ -57,6 +59,7 @@ replace_longhorn_chart_with_suse_storage()
   local dependency_charts_dir=${chart_dir}/dependency_charts
   local build_file=./build.yaml
   local longhorn_version
+  local allowed_longhorn_version
   local suse_storage_chart_tag
   local suse_storage_chart_version
   local chart_registry="${SUSE_STORAGE_REGISTRY}"
@@ -72,6 +75,7 @@ replace_longhorn_chart_with_suse_storage()
     echo "Failed to find the SUSE Storage chart tag in ${build_file}" >&2
     return 1
   fi
+  allowed_longhorn_version=$(yq e '.prime.suse-storage.chart.allowedLonghornVersion // ""' "${build_file}")
 
   echo "Replace the Longhorn chart ${longhorn_version} with SUSE Storage ${suse_storage_chart_tag}..."
   helm pull "oci://${chart_registry}/charts/suse-storage" \
@@ -81,8 +85,14 @@ replace_longhorn_chart_with_suse_storage()
 
   suse_storage_chart_version=$(yq e '.version' "${dependency_charts_dir}/suse-storage/Chart.yaml")
   if [[ "${suse_storage_chart_version}" != "${longhorn_version}" ]]; then
-    echo "SUSE Storage chart version ${suse_storage_chart_version} does not match the Longhorn chart version ${longhorn_version}" >&2
-    return 1
+    if [[ "${allowed_longhorn_version}" != "${longhorn_version}" ]]; then
+      echo "SUSE Storage chart version ${suse_storage_chart_version} does not match the Longhorn chart version ${longhorn_version}" >&2
+      echo "Set prime.suse-storage.chart.allowedLonghornVersion to ${longhorn_version} in ${build_file} to accept the mismatch temporarily" >&2
+      return 1
+    fi
+    echo "WARNING: shipping SUSE Storage ${suse_storage_chart_version} instead of Longhorn ${longhorn_version}, allowed by prime.suse-storage.chart.allowedLonghornVersion in ${build_file}" >&2
+  elif [[ -n "${allowed_longhorn_version}" ]]; then
+    echo "NOTE: SUSE Storage matches Longhorn ${longhorn_version}; remove prime.suse-storage.chart.allowedLonghornVersion from ${build_file}" >&2
   fi
 
   SUSE_STORAGE_VERSION="${suse_storage_chart_version}" yq e -i '
