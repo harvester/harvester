@@ -1,7 +1,7 @@
 prime:
   suse-storage:
     chart:
-      tag: 1.12.1-1.1
+      tag: 1.12.1-18.1
 
   # Image overrides applied to deploy/charts/harvester/values.yaml by
   # scripts/patch-harvester's replace_harvester_image_registry when PRIME_BUILD=true.
