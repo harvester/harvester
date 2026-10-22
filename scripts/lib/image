@@ -90,6 +90,22 @@ resolve_rancher_registry()
   resolve_registry rancher
 }
 
+# Print the harvester-cluster-repo image for a version. Prime builds publish
+# it under the Harvester Prime registry's "harvester" repository (see
+# .github/workflows/build-prime.yml).
+harvester_cluster_repo_image()
+{
+  local version=$1
+  local registry
+
+  if [[ "${PRIME_BUILD:-}" == "true" ]]; then
+    registry=$(resolve_registry harvester) || return 1
+    echo "${registry}/harvester/harvester-cluster-repo:${version}"
+    return
+  fi
+  echo "rancher/harvester-cluster-repo:${version}"
+}
+
 # Render a registry-less image inventory into a concrete image list.
 # Source entries must use the form namespace/repository:tag. Blank lines and
 # comments are ignored so the result can be passed directly to docker image save.
