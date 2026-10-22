@@ -1,9 +1,12 @@
 package util
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -45,4 +48,23 @@ func TestGetOnwerReference(t *testing.T) {
 	assert.Nil(t, ref3)
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), "struct struct { Foo string } lacks embedded TypeMeta type")
+}
+
+func TestFindOwnerReference(t *testing.T) {
+	const (
+		apiVersion = "harvesterhci.io/v1beta1"
+		kind       = "VirtualMachineBackup"
+	)
+	ownerName := strings.Repeat("backup", 20)
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
+		OwnerReferences: []metav1.OwnerReference{
+			{APIVersion: "v1", Kind: "Secret", Name: "credentials"},
+			{APIVersion: apiVersion, Kind: kind, Name: ownerName},
+		},
+	}}
+
+	owner := FindOwnerReference(job, apiVersion, kind)
+	require.NotNil(t, owner)
+	assert.Equal(t, ownerName, owner.Name)
+	assert.Nil(t, FindOwnerReference(job, apiVersion, "VirtualMachineRestore"))
 }
