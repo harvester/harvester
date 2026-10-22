@@ -87,7 +87,8 @@ collect_harvester_image_list() {
     echo "${VM_IMPORT_CONTROLLER_IMAGE_REPOSITORY}:${VM_IMPORT_CONTROLLER_IMAGE_TAG}" >> "${out_file}"
     echo "${PCIDEVICES_CONTROLLER_IMAGE_REPOSITORY}:${PCIDEVICES_CONTROLLER_IMAGE_TAG}" >> "${out_file}"
     echo "${HARVESTER_SEEDER_IMAGE_REPOSITORY}:${HARVESTER_SEEDER_IMAGE_TAG}" >> "${out_file}"
-    echo "${NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY}:${NVIDIA_DRIVER_TOOLKIT_IMAGE_TAG}" >> "${out_file}"
+    # nvidia-driver-toolkit is intentionally not bundled: it is several GB and
+    # is pulled on demand when the add-on is enabled.
     echo "${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HARVESTER_EVENTROUTER_IMAGE_TAG}" >> "${out_file}"
     echo "${KUBEOVN_OPERATOR_IMAGE_REPOSITORY}:${KUBEOVN_OPERATOR_IMAGE_TAG}" >> "${out_file}"
     echo "${DESCHEDULER_IMAGE_REPOSITORY}:${DESCHEDULER_IMAGE_TAG}" >> "${out_file}"
