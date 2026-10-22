@@ -2,7 +2,7 @@ FROM registry.suse.com/bci/bci-base:16.0
 
 # nfs-client is needed by the dep https://github.com/longhorn/backupstore to check backup store availability.
 RUN zypper -n rm container-suseconnect && \
-    zypper -n install curl gzip tar nfs-client util-linux && \
+    zypper -n install bzip2 curl gzip jq tar nfs-client util-linux && \
     zypper -n clean -a && rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/* && \
     useradd -M harvester && \
     mkdir -p /var/lib/harvester/harvester && \
@@ -24,6 +24,8 @@ ARG VERSION=dev
 ARG SERVER_FLAVOR=community
 ARG RELEASE_DOWNLOAD_URL
 ARG HARVESTER_SYSTEM_DEFAULT_REGISTRY
+ARG KOPIA_VERSION=0.23.0
+ARG RESTIC_VERSION=0.17.3
 ENV HARVESTER_SERVER_VERSION ${VERSION}
 ENV HARVESTER_SERVER_FLAVOR=${SERVER_FLAVOR}
 # Overrides the default of the release-download-url setting; users can still set its value.
@@ -38,6 +40,27 @@ ENV TINI_URL_amd64=https://github.com/krallin/tini/releases/download/${TINI_VERS
     TINI_URL_sha256=TINI_URL_${ARCH}_sha256
 
 RUN curl -sLf ${!TINI_URL} > /usr/bin/tini && echo "${!TINI_URL_sha256}  /usr/bin/tini" | sha256sum -c - && chmod +x /usr/bin/tini
+
+RUN case "${ARCH}" in \
+      "amd64") RESTIC_ARCH="amd64" ;; \
+      "arm64") RESTIC_ARCH="arm64" ;; \
+      *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;; \
+    esac && \
+    curl -sLf -o /tmp/restic.bz2 "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_${RESTIC_ARCH}.bz2" && \
+    bzip2 -d /tmp/restic.bz2 && \
+    chmod +x /tmp/restic && \
+    mv /tmp/restic /usr/local/bin/restic
+
+RUN case "${ARCH}" in \
+      "amd64") KOPIA_ARCH="x64" ;; \
+      "arm64") KOPIA_ARCH="arm64" ;; \
+      *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;; \
+    esac && \
+    curl -sLf -o /tmp/kopia.tar.gz "https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/kopia-${KOPIA_VERSION}-linux-${KOPIA_ARCH}.tar.gz" && \
+    tar -xzf /tmp/kopia.tar.gz -C /tmp --strip-components=1 "kopia-${KOPIA_VERSION}-linux-${KOPIA_ARCH}/kopia" && \
+    chmod +x /tmp/kopia && \
+    mv /tmp/kopia /usr/local/bin/kopia && \
+    rm -f /tmp/kopia.tar.gz
 
 RUN mkdir -p /usr/share/harvester/harvester && \
     cd /usr/share/harvester/harvester && \

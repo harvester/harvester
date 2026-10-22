@@ -350,9 +350,21 @@ func (v *restoreValidator) checkVMBackupType(vmr *v1beta1.VirtualMachineRestore,
 		}
 	case v1beta1.Snapshot:
 		err = v.checkSnapshot(vmr, vmb)
+	case v1beta1.Restic, v1beta1.Kopia:
+		err = v.checkDataMoverBackup(vmb)
 	}
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+	return nil
+}
+
+func (v *restoreValidator) checkDataMoverBackup(vmb *v1beta1.VirtualMachineBackup) error {
+	if _, err := backuputil.TargetFromStatus(v.vmbr.GetBackupTarget(vmb)); err != nil {
+		return err
+	}
+	if err := v.checkBackupTarget(vmb); err != nil {
+		return err
 	}
 	return nil
 }

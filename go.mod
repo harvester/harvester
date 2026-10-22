@@ -58,6 +58,7 @@ replace (
 )
 
 require (
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/cisco-open/operator-tools v0.37.0
 	github.com/containernetworking/cni v1.3.0
 	github.com/deckarep/golang-set/v2 v2.6.0
@@ -170,7 +171,6 @@ require (
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/c9s/goprocinfo v0.0.0-20210130143923-c95fcf8c64a8 // indirect

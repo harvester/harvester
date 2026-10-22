@@ -21,15 +21,18 @@ const (
 )
 
 type BackupTarget struct {
-	Type                     TargetType `json:"type"`
-	Endpoint                 string     `json:"endpoint"`
-	AccessKeyID              string     `json:"accessKeyId"`
-	SecretAccessKey          string     `json:"secretAccessKey"`
-	BucketName               string     `json:"bucketName"`
-	BucketRegion             string     `json:"bucketRegion"`
-	Cert                     string     `json:"cert"`
-	VirtualHostedStyle       bool       `json:"virtualHostedStyle"`
-	RefreshIntervalInSeconds int64      `json:"refreshIntervalInSeconds"`
+	Type               TargetType `json:"type"`
+	Endpoint           string     `json:"endpoint"`
+	AccessKeyID        string     `json:"accessKeyId"`
+	SecretAccessKey    string     `json:"secretAccessKey"`
+	BucketName         string     `json:"bucketName"`
+	BucketRegion       string     `json:"bucketRegion"`
+	Cert               string     `json:"cert"`
+	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
+	// KopiaGCEnabled enables the controller-managed quick and full Kopia
+	// repository maintenance CronJobs for an S3 backup target.
+	KopiaGCEnabled           bool  `json:"kopiaGCEnabled"`
+	RefreshIntervalInSeconds int64 `json:"refreshIntervalInSeconds"`
 }
 
 type VMForceResetPolicy struct {
