@@ -31,7 +31,9 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
+	backupkopia "github.com/harvester/harvester/pkg/backup/engine/kopia"
 	"github.com/harvester/harvester/pkg/backup/engine/longhorn"
+	backuprestic "github.com/harvester/harvester/pkg/backup/engine/restic"
 	"github.com/harvester/harvester/pkg/backup/engine/snapshot"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
@@ -70,7 +72,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	vmbo := newBackupOperator(controllers, restClient)
 
 	// Initialize backup engines
-	engines := newBackupEngines(controllers, vmbo)
+	engines := newBackupEngines(controllers, management, vmbo)
 
 	// Let each engine wire up its own informer event handlers (e.g. Job
 	// watchers) so engine-owned resource changes feed back into VMBackup
@@ -158,6 +160,7 @@ func newBackupOperator(
 // newBackupEngines creates backup engines for different backup types
 func newBackupEngines(
 	controllers *backupControllerSet,
+	management *config.Management,
 	vmbo common.VMBackupOperator,
 ) map[harvesterv1.BackupType]engine.BackupEngine {
 	return map[harvesterv1.BackupType]engine.BackupEngine{
@@ -179,6 +182,30 @@ func newBackupEngines(
 			controllers.lhbackups.Cache(),
 			controllers.lhbackups,
 			controllers.vmbs.Cache(),
+		),
+		harvesterv1.Restic: backuprestic.GetBackupEngine(
+			vmbo,
+			controllers.vss.Cache(),
+			controllers.vss,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.secrets.Cache(),
+			controllers.secrets,
+			controllers.storageClasses.Cache(),
+			controllers.jobs,
+			management.ClientSet,
+		),
+		harvesterv1.Kopia: backupkopia.GetBackupEngine(
+			vmbo,
+			controllers.vss.Cache(),
+			controllers.vss,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.secrets.Cache(),
+			controllers.secrets,
+			controllers.storageClasses.Cache(),
+			controllers.jobs,
+			management.ClientSet,
 		),
 	}
 }
@@ -252,8 +279,6 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 		return nil, nil
 	}
 
-	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
-
 	_, csiVSClassMap, err := h.vmbo.BuildCSIDriverMap(vmb)
 	if err != nil {
 		return nil, h.vmbo.UpdateError(vmb, err)
@@ -288,19 +313,23 @@ func (h *Handler) OnBackupRemove(_ string, vmb *harvesterv1.VirtualMachineBackup
 		return nil, fmt.Errorf("failed to decode backup target: %w", err)
 	}
 
+	// If the backup target has been reset to default/empty, there is no
+	// configured backend to contact. Do not block finalizer removal on remote
+	// cleanup that cannot be performed with the current settings.
+	if currentTarget.IsDefaultBackupTarget() {
+		return nil, nil
+	}
+
 	// Delete metadata from backup target if it's configured (not default)
-	if !currentTarget.IsDefaultBackupTarget() {
-		if err := h.deleteVMBackupMetadata(vmb, currentTarget); err != nil {
-			return nil, fmt.Errorf("failed to delete VM backup metadata: %w", err)
-		}
+	if err := h.deleteVMBackupMetadata(vmb, currentTarget); err != nil {
+		return nil, fmt.Errorf("failed to delete VM backup metadata: %w", err)
 	}
 
 	// Force-delete volume backups in two cases:
 	// 1) Target changed since creation — orphaned vol backups against the old
 	//    target need cleanup regardless of type.
 	// 2) The backup type owns remote state nothing else GCs for us — the
-	//    engine must always get a chance to clean up. Currently always false
-	//    for built-in types; reserved for future third-party engines.
+	//    Restic/Kopia engine must always get a chance to clean up.
 	if !h.vmbo.IsTargetConsistent(vmb, currentTarget) || h.vmbo.GetType(vmb).OwnsExternalState() {
 		if err := h.forceDeleteVolBackups(vmb); err != nil {
 			return nil, fmt.Errorf("failed to delete volume backups: %w", err)
@@ -319,6 +348,22 @@ func (h *Handler) CreateVolumeBackups(
 ) error {
 	// Create a copy to track status changes during the loop
 	vmbCpy := vmb.DeepCopy()
+	backupEngine := h.getBackupEngine(vmbCpy)
+
+	if preparer, ok := backupEngine.(engine.BackupPreparer); ok {
+		ready, err := preparer.Prepare(vmbCpy, csiVSClassMap)
+		if err == engine.ErrRetryLater {
+			h.enqueueBackup(vmbCpy)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !ready {
+			h.enqueueBackup(vmbCpy)
+			return nil
+		}
+	}
 
 	vbs := h.vmbo.GetVolBackups(vmbCpy)
 	for index, vb := range vbs {
@@ -327,15 +372,11 @@ func (h *Handler) CreateVolumeBackups(
 			continue
 		}
 
-		// Reconcile the per-volume backup using the appropriate engine
-		backupEngine := h.getBackupEngine(vmbCpy)
 		err := backupEngine.Reconcile(vmbCpy, index, csiVSClassMap)
 
 		// Handle retry case - engine needs more time to complete the operation
 		if err == engine.ErrRetryLater {
-			namespace := h.vmbo.GetNamespace(vmbCpy)
-			name := h.vmbo.GetName(vmbCpy)
-			h.vmbController.EnqueueAfter(namespace, name, engineRetryDelay)
+			h.enqueueBackup(vmbCpy)
 			return nil
 		}
 
@@ -347,6 +388,14 @@ func (h *Handler) CreateVolumeBackups(
 	// Update the VM backup status if any changes were made
 	_, err := h.vmbo.UpdateByStatus(vmb, vmbCpy)
 	return err
+}
+
+func (h *Handler) enqueueBackup(vmb *harvesterv1.VirtualMachineBackup) {
+	h.vmbController.EnqueueAfter(
+		h.vmbo.GetNamespace(vmb),
+		h.vmbo.GetName(vmb),
+		engineRetryDelay,
+	)
 }
 
 func (h *Handler) deleteVMBackupMetadata(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) error {
@@ -411,6 +460,7 @@ func (h *Handler) uploadVMBackupMetadata(vmb *harvesterv1.VirtualMachineBackup) 
 		Name:          h.vmbo.GetName(vmb),
 		Namespace:     h.vmbo.GetNamespace(vmb),
 		BackupSpec:    h.vmbo.GetSpec(vmb),
+		BackupTarget:  h.vmbo.GetBackupTarget(vmb),
 		VMSourceSpec:  h.vmbo.GetSourceSpec(vmb),
 		VolumeBackups: h.vmbo.GetSanitizeVolBackups(vmb),
 		SecretBackups: h.vmbo.GetSecretBackups(vmb),

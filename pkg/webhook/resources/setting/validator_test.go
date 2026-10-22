@@ -17,10 +17,12 @@ import (
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	whTypes "github.com/harvester/harvester/pkg/webhook/types"
@@ -38,6 +40,55 @@ const (
 	testKubeOVNNamespace = "default"
 	testKubeOVNNadConfig = "{\"cniVersion\":\"0.3.1\",\"name\":\"vswitch1\",\"type\":\"kube-ovn\",\"server_socket\":\"/run/openvswitch/kube-ovn-daemon.sock\", \"provider\": \"vswitch1.default.ovn\"}"
 )
+
+func TestValidateBackupTargetFieldsKopiaGC(t *testing.T) {
+	validator := &settingValidator{}
+
+	err := validator.validateBackupTargetFields(&settings.BackupTarget{
+		Type:           settings.NFSBackupType,
+		Endpoint:       "nfs.example.com:/backups",
+		KopiaGCEnabled: true,
+	})
+	assert.EqualError(t, err, "Kopia GC is supported only for S3 backup targets")
+
+	err = validator.validateBackupTargetFields(&settings.BackupTarget{
+		Type:            settings.S3BackupType,
+		AccessKeyID:     "access-key",
+		SecretAccessKey: "secret-key",
+		BucketName:      "backups",
+		BucketRegion:    "test-region",
+		KopiaGCEnabled:  true,
+	})
+	assert.NoError(t, err)
+}
+
+func TestValidateRepositoryTransition(t *testing.T) {
+	targetA := &settings.BackupTarget{
+		Type:         settings.S3BackupType,
+		Endpoint:     "https://s3.example.com",
+		BucketName:   "repository-a",
+		BucketRegion: "region-a",
+	}
+	vmBackup := &v1beta1.VirtualMachineBackup{
+		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
+		Spec:       v1beta1.VirtualMachineBackupSpec{Type: v1beta1.Restic},
+		Status: v1beta1.VirtualMachineBackupStatus{
+			BackupTarget: backuputil.BackupTargetStatus(targetA),
+		},
+	}
+	clientset := fake.NewSimpleClientset(vmBackup)
+	validator := &settingValidator{
+		vmBackupCache: fakeclients.VMBackupCache(
+			clientset.HarvesterhciV1beta1().VirtualMachineBackups,
+		),
+		vmbr: backupcommon.NewVMBackupReader(),
+	}
+
+	assert.NoError(t, validator.validateRepositoryTransition(targetA))
+	targetB := *targetA
+	targetB.BucketName = "repository-b"
+	assert.Error(t, validator.validateRepositoryTransition(&targetB))
+}
 
 func Test_validateOvercommitConfig(t *testing.T) {
 	tests := []struct {
