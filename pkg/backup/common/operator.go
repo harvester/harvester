@@ -11,6 +11,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,13 +27,13 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 const (
 	backupTargetAnnotation       = "backup.harvesterhci.io/backup-target"
 	backupBucketNameAnnotation   = "backup.harvesterhci.io/bucket-name"
 	backupBucketRegionAnnotation = "backup.harvesterhci.io/bucket-region"
-	volumeBackupNameFormat       = "%s-volume-%s"
 	defaultFsFreezeDeadline      = 1 * time.Second
 	changeToNonReadyMessage      = "Change back to non-ready"
 	errVolumeBackupNil           = "volume backup is nil"
@@ -148,6 +149,7 @@ type VMBackupReader interface {
 	GetUID(vmb *harvesterv1.VirtualMachineBackup) types.UID
 	GetDeletionTimestamp(vmb *harvesterv1.VirtualMachineBackup) *metav1.Time
 	GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec
+	GetSourceUID(vmb *harvesterv1.VirtualMachineBackup) *types.UID
 	GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec
 	GetStatus(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineBackupStatus
 	GetSecretBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.SecretBackup
@@ -186,15 +188,7 @@ func (c *vmbackupReader) IsErrMsgSynced(vmb *harvesterv1.VirtualMachineBackup, e
 }
 
 func (c *vmbackupReader) IsTargetConsistent(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) bool {
-	bt := vmb.Status.BackupTarget
-
-	if bt == nil && target == nil {
-		return true
-	}
-	if bt == nil || target == nil {
-		return false
-	}
-	return bt.Endpoint == target.Endpoint && bt.BucketName == target.BucketName && bt.BucketRegion == target.BucketRegion
+	return backuputil.IsBackupTargetSame(vmb.Status.BackupTarget, target)
 }
 
 func (c *vmbackupReader) IsTransitToNonReady(vmb *harvesterv1.VirtualMachineBackup) bool {
@@ -347,6 +341,9 @@ func (a *vmbackupReader) GetNamespace(vmb *harvesterv1.VirtualMachineBackup) str
 }
 
 func (a *vmbackupReader) GetKind(vmb *harvesterv1.VirtualMachineBackup) string {
+	if vmb.Kind == "" {
+		return "VirtualMachineBackup"
+	}
 	return vmb.Kind
 }
 
@@ -360,6 +357,10 @@ func (a *vmbackupReader) GetDeletionTimestamp(vmb *harvesterv1.VirtualMachineBac
 
 func (a *vmbackupReader) GetSpec(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.VirtualMachineBackupSpec {
 	return vmb.Spec
+}
+
+func (a *vmbackupReader) GetSourceUID(vmb *harvesterv1.VirtualMachineBackup) *types.UID {
+	return vmb.Status.SourceUID
 }
 
 func (a *vmbackupReader) GetSourceSpec(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.VirtualMachineSourceSpec {
@@ -710,9 +711,11 @@ func getVSCName(backupType harvesterv1.BackupType, driverInfo settings.CSIDriver
 	var vscName string
 
 	switch {
-	case backupType.UsesRemoteBackupTarget():
+	case backupType.UsesBackupSnapshotClass():
 		vscName = driverInfo.BackupVolumeSnapshotClassName
-	case backupType == harvesterv1.Snapshot:
+	case backupType == harvesterv1.Snapshot,
+		backupType == harvesterv1.Restic,
+		backupType == harvesterv1.Kopia:
 		vscName = driverInfo.VolumeSnapshotClassName
 	default:
 		return "", fmt.Errorf("unsupported backup type %q for CSI driver %q", backupType, csiDriverName)
@@ -990,7 +993,7 @@ func getVolumeSize(pv *corev1.PersistentVolume) (int64, error) {
 
 // buildVolumeBackup constructs a VolumeBackup object from PVC and PV information
 func buildVolumeBackup(vmbName, volName, pvcName string, pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, volSize int64) *harvesterv1.VolumeBackup {
-	volumeBackupName := fmt.Sprintf(volumeBackupNameFormat, vmbName, pvcName)
+	volumeBackupName := wranglername.SafeConcatName(vmbName, "volume", pvcName)
 
 	return ptr.To(harvesterv1.VolumeBackup{
 		Name:          ptr.To(volumeBackupName),
@@ -1168,11 +1171,7 @@ func (vmbo *vmbackupOperator) initBackupTarget(vmb *harvesterv1.VirtualMachineBa
 		return nil, err
 	}
 
-	vmb.Status.BackupTarget = &harvesterv1.BackupTarget{
-		Endpoint:     target.Endpoint,
-		BucketName:   target.BucketName,
-		BucketRegion: target.BucketRegion,
-	}
+	vmb.Status.BackupTarget = backuputil.BackupTargetStatus(target)
 	return vmb, nil
 }
 

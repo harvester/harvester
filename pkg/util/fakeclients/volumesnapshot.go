@@ -8,7 +8,63 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 )
+
+type VolumeSnapshotClient func(string) snapshotv1type.VolumeSnapshotInterface
+
+func (c VolumeSnapshotClient) Create(vs *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
+	return c(vs.Namespace).Create(context.TODO(), vs, metav1.CreateOptions{})
+}
+
+func (c VolumeSnapshotClient) Update(vs *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
+	return c(vs.Namespace).Update(context.TODO(), vs, metav1.UpdateOptions{})
+}
+
+func (c VolumeSnapshotClient) UpdateStatus(vs *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
+	return c(vs.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+}
+
+func (c VolumeSnapshotClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+	return c(namespace).Delete(context.TODO(), name, *options)
+}
+
+func (c VolumeSnapshotClient) Get(
+	namespace, name string,
+	options metav1.GetOptions,
+) (*snapshotv1.VolumeSnapshot, error) {
+	return c(namespace).Get(context.TODO(), name, options)
+}
+
+func (c VolumeSnapshotClient) List(
+	namespace string,
+	opts metav1.ListOptions,
+) (*snapshotv1.VolumeSnapshotList, error) {
+	return c(namespace).List(context.TODO(), opts)
+}
+
+func (c VolumeSnapshotClient) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+	return c(namespace).Watch(context.TODO(), opts)
+}
+
+func (c VolumeSnapshotClient) Patch(
+	namespace, name string,
+	pt types.PatchType,
+	data []byte,
+	subresources ...string,
+) (*snapshotv1.VolumeSnapshot, error) {
+	return c(namespace).Patch(
+		context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...,
+	)
+}
+
+func (c VolumeSnapshotClient) WithImpersonation(
+	_ rest.ImpersonationConfig,
+) (generic.ClientInterface[*snapshotv1.VolumeSnapshot, *snapshotv1.VolumeSnapshotList], error) {
+	panic("implement me")
+}
 
 type VolumeSnapshotCache func(string) snapshotv1type.VolumeSnapshotInterface
 
