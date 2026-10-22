@@ -185,7 +185,7 @@ func NewValidator(
 		vmbr:               common.NewVMBackupReader(),
 	}
 
-	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
+	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupSetting
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
 	validateSettingUpdateFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateUpdateVolumeSnapshotClass
@@ -499,6 +499,10 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 		}
 
 	case settings.NFSBackupType:
+		if target.KopiaGCEnabled {
+			return werror.NewInvalidError("Kopia GC is supported only for S3 backup targets", settings.KeywordValue)
+		}
+
 		if target.Endpoint == "" {
 			return werror.NewInvalidError("NFS backup target should have endpoint", settings.KeywordValue)
 		}
@@ -519,11 +523,46 @@ func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTar
 	return nil
 }
 
-func (v *settingValidator) validateUpdateBackupTarget(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return v.validateBackupTarget(newSetting)
+func (v *settingValidator) validateUpdateBackupTarget(
+	_ *types.Request,
+	_ *v1beta1.Setting,
+	newSetting *v1beta1.Setting,
+) error {
+	target, err := decodeBackupTarget(newSetting)
+	if err != nil {
+		return err
+	}
+	if err := v.validateBackupTarget(target); err != nil {
+		return err
+	}
+	if target == nil || target.IsDefaultBackupTarget() {
+		return nil
+	}
+	return v.validateRepositoryTransition(target)
 }
 
-func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarget, error) {
+func (v *settingValidator) validateRepositoryTransition(target *settings.BackupTarget) error {
+	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
+	}
+
+	for _, vmBackup := range vmBackups {
+		backupType := v.vmbr.GetType(vmBackup)
+		if backupType != v1beta1.Restic && backupType != v1beta1.Kopia {
+			continue
+		}
+		if backuputil.IsBackupTargetSame(v.vmbr.GetBackupTarget(vmBackup), target) {
+			continue
+		}
+		return werror.NewBadRequest(fmt.Sprintf(
+			"Can't change the backup target repository while VMBackup %s/%s refers to the current repository",
+			v.vmbr.GetNamespace(vmBackup), v.vmbr.GetName(vmBackup)))
+	}
+	return nil
+}
+
+func decodeBackupTarget(setting *v1beta1.Setting) (*settings.BackupTarget, error) {
 	var target *settings.BackupTarget
 
 	if setting.Default != "" {
@@ -544,26 +583,39 @@ func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarge
 	return target, nil
 }
 
-func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
-	target, err := validateBackupTargetHelper(setting)
+func (v *settingValidator) validateBackupSetting(setting *v1beta1.Setting) error {
+	target, err := decodeBackupTarget(setting)
 	if err != nil {
 		return err
 	}
+	return v.validateBackupTarget(target)
+}
+
+func (v *settingValidator) validateBackupTarget(target *settings.BackupTarget) error {
 	if target == nil {
 		return nil
 	}
-
 	if target.RefreshIntervalInSeconds < 0 {
 		return werror.NewInvalidError("Refresh interval should be greater than or equal to 0", settings.KeywordValue)
 	}
-
-	// when target is from internal re-update, allow fast pass
 	if v.isUpdatedS3BackupTarget(target) {
 		return nil
 	}
 
 	logrus.Debugf("validate backup target:%s:%s", target.Type, target.Endpoint)
+	if err := v.checkBackupIdle(); err != nil {
+		return err
+	}
+	if target.IsDefaultBackupTarget() {
+		return nil
+	}
+	if err := v.validateBackupTargetFields(target); err != nil {
+		return err
+	}
+	return v.checkTargetConnection(target)
+}
 
+func (v *settingValidator) checkBackupIdle() error {
 	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
@@ -579,25 +631,12 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	if hasVMRestoreInCreatingOrDeletingProgress(vmRestores) {
 		return werror.NewBadRequest("Can't update the backup target. There is a VM either in the process of creating or deleting")
 	}
+	return nil
+}
 
-	// It is allowed to reset the current backup target setting to the default value
-	// when it is default, the validator will skip all remaining checks
-	if target.IsDefaultBackupTarget() {
-		return nil
-	}
-
-	if err = v.validateBackupTargetFields(target); err != nil {
+func (v *settingValidator) checkTargetConnection(target *settings.BackupTarget) error {
+	if err := v.configureS3Connection(target); err != nil {
 		return err
-	}
-
-	if target.Type == settings.S3BackupType {
-		// Set OS environment variables for S3
-		os.Setenv(util.AWSAccessKey, target.AccessKeyID)
-		os.Setenv(util.AWSSecretKey, target.SecretAccessKey)
-		os.Setenv(util.AWSEndpoints, target.Endpoint)
-		if err := v.customizeTransport(); err != nil {
-			return err
-		}
 	}
 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
@@ -608,7 +647,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// There might be a goroutine leak if the driver doesn't end properly,
 	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
 	// So we should be careful when using GetBackupStoreDriver function.
-	_, err = util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+	_, err := util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
 		return backupstore.GetBackupStoreDriver(endpoint)
 	})
 	if err != nil {
@@ -616,6 +655,16 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	}
 
 	return nil
+}
+
+func (v *settingValidator) configureS3Connection(target *settings.BackupTarget) error {
+	if target.Type != settings.S3BackupType {
+		return nil
+	}
+	os.Setenv(util.AWSAccessKey, target.AccessKeyID)
+	os.Setenv(util.AWSSecretKey, target.SecretAccessKey)
+	os.Setenv(util.AWSEndpoints, target.Endpoint)
+	return v.customizeTransport()
 }
 
 // customizeTransport sets HTTP proxy and trusted CAs in the default HTTP transport.

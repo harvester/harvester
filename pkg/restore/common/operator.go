@@ -3,11 +3,14 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +42,10 @@ const (
 	// and predicate stay in sync.
 	restoreReasonError = "Error"
 )
+
+// ErrVMStartInProgress indicates an asynchronous KubeVirt state transition,
+// not a failed restore. Callers should wait for the target VM to become ready.
+var ErrVMStartInProgress = errors.New("VM start is already in progress")
 
 // VMRestoreOperator provides a unified interface for managing VirtualMachineRestore operations.
 // It abstracts restore lifecycle management, volume restore operations, status updates, and persistence.
@@ -700,6 +707,13 @@ func (vmro *vmrestoreOperator) ResolveTargetVM(vmr *harvesterv1.VirtualMachineRe
 }
 
 func (vmro *vmrestoreOperator) StartVM(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
+	if vm.Status.Ready {
+		return nil
+	}
+	if len(vm.Status.StateChangeRequests) > 0 {
+		return ErrVMStartInProgress
+	}
+
 	runStrategy, err := vm.RunStrategy()
 	if err != nil {
 		return err
@@ -740,6 +754,9 @@ func (vmro *vmrestoreOperator) handleRerunOnFailure(ctx context.Context, vm *kub
 
 func (vmro *vmrestoreOperator) handleManualStrategy(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
 	vmi, err := vmro.vmiCache.Get(vm.Namespace, vm.Name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
 	if err == nil && vmro.isVMIRunning(vmi) {
 		// VM is already running
 		return nil
@@ -755,7 +772,7 @@ func (vmro *vmrestoreOperator) isVMIRunning(vmi *kubevirtv1.VirtualMachineInstan
 }
 
 func (vmro *vmrestoreOperator) startVMSubresource(ctx context.Context, vm *kubevirtv1.VirtualMachine) error {
-	return vmro.virtSubresourceRestClient.
+	err := vmro.virtSubresourceRestClient.
 		Put().
 		Namespace(vm.Namespace).
 		Resource("virtualmachines").
@@ -763,6 +780,27 @@ func (vmro *vmrestoreOperator) startVMSubresource(ctx context.Context, vm *kubev
 		Name(vm.Name).
 		Do(ctx).
 		Error()
+	// The VM/VMI informer can lag behind an accepted start request. KubeVirt
+	// may return this as an InternalError, so checking IsConflict alone is not
+	// enough to distinguish the expected in-flight state from a real failure.
+	if isStartPending(err) {
+		return fmt.Errorf("%w: %w", ErrVMStartInProgress, err)
+	}
+	return err
+}
+
+func isStartPending(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "stop/start already underway") {
+		return true
+	}
+	if !apierrors.IsConflict(err) {
+		return false
+	}
+	return strings.Contains(err.Error(), "VM is already running") ||
+		strings.Contains(err.Error(), "jsonpatch test operation does not apply")
 }
 
 // Initialization operations
@@ -811,7 +849,12 @@ func (vmro *vmrestoreOperator) getDeletedVolumes(vmb *harvesterv1.VirtualMachine
 // restores against the same target VM), and the "restore-" prefix marks the
 // PVC as a restore artifact rather than something a user created.
 func getRestorePVCName(vmr *harvesterv1.VirtualMachineRestore, volumeName string) string {
-	return fmt.Sprintf("restore-%s-%s-%s", vmr.Spec.VirtualMachineBackupName, vmr.UID, volumeName)
+	return wranglername.SafeConcatName(
+		"restore",
+		vmr.Spec.VirtualMachineBackupName,
+		string(vmr.UID),
+		volumeName,
+	)
 }
 
 func (vmro *vmrestoreOperator) findExistingVolumeRestore(
@@ -1032,7 +1075,7 @@ func (vmro *vmrestoreOperator) buildAndApplySecret(
 // BuildSecretRefName generates a new secret name for a restored VM
 // Format: <targetVMName>-<originalSecretName>
 func (vmro *vmrestoreOperator) BuildSecretRefName(targetVMName, originalSecretName string) string {
-	return fmt.Sprintf("%s-%s", targetVMName, originalSecretName)
+	return wranglername.SafeConcatName(targetVMName, originalSecretName)
 }
 
 // BuildVMOwnerReferences returns owner references for a VM
