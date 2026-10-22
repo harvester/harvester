@@ -7,8 +7,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	_ "net/http/pprof"
+	"os"
 
 	"github.com/rancher/wrangler/v3/pkg/signals"
 	"github.com/urfave/cli"
@@ -16,6 +18,8 @@ import (
 	"github.com/harvester/harvester/pkg/cmd"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server"
+	"github.com/harvester/harvester/pkg/util/acceleratedio"
+	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
 )
 
 const (
@@ -23,6 +27,21 @@ const (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "io-mode" {
+		if err := acceleratedio.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == kopiautil.PrepareSubcommand {
+		if err := kopiautil.Prepare(context.Background()); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	var options config.Options
 
 	flags := []cli.Flag{
