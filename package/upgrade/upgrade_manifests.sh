@@ -976,13 +976,20 @@ upgrade_harvester_cluster_repo() {
   mkdir -p $UPGRADE_TMP_DIR/harvester_cluster_repo
   cd $UPGRADE_TMP_DIR/harvester_cluster_repo
 
+  # Prime releases publish the image under the Harvester registry's
+  # "harvester" repository; see harvester_cluster_repo_image in scripts/lib/image.
+  local cluster_repo_image="rancher/harvester-cluster-repo:$REPO_OS_VERSION"
+  if [ -n "$REPO_HARVESTER_SYSTEM_DEFAULT_REGISTRY" ]; then
+    cluster_repo_image="$REPO_HARVESTER_SYSTEM_DEFAULT_REGISTRY/harvester/harvester-cluster-repo:$REPO_OS_VERSION"
+  fi
+
   cat >cluster_repo.yaml <<EOF
 spec:
   template:
     spec:
       containers:
         - name: httpd
-          image: rancher/harvester-cluster-repo:$REPO_OS_VERSION
+          image: $cluster_repo_image
 EOF
   kubectl patch deployment harvester-cluster-repo -n cattle-system --patch-file ./cluster_repo.yaml --type strategic
 

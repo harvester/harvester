@@ -53,6 +53,21 @@ if [[ "${PRIME_BUILD:-}" == "true" ]]; then
   SERVER_FLAVOR=prime
 fi
 
+# Registry overrides for Rancher and Harvester images. Both keys are always
+# written so community and Prime releases share the same schema, but community
+# builds leave them empty instead of "docker.io" to keep the behavior of
+# releases that predate these keys. An image without a registry resolves to
+# docker.io, but consumers treat a non-empty value as an override and change
+# image references accordingly. For example, the upgrade sets Rancher's
+# systemDefaultRegistry from it (redeploying Rancher's agents), and builds the
+# Prime "harvester/" image paths from the Harvester registry.
+rancher_system_default_registry=""
+harvester_system_default_registry=""
+if [[ "${PRIME_BUILD:-}" == "true" ]]; then
+  rancher_system_default_registry=$(resolve_registry rancher)
+  harvester_system_default_registry=$(resolve_registry harvester)
+fi
+
 cat > harvester-release.yaml <<EOF
 harvester: ${HARVESTER_VERSION}
 harvesterChart: ${HARVESTER_CHART_VERSION}
@@ -66,12 +81,9 @@ loggingChartHarvesterEventRouter: ${HARVESTER_EVENTROUTER_IMAGE_REPOSITORY}:${HA
 kubevirt: ${HARVESTER_KUBEVIRT_VERSION}
 minUpgradableVersion: '${HARVESTER_MIN_UPGRADABLE_VERSION}'
 serverFlavor: ${SERVER_FLAVOR}
+rancherSystemDefaultRegistry: '${rancher_system_default_registry}'
+harvesterSystemDefaultRegistry: '${harvester_system_default_registry}'
 EOF
-
-if [[ "${PRIME_BUILD:-}" == "true" ]]; then
-  rancher_prime_registry=$(resolve_registry rancher)
-  echo "rancherSystemDefaultRegistry: ${rancher_prime_registry}" >> harvester-release.yaml
-fi
 
 # Collect all the previous versions' image lists
 ${SCRIPTS_DIR}/archive-images-lists.sh "${TOP_DIR}/../harvester/package/upgrade-matrix.yaml" "${IMAGES_LISTS_DIR}" "${RANCHERD_IMAGES_DIR}" "${BUNDLE_DIR}/harvester/images-lists-archive" "${ARCH}"

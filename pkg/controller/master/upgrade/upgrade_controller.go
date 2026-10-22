@@ -799,17 +799,28 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error)
 }
 
 func validateUpgradeRepo(currentFlavor string, repoInfo *repoinfo.RepoInfo) error {
-	targetRegistry := repoInfo.Release.RancherSystemDefaultRegistry
-	if targetRegistry != "" {
-		if strings.Contains(targetRegistry, "://") {
-			return errors.New("rancherSystemDefaultRegistry must not include a URL scheme")
-		}
-		if strings.HasSuffix(targetRegistry, "/") {
-			return errors.New("rancherSystemDefaultRegistry must not end with '/'")
-		}
+	if err := validateRegistry("rancherSystemDefaultRegistry", repoInfo.Release.RancherSystemDefaultRegistry); err != nil {
+		return err
+	}
+	if err := validateRegistry("harvesterSystemDefaultRegistry", repoInfo.Release.HarvesterSystemDefaultRegistry); err != nil {
+		return err
 	}
 
 	return validateUpgradeFlavor(currentFlavor, repoInfo.Release.ServerFlavor)
+}
+
+// validateRegistry checks an optional registry host/path prefix.
+func validateRegistry(name, registry string) error {
+	if registry == "" {
+		return nil
+	}
+	if strings.Contains(registry, "://") {
+		return fmt.Errorf("%s must not include a URL scheme", name)
+	}
+	if strings.HasSuffix(registry, "/") {
+		return fmt.Errorf("%s must not end with '/'", name)
+	}
+	return nil
 }
 
 func validateUpgradeFlavor(currentFlavor, targetFlavor string) error {
