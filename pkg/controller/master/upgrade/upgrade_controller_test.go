@@ -123,11 +123,12 @@ func newKubeVirt(namespace, name string) *kubevirtv1.KubeVirt {
 
 func TestValidateUpgradeRepo(t *testing.T) {
 	testCases := []struct {
-		name           string
-		currentFlavor  string
-		targetFlavor   string
-		targetRegistry string
-		expectedError  string
+		name                    string
+		currentFlavor           string
+		targetFlavor            string
+		targetRegistry          string
+		targetHarvesterRegistry string
+		expectedError           string
 	}{
 		{
 			name:          "community to community",
@@ -179,14 +180,36 @@ func TestValidateUpgradeRepo(t *testing.T) {
 			targetRegistry: "prime.invalid/containers/",
 			expectedError:  "rancherSystemDefaultRegistry must not end with '/'",
 		},
+		{
+			name:                    "target Harvester registry with scheme is rejected",
+			currentFlavor:           settings.ServerFlavorCommunity,
+			targetFlavor:            settings.ServerFlavorPrime,
+			targetHarvesterRegistry: "https://prime.invalid",
+			expectedError:           "harvesterSystemDefaultRegistry must not include a URL scheme",
+		},
+		{
+			name:                    "target Harvester registry with trailing slash is rejected",
+			currentFlavor:           settings.ServerFlavorCommunity,
+			targetFlavor:            settings.ServerFlavorPrime,
+			targetHarvesterRegistry: "prime.invalid/",
+			expectedError:           "harvesterSystemDefaultRegistry must not end with '/'",
+		},
+		{
+			name:                    "valid target registries are accepted",
+			currentFlavor:           settings.ServerFlavorPrime,
+			targetFlavor:            settings.ServerFlavorPrime,
+			targetRegistry:          "prime.invalid/containers",
+			targetHarvesterRegistry: "prime.invalid",
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			repoInfo := &repoinfo.RepoInfo{
 				Release: repoinfo.HarvesterRelease{
-					RancherSystemDefaultRegistry: testCase.targetRegistry,
-					ServerFlavor:                 testCase.targetFlavor,
+					RancherSystemDefaultRegistry:   testCase.targetRegistry,
+					HarvesterSystemDefaultRegistry: testCase.targetHarvesterRegistry,
+					ServerFlavor:                   testCase.targetFlavor,
 				},
 			}
 
