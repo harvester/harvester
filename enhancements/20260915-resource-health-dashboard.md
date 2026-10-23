@@ -464,3 +464,15 @@ This framework is implemented as an addon.
 We consider this cost acceptable in exchange for keeping the health framework isolated from the core.
 
 **Alternative considered.** Each component could own its check logic in its own repository and import the shared API types from `harvester/harvester`, so each repository only maintains its own scope. This avoids the drift described above, but puts the health code inside the core controllers, which is what we want to avoid.
+
+### Future Work: Health History
+
+This is not part of this HEP. The two screenshots below show what could be achieved in the future by exporting the `ComponentHealth` checks as metrics, so users can see the health history of each check over time.
+
+Rancher Monitoring (Grafana Explore):
+
+![](20260915-resource-health-dashboard/image-07.png)
+
+SUSE Observability (dashboard):
+
+![](20260915-resource-health-dashboard/image-08.png)
