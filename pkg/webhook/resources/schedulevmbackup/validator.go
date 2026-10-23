@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	fieldCron       = "spec.cron"
-	fieldMaxFailure = "spec.maxFailure"
-	fieldSuspend    = "spec.suspend"
-	fieldVMBackup   = "spec.vmbackup"
+	fieldCron         = "spec.cron"
+	fieldMaxFailure   = "spec.maxFailure"
+	fieldSuspend      = "spec.suspend"
+	fieldVMBackup     = "spec.vmbackup"
+	fieldVMBackupType = "spec.vmbackup.type"
 
 	minCronGranularity = time.Hour
 	minCronOffset      = 10 * time.Minute
@@ -126,6 +127,12 @@ func cronGranularityCheck(v *scheuldeVMBackupValidator, svmbackup *v1beta1.Sched
 
 func (v *scheuldeVMBackupValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	newSVMBackup := newObj.(*v1beta1.ScheduleVMBackup)
+
+	backupType := newSVMBackup.Spec.VMBackupSpec.Type
+	if backupType == v1beta1.Restic || backupType == v1beta1.Kopia {
+		return werror.NewInvalidError(
+			fmt.Sprintf("%s is not supported for scheduled VM backups", backupType), fieldVMBackupType)
+	}
 
 	if newSVMBackup.Spec.MaxFailure >= newSVMBackup.Spec.Retain {
 		return werror.NewInvalidError("max failure should be less than retain", fieldMaxFailure)

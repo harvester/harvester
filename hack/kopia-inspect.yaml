@@ -1,0 +1,277 @@
+# Useful commands after exec'ing into the pod. The container attempts to
+# connect using Harvester's `backup-target` Setting and
+# KOPIA_CONFIG_PATH=/tmp/kopia.config. A missing repository does not stop the
+# pod; it retries every 30 seconds until a backup initializes the repository.
+# Run commands directly; sourcing backup-target.env is not required:
+#
+#   kopia repository status
+#   kopia snapshot list --all
+#
+# Optional: source the file only to inspect the raw target values. Environment
+# changes made by the startup shell are not inherited by `kubectl exec` shells:
+#
+#   . /kopia-config/backup-target.env
+#   echo "bucket=$KOPIA_BUCKET endpoint=$KOPIA_ENDPOINT prefix=$KOPIA_PREFIX region=${KOPIA_REGION:-<default>}"
+#
+# Repository overview, storage statistics, and snapshot inventory:
+#
+#   kopia --version
+#   kopia repository status
+#   kopia snapshot list --all
+#   kopia snapshot list --all --json | jq .
+#   kopia snapshot list --all --json | jq -r \
+#     '.[] | [.id, .startTime, (.tags // {} | to_entries | map("\(.key | sub("^tag:"; "")):\(.value)") | join(",")), .source.path] | @tsv'
+#   kopia blob stats
+#   kopia content stats
+#   kopia cache info
+#
+# Find one Harvester volume snapshot. Replace these values with those from the
+# VMBackup and VolumeBackup status:
+#
+#   NS=<vmbackup-namespace>
+#   VMB=<vmbackup-name>
+#   SN=<volume-backup-name>
+#   PV=<pv-name>
+#   # Do not append "/$PV" to `snapshot list`: a positional source also filters
+#   # by the current host, but backup and inspect/restore run in different Pods.
+#   kopia snapshot list --all --json \
+#     --tags "ns:$NS" --tags "vmb:$VMB" --tags "sn:$SN" | jq .
+#
+# Select the newest matching snapshot manifest and root object:
+#
+#   SNAPSHOT_JSON=$(kopia snapshot list --all --json \
+#     --tags "ns:$NS" --tags "vmb:$VMB" --tags "sn:$SN")
+#   SNAPSHOT_ID=$(printf '%s' "$SNAPSHOT_JSON" | jq -er 'last | .id')
+#   OBJ=$(printf '%s' "$SNAPSHOT_JSON" | jq -er 'last | .rootEntry.obj')
+#   echo "snapshot=$SNAPSHOT_ID root=$OBJ"
+#
+# Inspect the root and stored stdin file, then sample or hash its block stream:
+#
+#   kopia list "$OBJ"
+#   kopia show "$OBJ/$PV" | head -c 4096 | hexdump -C
+#   kopia show "$OBJ/$PV" | sha256sum
+#
+# Verify snapshot metadata and optionally download a sample of stored files.
+# Increasing --verify-files-percent consumes more time and bandwidth:
+#
+#   kopia snapshot verify "$SNAPSHOT_ID"
+#   kopia snapshot verify --verify-files-percent=1 "$SNAPSHOT_ID"
+#
+# Validate S3 provider behavior. This temporarily writes and removes test blobs:
+#
+#   kopia repository validate-provider
+#
+# Check local cache and ephemeral storage usage:
+#
+#   du -sh /kopia-cache
+#   df -h /kopia-cache /tmp
+#
+# DESTRUCTIVE: delete only the selected snapshot manifest. Verify SNAPSHOT_ID
+# carefully before running:
+#
+#   kopia snapshot delete --delete "$SNAPSHOT_ID"
+#
+# Reclaim S3 data after snapshots are deleted. First ensure no Kopia backup,
+# restore, snapshot-delete, or other maintenance client is running. Inspect the
+# current maintenance owner, assign ownership to this pod, and run safe full
+# maintenance:
+#
+#   kopia maintenance status
+#   kopia maintenance set --owner=me
+#   kopia maintenance run --full
+#   kopia maintenance status
+#   kopia content stats
+#   kopia blob stats
+#
+# Full maintenance preserves all content referenced by existing snapshots,
+# including deduplicated content shared with deleted snapshots. Unreferenced
+# content is reclaimed in stages. If Kopia reports content that is too recent
+# to delete, wait until the next full-maintenance time shown by `maintenance
+# status`, then run `kopia maintenance run --full` again. Pack deletion can
+# require more than one full cycle.
+#
+# DANGEROUS: bypass the deletion safety window only when this pod is the sole
+# Kopia client and every backup, restore, snapshot-delete, and maintenance job
+# is stopped. A concurrent snapshot can be corrupted because uploaded content
+# may not yet be referenced by its final snapshot manifest:
+#
+#   kopia maintenance run --full --safety=none
+#
+# After forced cleanup, run the status and stats commands above again. A small
+# amount of repository format, index, log, and maintenance data will remain.
+#
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kopia-inspect
+  namespace: longhorn-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kopia-inspect
+rules:
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - settings
+  resourceNames:
+  - backup-target
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kopia-inspect
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kopia-inspect
+subjects:
+- kind: ServiceAccount
+  name: kopia-inspect
+  namespace: longhorn-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kopia-inspect
+  namespace: longhorn-system
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7800
+  template:
+    spec:
+      serviceAccountName: kopia-inspect
+      restartPolicy: Never
+      initContainers:
+      - name: load-backup-target
+        image: 10.115.54.34:5000/harvester:issue-10567-head
+        command:
+        - /bin/sh
+        - -ec
+        args:
+        - |
+          token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          api="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+          target=$(curl --fail --silent --show-error \
+            --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+            --header "Authorization: Bearer ${token}" \
+            "${api}/apis/harvesterhci.io/v1beta1/settings/backup-target" \
+            | jq -er '
+                .value
+                | fromjson
+                | select(.type == "s3" and (.bucketName | length) > 0)
+              ')
+          target_type=$(printf '%s' "${target}" | jq -r '.type')
+          endpoint=$(printf '%s' "${target}" | jq -r '.endpoint // ""')
+          bucket=$(printf '%s' "${target}" | jq -r '.bucketName')
+          region=$(printf '%s' "${target}" | jq -r '.bucketRegion // ""')
+          virtual_hosted=$(printf '%s' "${target}" | jq -r '(.virtualHostedStyle // false) | tostring')
+          while [ "${endpoint%/}" != "${endpoint}" ]; do
+            endpoint=${endpoint%/}
+          done
+          repository_hash=$(printf '%s\0%s\0%s\0%s\0%s' \
+            "${target_type}" "${endpoint}" "${bucket}" "${region}" "${virtual_hosted}" \
+            | sha256sum)
+          repository_hash=${repository_hash%% *}
+          repository_id="sha256:${repository_hash}"
+          password=$(printf '%s\0%s' kopia "${repository_id}" | sha256sum)
+          password=${password%% *}
+          if [ -z "${endpoint}" ]; then
+            endpoint=s3.amazonaws.com
+          fi
+          shell_quote() {
+            printf '%s' "$1" | jq -Rr '@sh'
+          }
+          {
+            printf 'export KOPIA_BUCKET=%s\n' "$(shell_quote "${bucket}")"
+            printf 'export KOPIA_ENDPOINT=%s\n' "$(shell_quote "${endpoint}")"
+            printf 'export KOPIA_REGION=%s\n' "$(shell_quote "${region}")"
+            printf 'export KOPIA_PREFIX=%s\n' "$(shell_quote 'kopia/')"
+            printf 'export KOPIA_PASSWORD=%s\n' "$(shell_quote "${password}")"
+          } > /kopia-config/backup-target.env
+          mkdir -p /kopia-config/bin
+          cat > /kopia-config/bin/kopia <<'SCRIPT'
+          #!/bin/sh
+          . /kopia-config/backup-target.env
+          exec /usr/local/bin/kopia "$@"
+          SCRIPT
+          chmod 0755 /kopia-config/bin/kopia
+        volumeMounts:
+        - name: kopia-config
+          mountPath: /kopia-config
+      containers:
+      - name: kopia
+        image: 10.115.54.34:5000/harvester:issue-10567-head
+        command:
+        - /bin/sh
+        - -ec
+        args:
+        - |
+          . /kopia-config/backup-target.env
+          endpoint="${KOPIA_ENDPOINT#http://}"
+          endpoint="${endpoint#https://}"
+          endpoint="${endpoint%/}"
+          set --
+          case "${KOPIA_ENDPOINT}" in
+            http://*) set -- --disable-tls ;;
+          esac
+          connect_repository() {
+            kopia repository connect s3 "$@" \
+              --cache-directory=/kopia-cache \
+              --content-cache-size-mb=256 \
+              --content-cache-size-limit-mb=512 \
+              --metadata-cache-size-mb=256 \
+              --metadata-cache-size-limit-mb=512 \
+              --bucket="${KOPIA_BUCKET}" \
+              --endpoint="${endpoint}" \
+              --region="${KOPIA_REGION}" \
+              --prefix="${KOPIA_PREFIX}" \
+              --access-key="${AWS_ACCESS_KEY_ID}" \
+              --secret-access-key="${AWS_SECRET_ACCESS_KEY}"
+          }
+          retry_interval=30
+          until connect_repository "$@"; do
+            echo "Kopia repository is not initialized;" \
+              "retrying in ${retry_interval} seconds" >&2
+            sleep "${retry_interval}"
+          done
+          echo "Connected to Kopia repository"
+          exec sleep 720000
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
+          limits:
+            ephemeral-storage: 3Gi
+        env:
+        - name: PATH
+          value: /kopia-config/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        - name: KOPIA_CONFIG_PATH
+          value: /tmp/kopia.config
+        - name: KOPIA_CACHE_DIRECTORY
+          value: /kopia-cache
+        - name: KOPIA_LOG_DIR
+          value: /kopia-cache
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: harvester-backup-target-secret
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: harvester-backup-target-secret
+              key: AWS_SECRET_ACCESS_KEY
+        volumeMounts:
+        - name: kopia-cache
+          mountPath: /kopia-cache
+        - name: kopia-config
+          mountPath: /kopia-config
+      volumes:
+      - name: kopia-cache
+        emptyDir:
+          sizeLimit: 2Gi
+      - name: kopia-config
+        emptyDir: {}

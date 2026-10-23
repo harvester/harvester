@@ -147,6 +147,12 @@ spec:
                     type: string
                   endpoint:
                     type: string
+                  repositoryID:
+                    type: string
+                  type:
+                    type: string
+                  virtualHostedStyle:
+                    type: boolean
                 type: object
               conditions:
                 items:

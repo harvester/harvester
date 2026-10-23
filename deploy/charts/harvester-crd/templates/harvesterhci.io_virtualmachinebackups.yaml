@@ -92,6 +92,8 @@ spec:
                 enum:
                 - backup
                 - snapshot
+                - restic
+                - kopia
                 type: string
                 x-kubernetes-validations:
                 - message: spec.type is immutable
@@ -112,6 +114,12 @@ spec:
                     type: string
                   endpoint:
                     type: string
+                  repositoryID:
+                    type: string
+                  type:
+                    type: string
+                  virtualHostedStyle:
+                    type: boolean
                 type: object
               conditions:
                 items:

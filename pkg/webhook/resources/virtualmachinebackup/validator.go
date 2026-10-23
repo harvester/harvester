@@ -112,12 +112,13 @@ func (v *virtualMachineBackupValidator) Create(_ *types.Request, newObj runtime.
 		return err
 	}
 
-	if v.vmbr.GetType(newVMBackup) == v1beta1.Snapshot {
+	backupType := v.vmbr.GetType(newVMBackup)
+	if backupType == v1beta1.Snapshot {
 		return nil
 	}
 
 	// Additional check for backup type.
-	if err := v.checkBackupTarget(); err != nil {
+	if err := v.checkBackupTarget(backupType); err != nil {
 		return werror.NewInvalidError(err.Error(), fieldTypeName)
 	}
 
@@ -142,6 +143,9 @@ func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.Virt
 			fmt.Sprintf("cannot back up VM %s/%s: disk %s is shareable and may be written by multiple VMs concurrently", vm.Namespace, vm.Name, diskName),
 			fieldSourceName)
 	}
+	if err := v.checkDataMoverVolumes(vm, v.vmbr.GetType(vmb)); err != nil {
+		return werror.NewInvalidError(err.Error(), fieldSourceName)
+	}
 	// Check the total snapshot size.
 	if err := v.checkTotalSnapshotSize(vm); err != nil {
 		return err
@@ -154,7 +158,11 @@ func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.Virt
 }
 
 func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.VirtualMachineBackup) error {
-	// Perform LH backup specific validation.
+	if v.vmbr.GetType(vmb) != v1beta1.Backup {
+		return nil
+	}
+
+	// Perform LH backup specific validation only for native Longhorn backups.
 	return webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 }
 
@@ -185,9 +193,8 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
 			return fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
 		}
 
-		// Longhorn v2 volumes do not support remote VM backups yet, but local
-		// CSI snapshots (type=snapshot) stay in the cluster and are supported.
-		if v.vmbr.GetType(newVMBackup).UsesRemoteBackupTarget() {
+		backupType := v.vmbr.GetType(newVMBackup)
+		if backupType.UsesRemoteBackupTarget() && !isDataMoverBackup(backupType) {
 			if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
 				return err
 			}
@@ -199,6 +206,75 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
 	}
 
 	return nil
+}
+
+func (v *virtualMachineBackupValidator) checkDataMoverVolumes(
+	vm *kubevirtv1.VirtualMachine,
+	backupType v1beta1.BackupType,
+) error {
+	if !isDataMoverBackup(backupType) {
+		return nil
+	}
+
+	for _, volume := range vm.Spec.Template.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+
+		pvcName := volume.PersistentVolumeClaim.ClaimName
+		pvc, err := v.pvcCache.Get(vm.Namespace, pvcName)
+		if err != nil {
+			return fmt.Errorf("failed to get PVC %s/%s: %w", vm.Namespace, pvcName, err)
+		}
+
+		if err := checkBlockVolume(pvc, backupType); err != nil {
+			return err
+		}
+
+		isLonghornV1, err := v.isLonghornV1Volume(pvc)
+		if err != nil {
+			return err
+		}
+
+		if isLonghornV1 {
+			return fmt.Errorf(
+				"cannot create %s backup for VM %s/%s: Longhorn v1 PVC %s/%s is not supported",
+				backupType, vm.Namespace, vm.Name, pvc.Namespace, pvc.Name)
+		}
+	}
+
+	return nil
+}
+
+func checkBlockVolume(pvc *corev1.PersistentVolumeClaim, backupType v1beta1.BackupType) error {
+	volumeMode := corev1.PersistentVolumeFilesystem
+	if pvc.Spec.VolumeMode != nil {
+		volumeMode = *pvc.Spec.VolumeMode
+	}
+	if volumeMode == corev1.PersistentVolumeBlock {
+		return nil
+	}
+
+	return fmt.Errorf("%s backup requires Block volume mode, but PVC %s/%s uses %s",
+		backupType, pvc.Namespace, pvc.Name, volumeMode)
+}
+
+func (v *virtualMachineBackupValidator) isLonghornV1Volume(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	if util.GetProvisionedPVCProvisioner(pvc, v.scCache) != util.CSIProvisionerLonghorn {
+		return false, nil
+	}
+
+	lhVolume, err := v.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Longhorn volume %s for PVC %s/%s: %w",
+			pvc.Spec.VolumeName, pvc.Namespace, pvc.Name, err)
+	}
+
+	return lhVolume.Spec.DataEngine != longhornv1beta2.DataEngineTypeV2, nil
+}
+
+func isDataMoverBackup(backupType v1beta1.BackupType) bool {
+	return backupType == v1beta1.Restic || backupType == v1beta1.Kopia
 }
 
 func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
@@ -221,7 +297,7 @@ func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
 		vm.Namespace, vm.Name, lhVolume.Name, pvc.Namespace, pvc.Name)
 }
 
-func (v *virtualMachineBackupValidator) checkBackupTarget() error {
+func (v *virtualMachineBackupValidator) checkBackupTarget(backupType v1beta1.BackupType) error {
 	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
 	if err != nil {
 		return fmt.Errorf("can't get backup target setting, err: %w", err)
@@ -233,6 +309,9 @@ func (v *virtualMachineBackupValidator) checkBackupTarget() error {
 
 	if backupTarget.IsDefaultBackupTarget() {
 		return fmt.Errorf("backup target is not set")
+	}
+	if isDataMoverBackup(backupType) && backupTarget.Type != settings.S3BackupType {
+		return fmt.Errorf("%s backup requires an S3 backup target", backupType)
 	}
 
 	return nil

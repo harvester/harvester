@@ -1985,6 +1985,12 @@ func schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref common.ReferenceCal
 				Description: "BackupTarget is where VM Backup stores",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"endpoint": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -1998,6 +2004,18 @@ func schema_pkg_apis_harvesterhciio_v1beta1_BackupTarget(ref common.ReferenceCal
 						},
 					},
 					"bucketRegion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"virtualHostedStyle": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"repositoryID": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
