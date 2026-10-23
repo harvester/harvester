@@ -311,9 +311,9 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 		return err
 	}
 
-	// This logic will return in case interfaces are existing and not changed
+	// This logic will return in case interfaces and networks are existing and not changed
 	// make sure new validation logic is added above this comment
-	if oldVM.Spec.Template != nil && newVM.Spec.Template != nil && reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces) {
+	if !interfacesOrNetworksChanged(oldVM, newVM) {
 		return nil
 	}
 
@@ -326,6 +326,19 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	}
 
 	return nil
+}
+
+// interfacesOrNetworksChanged reports whether the VM's interfaces or networks differ.
+// Networks are compared as well because changing only multus.networkName of a
+// running VM (KubeVirt LiveUpdateNADRef) can move a NIC to a different cluster
+// network, so the duplicate MAC address check must run again.
+func interfacesOrNetworksChanged(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
+	if oldVM.Spec.Template == nil || newVM.Spec.Template == nil {
+		return true
+	}
+	oldSpec, newSpec := oldVM.Spec.Template.Spec, newVM.Spec.Template.Spec
+	return !reflect.DeepEqual(oldSpec.Domain.Devices.Interfaces, newSpec.Domain.Devices.Interfaces) ||
+		!reflect.DeepEqual(oldSpec.Networks, newSpec.Networks)
 }
 
 func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
