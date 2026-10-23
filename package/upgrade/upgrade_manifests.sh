@@ -712,6 +712,12 @@ check_instance_manager() {
 }
 
 wait_longhorn_upgrade() {
+  local lh_enabled=$(helm get values harvester -n harvester-system -a -o json | jq -r .longhorn.enabled)
+  if [ "$lh_enabled" = "false" ]; then
+    echo "Longhorn is disabled in the harvester chart, skip waiting for Longhorn"
+    return
+  fi
+
   echo "Waiting for LH settling down..."
   wait_longhorn_manager
   wait_longhorn_instance_manager_aio
