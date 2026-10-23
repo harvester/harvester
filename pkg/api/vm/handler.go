@@ -423,13 +423,45 @@ func (h *vmActionHandler) checkVMImageAccess(ctx context.Context, userInfo k8sus
 }
 
 func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace string, input EjectCdRomVolumeActionInput) error {
-	vm, err := h.vmCache.Get(namespace, name)
-	if err != nil {
+	var toRemoveClaimNames []string
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var err error
+		toRemoveClaimNames, err = h.removeCdRomVolumeFromVM(name, namespace, input)
+		return err
+	}); err != nil {
 		return err
 	}
 
+	// The PVC deletion must stay outside the VM retry above. At this point
+	// the VM update has already succeeded, so re-running it would find no
+	// volume to remove and silently leave the PVC behind.
+	// The PVC validating webhook rejects the deletion with a conflict as
+	// long as its VM cache still sees the volume attached, so retry until
+	// that cache has caught up with the VM update.
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		for _, claimName := range toRemoveClaimNames {
+			if err := h.pvcClient.Delete(namespace, claimName, &metav1.DeleteOptions{}); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// removeCdRomVolumeFromVM removes the volume of the given SATA CD-ROM device
+// from the VM and returns the names of the PVCs that backed it.
+func (h *vmActionHandler) removeCdRomVolumeFromVM(name, namespace string, input EjectCdRomVolumeActionInput) ([]string, error) {
+	// Read the live object, the cache may hold a stale resourceVersion
+	// which makes the update below fail with a conflict on every retry.
+	vm, err := h.vmClient.Get(namespace, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
 	if !virtualmachine.HasDiskSataCdRomWithName(vm, input.DeviceName) {
-		return apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
+		return nil, apierror.NewAPIError(validation.InvalidBodyContent, fmt.Errorf("can not find the SATA CD-ROM device %s from the VM %s/%s", input.DeviceName, vm.Namespace, vm.Name).Error())
 	}
 
 	vmCopy := vm.DeepCopy()
@@ -447,24 +479,15 @@ func (h *vmActionHandler) ejectCdRomVolume(ctx context.Context, name, namespace 
 	}
 
 	if err := removeVolumeClaimTemplatesFromVMAnnotation(vmCopy, toRemoveClaimNames); err != nil {
-		return err
+		return nil, err
 	}
 
 	vmCopy.Spec.Template.Spec.Volumes = volumes
 	if _, err = h.vmClient.Update(vmCopy); err != nil {
-		return err
+		return nil, err
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		for _, name := range toRemoveClaimNames {
-			if err := h.pvcClient.Delete(vm.Namespace, name, &metav1.DeleteOptions{}); err != nil {
-				if !apierrors.IsNotFound(err) {
-					return err
-				}
-			}
-		}
-		return nil
-	})
+	return toRemoveClaimNames, nil
 }
 
 func (h *vmActionHandler) startPreCheck(namespace, name string) error {
