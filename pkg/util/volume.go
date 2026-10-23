@@ -12,11 +12,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	lh "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctllhv1 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	"github.com/harvester/harvester/pkg/settings"
-	lh "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
 const (
@@ -112,6 +113,31 @@ func GetProvisionedPVCProvisioner(pvc *corev1.PersistentVolumeClaim, scCache ctl
 		provisioner = sc.Provisioner
 	}
 	return provisioner
+}
+
+// IsLonghornV2Volume reports whether the PVC is backed by a Longhorn v2 volume.
+// PVCs that are not provisioned by Longhorn are never Longhorn v2 volumes.
+// An error is returned if the Longhorn volume of a Longhorn PVC cannot be
+// fetched, e.g. because the PVC is not bound yet.
+func IsLonghornV2Volume(
+	pvc *corev1.PersistentVolumeClaim,
+	scCache ctlstoragev1.StorageClassCache,
+	volumeCache ctllhv1.VolumeCache,
+) (bool, error) {
+	if GetProvisionedPVCProvisioner(pvc, scCache) != CSIProvisionerLonghorn {
+		return false, nil
+	}
+
+	if pvc.Spec.VolumeName == "" {
+		return false, fmt.Errorf("PVC %s is not bound", GetNamespacedName(pvc))
+	}
+
+	lhVolume, err := volumeCache.Get(LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Longhorn volume %s for PVC %s: %w", pvc.Spec.VolumeName, GetNamespacedName(pvc), err)
+	}
+
+	return lhVolume.Spec.DataEngine == lh.DataEngineTypeV2, nil
 }
 
 // LoadCSIDriverConfig loads the CSI driver configuration from settings.

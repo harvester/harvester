@@ -127,6 +127,7 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		scCache:       storageClasses.Cache(),
 		vmBackupCache: backups.Cache(),
 		settingCache:  settings.Cache(),
+		volumeCache:   scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		clientSet:     scaled.Management.ClientSet,
 	}
 
