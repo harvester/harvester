@@ -93,6 +93,8 @@ Multiple machine-readable failure reasons are therefore explicitly out of scope:
 
 Because a pre-check failure (`status: False`, `reason: Error`) is intentionally retained so the error stays visible, a user needs a way to dismiss it. A new custom node action `clearMaintenanceMode` removes only that side-effect-free failed condition. It is not available for `status: True`, `reason: Error`, because clearing that condition could hide a node that remains cordoned or partially drained.
 
+The Harvester UI runs `maintenancePossible` and `listUnhealthyVM` before it calls `enableMaintenanceMode`, so the regular `Enable Maintenance Mode` dialog does not submit a request that would fail the pre-checks. A `status: False`, `reason: Error` condition is therefore only reachable when the dialog is bypassed or the situation changes after its checks: setting `harvesterhci.io/drain-requested` directly (CLI, GitOps), calling the `enableMaintenanceMode` API action directly, or a change between the UI checks and the `Validating` phase. The controller remains the single place that enforces the pre-checks, because it cannot rely on callers going through the UI. Without `clearMaintenanceMode`, a node in this state would have neither an enable nor a disable action.
+
 ### Clarification and correction of forced drain semantics
 
 The earlier enhancement proposal [20240605-enhanced-maintenance-mode](./20240605-enhanced-maintenance-mode.md) stated that selecting `Force` in the maintenance dialog would override a VM's configured `harvesterhci.io/maintain-mode-strategy`, causing the VM to be shut down and remain off regardless of its strategy.
@@ -159,7 +161,7 @@ As a Harvester administrator, when a VM live migration gets permanently stuck in
 1. The user opens the `Hosts` page and selects `Enable Maintenance Mode` for a node (optionally ticking `Force`).
 2. As soon as `drain-requested` is observed, a `MaintenanceMode` condition with `status: True`, `reason: Validating` is created while the read-only pre-checks run.
 3. When the pre-checks pass, the condition advances to `status: True`, `reason: Draining`: VMs that must be stopped are shut down and the node is cordoned and drained. This is the long-running phase.
-4. A pre-check failure sets `status: False`, `reason: Error`; no drain side effects have occurred. The user must clear the error before starting a new attempt. Before the drain deadline, ordinary drain errors are retried in `Draining` without resetting the deadline.
+4. A pre-check failure sets `status: False`, `reason: Error`; no drain side effects have occurred. The user must clear the error before starting a new attempt. The `Enable Maintenance Mode` dialog already runs the pre-checks and does not submit in this case, so in practice this state is reached through the CLI, the API, or a change after the UI checks (see the `clearMaintenanceMode` action). Before the drain deadline, ordinary drain errors are retried in `Draining` without resetting the deadline.
 5. If the drain deadline expires, Harvester sets `status: True`, `reason: Error`, leaves cordon, taints, workloads, VM state, and migrations unchanged, and removes only the drain intent annotations. The user must disable maintenance mode before starting a new attempt.
 6. When the drain returns successfully, the condition becomes `status: True`, `reason: Evacuating`. The node is already cordoned; Harvester waits for the last VM migrations and restart handling.
 7. Once all workloads have left the node and any labelled VMs have been restarted elsewhere, the condition becomes `status: True`, `reason: Completed`.
@@ -396,7 +398,7 @@ Unit tests (controllers + `pkg/util` helpers, with fake clients):
 Integration tests (`tests/integration/api`):
 - **Successful enablement:** enable on a node, observe `Validating` → `Draining` → `Evacuating` → `Completed`.
 - **Disablement:** disable from `Evacuating`, `Completed`, and `True/Error`; observe existing cleanup succeeds before the condition is removed.
-- **Non-migratable VMs:** create a non-migratable VM, enable without force, observe `status: False` / `reason: Error` and the message in the UI; clear it with the action; re-enable with force and reach `Completed`.
+- **Non-migratable VMs:** create a non-migratable VM, enable without force through the API or by setting `drain-requested` directly (the UI dialog would block this beforehand), observe `status: False` / `reason: Error` and the message in the UI; clear it with the action; re-enable with force and reach `Completed`.
 - **Control-plane quorum:** trigger an HA-quorum violation, observe `reason: Error` with the quorum message, and confirm force does not bypass it.
 - **Stuck drain timeout:** simulate a stuck VM live migration, observe the deadline interrupt `DrainNode`, `status: True` / `reason: Error`, and removal of only the intent annotations.
 - **No automatic recovery:** verify timeout does not uncordon, remove taints, delete VMIMs, cancel migration, stop/restart VMs, or alter RunStrategy. Verify standard and force requests behave identically.
