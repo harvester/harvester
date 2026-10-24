@@ -3,15 +3,16 @@ package repoinfo
 import "gopkg.in/yaml.v2"
 
 type HarvesterRelease struct {
-	Harvester                    string `yaml:"harvester,omitempty"`
-	HarvesterChart               string `yaml:"harvesterChart,omitempty"`
-	OS                           string `yaml:"os,omitempty"`
-	Kubernetes                   string `yaml:"kubernetes,omitempty"`
-	Rancher                      string `yaml:"rancher,omitempty"`
-	RancherSystemDefaultRegistry string `yaml:"rancherSystemDefaultRegistry,omitempty"`
-	ServerFlavor                 string `yaml:"serverFlavor,omitempty"`
-	MonitoringChart              string `yaml:"monitoringChart,omitempty"`
-	MinUpgradableVersion         string `yaml:"minUpgradableVersion,omitempty"`
+	Harvester                      string `yaml:"harvester,omitempty"`
+	HarvesterChart                 string `yaml:"harvesterChart,omitempty"`
+	HarvesterSystemDefaultRegistry string `yaml:"harvesterSystemDefaultRegistry,omitempty"`
+	OS                             string `yaml:"os,omitempty"`
+	Kubernetes                     string `yaml:"kubernetes,omitempty"`
+	Rancher                        string `yaml:"rancher,omitempty"`
+	RancherSystemDefaultRegistry   string `yaml:"rancherSystemDefaultRegistry,omitempty"`
+	ServerFlavor                   string `yaml:"serverFlavor,omitempty"`
+	MonitoringChart                string `yaml:"monitoringChart,omitempty"`
+	MinUpgradableVersion           string `yaml:"minUpgradableVersion,omitempty"`
 }
 
 type RepoInfo struct {
