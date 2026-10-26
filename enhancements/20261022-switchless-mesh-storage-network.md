@@ -57,16 +57,21 @@ links, with no switch to oversubscribe.
 - Also allow the RWX network and the VM live migration network on the mesh. Both are point-to-point
   between nodes, as storage replication is.
 - Report the state of each mesh link per node.
-- Prevent configurations that do not work on a mesh (VM networks, host networks, mixed modes).
+- Prevent configurations that do not work on a mesh (VM networks, HostNetworkConfigs, mixed modes).
 - Keep today's behavior unchanged for every existing cluster network.
 
 ### Non-goals
 
 - **Path redundancy per node pair** with one cable per pair (see [Failure behavior](#failure-behavior-and-constraints)).
-  Redundancy comes from Longhorn replicas.
+  Redundancy comes from Longhorn replicas. Per-pair fault tolerance needs four NICs per host
+  (two links per peer), which is a follow-up.
 - **Relaying through a third node** when a cable fails (a routed mesh). See [Alternatives](#alternatives-considered).
-- VM networks or host networks on the mesh. A VM network needs one L2 segment that reaches every
-  node and the outside world, which a mesh is not.
+- VM networks or host networks (`HostNetworkConfig`) on the mesh. A VM network needs one L2 segment
+  that reaches every node and the outside world, which a mesh is not. A HostNetworkConfig is blocked
+  for a similar reason: its use cases (reaching external storage, a backup target or a gateway, DHCP
+  from an upstream server) need a segment that leaves the cluster, and on a mesh each node only
+  reaches its direct neighbors, with no DHCP server and no gateway. Node-to-node host traffic would
+  work in static mode, so this can be relaxed later if a use case appears.
 - The management network on the mesh.
 - Automatic discovery of which NIC is cabled to which node (possible follow-up, for example with LLDP).
 
@@ -100,6 +105,29 @@ A cable is unplugged during a store refit. The cluster network link monitor show
 on that node, and Longhorn shows the affected volumes as `degraded` instead of failed. After the
 cable is reconnected, the port returns as an isolated port and the replicas rebuild (delta rebuild,
 not a full copy).
+
+#### Story 4: a cable breaks permanently
+
+A cable or transceiver fails and stays dead until someone replaces it (suggested by
+@w13915984028). The management network is fine, so the cluster stays up, but the direct path
+between two nodes, say A and B, is gone until the cable is replaced.
+
+- **Storage:** volumes whose engine runs on A or B lose the replica on the other end and stay
+  `degraded`. Longhorn cannot rebuild that replica while the cable is down: with 3 replicas on 3
+  nodes, the only node it can place it on is the one it cannot reach.
+- **Migration:** with `vm-migration-network` on the mesh, a live migration between A and B fails,
+  because nothing relays through C. Migrations to and from C still work.
+- **No self-healing:** this is the limitation of a static mesh with isolated ports and no routing
+  (see [Non-goals](#non-goals)). The LinkMonitor shows the NIC as `down` on both nodes until the
+  cable is replaced.
+- **Mitigation until the repair:** C still reaches both A and B. Live-migrating the affected VMs to
+  C moves their volume engines there, the missing replicas rebuild, and the volumes return to
+  `healthy`. The cluster then runs with reduced placement freedom (A and B cannot exchange storage
+  traffic) until the cable is replaced. The docs will describe this procedure and recommend an
+  alert on mesh link state.
+- **Fault tolerance needs four NICs per host:** surviving a cable failure without degraded
+  volumes takes two links per peer, so four NICs per host on a 3-node mesh, grouped as one bond
+  per peer (see [Multiple cables per node pair](#multiple-cables-per-node-pair-four-nics-per-node)).
 
 ### User Experience In Detail
 
@@ -162,9 +190,20 @@ All changes are in harvester-network-controller (PR #445) and the UI extension (
 **Manager.** It sets and clears the `uplink-mode` label, and adds the mesh NICs to the cluster
 network's LinkMonitor name rule, so each link reports up or down per node.
 
+**Mesh completeness check.** In bond mode the VlanConfig does not care how many NICs it has. In
+isolated mode the NIC count matters: a full mesh of N nodes needs N−1 links with carrier on every
+node. The agent reports a `MeshComplete` condition on each VlanStatus: `False` when fewer than N−1
+isolated uplinks have carrier, where N is the number of non-witness nodes covered by the cluster
+network. The UI shows it as a warning on the cluster network. This is a status check, not an
+admission rule, because N changes over time: a node being added, replaced or re-cabled is a valid
+temporary partial mesh, and rejecting the VlanConfig would make those procedures harder. Which peer
+each NIC is cabled to (two NICs to the same node, or one NIC to a switch) is not verified, so
+cabling stays the user's responsibility in this HEP. Verifying peers with LLDP is a follow-up (see
+[Non-goals](#non-goals)).
+
 **Webhooks.**
 
-- isolated mode needs at least one NIC and is rejected on `mgmt`.
+- isolated mode needs at least one NIC, no duplicate NICs, and is rejected on `mgmt`.
 - **One mode per cluster network.** All VlanConfigs of a cluster network must use the same mode.
   Mixed mode (some nodes bonded, some isolated) is not allowed. A bonded node on a mesh needs
   `broadcast` to be correct, and each isolated node would then receive both copies. It also makes
@@ -213,6 +252,12 @@ With one cable per node pair (two NICs per node in a 3-node cluster):
   on a single cable failure. The docs will recommend 3 replicas on a mesh.
 - **Scale:** a full mesh of N nodes needs N−1 mesh NICs per node. The design is not limited to 3
   nodes, but 3 is the target and the only tested size. Nodes added later need the same cabling.
+- **Two nodes and a witness:** a witness node runs no Longhorn replicas, instance managers or VMs,
+  and the storage network checks already skip witness nodes. The storage network then only connects
+  the two data nodes, so one direct cable is enough and isolated mode is not needed: a VlanConfig
+  with that single NIC, selecting the two data nodes, has no loop. This is cheaper still, but
+  volumes have at most 2 replicas, so the reduced redundancy described below applies. The docs will
+  cover this layout; it is not part of the isolated-mode work.
 - **Shared BMC ports:** on servers whose BMC shares a mesh port (NC-SI), BMC broadcasts (for example
   DHCP) appear on the mesh. They are harmless and not relayed, but the docs will recommend a
   dedicated BMC port.
@@ -241,20 +286,32 @@ the API and is a **follow-up**. This HEP covers one link per peer, and the docs 
 | A storage switch | The cost and extra failure point this feature exists to avoid. Remains the right choice for larger clusters. |
 | Out-of-band DaemonSet that isolates ports (the first prototype) | Works, but edits a bridge owned by the network controller, and is invisible to VlanStatus, LinkMonitor and the UI. |
 
-#### Where the mode is configured (open question)
+#### Where the mode is configured
 
-The PRs put the mode on the **VlanConfig** (`uplink.mode`), next to the bond options it replaces,
-and derive the cluster network label from it. The alternative is a **"Switchless mesh" option when
-creating the ClusterNetwork**, stored on the ClusterNetwork, so that every VlanConfig under it is
-isolated automatically. That is simpler for users and makes "one mode per cluster network"
-structural instead of enforced by a webhook. On the other hand, it adds a field to the ClusterNetwork,
-which today has no uplink-related settings. To be decided with the network maintainers. The data
-path and guardrails are the same either way.
+The mode is on the **VlanConfig** (`uplink.mode`), next to the bond options it replaces, and
+follows the same pattern as the uplink MTU (suggested by @w13915984028). The first VlanConfig of a
+cluster network sets the mode, and the manager records it on the ClusterNetwork (the `uplink-mode`
+label, plus the source VlanConfig, as `uplink-mtu` and `mtu-source-vc` do for the MTU). The webhook
+rejects later VlanConfigs with a different mode, and the UI preselects and locks the mode when
+another VlanConfig is created for that cluster network. The ClusterNetwork stays a name for a
+network with no uplink settings of its own.
+
+A "Switchless mesh" option on the ClusterNetwork was considered. It would make "one mode per
+cluster network" structural, but it adds the first uplink-related field to the ClusterNetwork,
+while MTU already established the "first VlanConfig decides" pattern.
 
 ### Test plan
 
 Unit tests (in PR #445): webhook mode rules, one mode per cluster network, NAD and
 HostNetworkConfig guardrails, LinkMonitor rule generation. UI model tests in PR #1203.
+
+**Test setup.** Integration testing needs a dedicated cluster with a direct-cabled mesh: on each
+node, one NIC cabled to each other node, plus a separate management network. Regular QA clusters
+behind a switch cannot run these cases. For functional (not performance) tests, a nested setup
+should also work: three Harvester VMs and three virtual networks, each connecting exactly two of the
+VMs, so every virtual link behaves like a cable. The nested setup still needs to be validated, and
+QA should plan for one of the two before testing starts. Failure cases need a way to take a single
+link down (unplug the cable, or set the virtual link down from the hypervisor).
 
 Integration (3 nodes with a direct-cabled mesh):
 
@@ -270,8 +327,13 @@ Integration (3 nodes with a direct-cabled mesh):
 5. Failures during a VM write: one cable down, one node's both cables down, node reboot. The write
    completes, the volume degrades and recovers, the port returns isolated after link-up or reboot,
    and the LinkMonitor shows the state.
-6. Switch an existing cluster network bond → isolated → bond using the documented procedure.
-7. Tagged storage VLAN on an isolated cluster network.
+6. Permanent cable failure (Story 4): with the A–B cable down, a migration between A and B fails,
+   migrating the affected VMs to C restores healthy volumes, and `MeshComplete` is `False` on A
+   and B.
+7. Switch an existing cluster network bond → isolated → bond using the documented procedure.
+8. Tagged storage VLAN on an isolated cluster network.
+9. A second VlanConfig on an isolated cluster network gets the mode from the first; a different
+   mode is rejected.
 
 ### Upgrade strategy
 
