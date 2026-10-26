@@ -463,12 +463,12 @@ write_files:
   content: %[1]s
   owner: root:root
   path: %[2]s
-  permissions: '0644'
+  permissions: '0600'
 - encoding: b64
   content: %[1]s
   owner: root:root
   path: %[3]s
-  permissions: '0644'
+  permissions: '0600'
 `, encodedKubeConfig, legacyPath, newPath)
 
 	if _, err := rw.Write([]byte(yamlOutput)); err != nil {
