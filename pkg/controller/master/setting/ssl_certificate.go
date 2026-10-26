@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	rancherDeploymentName = "rancher"
-	tlsIngressSecretName  = "tls-ingress"
-	defaultTLSStoreName   = "default"
+	tlsIngressSecretName = "tls-ingress"
+	defaultTLSStoreName  = "default"
 )
 
 func (h *Handler) syncSSLCertificate(setting *harvesterv1.Setting) error {
@@ -51,7 +50,7 @@ func (h *Handler) updateCertificates(sslCertificate *settings.SSLCertificate) er
 }
 
 func (h *Handler) updateTLSSecret(publicCertificate, privateKey string) error {
-	tlsSecret, err := h.secretCache.Get(util.CattleSystemNamespaceName, tlsIngressSecretName)
+	tlsSecret, err := h.secretCache.Get(util.HarvesterSystemNamespaceName, tlsIngressSecretName)
 	if err != nil {
 		return err
 	}
@@ -69,7 +68,9 @@ func (h *Handler) updateTraefikTLSStore(secretName string) error {
 }
 
 func (h *Handler) redeploySSLCertificateWorkload() error {
-	return h.redeployDeployment(util.CattleSystemNamespaceName, rancherDeploymentName)
+	// no rancher present so no workload needs to redeployed.
+	// leaving this as a place holder in case we identify other workloads to redeploy
+	return nil
 }
 
 /*
@@ -93,7 +94,7 @@ func generateTLSStore(secretName string) *unstructured.Unstructured {
 			"kind":       "TLSStore",
 			"metadata": map[string]interface{}{
 				"name":      defaultTLSStoreName,
-				"namespace": util.CattleSystemNamespaceName,
+				"namespace": util.HarvesterSystemNamespaceName,
 			},
 			"spec": map[string]interface{}{
 				"defaultCertificate": map[string]interface{}{
