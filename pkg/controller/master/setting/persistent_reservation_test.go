@@ -26,10 +26,16 @@ func TestHandler_syncPersistentReservation(t *testing.T) {
 		expected *kubevirtv1.PersistentReservationConfiguration
 	}{
 		{
-			name:     "default value keeps the field unset",
+			name:     "default value sets an explicit false",
 			current:  nil,
 			value:    "",
-			expected: nil,
+			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &disabled},
+		},
+		{
+			name:     "default value overrides an enabled field set elsewhere",
+			current:  &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
+			value:    "",
+			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &disabled},
 		},
 		{
 			name:     "enable sets the field",
@@ -44,16 +50,28 @@ func TestHandler_syncPersistentReservation(t *testing.T) {
 			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
 		},
 		{
+			name:     "enable sets a field without a value",
+			current:  &kubevirtv1.PersistentReservationConfiguration{},
+			value:    "true",
+			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
+		},
+		{
 			name:     "already enabled is unchanged",
 			current:  &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
 			value:    "true",
 			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
 		},
 		{
-			name:     "disable removes the field",
+			name:     "disable sets an explicit false",
 			current:  &kubevirtv1.PersistentReservationConfiguration{Enabled: &enabled},
 			value:    "false",
-			expected: nil,
+			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &disabled},
+		},
+		{
+			name:     "already disabled is unchanged",
+			current:  &kubevirtv1.PersistentReservationConfiguration{Enabled: &disabled},
+			value:    "false",
+			expected: &kubevirtv1.PersistentReservationConfiguration{Enabled: &disabled},
 		},
 	}
 
