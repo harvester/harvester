@@ -15,4 +15,3 @@ rancher/mirrored-prometheus-operator-prometheus-config-reloader:v0.87.1
 rancher/mirrored-prometheus-operator-prometheus-operator:v0.87.1
 rancher/mirrored-prometheus-operator-admission-webhook:v0.87.1
 rancher/prom-prometheus:v3.8.1
-rancher/kuberlr-kubectl:v8.1.2
