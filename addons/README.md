@@ -57,6 +57,7 @@ Labels (`addon.harvesterhci.io/{experimental,preview,ga,deprecated}`) are derive
 | Addon | Stage |
 |---|---|
 | [harvester-csi-driver-lvm](standalone/harvester-csi-driver-lvm/metadata.yaml) | experimental |
+| [harvester-resource-health-controller](standalone/harvester-resource-health-controller/metadata.yaml) | experimental |
 | [harvester-upgrade-manager](standalone/harvester-upgrade-manager/metadata.yaml) | experimental |
 | [harvester-vm-dhcp-controller](standalone/harvester-vm-dhcp-controller/metadata.yaml) | experimental |
 | [rancher-k3k](standalone/rancher-k3k/metadata.yaml) | experimental |
