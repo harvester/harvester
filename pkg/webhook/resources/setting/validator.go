@@ -115,6 +115,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.LHIMResourcesSettingName:                          validateLHIMResources,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateLonghornV2DataEngineMemorySize,
 	settings.MaintenanceModeDrainTimeoutSettingName:            validateMaintenanceModeDrainTimeout,
+	settings.PersistentReservationEnabledSettingName:           validatePersistentReservationEnabled,
 }
 
 type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -215,6 +216,7 @@ func NewValidator(
 
 	validateSettingFuncs[settings.KubeVirtMigrationSettingName] = validator.validateKubeVirtMigration
 	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
+	validateSettingUpdateFuncs[settings.PersistentReservationEnabledSettingName] = validator.validateUpdatePersistentReservationEnabled
 
 	validateSettingDeleteFuncs[settings.ClusterPodSecurityStandardSettingName] = validator.validateDeleteClusterPodSecurityStandard
 
@@ -2818,6 +2820,64 @@ func validateLonghornV2DataEngineMemorySize(newSetting *v1beta1.Setting) error {
 
 func validateUpdateLonghornV2DataEngineMemorySize(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateLonghornV2DataEngineMemorySize(newSetting)
+}
+
+// persistentReservationEnabled returns the effective value of the persistent-reservation-enabled setting.
+func persistentReservationEnabled(setting *v1beta1.Setting) (bool, error) {
+	value := setting.Value
+	if value == "" {
+		value = setting.Default
+	}
+	if value == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(value)
+}
+
+func validatePersistentReservationEnabled(setting *v1beta1.Setting) error {
+	if setting.Default != "" {
+		if _, err := strconv.ParseBool(setting.Default); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("invalid value %q, must be true or false", setting.Default), settings.KeywordDefault)
+		}
+	}
+	if setting.Value != "" {
+		if _, err := strconv.ParseBool(setting.Value); err != nil {
+			return werror.NewInvalidError(fmt.Sprintf("invalid value %q, must be true or false", setting.Value), settings.KeywordValue)
+		}
+	}
+	return nil
+}
+
+// validateUpdatePersistentReservationEnabled rejects disabling persistent reservation while VMs use it, because
+// disabling removes the pr-helper container from virt-handler.
+func (v *settingValidator) validateUpdatePersistentReservationEnabled(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	if err := validatePersistentReservationEnabled(newSetting); err != nil {
+		return err
+	}
+
+	// an invalid value parses as false
+	oldEnabled, _ := persistentReservationEnabled(oldSetting)
+	newEnabled, _ := persistentReservationEnabled(newSetting)
+	if !oldEnabled || newEnabled {
+		return nil
+	}
+
+	vmis, err := v.vmiCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to list VMIs: %v", err))
+	}
+	for _, vmi := range vmis {
+		if vmi.DeletionTimestamp != nil {
+			continue
+		}
+		for _, disk := range vmi.Spec.Domain.Devices.Disks {
+			if disk.LUN != nil && disk.LUN.Reservation {
+				return werror.NewBadRequest(fmt.Sprintf("VM %s/%s uses a LUN disk with persistent reservation, stop it before disabling the %s setting",
+					vmi.Namespace, vmi.Name, settings.PersistentReservationEnabledSettingName))
+			}
+		}
+	}
+	return nil
 }
 
 // verify if the default TLS options for Traefik are valid.
