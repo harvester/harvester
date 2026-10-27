@@ -46,7 +46,11 @@ docker.io/rancher/mirrored-kube-logging-config-reloader:v0.0.6
 
 # changed: true; old value: v7.1.1
 #  rancher-monitoring also uses same newer version v8.1.2
-docker.io/rancher/kuberlr-kubectl:v8.1.2
+# note: 2026.10.27 harvester has included v8.1.2
+#  the duplicated record on scripts/images/monitoring-images.txt is removed
+#  if unluckily harvester updates the image tag to a new one
+#  add back it to scripts/images/monitoring-images.txt
+# docker.io/rancher/kuberlr-kubectl:v8.1.2
 
 # Used by rancher-monitoring chart
 
