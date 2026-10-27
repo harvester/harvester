@@ -75,6 +75,11 @@ data:
         Parser            etcd
         Reserve_Data      On
 
+    [FILTER]
+        Name              record_modifier
+        Match             *
+        Record            node ${NODE_NAME}
+
     [OUTPUT]
         Name              forward
         Match             *

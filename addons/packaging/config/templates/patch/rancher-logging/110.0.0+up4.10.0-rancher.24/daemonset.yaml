@@ -23,6 +23,12 @@ spec:
       containers:
         - name: fluentbit
           image: "{{ template "logging-operator.fluentbitImage" . }}"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
           {{- include "logging-operator.individualFluentbit" $individualValues | nindent 10 }}
           securityContext:
             allowPrivilegeEscalation: false

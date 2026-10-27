@@ -42,34 +42,6 @@ patch_rancher_monitoring_chart()
   echo "patched file"
   ls -alth "$origfile"
 
-  # patch values.yaml, it uses v7.1.0 for kubectl, but v7.1.1 is already used by rancher-monitoring-crd,
-  #   so we update it to v7.1.1 to avoid using two different versions of kubectl in the same ISO.
-  # kubectl:
-  #   repository: rancher/kuberlr-kubectl
-  #   tag: v7.1.0
-  #   pullPolicy: IfNotPresent
-  local valuesyaml="./rancher-monitoring/values.yaml"
-  if [[ ! -f "${valuesyaml}" ]]; then
-    echo "Error: ${valuesyaml} is not found in extracted rancher-monitoring chart." >&2
-    cd "$cwd"
-    return 1
-  fi
-  local FOUND_TAG="yes"
-  echo "--- Checking if values.yaml contains kuberlr-kubectl tag v7.1.0 ---"
-  grep -C 2 'tag: v7.1.0' "${valuesyaml}" || { echo "Warning:  exact \`tag: v7.1.0\` not found." && FOUND_TAG="no"; }
-  if [ "$FOUND_TAG" = "yes" ]; then
-    echo "--- Modifying values.yaml to replace kuberlr-kubectl image tag v7.1.0 with v7.1.1 ---"
-    sed -i -E 's/^([[:space:]]*tag: )v7\.1\.0$/\1v7.1.1/' "${valuesyaml}"
-    echo "--- Verifying that values.yaml has been modified correctly ---"
-    if ! grep -C 2 'tag: v7.1.1' "${valuesyaml}"; then
-      echo "Error: Modification verification failed." >&2
-      cd "$cwd"
-      return 1
-    fi
-  else
-    echo "Skip: did not find tag v7.1.0, no replace."
-  fi
-
   # patch charts/grafana/values.yaml, it uses busybox 1.31.1 but all others are using 1.37.0,
   # image:
   #   repository: rancher/mirrored-library-busybox
