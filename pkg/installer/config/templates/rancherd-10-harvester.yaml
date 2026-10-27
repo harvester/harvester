@@ -9,6 +9,77 @@ resources:
   metadata:
     name: cattle-logging-system
 - apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: cattle-fleet-system
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChart
+  metadata:
+    name: fleet-crd
+    namespace: kube-system
+  spec:
+    createNamespace: true
+    targetNamespace: cattle-fleet-system
+    repo: https://rancher.github.io/fleet-helm-charts/
+    chart: fleet-crd
+    version: v0.16.2
+    helmVersion: v3
+- apiVersion: helm.cattle.io/v1
+  kind: HelmChart
+  metadata:
+    name: fleet-crd
+    namespace: kube-system
+  spec:
+    createNamespace: true
+    targetNamespace: cattle-fleet-system
+    repo: https://rancher.github.io/fleet-helm-charts/
+    chart: fleet
+    version: v0.16.2
+    helmVersion: v3
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: harvester-system
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: maangedchart-controller
+    namespace: harvester-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: managedchart-controller-rolebinding
+  subjects:
+  - kind: ServiceAccount
+    name: managedchart-controller
+    namespace: harvester-system
+  roleRef:
+    kind: ClusterRole
+    name: cluster-admin
+    apiGroup: rbac.authorization.k8s.io
+- apiVersion:  apps/v1
+  kind: Deployment
+  metadata:
+    name: managedchart-controller
+    namespace: harvester-system
+    labels:
+      app: managedchart-controller
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: managedchart-controller
+    template:
+      metadata:
+        labels:
+          app: managedchart-controller
+      spec:
+        serviceAccountName: managedchart-controller
+        containers:
+        - name: managedchart-controller
+          image: gmehta3/managedchart-controller:dev
+          imagePullPolicy: Always
+- apiVersion: v1
   kind: ServiceAccount
   metadata:
     annotations:
@@ -24,31 +95,6 @@ resources:
       release: rancher-monitoring
     name: rancher-monitoring-operator
     namespace: cattle-monitoring-system
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: tls-ingress
-    namespace: cattle-system
-  type: Opaque
-  data:
-    tls.crt: Cg==
-    tls.key: Cg==
-- apiVersion: networking.k8s.io/v1
-  kind: Ingress
-  metadata:
-    name: rancher-expose
-    namespace: cattle-system
-  spec:
-    rules:
-    - http:
-        paths:
-        - path: /
-          pathType: Prefix
-          backend:
-            service:
-              name: rancher
-              port:
-                number: 80
 - apiVersion: management.cattle.io/v3
   kind: ManagedChart
   metadata:

@@ -3,7 +3,7 @@ resources:
   kind: Deployment
   metadata:
     name: harvester-cluster-repo
-    namespace: cattle-system
+    namespace: harvester-system
   spec:
     selector:
       matchLabels:
@@ -29,7 +29,7 @@ resources:
   kind: Service
   metadata:
     name: harvester-cluster-repo
-    namespace: cattle-system
+    namespace: harvester-system
   spec:
     selector:
       app: harvester-cluster-repo
@@ -37,9 +37,3 @@ resources:
       - protocol: TCP
         port: 80
         targetPort: 80
-- apiVersion: catalog.cattle.io/v1
-  kind: ClusterRepo
-  metadata:
-    name: harvester-charts
-  spec:
-    url: http://harvester-cluster-repo.cattle-system/charts

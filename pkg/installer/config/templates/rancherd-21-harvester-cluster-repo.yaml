@@ -8,7 +8,7 @@ resources:
   kind: Service
   metadata:
     name: harvester-cluster-repo
-    namespace: cattle-system
+    namespace: harvester-system
   spec:
     {{- if .IsDualStackEnabled }}
     ipFamilyPolicy: "PreferDualStack"
