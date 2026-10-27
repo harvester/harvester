@@ -9,7 +9,7 @@ resources:
     releaseName: rancher-monitoring-crd
     version: {{ .MonitoringChartVersion }}
     defaultNamespace: cattle-monitoring-system
-    repoName: harvester-charts
+    repoName: http://harvester-cluster-repo.harvester-system.svc/charts/
     timeoutSeconds: 600
     maxHistory: 10
     targets:

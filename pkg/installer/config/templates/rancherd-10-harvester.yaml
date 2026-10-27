@@ -27,7 +27,7 @@ resources:
 - apiVersion: helm.cattle.io/v1
   kind: HelmChart
   metadata:
-    name: fleet-crd
+    name: fleet
     namespace: kube-system
   spec:
     createNamespace: true
@@ -37,13 +37,9 @@ resources:
     version: v0.16.2
     helmVersion: v3
 - apiVersion: v1
-  kind: Namespace
-  metadata:
-    name: harvester-system
-- apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: maangedchart-controller
+    name: managedchart-controller
     namespace: harvester-system
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
@@ -163,7 +159,7 @@ resources:
         - /status/storedVersions
         kind: CustomResourceDefinition
         name: engines.longhorn.io
-    repoName: harvester-charts
+    repoName: http://harvester-cluster-repo.harvester-system.svc/charts/
     targets:
     - clusterName: local
       clusterSelector:
@@ -261,7 +257,7 @@ resources:
     releaseName: harvester-crd
     version: {{ .HarvesterChartVersion }}
     defaultNamespace: harvester-system
-    repoName: harvester-charts
+    repoName: http://harvester-cluster-repo.harvester-system.svc/charts/
     timeoutSeconds: 600
     maxHistory: 10
     # takeOwnership will force apply this chart without checking ownership in labels and annotations.
