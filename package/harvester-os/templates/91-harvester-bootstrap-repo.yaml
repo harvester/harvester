@@ -1,6 +1,6 @@
 resources:
 - apiVersion: v1
-  kind: namespace
+  kind: Namespace
   metadata:
     name: harvester-system
 - apiVersion: apps/v1

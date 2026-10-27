@@ -128,7 +128,6 @@ func Register(ctx context.Context, management *config.Management, options config
 
 	nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
 	secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
-	deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
 	namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
 	namespaces.OnChange(ctx, controllerNamespaceName, h.onNamespaceChanged)
 	daemonSets.OnChange(ctx, daemonSetsController, h.reconcileIngressResources)
