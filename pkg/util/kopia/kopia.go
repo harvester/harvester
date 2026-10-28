@@ -33,10 +33,13 @@ const (
 	RepositoryPrefix  = "kopia/"
 	defaultS3Endpoint = "s3.amazonaws.com"
 
-	CacheDirEnvVar = "KOPIA_CACHE_DIRECTORY"
-	CacheDir       = "/kopia-cache"
-	CacheVolume    = "kopia-cache"
-	LogDirEnvVar   = "KOPIA_LOG_DIR"
+	CacheDirEnvVar      = "KOPIA_CACHE_DIRECTORY"
+	CacheDir            = "/kopia-cache"
+	CacheVolume         = "kopia-cache"
+	LogDirEnvVar        = "KOPIA_LOG_DIR"
+	LogSizeMBKey        = "KOPIA_LOG_DIR_MAX_SIZE_MB"
+	ContentLogSizeMBKey = "KOPIA_CONTENT_LOG_DIR_MAX_SIZE_MB"
+	LogSegmentSizeKey   = "KOPIA_LOG_FILE_MAX_SEGMENT_SIZE"
 
 	ContentCacheSizeMBKey          = "KOPIA_CONTENT_CACHE_SIZE_MB"
 	ContentCacheSizeLimitMBKey     = "KOPIA_CONTENT_CACHE_SIZE_LIMIT_MB"
@@ -45,6 +48,8 @@ const (
 	cacheCapacityReservedFraction  = int64(2)
 	cacheHardLimitShareDenominator = int64(4)
 	bytesPerMiB                    = int64(1024 * 1024)
+	logRetentionShare              = int64(32)
+	logSegmentCount                = int64(8)
 
 	LabelKopiaJob         = "harvesterhci.io/kopia-job"
 	LabelValueTrue        = "true"
@@ -191,6 +196,7 @@ func Env(secretName string, repository *Repository) []corev1.EnvVar {
 // derivation used by those engines.
 func EnvWithPasswordKey(secretName, passwordKey string, repository *Repository) []corev1.EnvVar {
 	return []corev1.EnvVar{
+		{Name: "TMPDIR", Value: "/tmp"},
 		{Name: CacheDirEnvVar, Value: CacheDir},
 		{Name: LogDirEnvVar, Value: CacheDir},
 		{
@@ -292,13 +298,15 @@ func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, 
 						Spec: corev1.PodSpec{
 							RestartPolicy: corev1.RestartPolicyNever,
 							Containers: []corev1.Container{{
-								Name:         "maintenance",
-								Image:        image,
-								Env:          env,
-								Command:      []string{"/bin/sh", "-c"},
-								Args:         []string{MaintenanceCommand(full)},
-								Resources:    resources,
-								VolumeMounts: []corev1.VolumeMount{*cacheMount},
+								Name:      "maintenance",
+								Image:     image,
+								Env:       env,
+								Command:   []string{"/bin/sh", "-c"},
+								Args:      []string{MaintenanceCommand(full)},
+								Resources: resources,
+								VolumeMounts: []corev1.VolumeMount{
+									*cacheMount, {Name: CacheVolume, MountPath: "/tmp"},
+								},
 							}},
 							Volumes: []corev1.Volume{*cacheVolume},
 						},
@@ -311,7 +319,7 @@ func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, 
 }
 
 func Command() string {
-	return fmt.Sprintf("kopia --config-file=%s", ConfigPath)
+	return fmt.Sprintf("kopia --log-level=info --file-log-level=debug --config-file=%s", ConfigPath)
 }
 
 func ConnectOrCreateCommand() string {
@@ -415,33 +423,40 @@ func NewJobRuntime(
 		runtime.Volumes = append(runtime.Volumes, *cacheVolume)
 	}
 	if cacheMount != nil {
-		runtime.VolumeMounts = append(runtime.VolumeMounts, *cacheMount)
+		runtime.VolumeMounts = append(runtime.VolumeMounts, *cacheMount, corev1.VolumeMount{
+			Name: CacheVolume, MountPath: "/tmp",
+		})
 	}
 	return runtime, true, nil
 }
 
+// CacheConfigEnv sizes caches and file logs from their shared volume.
 func CacheConfigEnv() ([]corev1.EnvVar, error) {
-	sizeLimit, err := resource.ParseQuantity(settings.KopiaCacheSize.Get())
+	config, err := settings.GetThirdPartyBackupConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse setting %s=%q: %w",
-			settings.KopiaCacheSizeSettingName, settings.KopiaCacheSize.Get(), err)
+		return nil, err
 	}
+	sizeLimit := resource.MustParse(config.Kopia.CacheSize)
 	totalMiB := sizeLimit.Value() / bytesPerMiB
-	if totalMiB < cacheHardLimitShareDenominator*cacheCapacityReservedFraction {
-		return nil, fmt.Errorf("setting %s=%q must be at least 8Mi",
-			settings.KopiaCacheSizeSettingName, settings.KopiaCacheSize.Get())
-	}
 
 	// Content and metadata each receive one quarter of the emptyDir as a hard
 	// limit. The other half remains available for indexes, logs, and cache sweep
 	// overlap. Soft limits are half of the corresponding hard limits.
 	hardLimitMiB := totalMiB / cacheHardLimitShareDenominator
 	softLimitMiB := hardLimitMiB / cacheCapacityReservedFraction
+	// Each file-log family retains 1/32 of the volume, with eight segments per
+	// budget. Kopia's asynchronous sweeps can temporarily exceed these targets.
+	// Unlike its cache flags, Kopia's log retention flags use decimal MB.
+	logBytes := sizeLimit.Value() / logRetentionShare
+	logMB := fmt.Sprintf("%.6f", float64(logBytes)/1e6)
 	return []corev1.EnvVar{
 		{Name: ContentCacheSizeMBKey, Value: fmt.Sprintf("%d", softLimitMiB)},
 		{Name: ContentCacheSizeLimitMBKey, Value: fmt.Sprintf("%d", hardLimitMiB)},
 		{Name: MetadataCacheSizeMBKey, Value: fmt.Sprintf("%d", softLimitMiB)},
 		{Name: MetadataCacheSizeLimitMBKey, Value: fmt.Sprintf("%d", hardLimitMiB)},
+		{Name: LogSizeMBKey, Value: logMB},
+		{Name: ContentLogSizeMBKey, Value: logMB},
+		{Name: LogSegmentSizeKey, Value: fmt.Sprintf("%d", logBytes/logSegmentCount)},
 	}, nil
 }
 
@@ -451,11 +466,11 @@ func (r *JobRuntime) VolumesWith(volumes ...corev1.Volume) []corev1.Volume {
 }
 
 func CacheVolumeAndMount() (*corev1.Volume, *corev1.VolumeMount, error) {
-	sizeLimit, err := resource.ParseQuantity(settings.KopiaCacheSize.Get())
+	config, err := settings.GetThirdPartyBackupConfig()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse setting %s=%q: %w",
-			settings.KopiaCacheSizeSettingName, settings.KopiaCacheSize.Get(), err)
+		return nil, nil, err
 	}
+	sizeLimit := resource.MustParse(config.Kopia.CacheSize)
 	return &corev1.Volume{
 			Name: CacheVolume,
 			VolumeSource: corev1.VolumeSource{
@@ -470,40 +485,15 @@ func CacheVolumeAndMount() (*corev1.Volume, *corev1.VolumeMount, error) {
 }
 
 func JobResources() (corev1.ResourceRequirements, error) {
-	resources := corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{},
-		Limits:   corev1.ResourceList{},
-	}
-	if err := addQuantity(resources.Requests, corev1.ResourceEphemeralStorage, settings.KopiaEphemeralRequest); err != nil {
-		return corev1.ResourceRequirements{}, err
-	}
-	if err := addQuantity(resources.Limits, corev1.ResourceEphemeralStorage, settings.KopiaEphemeralLimit); err != nil {
-		return corev1.ResourceRequirements{}, err
-	}
-	if len(resources.Requests) == 0 {
-		resources.Requests = nil
-	}
-	if len(resources.Limits) == 0 {
-		resources.Limits = nil
-	}
-	return resources, nil
-}
-
-func addQuantity(list corev1.ResourceList, name corev1.ResourceName, setting settings.Setting) error {
-	value := setting.Get()
-	if value == "" {
-		return nil
-	}
-	quantity, err := resource.ParseQuantity(value)
-	if err != nil {
-		return fmt.Errorf("failed to parse setting %s=%q: %w", setting.Name, value, err)
-	}
-	list[name] = quantity
-	return nil
+	return settings.BackupResources("kopia")
 }
 
 func JobHasCapacity(ctx context.Context, clientset kubernetes.Interface) (bool, error) {
-	maxConcurrent := settings.KopiaMaxConcurrentJobs.GetInt()
+	config, err := settings.GetThirdPartyBackupConfig()
+	if err != nil {
+		return false, err
+	}
+	maxConcurrent := config.Kopia.MaxConcurrentJobs
 	if maxConcurrent <= 0 {
 		return true, nil
 	}
@@ -551,7 +541,7 @@ func SnapshotCheckCommand(connectCommand string, tags []string) string {
 			"COUNT=$(%s | jq 'length')\n"+
 			"test \"$COUNT\" != \"0\" || exit %d",
 		connectCommand,
-		SnapshotListCommand(tags),
+		completedSnapshots(tags),
 		SnapshotCheckMissingExitCode,
 	)
 }
@@ -572,10 +562,10 @@ func SnapshotDeleteCommand(connectCommand string, tags []string) string {
 func SnapshotObjectCommand(connectCommand string, tags []string) string {
 	return fmt.Sprintf(
 		"%s\n"+
-			"OBJ=$(%s | jq -er 'last | .rootEntry.obj') || { echo 'no matching Kopia snapshot found' >&2; exit 1; }\n"+
+			"OBJ=$(%s | jq -er 'sort_by(.startTime) | last | .rootEntry.obj') || { echo 'no matching Kopia snapshot found' >&2; exit 1; }\n"+
 			"test -n \"$OBJ\" && test \"$OBJ\" != \"null\"",
 		connectCommand,
-		SnapshotListCommand(tags),
+		completedSnapshots(tags),
 	)
 }
 

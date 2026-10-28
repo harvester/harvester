@@ -249,8 +249,7 @@ func forgetFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBack
 	t.Helper()
 	t.Setenv(resticutil.ImageEnvVar, "harvester:test")
 	for _, setting := range []settings.Setting{
-		settings.BackupTargetSet, settings.ResticMaxConcurrentJobs, settings.ResticNoCache,
-		settings.ResticCacheSize, settings.ResticEphemeralRequest, settings.ResticEphemeralLimit,
+		settings.BackupTargetSet, settings.ThirdPartyBackupConfigSet,
 	} {
 		old := setting.Get()
 		t.Cleanup(func() { require.NoError(t, setting.Set(old)) })
@@ -367,4 +366,30 @@ func TestForgetJobRetriesNextVolume(t *testing.T) {
 	require.ErrorIs(t, re.ForceDelete(vmb, 1), engine.ErrRetryLater)
 	require.Zero(t, forgetJob(t, clientset, vmb.Namespace, dataName).Status.Failed)
 	require.NoError(t, re.ForceDelete(vmb, 0))
+}
+
+func TestBackupJobFailurePrecedesRemoteCheck(t *testing.T) {
+	vmb := &harvesterv1.VirtualMachineBackup{
+		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			VolumeBackups: []harvesterv1.VolumeBackup{{Name: ptr.To("volume")}},
+		},
+	}
+	vb := &vmb.Status.VolumeBackups[0]
+	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
+	re := &ResticEngine{vmbo: vmbo}
+	jobName, err := re.jobName(vb)
+	require.NoError(t, err)
+	checkName, err := re.checkJobName(vb)
+	require.NoError(t, err)
+	clientset := fake.NewSimpleClientset(
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: vmb.Namespace},
+			Status: batchv1.JobStatus{Failed: 1}},
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: checkName, Namespace: vmb.Namespace},
+			Status: batchv1.JobStatus{Succeeded: 1}},
+	)
+	re.jobCache = fakeclients.JobCache(clientset.BatchV1().Jobs)
+	err = re.reconcileBackupJob(vmb, vb)
+	require.ErrorContains(t, err, "failed")
+	require.False(t, vmbo.GetVolBackupReadyToUse(vb))
 }
