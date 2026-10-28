@@ -189,21 +189,39 @@ prepare_extra_bundle() {
     local upgrade_image_tag
     upgrade_image_repo=$(yq -e e '.upgrade.image.repository' "${values_file}")
     upgrade_image_tag=$(yq -e e '.upgrade.image.tag' "${values_file}")
+    local upgrade_image="${upgrade_image_repo}:${upgrade_image_tag}"
+    local version_image
+    version_image="$(harvester_upgrade_image_repository):${VERSION}"
+    local aliases=()
 
-    # Tag harvester-upgrade:<tag> to harvester-upgrade:<version> and save to an archive.
-    # This makes it possible to upgrade a cluster with a non-release ISO.
+    # Upgrade jobs run harvester-upgrade:<version>, so tag harvester-upgrade:<tag> to it unless the chart
+    # already uses that image, and save it to an archive. This makes it possible to upgrade a cluster with
+    # a non-release ISO, or with an ISO whose images are pushed to another repository.
+    if [ "${upgrade_image}" != "${version_image}" ]; then
+        aliases+=("${version_image}")
+    fi
     # Also tag harvester-upgrade:<tag> to harvester-upgrade:<app-version>-head so that
     # upgrading from one non-release build to another is possible.
     if [ "${upgrade_image_tag}" != "${VERSION}" ]; then
-        echo "Tagging ${upgrade_image_repo}:${upgrade_image_tag} to rancher/harvester-upgrade:${VERSION} and rancher/harvester-upgrade:${APP_VERSION}-head"
-        docker tag "${upgrade_image_repo}:${upgrade_image_tag}" "rancher/harvester-upgrade:${VERSION}"
-        docker tag "${upgrade_image_repo}:${upgrade_image_tag}" "rancher/harvester-upgrade:${APP_VERSION}-head"
+        aliases+=("rancher/harvester-upgrade:${APP_VERSION}-head")
+    fi
+
+    if [ ${#aliases[@]} -gt 0 ]; then
+        # The image isn't in the local engine when the Harvester images come from the cache.
+        if ! docker image inspect "${upgrade_image}" >/dev/null 2>&1; then
+            docker pull "${upgrade_image}"
+        fi
 
         local list_file="${BUNDLE_DIR}/harvester/images-lists/harvester-extra-${VERSION}.txt"
         local archive="${BUNDLE_DIR}/harvester/images/harvester-extra-${VERSION}.tar"
+        local alias
 
-        echo "docker.io/rancher/harvester-upgrade:${VERSION}" > "${list_file}"
-        echo "docker.io/rancher/harvester-upgrade:${APP_VERSION}-head" >> "${list_file}"
+        : > "${list_file}"
+        for alias in "${aliases[@]}"; do
+            echo "Tagging ${upgrade_image} to ${alias}"
+            docker tag "${upgrade_image}" "${alias}"
+            normalize_image "${alias}" >> "${list_file}"
+        done
 
         echo "Saving extra images to archive ${archive}.zst"
         docker image save $(<${list_file}) | zstd -o "${archive}.zst"
