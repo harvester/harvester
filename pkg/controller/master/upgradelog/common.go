@@ -309,7 +309,7 @@ func prepareClusterOutput(upgradeLog *harvesterv1.UpgradeLog) *loggingv1.Cluster
 	}
 }
 
-func prepareLogDownloader(upgradeLog *harvesterv1.UpgradeLog, imageVersion string) *appsv1.Deployment {
+func prepareLogDownloader(upgradeLog *harvesterv1.UpgradeLog, image string) *appsv1.Deployment {
 	replicas := defaultDeploymentReplicas
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -363,7 +363,7 @@ func prepareLogDownloader(upgradeLog *harvesterv1.UpgradeLog, imageVersion strin
 					Containers: []corev1.Container{
 						{
 							Name:  "downloader",
-							Image: fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, imageVersion),
+							Image: image,
 							Command: []string{
 								"nginx", "-g", "daemon off;",
 							},
@@ -524,6 +524,14 @@ func (p *upgradeBuilder) WithLabel(key, value string) *upgradeBuilder {
 		p.upgrade.Labels = make(map[string]string, 1)
 	}
 	p.upgrade.Labels[key] = value
+	return p
+}
+
+func (p *upgradeBuilder) WithAnnotation(key, value string) *upgradeBuilder {
+	if p.upgrade.Annotations == nil {
+		p.upgrade.Annotations = make(map[string]string)
+	}
+	p.upgrade.Annotations[key] = value
 	return p
 }
 

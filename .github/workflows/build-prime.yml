@@ -229,6 +229,7 @@ jobs:
           VERSION=${{ needs.configure.outputs.build_version }}
           SERVER_FLAVOR=prime
           RELEASE_DOWNLOAD_URL=${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
+          HARVESTER_SYSTEM_DEFAULT_REGISTRY=${{ env.MK_HARVESTER_PRIME_REGISTRY }}
           HARVESTER_UI_VERSION=${{ needs.configure.outputs.tag }}
           HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${{ needs.configure.outputs.tag }}
 
