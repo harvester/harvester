@@ -3,7 +3,6 @@ package virtualmachinebackup
 import (
 	"fmt"
 
-	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
@@ -205,20 +204,16 @@ func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
 	vm *kubevirtv1.VirtualMachine,
 	pvc *corev1.PersistentVolumeClaim,
 ) error {
-	if util.GetProvisionedPVCProvisioner(pvc, v.scCache) != util.CSIProvisionerLonghorn {
-		return nil
-	}
-
-	lhVolume, err := v.volumeCache.Get(util.LonghornSystemNamespaceName, pvc.Spec.VolumeName)
+	isV2, err := util.IsLonghornV2Volume(pvc, v.scCache, v.volumeCache)
 	if err != nil {
-		return fmt.Errorf("failed to get Longhorn volume %s for PVC %s/%s: %w", pvc.Spec.VolumeName, pvc.Namespace, pvc.Name, err)
+		return err
 	}
-	if lhVolume.Spec.DataEngine != longhornv1beta2.DataEngineTypeV2 {
+	if !isV2 {
 		return nil
 	}
 
-	return fmt.Errorf("vm %s/%s contains Longhorn v2 volume %s from PVC %s/%s, which does not support VM backup",
-		vm.Namespace, vm.Name, lhVolume.Name, pvc.Namespace, pvc.Name)
+	return fmt.Errorf("vm %s/%s contains Longhorn v2 volume %s from PVC %s, which does not support VM backup",
+		vm.Namespace, vm.Name, pvc.Spec.VolumeName, util.GetNamespacedName(pvc))
 }
 
 func (v *virtualMachineBackupValidator) checkBackupTarget() error {

@@ -80,6 +80,26 @@ func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 			},
 		},
 		{
+			name:       "rejects backup of unbound Longhorn PVC",
+			backupType: v1beta1.Backup,
+			objects: []runtime.Object{
+				newCSIDriverConfigSetting(),
+				newPVC(namespace, pvcName, "", longhornSC),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+			},
+			wantErr:     true,
+			errContains: "is not bound",
+		},
+		{
+			name:       "allows snapshot of unbound Longhorn PVC",
+			backupType: v1beta1.Snapshot,
+			objects: []runtime.Object{
+				newCSIDriverConfigSetting(),
+				newPVC(namespace, pvcName, "", longhornSC),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+			},
+		},
+		{
 			name:       "ignores non-Longhorn volume",
 			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
