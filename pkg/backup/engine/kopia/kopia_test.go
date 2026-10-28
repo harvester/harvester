@@ -163,10 +163,7 @@ func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 func TestForgetJobRetainsCompletion(t *testing.T) {
 	t.Setenv(kopiautil.ImageEnvVar, "harvester:test")
 	for _, setting := range []settings.Setting{
-		settings.KopiaMaxConcurrentJobs,
-		settings.KopiaCacheSize,
-		settings.KopiaEphemeralRequest,
-		settings.KopiaEphemeralLimit,
+		settings.ThirdPartyBackupConfigSet,
 	} {
 		old := setting.Get()
 		t.Cleanup(func() { require.NoError(t, setting.Set(old)) })
@@ -319,4 +316,30 @@ func TestGeneratedNamesAreBounded(t *testing.T) {
 	otherJobName, err := ke.jobName(other)
 	require.NoError(t, err)
 	require.NotEqual(t, jobName, otherJobName)
+}
+
+func TestBackupJobFailurePrecedesRemoteCheck(t *testing.T) {
+	vmb := &harvesterv1.VirtualMachineBackup{
+		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
+		Status: harvesterv1.VirtualMachineBackupStatus{
+			VolumeBackups: []harvesterv1.VolumeBackup{{Name: ptr.To("volume")}},
+		},
+	}
+	vb := &vmb.Status.VolumeBackups[0]
+	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
+	ke := &KopiaEngine{vmbo: vmbo}
+	jobName, err := ke.jobName(vb)
+	require.NoError(t, err)
+	checkName, err := ke.checkJobName(vb)
+	require.NoError(t, err)
+	clientset := fake.NewSimpleClientset(
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: vmb.Namespace},
+			Status: batchv1.JobStatus{Failed: 1}},
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: checkName, Namespace: vmb.Namespace},
+			Status: batchv1.JobStatus{Succeeded: 1}},
+	)
+	ke.jobCache = fakeclients.JobCache(clientset.BatchV1().Jobs)
+	err = ke.reconcileBackupJob(vmb, vb)
+	require.ErrorContains(t, err, "failed")
+	require.False(t, vmbo.GetVolBackupReadyToUse(vb))
 }

@@ -18,23 +18,14 @@ import (
 
 func resetResticSettings(t *testing.T) {
 	t.Helper()
-	require.NoError(t, settings.ResticCacheSize.Set(settings.ResticCacheSize.GetDefault()))
-	require.NoError(t, settings.ResticNoCache.Set(settings.ResticNoCache.GetDefault()))
-	require.NoError(t, settings.ResticMaxConcurrentJobs.Set(settings.ResticMaxConcurrentJobs.GetDefault()))
-	require.NoError(t, settings.ResticEphemeralRequest.Set(settings.ResticEphemeralRequest.GetDefault()))
-	require.NoError(t, settings.ResticEphemeralLimit.Set(settings.ResticEphemeralLimit.GetDefault()))
-	t.Cleanup(func() {
-		_ = settings.ResticCacheSize.Set(settings.ResticCacheSize.GetDefault())
-		_ = settings.ResticNoCache.Set(settings.ResticNoCache.GetDefault())
-		_ = settings.ResticMaxConcurrentJobs.Set(settings.ResticMaxConcurrentJobs.GetDefault())
-		_ = settings.ResticEphemeralRequest.Set(settings.ResticEphemeralRequest.GetDefault())
-		_ = settings.ResticEphemeralLimit.Set(settings.ResticEphemeralLimit.GetDefault())
-	})
+	old := settings.ThirdPartyBackupConfigSet.Get()
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(settings.ThirdPartyBackupConfigSet.GetDefault()))
+	t.Cleanup(func() { _ = settings.ThirdPartyBackupConfigSet.Set(old) })
 }
 
 func TestCacheVolumeAndMount(t *testing.T) {
 	resetResticSettings(t)
-	require.NoError(t, settings.ResticCacheSize.Set("2Gi"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"cacheSize":"1Gi"}}`))
 
 	volume, mount, err := CacheVolumeAndMount()
 	require.NoError(t, err)
@@ -42,19 +33,19 @@ func TestCacheVolumeAndMount(t *testing.T) {
 	require.NotNil(t, mount)
 	require.Equal(t, CacheVolume, volume.Name)
 	require.NotNil(t, volume.EmptyDir)
-	require.Equal(t, resource.MustParse("2Gi"), *volume.EmptyDir.SizeLimit)
+	require.Equal(t, resource.MustParse("1Gi"), *volume.EmptyDir.SizeLimit)
 	require.Equal(t, CacheVolume, mount.Name)
 	require.Equal(t, CacheDir, mount.MountPath)
 }
 
-func TestCacheVolumeAndMountDisabledByNoCache(t *testing.T) {
+func TestNoCacheStillProvidesTemporaryStorage(t *testing.T) {
 	resetResticSettings(t)
-	require.NoError(t, settings.ResticNoCache.Set("true"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"noCache":true}}`))
 
 	volume, mount, err := CacheVolumeAndMount()
 	require.NoError(t, err)
-	require.Nil(t, volume)
-	require.Nil(t, mount)
+	require.NotNil(t, volume)
+	require.NotNil(t, mount)
 	require.Equal(t, "restic --no-cache", Command())
 }
 
@@ -99,7 +90,7 @@ func TestRuntimeCommandOmitsEmptyBucketRegion(t *testing.T) {
 
 func TestJobHasCapacityReturnsFalseWhenGlobalLimitIsReached(t *testing.T) {
 	resetResticSettings(t)
-	require.NoError(t, settings.ResticMaxConcurrentJobs.Set("3"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"maxConcurrentJobs":3}}`))
 	clientset := fake.NewSimpleClientset(
 		resticPod("pod1", "node1", corev1.PodRunning),
 		resticPod("pod2", "node1", corev1.PodRunning),
@@ -113,7 +104,7 @@ func TestJobHasCapacityReturnsFalseWhenGlobalLimitIsReached(t *testing.T) {
 
 func TestJobHasCapacityReturnsTrueBelowGlobalLimit(t *testing.T) {
 	resetResticSettings(t)
-	require.NoError(t, settings.ResticMaxConcurrentJobs.Set("3"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"maxConcurrentJobs":3}}`))
 	clientset := fake.NewSimpleClientset(
 		resticPod("pod1", "node1", corev1.PodRunning),
 		resticPod("pod2", "node1", corev1.PodSucceeded),
@@ -240,4 +231,21 @@ func snapshotCheckPod(name, jobName string, exitCode int32) *corev1.Pod {
 			}},
 		},
 	}
+}
+
+func TestRuntimeStorageAndMemory(t *testing.T) {
+	resetResticSettings(t)
+	t.Setenv(ImageEnvVar, "harvester:test")
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"noCache":true}}`))
+	repository := &RepositoryConfig{URL: "s3:example/bucket"}
+	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "secret", repository, nil)
+	require.NoError(t, err)
+	require.True(t, capacity)
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: "TMPDIR", Value: "/tmp"})
+	require.Contains(t, runtime.VolumeMounts, corev1.VolumeMount{Name: CacheVolume, MountPath: "/tmp"})
+	require.Len(t, runtime.Volumes, 1)
+	require.Empty(t, runtime.Volumes[0].EmptyDir.Medium)
+	require.NotNil(t, runtime.Volumes[0].EmptyDir.SizeLimit)
+	require.Equal(t, resource.MustParse("1Gi"), runtime.Resources.Requests[corev1.ResourceMemory])
+	require.Equal(t, resource.MustParse("4Gi"), runtime.Resources.Limits[corev1.ResourceMemory])
 }

@@ -12,6 +12,7 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -65,7 +66,18 @@ type TargetHandler struct {
 
 // OnBackupTargetChange handles backupTarget setting object on change
 func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
-	if setting == nil || setting.Name != settings.BackupTargetSettingName {
+	if setting == nil {
+		return setting, nil
+	}
+	switch setting.Name {
+	case settings.ThirdPartyBackupConfigSettingName:
+		target, err := backuputil.CurrentTarget()
+		if err != nil {
+			return setting, err
+		}
+		return setting, h.reconcileKopiaMaintenance(target)
+	case settings.BackupTargetSettingName:
+	default:
 		return setting, nil
 	}
 	if setting.DeletionTimestamp != nil {
@@ -179,15 +191,8 @@ func (h *TargetHandler) reconcileKopiaMaintenance(target *settings.BackupTarget)
 		return fmt.Errorf("kubernetes clientset is nil")
 	}
 
-	cronJobs := h.clientset.BatchV1().CronJobs(util.LonghornSystemNamespaceName)
 	if target == nil || target.IsDefaultBackupTarget() || target.Type != settings.S3BackupType || !target.KopiaGCEnabled {
-		for _, maintenance := range kopiaMaintenanceSchedules {
-			if err := cronJobs.Delete(h.ctx, maintenance.name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-				return fmt.Errorf("failed to delete Kopia maintenance CronJob %s/%s: %w",
-					util.LonghornSystemNamespaceName, maintenance.name, err)
-			}
-		}
-		return nil
+		return h.deleteKopiaMaintenance()
 	}
 
 	repository, err := kopiautil.S3Repository(target)
@@ -206,30 +211,69 @@ func (h *TargetHandler) reconcileKopiaMaintenance(target *settings.BackupTarget)
 			return fmt.Errorf("failed to build Kopia maintenance CronJob %s: %w", maintenance.name, err)
 		}
 
-		current, err := cronJobs.Get(h.ctx, maintenance.name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			if _, err = cronJobs.Create(h.ctx, desired, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("failed to create Kopia maintenance CronJob %s/%s: %w",
-					desired.Namespace, desired.Name, err)
-			}
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("failed to get Kopia maintenance CronJob %s/%s: %w",
-				desired.Namespace, desired.Name, err)
-		}
-		if apiequality.Semantic.DeepEqual(current.Labels, desired.Labels) &&
-			apiequality.Semantic.DeepDerivative(desired.Spec, current.Spec) {
-			continue
-		}
-
-		desired.ResourceVersion = current.ResourceVersion
-		if _, err = cronJobs.Update(h.ctx, desired, metav1.UpdateOptions{}); err != nil {
-			return fmt.Errorf("failed to update Kopia maintenance CronJob %s/%s: %w",
-				desired.Namespace, desired.Name, err)
+		if err := h.syncMaintenanceCronJob(desired); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (h *TargetHandler) deleteKopiaMaintenance() error {
+	cronJobs := h.clientset.BatchV1().CronJobs(util.LonghornSystemNamespaceName)
+	for _, maintenance := range kopiaMaintenanceSchedules {
+		err := cronJobs.Delete(h.ctx, maintenance.name, metav1.DeleteOptions{})
+		if err == nil || apierrors.IsNotFound(err) {
+			continue
+		}
+		return fmt.Errorf("failed to delete Kopia maintenance CronJob %s/%s: %w",
+			util.LonghornSystemNamespaceName, maintenance.name, err)
+	}
+	return nil
+}
+
+func (h *TargetHandler) syncMaintenanceCronJob(desired *batchv1.CronJob) error {
+	cronJobs := h.clientset.BatchV1().CronJobs(desired.Namespace)
+	current, err := cronJobs.Get(h.ctx, desired.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return h.createMaintenanceJob(desired)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	if maintenanceMatches(current, desired) {
+		return nil
+	}
+
+	desired.ResourceVersion = current.ResourceVersion
+	if _, err = cronJobs.Update(h.ctx, desired, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("failed to update Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	return nil
+}
+
+func (h *TargetHandler) createMaintenanceJob(desired *batchv1.CronJob) error {
+	cronJobs := h.clientset.BatchV1().CronJobs(desired.Namespace)
+	_, err := cronJobs.Create(h.ctx, desired, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	return nil
+}
+
+func maintenanceMatches(current, desired *batchv1.CronJob) bool {
+	containers := current.Spec.JobTemplate.Spec.Template.Spec.Containers
+	if len(containers) != 1 {
+		return false
+	}
+	// DeepDerivative ignores removed map entries. Compare resources explicitly
+	// so resource overrides absent from the desired template are removed.
+	desiredResources := desired.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Resources
+	return apiequality.Semantic.DeepEqual(containers[0].Resources, desiredResources) &&
+		apiequality.Semantic.DeepEqual(current.Labels, desired.Labels) &&
+		apiequality.Semantic.DeepDerivative(desired.Spec, current.Spec)
 }
 
 func (h *TargetHandler) stripBackupTargetCredentials(
