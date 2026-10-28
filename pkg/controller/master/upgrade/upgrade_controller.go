@@ -702,6 +702,16 @@ func initStatus(upgrade *harvesterv1.Upgrade) {
 	upgrade.Labels[upgradeStateLabel] = StatePreparingLoggingInfra
 	upgrade.Labels[harvesterLatestUpgradeLabel] = "true"
 	upgrade.Status.PreviousVersion = settings.ServerVersion.Get()
+	// The setting follows the running Harvester image, which changes to the target's during the upgrade,
+	// so record the running version's upgrade image now. For example, when a v1.9.1 build for registry-a.example.com
+	// upgrades to a v1.10.1 build for registry-b.example.com, the setting turns to registry-b.example.com once the
+	// Harvester chart is upgraded, and resolving the previous image then would give
+	// registry-b.example.com/harvester/harvester-upgrade:v1.9.1, which the nodes never preloaded.
+	if upgrade.Annotations == nil {
+		upgrade.Annotations = make(map[string]string)
+	}
+	upgrade.Annotations[util.AnnotationPreviousUpgradeImage] = util.GetHarvesterUpgradeImage(
+		settings.HarvesterSystemDefaultRegistry.Get(), upgrade.Status.PreviousVersion)
 }
 
 func (h *upgradeHandler) resetLatestUpgradeLabel(latestUpgradeName string) error {

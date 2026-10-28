@@ -387,8 +387,6 @@ func prepareUpgradeLog(upgrade *harvesterv1.Upgrade) *harvesterv1.UpgradeLog {
 }
 
 func prepareSkipManifestPlan(upgrade *harvesterv1.Upgrade, manifests []string, skip bool) *upgradev1.Plan {
-	imageVersion := upgrade.Status.PreviousVersion
-
 	action, componentLabel := "remove", skipManifestsRemoveComponent
 	if skip {
 		action, componentLabel = "apply", skipManifestsApplyComponent
@@ -462,7 +460,7 @@ func prepareSkipManifestPlan(upgrade *harvesterv1.Upgrade, manifests []string, s
 				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
-				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+				Image: upgrade.GetUpgradeImage(util.GetPreviousUpgradeImage(upgrade)),
 				Command: []string{
 					"sh", "-c", skipManifestScript,
 				},
@@ -484,7 +482,6 @@ func prepareSkipManifestPlan(upgrade *harvesterv1.Upgrade, manifests []string, s
 func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgradev1.Plan {
 	concurrency := len(upgrade.Status.NodeStatuses)
 	planVersion := upgrade.Name
-	imageVersion := upgrade.Status.PreviousVersion
 
 	return &upgradev1.Plan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -544,7 +541,7 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
-				Image: upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+				Image: upgrade.GetUpgradeImage(util.GetPreviousUpgradeImage(upgrade)),
 				Command: []string{
 					"bash", "-c", imageCleanupScript,
 				},
@@ -562,8 +559,6 @@ func prepareCleanupPlan(upgrade *harvesterv1.Upgrade, imageList []string) *upgra
 func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan {
 	planVersion := upgrade.Name
 
-	// Use current running version because new images are not preloaded yet.
-	imageVersion := upgrade.Status.PreviousVersion
 	return &upgradev1.Plan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-prepare", upgrade.Name),
@@ -623,7 +618,8 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 				},
 			},
 			Upgrade: &upgradev1.ContainerSpec{
-				Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+				// Use current running version because new images are not preloaded yet.
+				Image:   upgrade.GetUpgradeImage(util.GetPreviousUpgradeImage(upgrade)),
 				Command: []string{"do_upgrade_node.sh"},
 				Args:    []string{"prepare"},
 				Env: []corev1.EnvVar{
@@ -637,9 +633,13 @@ func preparePlan(upgrade *harvesterv1.Upgrade, concurrency int) *upgradev1.Plan 
 	}
 }
 
+// getTargetUpgradeImage returns the harvester-upgrade image of the version an upgrade goes to.
+func getTargetUpgradeImage(repoInfo *repoinfo.RepoInfo) string {
+	return util.GetHarvesterUpgradeImage(repoInfo.Release.HarvesterSystemDefaultRegistry, repoInfo.Release.Harvester)
+}
+
 func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nodeName string, jobType string) *batchv1.Job {
-	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
-	imageVersion := repoInfo.Release.Harvester
+	// Use the image of the upgrade repo because it's already preloaded and might contain updated codes.
 	hostPathDirectory := corev1.HostPathDirectory
 	privileged := true
 	return &batchv1.Job{
@@ -675,7 +675,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(getTargetUpgradeImage(repoInfo)),
 							Command: []string{"do_upgrade_node.sh"},
 							Args:    []string{jobType},
 							Env: []corev1.EnvVar{
@@ -743,8 +743,7 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 }
 
 func applyRestoreVMJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nodeName string) *batchv1.Job {
-	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
-	imageVersion := repoInfo.Release.Harvester
+	// Use the image of the upgrade repo because it's already preloaded and might contain updated codes.
 	jobType := upgradeJobTypeRestoreVM
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -773,7 +772,7 @@ func applyRestoreVMJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(getTargetUpgradeImage(repoInfo)),
 							Command: []string{"upgrade-helper"},
 							Args: []string{
 								"restore-vm",
@@ -806,8 +805,7 @@ func applyRestoreVMJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo
 }
 
 func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo) *batchv1.Job {
-	// Use the image tag in the upgrade repo because it's already preloaded and might contain updated codes.
-	imageVersion := repoInfo.Release.Harvester
+	// Use the image of the upgrade repo because it's already preloaded and might contain updated codes.
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name.SafeConcatName(upgrade.Name, "apply-manifests"),
@@ -834,7 +832,7 @@ func applyManifestsJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo
 					Containers: []corev1.Container{
 						{
 							Name:    "apply",
-							Image:   upgrade.GetUpgradeImage(util.HarvesterUpgradeImageRepository, imageVersion),
+							Image:   upgrade.GetUpgradeImage(getTargetUpgradeImage(repoInfo)),
 							Command: []string{"upgrade_manifests.sh"},
 							Env: []corev1.EnvVar{
 								{

@@ -106,6 +106,22 @@ harvester_cluster_repo_image()
   echo "rancher/harvester-cluster-repo:${version}"
 }
 
+# Print the harvester-upgrade repository that upgrade jobs run with the version as
+# the tag (see GetHarvesterUpgradeImage in pkg/util/upgrade.go). Prime builds use
+# the Harvester Prime registry's "harvester" repository.
+harvester_upgrade_image_repository()
+{
+  local registry
+
+  if [[ "${PRIME_BUILD:-}" == "true" ]]; then
+    registry=$(resolve_registry harvester) || return 1
+    [[ -n "${registry}" ]] || return 1
+    echo "${registry}/harvester/harvester-upgrade"
+    return
+  fi
+  echo "rancher/harvester-upgrade"
+}
+
 # Render a registry-less image inventory into a concrete image list.
 # Source entries must use the form namespace/repository:tag. Blank lines and
 # comments are ignored so the result can be passed directly to docker image save.

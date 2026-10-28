@@ -276,15 +276,15 @@ func (h *handler) OnUpgradeLogChange(_ string, upgradeLog *harvesterv1.UpgradeLo
 	if harvesterv1.UpgradeEnded.IsUnknown(upgradeLog) && harvesterv1.DownloadReady.GetStatus(upgradeLog) == "" {
 		logrus.Info("Spin up downloader")
 
-		// Get image version for log-downloader
+		// Get image for log-downloader
 		upgradeName := upgradeLog.Spec.UpgradeName
 		upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
 		if err != nil {
 			return nil, err
 		}
-		imageVersion := upgrade.Status.PreviousVersion
+		image := util.GetPreviousUpgradeImage(upgrade)
 
-		if _, err := h.deploymentClient.Create(prepareLogDownloader(upgradeLog, imageVersion)); err != nil && !apierrors.IsAlreadyExists(err) {
+		if _, err := h.deploymentClient.Create(prepareLogDownloader(upgradeLog, image)); err != nil && !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
 		if _, err := h.serviceClient.Create(prepareLogDownloaderSvc(upgradeLog)); err != nil && !apierrors.IsAlreadyExists(err) {
