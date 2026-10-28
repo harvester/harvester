@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -120,6 +119,7 @@ func Repository(target *settings.BackupTarget) (*RepositoryConfig, error) {
 
 func Env(secretName string, repository *RepositoryConfig) []corev1.EnvVar {
 	env := []corev1.EnvVar{
+		{Name: "TMPDIR", Value: "/tmp"},
 		{
 			Name: util.AWSAccessKey,
 			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
@@ -168,12 +168,8 @@ func command(region string) string {
 }
 
 func NoCache() bool {
-	enabled, err := strconv.ParseBool(settings.ResticNoCache.Get())
-	if err == nil {
-		return enabled
-	}
-	enabled, _ = strconv.ParseBool(settings.ResticNoCache.GetDefault())
-	return enabled
+	config, err := settings.GetThirdPartyBackupConfig()
+	return err == nil && config.Restic.NoCache
 }
 
 func JobLabels(labels map[string]string) map[string]string {
@@ -227,7 +223,9 @@ func NewJobRuntime(
 		runtime.Volumes = append(runtime.Volumes, *cacheVolume)
 	}
 	if cacheMount != nil {
-		runtime.VolumeMounts = append(runtime.VolumeMounts, *cacheMount)
+		runtime.VolumeMounts = append(runtime.VolumeMounts, *cacheMount, corev1.VolumeMount{
+			Name: CacheVolume, MountPath: "/tmp",
+		})
 	}
 	return runtime, true, nil
 }
@@ -296,7 +294,7 @@ func SnapshotCheckCommand(resticCommand string, tags []string) string {
 			"SNAPSHOTS=$(%s snapshots --json --tag=%s | tr -d '[:space:]'); "+
 			"test \"$SNAPSHOTS\" != \"[]\" || exit %d",
 		resticCommand,
-		strings.Join(tags, ","),
+		completedTags(tags),
 		SnapshotCheckMissingExitCode,
 	)
 }
@@ -323,14 +321,11 @@ func (r *JobRuntime) VolumesWith(volumes ...corev1.Volume) []corev1.Volume {
 }
 
 func CacheVolumeAndMount() (*corev1.Volume, *corev1.VolumeMount, error) {
-	if NoCache() {
-		return nil, nil, nil
-	}
-	sizeLimit, err := resource.ParseQuantity(settings.ResticCacheSize.Get())
+	config, err := settings.GetThirdPartyBackupConfig()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse setting %s=%q: %w",
-			settings.ResticCacheSizeSettingName, settings.ResticCacheSize.Get(), err)
+		return nil, nil, err
 	}
+	sizeLimit := resource.MustParse(config.Restic.CacheSize)
 	return &corev1.Volume{
 			Name: CacheVolume,
 			VolumeSource: corev1.VolumeSource{
@@ -345,40 +340,15 @@ func CacheVolumeAndMount() (*corev1.Volume, *corev1.VolumeMount, error) {
 }
 
 func JobResources() (corev1.ResourceRequirements, error) {
-	resources := corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{},
-		Limits:   corev1.ResourceList{},
-	}
-	if err := addQuantity(resources.Requests, corev1.ResourceEphemeralStorage, settings.ResticEphemeralRequest); err != nil {
-		return corev1.ResourceRequirements{}, err
-	}
-	if err := addQuantity(resources.Limits, corev1.ResourceEphemeralStorage, settings.ResticEphemeralLimit); err != nil {
-		return corev1.ResourceRequirements{}, err
-	}
-	if len(resources.Requests) == 0 {
-		resources.Requests = nil
-	}
-	if len(resources.Limits) == 0 {
-		resources.Limits = nil
-	}
-	return resources, nil
-}
-
-func addQuantity(list corev1.ResourceList, name corev1.ResourceName, setting settings.Setting) error {
-	value := setting.Get()
-	if value == "" {
-		return nil
-	}
-	quantity, err := resource.ParseQuantity(value)
-	if err != nil {
-		return fmt.Errorf("failed to parse setting %s=%q: %w", setting.Name, value, err)
-	}
-	list[name] = quantity
-	return nil
+	return settings.BackupResources("restic")
 }
 
 func JobHasCapacity(ctx context.Context, clientset kubernetes.Interface) (bool, error) {
-	maxConcurrent := settings.ResticMaxConcurrentJobs.GetInt()
+	config, err := settings.GetThirdPartyBackupConfig()
+	if err != nil {
+		return false, err
+	}
+	maxConcurrent := config.Restic.MaxConcurrentJobs
 	if maxConcurrent <= 0 {
 		return true, nil
 	}

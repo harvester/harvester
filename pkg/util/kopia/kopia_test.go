@@ -2,11 +2,13 @@ package kopia
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -15,21 +17,14 @@ import (
 
 func resetKopiaSettings(t *testing.T) {
 	t.Helper()
-	require.NoError(t, settings.KopiaCacheSize.Set(settings.KopiaCacheSize.GetDefault()))
-	require.NoError(t, settings.KopiaMaxConcurrentJobs.Set(settings.KopiaMaxConcurrentJobs.GetDefault()))
-	require.NoError(t, settings.KopiaEphemeralRequest.Set(settings.KopiaEphemeralRequest.GetDefault()))
-	require.NoError(t, settings.KopiaEphemeralLimit.Set(settings.KopiaEphemeralLimit.GetDefault()))
-	t.Cleanup(func() {
-		_ = settings.KopiaCacheSize.Set(settings.KopiaCacheSize.GetDefault())
-		_ = settings.KopiaMaxConcurrentJobs.Set(settings.KopiaMaxConcurrentJobs.GetDefault())
-		_ = settings.KopiaEphemeralRequest.Set(settings.KopiaEphemeralRequest.GetDefault())
-		_ = settings.KopiaEphemeralLimit.Set(settings.KopiaEphemeralLimit.GetDefault())
-	})
+	old := settings.ThirdPartyBackupConfigSet.Get()
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(settings.ThirdPartyBackupConfigSet.GetDefault()))
+	t.Cleanup(func() { _ = settings.ThirdPartyBackupConfigSet.Set(old) })
 }
 
 func TestJobHasCapacityReturnsFalseWhenGlobalLimitIsReached(t *testing.T) {
 	resetKopiaSettings(t)
-	require.NoError(t, settings.KopiaMaxConcurrentJobs.Set("2"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"kopia":{"maxConcurrentJobs":2}}`))
 	clientset := fake.NewSimpleClientset(
 		kopiaPod("pod1", corev1.PodRunning),
 		kopiaPod("pod2", corev1.PodPending),
@@ -97,22 +92,43 @@ func TestS3RepositoryUsesAWSDefaultEndpoint(t *testing.T) {
 
 func TestCacheConfigEnvReservesCapacityForOtherEphemeralData(t *testing.T) {
 	resetKopiaSettings(t)
-	require.NoError(t, settings.KopiaCacheSize.Set("2Gi"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"kopia":{"cacheSize":"1Gi"}}`))
 
 	env, err := CacheConfigEnv()
 	require.NoError(t, err)
-	require.Contains(t, env, corev1.EnvVar{Name: ContentCacheSizeMBKey, Value: "256"})
-	require.Contains(t, env, corev1.EnvVar{Name: ContentCacheSizeLimitMBKey, Value: "512"})
-	require.Contains(t, env, corev1.EnvVar{Name: MetadataCacheSizeMBKey, Value: "256"})
-	require.Contains(t, env, corev1.EnvVar{Name: MetadataCacheSizeLimitMBKey, Value: "512"})
+	require.Contains(t, env, corev1.EnvVar{Name: ContentCacheSizeMBKey, Value: "128"})
+	require.Contains(t, env, corev1.EnvVar{Name: ContentCacheSizeLimitMBKey, Value: "256"})
+	require.Contains(t, env, corev1.EnvVar{Name: MetadataCacheSizeMBKey, Value: "128"})
+	require.Contains(t, env, corev1.EnvVar{Name: MetadataCacheSizeLimitMBKey, Value: "256"})
 }
 
 func TestCacheConfigEnvRejectsTooSmallCache(t *testing.T) {
 	resetKopiaSettings(t)
-	require.NoError(t, settings.KopiaCacheSize.Set("4Mi"))
+	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"kopia":{"cacheSize":"4Mi"}}`))
 
 	_, err := CacheConfigEnv()
 	require.ErrorContains(t, err, "must be at least 8Mi")
+}
+
+func TestLogRetentionBudgets(t *testing.T) {
+	resetKopiaSettings(t)
+	for _, test := range []struct {
+		cache, retentionMB, segmentBytes string
+	}{
+		{"2Gi", "67.108864", "8388608"},
+		{"1Gi", "33.554432", "4194304"},
+		{"8Mi", "0.262144", "32768"},
+	} {
+		t.Run(test.cache, func(t *testing.T) {
+			value := fmt.Sprintf(`{"kopia":{"cacheSize":%q}}`, test.cache)
+			require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(value))
+			env, err := CacheConfigEnv()
+			require.NoError(t, err)
+			require.Contains(t, env, corev1.EnvVar{Name: LogSizeMBKey, Value: test.retentionMB})
+			require.Contains(t, env, corev1.EnvVar{Name: ContentLogSizeMBKey, Value: test.retentionMB})
+			require.Contains(t, env, corev1.EnvVar{Name: LogSegmentSizeKey, Value: test.segmentBytes})
+		})
+	}
 }
 
 func TestS3RepositoryNormalizesHTTPSEndpoint(t *testing.T) {
@@ -193,5 +209,38 @@ func snapshotCheckPod(name, jobName string, exitCode int32) *corev1.Pod {
 				},
 			}},
 		},
+	}
+}
+
+func TestRuntimeStorageAndMemory(t *testing.T) {
+	resetKopiaSettings(t)
+	t.Setenv(ImageEnvVar, "harvester:test")
+	repository := &Repository{Bucket: "bucket"}
+	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "secret", repository, nil)
+	require.NoError(t, err)
+	require.True(t, capacity)
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: "TMPDIR", Value: "/tmp"})
+	require.Contains(t, runtime.VolumeMounts, corev1.VolumeMount{Name: CacheVolume, MountPath: "/tmp"})
+	require.Len(t, runtime.Volumes, 1)
+	require.Empty(t, runtime.Volumes[0].EmptyDir.Medium)
+	require.NotNil(t, runtime.Volumes[0].EmptyDir.SizeLimit)
+	require.Equal(t, resource.MustParse("1Gi"), runtime.Resources.Requests[corev1.ResourceMemory])
+	require.Equal(t, resource.MustParse("4Gi"), runtime.Resources.Limits[corev1.ResourceMemory])
+	require.NotContains(t, runtime.Command, "--disable-file-logging")
+	require.Contains(t, runtime.Command, "--log-level=info")
+	require.Contains(t, runtime.Command, "--file-log-level=debug")
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: LogDirEnvVar, Value: CacheDir})
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: LogSizeMBKey, Value: "67.108864"})
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: ContentLogSizeMBKey, Value: "67.108864"})
+	require.Contains(t, runtime.Env, corev1.EnvVar{Name: LogSegmentSizeKey, Value: "8388608"})
+	cron, err := NewMaintenanceCronJob("test", "0 * * * *", true, "secret", repository)
+	require.NoError(t, err)
+	container := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+	require.Equal(t, runtime.Resources, container.Resources)
+	require.Equal(t, runtime.VolumeMounts, container.VolumeMounts)
+	require.NotContains(t, container.Args[0], "--disable-file-logging")
+	require.Contains(t, container.Args[0], "--file-log-level=debug")
+	for _, env := range runtime.Env {
+		require.Contains(t, container.Env, env)
 	}
 }
