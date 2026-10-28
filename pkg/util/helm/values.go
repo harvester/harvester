@@ -19,10 +19,23 @@ import (
 
 // FetchImageFromHelmValues fetches image information from helm chart values, the name points to a chart e.g. harvester
 func FetchImageFromHelmValues(clientSet kubernetes.Interface, namespace, name string, keyNames []string) (settings.Image, error) {
-	var image settings.Image
-	kubeInterface := clientSet
+	helmValues, err := FetchHelmValues(clientSet, name)
+	if err != nil {
+		return settings.Image{}, err
+	}
+
+	image, err := ImageFromHelmValues(helmValues, keyNames)
+	if err != nil {
+		return settings.Image{}, fmt.Errorf("%s/%s app: %w", namespace, name, err)
+	}
+
+	return image, nil
+}
+
+// FetchHelmValues fetches all values, including the chart defaults, of a helm release
+func FetchHelmValues(clientSet kubernetes.Interface, name string) (map[string]interface{}, error) {
 	restClientGetter := cli.New().RESTClientGetter()
-	driverSecret := driver.NewSecrets(kubeInterface.CoreV1().Secrets(""))
+	driverSecret := driver.NewSecrets(clientSet.CoreV1().Secrets(""))
 	getValues := action.NewGetValues(&action.Configuration{
 		RESTClientGetter: restClientGetter,
 		Releases:         storage.Init(driverSecret),
@@ -34,27 +47,42 @@ func FetchImageFromHelmValues(clientSet kubernetes.Interface, namespace, name st
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"helm.name": name,
 		}).Error("failed to get helm values")
-		return image, err
+		return nil, err
 	}
 
+	return helmValues, nil
+}
+
+// ImageFromHelmValues gets image information from the keyNames path of helm chart values
+func ImageFromHelmValues(helmValues map[string]interface{}, keyNames []string) (settings.Image, error) {
 	var (
+		image settings.Image
 		ok    bool
 		bytes []byte
 		value interface{}
+		err   error
 	)
 
 	if value, ok = util.GetValue(helmValues, keyNames...); !ok {
 		logrus.Debugf("fail to get value of path(%s)", strings.Join(keyNames, "."))
-		return image, fmt.Errorf("cannot find path(%s) %s/%s app", strings.Join(keyNames, "."), namespace, name)
+		return image, fmt.Errorf("cannot find path(%s)", strings.Join(keyNames, "."))
 	}
 
 	if bytes, err = json.Marshal(value); err != nil {
-		return image, fmt.Errorf("cannot marshal image in path(%s) of %s/%s app: %v", strings.Join(keyNames, "."), namespace, name, err)
+		return image, fmt.Errorf("cannot marshal image in path(%s): %w", strings.Join(keyNames, "."), err)
 	}
 
 	if err = json.Unmarshal(bytes, &image); err != nil {
-		return image, fmt.Errorf("cannot unmarshal image in path(%s) of %s/%s app: %v", strings.Join(keyNames, "."), namespace, name, err)
+		return image, fmt.Errorf("cannot unmarshal image in path(%s): %w", strings.Join(keyNames, "."), err)
 	}
 
 	return image, nil
+}
+
+// CattleRegistryFromHelmValues gets global.cattle.systemDefaultRegistry from helm chart values,
+// it returns an empty string if the value is not set
+func CattleRegistryFromHelmValues(helmValues map[string]interface{}) string {
+	value, _ := util.GetValue(helmValues, "global", "cattle", "systemDefaultRegistry")
+	registry, _ := value.(string)
+	return registry
 }
