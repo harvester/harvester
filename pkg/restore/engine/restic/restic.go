@@ -301,11 +301,12 @@ func (re *ResticRestoreEngine) createRestoreJob(
 							// failure and leave the PVC blank. Leading `/` on the dump path
 							// matches the absolute path restic stored via --stdin-filename.
 							"set -eo pipefail; "+
-								"%s -q dump --tag=%s,%s,%s latest /%s | /usr/bin/harvester io-mode -device /dev/%s -mode=write",
+								"%s -q dump --tag=%s,%s,%s,%s latest /%s | /usr/bin/harvester io-mode -device /dev/%s -mode=write",
 							runtime.Command,
 							resticutil.NamespaceTag(re.vmbo.GetNamespace(vmb)),
 							resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
 							resticutil.SnapshotTag(*vbName),
+							resticutil.CompleteTag,
 							pvName,
 							pvcName,
 						)},

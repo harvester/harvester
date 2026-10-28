@@ -1,6 +1,7 @@
 package acceleratedio
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,7 +24,7 @@ const (
 type readTask struct {
 	index  int
 	offset int64
-	size   int
+	data   []byte
 }
 
 type readResult struct {
@@ -115,15 +116,30 @@ func blockDeviceSize(f *os.File) (int64, error) {
 	return size, nil
 }
 
-func readWorker(file *os.File, tasks <-chan readTask, results chan<- readResult) {
-	for task := range tasks {
-		buf := make([]byte, task.size)
-		n, err := file.ReadAt(buf, task.offset)
-		if err != nil && !errors.Is(err, io.EOF) {
-			results <- readResult{index: task.index, err: err}
-			continue
+func readWorker(ctx context.Context, device io.ReaderAt, tasks <-chan readTask, results chan<- readResult) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case task, ok := <-tasks:
+			if !ok || ctx.Err() != nil {
+				return
+			}
+			n, err := device.ReadAt(task.data, task.offset)
+			if n != len(task.data) && (err == nil || errors.Is(err, io.EOF)) {
+				err = io.ErrUnexpectedEOF
+			} else if n == len(task.data) && errors.Is(err, io.EOF) {
+				err = nil
+			}
+			select {
+			case results <- readResult{index: task.index, data: task.data, err: err}:
+			case <-ctx.Done():
+				return
+			}
+			if err != nil {
+				return
+			}
 		}
-		results <- readResult{index: task.index, data: buf[:n]}
 	}
 }
 
@@ -179,18 +195,6 @@ func startProgress(current func() int64, totalSize int64, label string, stderr i
 	done := make(chan struct{})
 	go runProgressTicker(done, current, totalSize, label, stderr)
 	return func() { close(done) }
-}
-
-func produceReadTasks(tasks chan<- readTask, totalSize int64, blockSize int) {
-	defer close(tasks)
-	for offset, index := int64(0), 0; offset < totalSize; index++ {
-		size := blockSize
-		if offset+int64(size) > totalSize {
-			size = int(totalSize - offset)
-		}
-		tasks <- readTask{index: index, offset: offset, size: size}
-		offset += int64(size)
-	}
 }
 
 func dispatchWriteTasks(
@@ -276,64 +280,97 @@ func readBlockDevice(devicePath string, blockSize, workers int, stdout, stderr i
 		return err
 	}
 
-	tasks := make(chan readTask, workers)
-	results := make(chan readResult, workers)
-
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			readWorker(file, tasks, results)
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	go produceReadTasks(tasks, totalSize, blockSize)
-
 	var bytesRead int64
 	defer startProgress(func() int64 {
 		return atomic.LoadInt64(&bytesRead)
 	}, totalSize, "READ", stderr)()
 
-	expected := 0
-	buffer := map[int][]byte{}
-	flush := func(data []byte) error {
-		if _, err := stdout.Write(data); err != nil {
-			return err
-		}
-		atomic.AddInt64(&bytesRead, int64(len(data)))
-		expected++
-		return nil
+	return readStream(context.Background(), file, stdout, totalSize, blockSize, workers, &bytesRead)
+}
+
+// readStream owns at most workers buffers of blockSize bytes, including reads
+// in flight, queued results and out-of-order results. A buffer is reused only
+// after its bytes have been emitted in order. Bounded channels alone cannot
+// bound an out-of-order map while its earliest read stalls.
+func readStream(ctx context.Context, device io.ReaderAt, stdout io.Writer,
+	totalSize int64, blockSize, workers int, bytesRead *int64,
+) error {
+	if totalSize < 0 || blockSize <= 0 || workers <= 0 {
+		return errors.New("invalid read size or worker count")
 	}
-	for res := range results {
+	ctx, cancel := context.WithCancel(ctx)
+	tasks := make(chan readTask, workers)
+	results := make(chan readResult, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			readWorker(ctx, device, tasks, results)
+		}()
+	}
+	defer func() {
+		cancel()
+		close(tasks)
+		// Cancellation stops channel operations, but cannot interrupt arbitrary
+		// ReadAt/Write syscalls. Wait before the caller closes the device.
+		wg.Wait()
+	}()
+
+	return emitReads(ctx, stdout, tasks, results, totalSize, blockSize, workers, bytesRead)
+}
+
+func emitReads(ctx context.Context, stdout io.Writer, tasks chan<- readTask,
+	results <-chan readResult, totalSize int64, blockSize, workers int, bytesRead *int64,
+) error {
+	var offset int64
+	next := 0
+	dispatch := func(buf []byte) {
+		size := min(int64(blockSize), totalSize-offset)
+		tasks <- readTask{index: next, offset: offset, data: buf[:size]}
+		offset += size
+		next++
+	}
+	for i := 0; i < workers && offset < totalSize; i++ {
+		dispatch(make([]byte, blockSize))
+	}
+
+	pending := make(map[int][]byte, workers)
+	for expected := 0; expected < next; {
+		var res readResult
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case res = <-results:
+		}
 		if res.err != nil {
-			return fmt.Errorf("error in read worker for block %d: %w", res.index, res.err)
+			return fmt.Errorf("error reading block %d: %w", res.index, res.err)
 		}
-		if res.index != expected {
-			buffer[res.index] = res.data
-			continue
-		}
-		if err := flush(res.data); err != nil {
-			return err
-		}
+		pending[res.index] = res.data
 		for {
-			data, ok := buffer[expected]
+			data, ok := pending[expected]
 			if !ok {
 				break
 			}
-			delete(buffer, expected)
-			if err := flush(data); err != nil {
+			if err := ctx.Err(); err != nil {
 				return err
+			}
+			n, err := stdout.Write(data)
+			if err != nil {
+				return fmt.Errorf("error emitting block %d: %w", expected, err)
+			}
+			if n != len(data) {
+				return io.ErrShortWrite
+			}
+			atomic.AddInt64(bytesRead, int64(n))
+			delete(pending, expected)
+			expected++
+			if offset < totalSize {
+				dispatch(data[:cap(data)])
 			}
 		}
 	}
-
-	return nil
+	return ctx.Err()
 }
 
 func writeBlockDevice(devicePath string, blockSize, workers int, stdin io.Reader, stderr io.Writer) error {
