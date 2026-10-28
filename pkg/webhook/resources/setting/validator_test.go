@@ -3361,3 +3361,26 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 		t.Log("UNPROTECTED (guard absent): v.Update hung as expected - OOM/DoS risk confirmed")
 	}
 }
+
+func TestThirdPartyBackupConfigAdmission(t *testing.T) {
+	for _, value := range []string{
+		`not-json`, `{"restic":{"memoryRequest":"-1Gi"}}`,
+		`{"kopia":{"memoryLimit":"128Mi"}}`, `{"kopia":{"cacheSize":"4Mi"}}`,
+		`{"restic":{"maxConcurrentJobs":-1}}`,
+	} {
+		t.Run(value, func(t *testing.T) {
+			setting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
+			}
+			assert.Error(t, validateSetting(nil, setting))
+			assert.Error(t, validateUpdateSetting(nil, setting, setting))
+		})
+	}
+	for _, value := range []string{"", "{}", settings.InitThirdPartyBackupConfig(), `{"restic":{"noCache":true}}`} {
+		setting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
+		}
+		assert.NoError(t, validateSetting(nil, setting))
+		assert.NoError(t, validateUpdateSetting(nil, setting, setting))
+	}
+}

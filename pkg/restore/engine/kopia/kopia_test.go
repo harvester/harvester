@@ -152,3 +152,17 @@ func TestGeneratedNamesAreBounded(t *testing.T) {
 	other := &harvesterv1.VolumeRestore{VolumeName: "volume-b"}
 	require.NotEqual(t, ke.jobName(vmr, vr), ke.jobName(vmr, other))
 }
+
+func TestFailedJobDoesNotCompleteRestore(t *testing.T) {
+	vmro := restorecommon.NewVMRestoreOperatorBuilder().Build()
+	ke := &KopiaRestoreEngine{vmro: vmro}
+	vr := &harvesterv1.VolumeRestore{Progress: 30}
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Name: "restore", Namespace: "default"},
+		Status:     batchv1.JobStatus{Failed: 1},
+	}
+	clientset := fake.NewSimpleClientset(job)
+	ke.jobClient = fakeclients.JobClient(clientset.BatchV1().Jobs)
+	require.ErrorContains(t, ke.syncFromJob(vr, job), "failed")
+	require.Equal(t, 30, vr.Progress)
+}
