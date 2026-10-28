@@ -799,14 +799,34 @@ func (h *handler) cleanup(upgradeLog *harvesterv1.UpgradeLog) error {
 type ImageGetter struct{}
 
 func (i *ImageGetter) GetConsolidatedLoggingImageListFromHelmValues(c kubernetes.Interface, namespace, name string) (map[string]settings.Image, error) {
+	helmValues, err := helm.FetchHelmValues(c, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch helm chart %v/%v values, error %w", namespace, name, err)
+	}
+
+	images, err := getLoggingImagesFromHelmValues(helmValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get logging images from helm chart %v/%v values, error %w", namespace, name, err)
+	}
+
+	return images, nil
+}
+
+// getLoggingImagesFromHelmValues resolves the logging images like the rancher-logging chart does, which prefixes
+// the repositories with global.cattle.systemDefaultRegistry when it is set, e.g. on Prime
+func getLoggingImagesFromHelmValues(helmValues map[string]interface{}) (map[string]settings.Image, error) {
+	registry := helm.CattleRegistryFromHelmValues(helmValues)
 	images := make(map[string]settings.Image, len(loggingImagesList))
 
 	for img, key := range loggingImagesList {
-		imgTag, err := helm.FetchImageFromHelmValues(c, namespace, name, key)
+		image, err := helm.ImageFromHelmValues(helmValues, key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch %v image from helm chart %v/%v values, error %w", img, namespace, name, err)
+			return nil, fmt.Errorf("failed to get %v image, error %w", img, err)
 		}
-		images[img] = imgTag
+		if registry != "" {
+			image.Repository = fmt.Sprintf("%s/%s", registry, image.Repository)
+		}
+		images[img] = image
 	}
 
 	return images, nil
