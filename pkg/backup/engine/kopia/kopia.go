@@ -117,7 +117,8 @@ func (ke *KopiaEngine) Reconcile(
 		// the VMBackup non-ready and lets the controller retry it.
 		return ke.cleanupTemporaryResources(vmb, vb)
 	}
-	if ready, err := ke.checkRemoteSnapshot(vmb, vb); ready || err != nil {
+	if ke.isDiscoveredBackup(vmb) {
+		_, err := ke.checkRemoteSnapshot(vmb, vb)
 		return err
 	}
 	return ke.reconcileBackupJob(vmb, vb)
@@ -146,6 +147,12 @@ func (ke *KopiaEngine) reconcileBackupJob(
 		return ke.syncFromJob(vb, job)
 	}
 	if !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	// Prefer the existing Job result. A failed or running Job must not be
+	// overridden by a previously cached remote snapshot check.
+	if ready, err := ke.checkRemoteSnapshot(vmb, vb); ready || err != nil {
 		return err
 	}
 
@@ -292,14 +299,12 @@ func (ke *KopiaEngine) createBackupJob(vmb *harvesterv1.VirtualMachineBackup, vb
 		return engine.ErrRetryLater
 	}
 	tags := ke.snapshotTags(vmb, vb)
-	command := fmt.Sprintf(
-		"set -eo pipefail\n%s\n/usr/bin/harvester io-mode -device /dev/%s -mode=read | %s snapshot create /%s --stdin-file %s %s",
-		kopiautil.ConnectOrCreateCommand(),
-		clonePVCName,
+	command := kopiautil.BackupCommand(
 		runtime.Command,
+		kopiautil.ConnectOrCreateCommand(),
+		fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=read", clonePVCName),
 		pvName,
-		pvName,
-		kopiautil.SnapshotTagsFlags(tags),
+		tags,
 	)
 	volumes := runtime.VolumesWith(corev1.Volume{
 		Name: "volume",

@@ -95,6 +95,7 @@ var FQDNMatchPatternRegexString = `^([-a-zA-Z0-9_*]+[.]?)+$`
 type validateSettingFunc func(setting *v1beta1.Setting) error
 
 var validateSettingFuncs = map[string]validateSettingFunc{
+	settings.ThirdPartyBackupConfigSettingName:                 validateThirdPartyBackupConfig,
 	settings.VMForceResetPolicySettingName:                     validateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateSupportBundleTimeout,
@@ -120,6 +121,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
 
 var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
+	settings.ThirdPartyBackupConfigSettingName:                 validateUpdateThirdPartyBackupConfig,
 	settings.VMForceResetPolicySettingName:                     validateUpdateVMForceResetPolicy,
 	settings.SupportBundleImageName:                            validateUpdateSupportBundleImage,
 	settings.SupportBundleTimeoutSettingName:                   validateUpdateSupportBundleTimeout,
@@ -2856,4 +2858,15 @@ func validateTraefikDefaultTLSOptions(setting *v1beta1.Setting) error {
 
 func validateTraefikDefaultTLSOptionsUpdate(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateTraefikDefaultTLSOptions(newSetting)
+}
+
+func validateThirdPartyBackupConfig(setting *v1beta1.Setting) error {
+	if _, err := settings.DecodeThirdPartyBackupConfig(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func validateUpdateThirdPartyBackupConfig(_ *types.Request, _, setting *v1beta1.Setting) error {
+	return validateThirdPartyBackupConfig(setting)
 }
