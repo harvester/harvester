@@ -143,7 +143,7 @@ require (
 	kubevirt.io/client-go v1.8.3
 	kubevirt.io/containerized-data-importer v1.64.0
 	kubevirt.io/containerized-data-importer-api v1.64.0
-	kubevirt.io/kubevirt v1.8.3
+	kubevirt.io/kubevirt v1.9.0
 	sigs.k8s.io/cluster-api v1.9.5
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730
