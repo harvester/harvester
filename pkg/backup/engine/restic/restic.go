@@ -118,7 +118,8 @@ func (re *ResticEngine) Reconcile(
 		// the VMBackup non-ready and lets the controller retry it.
 		return re.cleanupTemporaryResources(vmb, vb)
 	}
-	if ready, err := re.checkRemoteSnapshot(vmb, vb); ready || err != nil {
+	if re.isDiscoveredBackup(vmb) {
+		_, err := re.checkRemoteSnapshot(vmb, vb)
 		return err
 	}
 	return re.reconcileBackupJob(vmb, vb)
@@ -147,6 +148,12 @@ func (re *ResticEngine) reconcileBackupJob(
 		return re.syncFromJob(vb, job)
 	}
 	if !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	// Prefer the existing Job result. A failed or running Job must not be
+	// overridden by a previously cached remote snapshot check.
+	if ready, err := re.checkRemoteSnapshot(vmb, vb); ready || err != nil {
 		return err
 	}
 
@@ -340,25 +347,15 @@ func (re *ResticEngine) createBackupJob(vmb *harvesterv1.VirtualMachineBackup,
 						Command:      []string{"/bin/sh", "-c"},
 						Resources:    runtime.Resources,
 						VolumeMounts: runtime.VolumeMounts,
-						Args: []string{fmt.Sprintf(
-							// Ensure the repo exists before backing up. `restic snapshots` is the
-							// canonical "is this a repo?" probe; on a fresh S3 prefix it fails and
-							// we initialize. If another volume job wins the init race, the follow-up
-							// snapshots probe accepts that as success.
-							// pipefail propagates a failing io-mode read; without it restic backup
-							// would happily store an empty snapshot from empty stdin.
-							"set -eo pipefail; "+
-								"(%s snapshots > /dev/null 2>&1 || { %s init || %s snapshots > /dev/null 2>&1; }) && "+
-								"/usr/bin/harvester io-mode -device /dev/%s -mode=read | %s -q backup --stdin --stdin-filename %s --tag=%s,%s,%s",
+						Args: []string{resticutil.BackupCommand(
 							runtime.Command,
-							runtime.Command,
-							runtime.Command,
-							clonePVCName,
-							runtime.Command,
+							fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=read", clonePVCName),
 							pvName,
-							resticutil.NamespaceTag(namespace),
-							resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
-							resticutil.SnapshotTag(*re.vmbo.GetVolBackupName(vb)),
+							[]string{
+								resticutil.NamespaceTag(namespace),
+								resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
+								resticutil.SnapshotTag(*re.vmbo.GetVolBackupName(vb)),
+							},
 						)},
 						VolumeDevices: []corev1.VolumeDevice{{
 							Name:       "volume",
