@@ -9,18 +9,18 @@ import (
 
 func TestGetUpgradeImage(t *testing.T) {
 	testCases := []struct {
-		name     string
-		upgrade  *Upgrade
-		args     []string
-		expected string
+		name         string
+		upgrade      *Upgrade
+		defaultImage string
+		expected     string
 	}{
 		{
 			name: "Without spec.upgradeImage",
 			upgrade: &Upgrade{
 				Spec: UpgradeSpec{},
 			},
-			args:     []string{"xyz", "v1.0.0"},
-			expected: "xyz:v1.0.0",
+			defaultImage: "xyz:v1.0.0",
+			expected:     "xyz:v1.0.0",
 		},
 		{
 			name: "With nil spec.upgradeImage",
@@ -29,8 +29,8 @@ func TestGetUpgradeImage(t *testing.T) {
 					UpgradeImage: nil,
 				},
 			},
-			args:     []string{"xyz", "v1.0.0"},
-			expected: "xyz:v1.0.0",
+			defaultImage: "xyz:v1.0.0",
+			expected:     "xyz:v1.0.0",
 		},
 		{
 			name: "With spec.upgradeImage",
@@ -39,14 +39,14 @@ func TestGetUpgradeImage(t *testing.T) {
 					UpgradeImage: ptr.To("foo:v1.2.3"),
 				},
 			},
-			args:     []string{"xyz", "v1.0.0"},
-			expected: "foo:v1.2.3",
+			defaultImage: "xyz:v1.0.0",
+			expected:     "foo:v1.2.3",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := tc.upgrade.GetUpgradeImage(tc.args[0], tc.args[1])
+			result := tc.upgrade.GetUpgradeImage(tc.defaultImage)
 			assert.Equal(t, tc.expected, result, "case %q", tc.name)
 		})
 	}
