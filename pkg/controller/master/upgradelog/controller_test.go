@@ -32,7 +32,7 @@ const (
 	testLoggingUID      = "test-logging-uid"
 	testStatefulSetName = "test-upgrade-upgradelog-fluentd"
 	testArchiveName     = "test-archive"
-	testImageVersion    = "dev"
+	testUpgradeImage    = "registry.example.com/harvester/harvester-upgrade:dev"
 )
 
 var (
@@ -906,7 +906,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			name: "The logging infra is ready and the upgrade is resumed, should therefore create the log-downloader Deployment",
 			given: input{
 				key:     testUpgradeLogName,
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithAnnotation(util.AnnotationPreviousUpgradeImage, testUpgradeImage).Build(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
@@ -914,7 +914,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 					UpgradeEndedCondition(corev1.ConditionUnknown, "", "").Build(),
 			},
 			expected: output{
-				deployment: prepareLogDownloader(newTestUpgradeLogBuilder().Build(), testImageVersion),
+				deployment: prepareLogDownloader(newTestUpgradeLogBuilder().Build(), testUpgradeImage),
 				service:    prepareLogDownloaderSvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
@@ -1037,6 +1037,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.deployment, err = handler.deploymentClient.Get(util.HarvesterSystemNamespaceName, testDeploymentName, metav1.GetOptions{})
 			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.deployment.Spec.Template.Spec.Containers[0].Image, actual.deployment.Spec.Template.Spec.Containers[0].Image, "case %q", tc.name)
 		}
 
 		if tc.expected.logging != nil {

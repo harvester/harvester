@@ -95,6 +95,9 @@ const (
 	// airgap upgrades when uploading images.
 	AnnotationUpgradeImage = prefix + "/os-upgrade-image"
 
+	// AnnotationPreviousUpgradeImage records the harvester-upgrade image of the version an upgrade starts from.
+	AnnotationPreviousUpgradeImage = prefix + "/previous-upgrade-image"
+
 	AnnotationNodeUpgradePauseMap = prefix + "/node-upgrade-pause-map"
 	NodePause                     = "pause"
 	NodeUnpause                   = "unpause"

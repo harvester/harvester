@@ -21,6 +21,7 @@ var (
 	APIUIVersion                           = NewSetting(APIUIVersionSettingName, "1.1.9") // Please update the HARVESTER_API_UI_VERSION in package/Dockerfile when updating the version here.
 	ClusterRegistrationURL                 = NewSetting(ClusterRegistrationURLSettingName, `{"url":"","insecureSkipTLSVerify":false}`)
 	ServerFlavor                           = NewSetting(ServerFlavorSettingName, ServerFlavorCommunity)
+	HarvesterSystemDefaultRegistry         = NewSetting(HarvesterSystemDefaultRegistrySettingName, "") // Registry of Harvester images, set by Prime builds. Empty means the community images.
 	ServerVersion                          = NewSetting(ServerVersionSettingName, "dev")
 	UIIndex                                = NewSetting(UIIndexSettingName, DefaultDashboardUIURL)
 	UIPath                                 = NewSetting(UIPathSettingName, "/usr/share/harvester/harvester")
@@ -116,6 +117,7 @@ const (
 	AutoDiskProvisionPathsSettingName                 = "auto-disk-provision-paths"
 	APIUIVersionSettingName                           = "api-ui-version"
 	ServerFlavorSettingName                           = "server-flavor"
+	HarvesterSystemDefaultRegistrySettingName         = "harvester-system-default-registry"
 	ServerVersionSettingName                          = "server-version"
 	UpgradableVersionsSettingName                     = "upgradable-versions"
 	UpgradeCheckerEnabledSettingName                  = "upgrade-checker-enabled"
