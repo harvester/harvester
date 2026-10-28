@@ -1,0 +1,193 @@
+# Useful commands after exec'ing into the pod. The `restic` wrapper automatically
+# loads RESTIC_REPOSITORY and applies the S3 region from `backup-target`.
+#
+# Show the effective target and Restic version:
+#
+#   . /restic-config/backup-target.env
+#   echo "repository=$RESTIC_REPOSITORY region=${RESTIC_S3_REGION:-<default>}"
+#   restic version
+#
+# Repository overview and snapshot inventory:
+#
+#   restic cat config | jq .
+#   restic snapshots
+#   restic snapshots --json | jq .
+#   restic snapshots --json | jq -r \
+#     '.[] | [.short_id, .time, (.tags | join(",")), (.paths | join(","))] | @tsv'
+#   restic stats
+#   restic stats --mode raw-data
+#
+# Find one Harvester volume snapshot. Replace these values with those from the
+# VMBackup and VolumeBackup status. All three tags must match:
+#
+#   NS=<vmbackup-namespace>
+#   VMB=<vmbackup-name>
+#   SN=<volume-backup-name>
+#   PV=<pv-name>
+#   TAGS="ns:$NS,vmb:$VMB,sn:$SN"
+#   restic snapshots --tag "$TAGS"
+#   SNAPSHOT_ID=$(restic snapshots --json --tag "$TAGS" | \
+#     jq -er 'sort_by(.time) | last | .id')
+#   echo "$SNAPSHOT_ID"
+#
+# Inspect the stored stdin file and sample its block stream without restoring
+# the whole volume:
+#
+#   restic ls "$SNAPSHOT_ID"
+#   restic dump "$SNAPSHOT_ID" "/$PV" | head -c 4096 | hexdump -C
+#   restic dump "$SNAPSHOT_ID" "/$PV" | sha256sum
+#
+# Repository checks. --read-data-subset downloads repository data and can
+# consume significant time and bandwidth; increase the percentage as needed:
+#
+#   restic check
+#   restic check --read-data-subset=1%
+#
+# Inspect and clean only this pod's local cache (does not delete backup data):
+#
+#   du -sh /root/.cache/restic
+#   restic cache --cleanup
+#
+# Inspect repository locks and remove locks left by interrupted or crashed
+# Restic processes:
+#
+#   restic list locks
+#   restic unlock
+#
+# CAUTION: --remove-all removes every repository lock, including active locks.
+# Do not use it while any backup, restore, check, forget, or prune job is running:
+#
+#   restic unlock --remove-all
+#
+# DESTRUCTIVE: delete only the selected snapshot and reclaim unreferenced data.
+# Verify SNAPSHOT_ID carefully before running:
+#
+#   restic forget "$SNAPSHOT_ID" --prune
+#
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: restic-inspect
+  namespace: longhorn-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: restic-inspect
+rules:
+- apiGroups:
+  - harvesterhci.io
+  resources:
+  - settings
+  resourceNames:
+  - backup-target
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: restic-inspect
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: restic-inspect
+subjects:
+- kind: ServiceAccount
+  name: restic-inspect
+  namespace: longhorn-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restic-inspect
+  namespace: longhorn-system
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7800
+  template:
+    spec:
+      serviceAccountName: restic-inspect
+      restartPolicy: Never
+      initContainers:
+      - name: load-backup-target
+        image: 10.115.54.34:5000/harvester:issue-10567-head
+        command:
+        - /bin/sh
+        - -ec
+        args:
+        - |
+          token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          api="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+          target=$(curl --fail --silent --show-error \
+            --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+            --header "Authorization: Bearer ${token}" \
+            "${api}/apis/harvesterhci.io/v1beta1/settings/backup-target" \
+            | jq -er '
+                .value
+                | fromjson
+                | select(.type == "s3" and (.bucketName | length) > 0)
+              ')
+          target_type=$(printf '%s' "${target}" | jq -r '.type')
+          endpoint=$(printf '%s' "${target}" | jq -r '.endpoint // ""')
+          bucket=$(printf '%s' "${target}" | jq -r '.bucketName')
+          region=$(printf '%s' "${target}" | jq -r '.bucketRegion // ""')
+          virtual_hosted=$(printf '%s' "${target}" | jq -r '(.virtualHostedStyle // false) | tostring')
+          while [ "${endpoint%/}" != "${endpoint}" ]; do
+            endpoint=${endpoint%/}
+          done
+          repository_hash=$(printf '%s\0%s\0%s\0%s\0%s' \
+            "${target_type}" "${endpoint}" "${bucket}" "${region}" "${virtual_hosted}" \
+            | sha256sum)
+          repository_hash=${repository_hash%% *}
+          repository_id="sha256:${repository_hash}"
+          password=$(printf '%s\0%s' restic "${repository_id}" | sha256sum)
+          password=${password%% *}
+          if [ -z "${endpoint}" ]; then
+            endpoint=s3.amazonaws.com
+          fi
+          repository="s3:${endpoint}/${bucket}/restic"
+          shell_quote() {
+            printf '%s' "$1" | jq -Rr '@sh'
+          }
+          {
+            printf 'export RESTIC_REPOSITORY=%s\n' "$(shell_quote "${repository}")"
+            printf 'export RESTIC_S3_REGION=%s\n' "$(shell_quote "${region}")"
+            printf 'export RESTIC_PASSWORD=%s\n' "$(shell_quote "${password}")"
+          } > /restic-config/backup-target.env
+          mkdir -p /restic-config/bin
+          cat > /restic-config/bin/restic <<'SCRIPT'
+          #!/bin/sh
+          . /restic-config/backup-target.env
+          if [ -n "${RESTIC_S3_REGION}" ]; then
+            exec /usr/local/bin/restic -o "s3.region=${RESTIC_S3_REGION}" "$@"
+          fi
+          exec /usr/local/bin/restic "$@"
+          SCRIPT
+          chmod 0755 /restic-config/bin/restic
+        volumeMounts:
+        - name: restic-config
+          mountPath: /restic-config
+      containers:
+      - name: restic
+        image: 10.115.54.34:5000/harvester:issue-10567-head
+        command: ["sleep", "720000"]
+        env:
+        - name: PATH
+          value: /restic-config/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: harvester-backup-target-secret
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: harvester-backup-target-secret
+              key: AWS_SECRET_ACCESS_KEY
+        volumeMounts:
+        - name: restic-config
+          mountPath: /restic-config
+      volumes:
+      - name: restic-config
+        emptyDir: {}

@@ -55,6 +55,7 @@ type VirtualMachineBackupMetadata struct {
 	Name          string                                `json:"name"`
 	Namespace     string                                `json:"namespace"`
 	BackupSpec    harvesterv1.VirtualMachineBackupSpec  `json:"backupSpec,omitempty"`
+	BackupTarget  *harvesterv1.BackupTarget             `json:"backupTarget,omitempty"`
 	VMSourceSpec  *harvesterv1.VirtualMachineSourceSpec `json:"vmSourceSpec,omitempty"`
 	VolumeBackups []harvesterv1.VolumeBackup            `json:"volumeBackups,omitempty"`
 	SecretBackups []harvesterv1.SecretBackup            `json:"secretBackups,omitempty"`
@@ -432,6 +433,10 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 	if err := h.createNamespaceIfNotExist(backupMetadata.Namespace); err != nil {
 		return err
 	}
+	backupTarget := backupMetadata.BackupTarget
+	if backupTarget == nil {
+		backupTarget = backuputil.BackupTargetStatus(target)
+	}
 	if _, err := h.vmBackups.Create(&harvesterv1.VirtualMachineBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      backupMetadata.Name,
@@ -439,12 +444,8 @@ func (h *MetadataHandler) createVMBackupIfNotExist(backupMetadata VirtualMachine
 		},
 		Spec: backupMetadata.BackupSpec,
 		Status: harvesterv1.VirtualMachineBackupStatus{
-			ReadyToUse: ptr.To(false),
-			BackupTarget: &harvesterv1.BackupTarget{
-				Endpoint:     target.Endpoint,
-				BucketName:   target.BucketName,
-				BucketRegion: target.BucketRegion,
-			},
+			ReadyToUse:    ptr.To(false),
+			BackupTarget:  backupTarget,
 			SourceSpec:    backupMetadata.VMSourceSpec,
 			VolumeBackups: backupMetadata.VolumeBackups,
 			SecretBackups: backupMetadata.SecretBackups,
@@ -521,6 +522,10 @@ func (h *MetadataHandler) checkDependentStorageClassExist(backupMetadata *Virtua
 }
 
 func (h *MetadataHandler) checkDependentLonghornBackupExist(target *settings.BackupTarget, backupMetadata *VirtualMachineBackupMetadata) bool {
+	if backupMetadata.BackupSpec.Type != harvesterv1.Backup {
+		return true
+	}
+
 	for _, vb := range backupMetadata.VolumeBackups {
 		if vb.LonghornBackupName == nil {
 			logrus.WithFields(logrus.Fields{

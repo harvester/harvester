@@ -60,6 +60,8 @@ spec:
               value: {{ .Values.containers.apiserver.debug | quote }}
             - name: HARVESTER_SERVER_HTTP_PORT
               value: {{ .Values.service.harvester.httpPort | quote }}
+            - name: HARVESTER_IMAGE
+              value: {{ printf "%s:%s" .Values.containers.apiserver.image.repository .Values.containers.apiserver.image.tag | quote }}
 {{- if .Values.containers.apiserver.hciMode }}
             - name: HCI_MODE
               value: "true"
