@@ -48,7 +48,7 @@ type VirtualMachineTemplateStatus struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmtemplateversion;vmtemplateversions,scope=Namespaced
-// +kubebuilder:printcolumn:name="TEMPLATE_ID",type=string,JSONPath=`.spec.templatedId`
+// +kubebuilder:printcolumn:name="TEMPLATE_ID",type=string,JSONPath=`.spec.templateId`
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,priority=10,JSONPath=`.spec.description`
 // +kubebuilder:printcolumn:name="VERSION",type=integer,JSONPath=`.status.version`
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
