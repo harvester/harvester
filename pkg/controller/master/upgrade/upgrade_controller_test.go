@@ -309,6 +309,144 @@ func TestUpgradeEligibilityCheckDoesNotSkipFlavorSwitchVersion(t *testing.T) {
 	}
 }
 
+func TestUpgradeEligibilityCheckReleaseCandidate(t *testing.T) {
+	community := settings.ServerFlavorCommunity
+	prime := settings.ServerFlavorPrime
+
+	currentFlavor := settings.ServerFlavor.Get()
+	t.Cleanup(func() {
+		require.NoError(t, settings.ServerFlavor.Set(currentFlavor))
+	})
+
+	testCases := []struct {
+		name                 string
+		currentFlavor        string
+		currentVersion       string
+		targetFlavor         string
+		targetVersion        string
+		minUpgradableVersion string
+		allowSameVersion     bool
+		expectedReason       string
+	}{
+		{
+			name:                 "community release to Prime release candidate of a newer version",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release candidate to Prime release",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release candidate to Prime release candidate at the same version with annotation",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			allowSameVersion:     true,
+		},
+		{
+			name:                 "Prime release to Prime release candidate of a newer version",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.2-rc1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "Prime release candidate to Prime release candidate",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc2",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "Prime release candidate to Prime release",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1-rc2",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release to Prime release candidate below the minimum upgradable version is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.0",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			expectedReason:       "current version does not meet minimum upgrade requirement",
+		},
+		{
+			name:                 "community release to Prime release candidate of the same version with annotation is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.9.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			allowSameVersion:     true,
+			expectedReason:       "switching from community to Prime requires a newer version",
+		},
+		{
+			name:                 "community release to community release candidate of the same version is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         community,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.0",
+			expectedReason:       "downgrading is prohibited",
+		},
+		{
+			name:                 "Prime release to community release candidate is rejected",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         community,
+			targetVersion:        "v1.10.2-rc1",
+			minUpgradableVersion: "v1.9.0",
+			expectedReason:       "upgrading from a Prime release to a community release is not supported",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.NoError(t, settings.ServerFlavor.Set(testCase.currentFlavor))
+
+			upgrade := &harvesterv1.Upgrade{
+				Status: harvesterv1.UpgradeStatus{
+					PreviousVersion: testCase.currentVersion,
+				},
+			}
+			repoInfo := &repoinfo.RepoInfo{
+				Release: repoinfo.HarvesterRelease{
+					Harvester:            testCase.targetVersion,
+					MinUpgradableVersion: testCase.minUpgradableVersion,
+					ServerFlavor:         testCase.targetFlavor,
+				},
+			}
+			repoInfoStr, err := repoInfo.Marshall()
+			require.NoError(t, err)
+			upgrade.Status.RepoInfo = repoInfoStr
+
+			isEligible, reason := upgradeEligibilityCheck(upgrade, testCase.allowSameVersion)
+			if testCase.expectedReason == "" {
+				require.True(t, isEligible, reason)
+				return
+			}
+			require.False(t, isEligible)
+			require.Contains(t, reason, testCase.expectedReason)
+		})
+	}
+}
+
 func TestValidateUpgradeFlavorVersion(t *testing.T) {
 	community := settings.ServerFlavorCommunity
 	prime := settings.ServerFlavorPrime
