@@ -23,6 +23,7 @@ ENV KUBECTL_VERSION ${KUBECTL_VERSION}
 RUN zypper ar -f https://rpm.rancher.io/pkgs/prime pkgs && \
   rpm --import https://raw.githubusercontent.com/rancher/rancher/refs/heads/main/rancher-rpm-pkgs.key && \
   zypper --non-interactive in --no-recommends -r pkgs kubectl-${KUBECTL_VERSION} yq && \
+  zypper clean -a && \
   ln -s /usr/bin/kubectl-${KUBECTL_VERSION} /usr/bin/kubectl
 
 RUN VIRTCTL_SHA256=VIRTCTL_SHA256_${ARCH} && \
