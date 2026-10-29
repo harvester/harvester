@@ -19,6 +19,7 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	backupcommon "github.com/harvester/harvester/pkg/backup/common"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlcniv1 "github.com/harvester/harvester/pkg/generated/controllers/k8s.cni.cncf.io/v1"
@@ -349,6 +350,9 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
+		return err
+	}
+	if err := v.checkVmstatePersistenceStorageClass(vm); err != nil {
 		return err
 	}
 	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
@@ -1044,4 +1048,21 @@ func (v *vmValidator) validateTargetVolumeEntry(entry util.VolumeClaimTemplateEn
 	}
 
 	return nil
+}
+
+func (v *vmValidator) checkVmstatePersistenceStorageClass(vm *kubevirtv1.VirtualMachine) error {
+	if !backendstorage.IsBackendStorageNeeded(vm) {
+		return nil
+	}
+	_, err := v.scCache.Get(util.StorageClassVmstatePersistence)
+	if err == nil {
+		return nil
+	}
+	if apierrors.IsNotFound(err) {
+		return werror.NewInvalidError(
+			fmt.Sprintf("storage class %q is required for VMs with vTPM or EFI persistent firmware but does not exist; add a Longhorn disk or create a working %q storage class", util.StorageClassVmstatePersistence, util.StorageClassVmstatePersistence),
+			"spec.template.spec",
+		)
+	}
+	return werror.NewInternalError(fmt.Sprintf("failed to get storage class %s: %v", util.StorageClassVmstatePersistence, err))
 }

@@ -2225,3 +2225,163 @@ func TestVmValidator_Create(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckVmstatePersistenceStorageClass(t *testing.T) {
+	persistentTrue := true
+
+	tests := []struct {
+		name        string
+		vm          *kubevirtv1.VirtualMachine
+		scExists    bool
+		expectError bool
+	}{
+		{
+			name: "persistent TPM, SC missing → reject",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name: "persistent EFI, SC missing → reject",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{Persistent: &persistentTrue},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name: "persistent TPM, SC exists → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    true,
+			expectError: false,
+		},
+		{
+			name: "persistent EFI, SC exists → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{Persistent: &persistentTrue},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    true,
+			expectError: false,
+		},
+		{
+			name: "non-persistent TPM, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+		{
+			name: "EFI without persistent flag, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+		{
+			name: "no TPM or EFI, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.scExists {
+				assert.NoError(t, clientset.Tracker().Add(&storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
+				}))
+			}
+			v := &vmValidator{
+				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			err := v.checkVmstatePersistenceStorageClass(tc.vm)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
