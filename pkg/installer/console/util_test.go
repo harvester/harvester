@@ -74,32 +74,32 @@ func TestGetFormattedServerURL(t *testing.T) {
 		{
 			Name:   "ip",
 			input:  "1.2.3.4",
-			output: "https://1.2.3.4:443",
+			output: "https://1.2.3.4:9345",
 			err:    nil,
 		},
 		{
 			Name:   "domain name",
 			input:  "example.org",
-			output: "https://example.org:443",
+			output: "https://example.org:9345",
 			err:    nil,
 		},
 		{
 			Name:   "ip without port and scheme",
 			input:  "1.1.1.1",
-			output: "https://1.1.1.1:443",
+			output: "https://1.1.1.1:9345",
 			err:    nil,
 		},
 		{
 			Name:   "domain without port and scheme",
 			input:  "abc.org",
-			output: "https://abc.org:443",
+			output: "https://abc.org:9345",
 			err:    nil,
 		},
 		{
 			Name:   "custom port",
 			input:  "1.2.3.4:555",
 			output: "",
-			err:    errors.New("currently non-443 port are not allowed"),
+			err:    errors.New("currently non-9345 port are not allowed"),
 		},
 		{
 			Name:   "ip with path",
@@ -146,8 +146,8 @@ func TestGetServerURLFromRancherdConfig(t *testing.T) {
 			err:   nil,
 		},
 		{
-			input: []byte("role: agent\nkubernetesVersion: v1.21.2+rke2r1\nserver: https://172.0.0.1:443"),
-			url:   "https://172.0.0.1:443",
+			input: []byte("role: agent\nkubernetesVersion: v1.21.2+rke2r1\nserver: https://172.0.0.1:9345"),
+			url:   "https://172.0.0.1:9345",
 			err:   nil,
 		},
 	}
