@@ -13,6 +13,12 @@ spec:
   enabled: false
   {{- end }}
   valuesContent: |
+    global:
+      {{- if .IsDualStackEnabled }}
+      ipFamilyPolicy: PreferDualStack
+      {{- else }}
+      ipFamilyPolicy: SingleStack
+      {{- end }}
     image:
       repository: << .VM_IMPORT_CONTROLLER_IMAGE_REPOSITORY >>
       tag: << .VM_IMPORT_CONTROLLER_IMAGE_TAG >>

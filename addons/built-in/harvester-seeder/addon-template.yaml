@@ -13,6 +13,12 @@ spec:
   enabled: false
   {{- end }}
   valuesContent: |
+    global:
+      {{- if .IsDualStackEnabled }}
+      ipFamilyPolicy: PreferDualStack
+      {{- else }}
+      ipFamilyPolicy: SingleStack
+      {{- end }}
     image:
       repository: << .HARVESTER_SEEDER_IMAGE_REPOSITORY >>
       tag: << .HARVESTER_SEEDER_IMAGE_TAG >>
