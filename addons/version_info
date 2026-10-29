@@ -11,8 +11,8 @@ HARVESTER_SEEDER_IMAGE_TAG="main-head"
 NVIDIA_DRIVER_RUNTIME_CHART_VERSION="1.10.0-dev.0"
 NVIDIA_DRIVER_TOOLKIT_IMAGE_REPOSITORY="rancher/harvester-nvidia-driver-toolkit"
 NVIDIA_DRIVER_TOOLKIT_IMAGE_TAG="sle-micro-head"
-RANCHER_LOGGING_CHART_VERSION="109.0.0+up4.10.0-rancher.23"
-RANCHER_MONITORING_CHART_VERSION="109.0.3+up80.9.1-rancher.14"
+RANCHER_LOGGING_CHART_VERSION="110.0.0+up4.10.0-rancher.24"
+RANCHER_MONITORING_CHART_VERSION="110.0.2+up80.9.1-rancher.22"
 # Community builds leave the chart's own systemDefaultRegistry default in
 # place (empty). Prime builds have prepare-addons-prime fill this in with the
 # same registry patch_addon_chart_registry writes into the chart tarball, so

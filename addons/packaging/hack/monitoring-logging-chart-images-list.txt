@@ -16,7 +16,8 @@
 
 # ==========================================
 # Images used by rancher-logging chart
-# Version: 109.0.0+up4.10.0-rancher.23
+# Old version: 109.0.0+up4.10.0-rancher.23
+# Version: 110.0.0+up4.10.0-rancher.24
 # ==========================================
 
 # Used by rancher-logging-crd chart
@@ -37,14 +38,19 @@ docker.io/rancher/mirrored-kube-logging-config-reloader:v0.0.6
 
 # ==========================================
 # Images used by rancher-monitoring chart
-# Version: 109.0.3+up80.9.1-rancher.14
+# Old version: 109.0.3+up80.9.1-rancher.14
+# Version: 110.0.2+up80.9.1-rancher.22
 # ==========================================
 
 # Used by rancher-monitoring-crd chart
 
-# changed: true; old value: v6.0.0
-#  also patch rancher-monitoring to use v7.1.1 instead of v7.1.0
-docker.io/rancher/kuberlr-kubectl:v7.1.1
+# changed: true; old value: v7.1.1
+#  rancher-monitoring also uses same newer version v8.1.2
+# note: 2026.10.27 harvester has included v8.1.2
+#  the duplicated record on scripts/images/monitoring-images.txt is removed
+#  if unluckily harvester updates the image tag to a new one
+#  add back it to scripts/images/monitoring-images.txt
+# docker.io/rancher/kuberlr-kubectl:v8.1.2
 
 # Used by rancher-monitoring chart
 
@@ -67,8 +73,8 @@ docker.io/rancher/appco-kube-state-metrics:2.17.0-10.14
 # changed: false; old value:
 docker.io/rancher/mirrored-library-busybox:1.37.0
 
-# changed: false; old value:
-docker.io/rancher/mirrored-library-nginx:1.29.1-alpine
+# changed: false; old value: 1.29.1-alpine
+docker.io/rancher/mirrored-library-nginx:1.31.3-alpine
 
 # changed: false; old value:
 docker.io/rancher/mirrored-prometheus-adapter-prometheus-adapter:v0.12.0
@@ -90,6 +96,3 @@ docker.io/rancher/mirrored-prometheus-operator-admission-webhook:v0.87.1
 
 # changed: true; old value: v3.5.0
 docker.io/rancher/prom-prometheus:v3.8.1
-
-# changed: true; old value: v6.0.0, chart value: v7.1.0, but it is replaced to v7.1.1 by patch
-# docker.io/rancher/kuberlr-kubectl:v7.1.0
