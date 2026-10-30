@@ -193,13 +193,13 @@ func (h Handler) generateArchive(rw http.ResponseWriter, req *http.Request) erro
 		return fmt.Errorf("the logging infrastructure for the upgradelog resource (%s/%s) is not ready yet", upgradeLogNamespace, upgradeLogName)
 	}
 
-	// Get image version for log packager
+	// Get image for log packager
 	upgradeName := upgradeLog.Spec.UpgradeName
 	upgrade, err := h.upgradeCache.Get(util.HarvesterSystemNamespaceName, upgradeName)
 	if err != nil {
 		return fmt.Errorf("failed to get the upgrade resource (%s/%s): %w", util.HarvesterSystemNamespaceName, upgradeName, err)
 	}
-	imageVersion := upgrade.Status.PreviousVersion
+	image := util.GetPreviousUpgradeImage(upgrade)
 
 	ts := time.Now().UTC()
 	generatedTime := strings.ReplaceAll(ts.Format(time.RFC3339), ":", "-")
@@ -217,7 +217,7 @@ func (h Handler) generateArchive(rw http.ResponseWriter, req *http.Request) erro
 		component = util.UpgradeLogAggregatorComponent
 	}
 
-	if _, err := h.jobClient.Create(prepareLogPackager(upgradeLog, imageVersion, archiveName, component)); err != nil {
+	if _, err := h.jobClient.Create(prepareLogPackager(upgradeLog, image, archiveName, component)); err != nil {
 		return fmt.Errorf("failed to create log packager job for the upgradelog resource (%s/%s): %w", upgradeLogNamespace, upgradeLogName, err)
 	}
 	toUpdate := upgradeLog.DeepCopy()
@@ -261,7 +261,7 @@ func checkConditionReady(conditions []harvesterv1.Condition, targetCondition con
 	return isReady
 }
 
-func prepareLogPackager(upgradeLog *harvesterv1.UpgradeLog, imageVersion, archiveName, component string) *batchv1.Job {
+func prepareLogPackager(upgradeLog *harvesterv1.UpgradeLog, image, archiveName, component string) *batchv1.Job {
 	backoffLimit := defaultJobBackoffLimit
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -313,7 +313,7 @@ func prepareLogPackager(upgradeLog *harvesterv1.UpgradeLog, imageVersion, archiv
 					Containers: []corev1.Container{
 						{
 							Name:  "packager",
-							Image: fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, imageVersion),
+							Image: image,
 							Command: []string{
 								"sh", "-c", logPackagingScript,
 							},
