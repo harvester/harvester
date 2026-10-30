@@ -45,6 +45,7 @@ tags:
 ## Specify the parameters to override the sub-chart.
 ##
 kubevirt-operator:
+  replicas: 2
   containers:
     operator:
       image:
