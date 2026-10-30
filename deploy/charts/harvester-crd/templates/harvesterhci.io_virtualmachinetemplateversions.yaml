@@ -18,7 +18,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.templatedId
+    - jsonPath: .spec.templateId
       name: TEMPLATE_ID
       type: string
     - jsonPath: .spec.description
