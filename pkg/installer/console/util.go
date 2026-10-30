@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	rancherManagementPort = "443"
+	rke2SupervisorPort    = "9345"
 	defaultHTTPTimeout    = 15 * time.Second
 	automaticCmdline      = "harvester.automatic"
 	installFailureMessage = `
@@ -324,9 +324,9 @@ func getFormattedServerURL(addr string) (string, error) {
 
 	port := parsedURL.Port()
 	if port == "" {
-		parsedURL.Host += ":443"
-	} else if port != "443" {
-		return "", fmt.Errorf("currently non-443 port are not allowed")
+		parsedURL.Host += fmt.Sprintf(":%s", rke2SupervisorPort)
+	} else if port != rke2SupervisorPort {
+		return "", fmt.Errorf("currently non-%s port are not allowed", rke2SupervisorPort)
 	}
 
 	return parsedURL.String(), nil

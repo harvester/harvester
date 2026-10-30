@@ -13,11 +13,6 @@ update_agent_conf()
     exit 1
   fi
 
-  if ! echo $server_url | grep -E '^https://(.*):(8443|443)'; then
-    echo "[Error] server port is not 8443 or 443."
-    exit 1
-  fi
-
   export RKE2_SERVER_URL="$(echo $server_url | sed -E 's,^https://(.*):(8443|443),https://\1:9345,')"
 
   if [ -e $RKE2_VIP_CONFIG_FILE ]; then

@@ -60,12 +60,6 @@ func main() {
 			Usage:       "Enable HCI mode. Additional controllers are registered in HCI mode",
 			Destination: &options.HCIMode,
 		},
-		cli.BoolFlag{
-			Name:        "rancher-embedded",
-			EnvVar:      "RANCHER_EMBEDDED",
-			Usage:       "Specify whether the Harvester is running with embedded Rancher mode, default to false",
-			Destination: &options.RancherEmbedded,
-		},
 		cli.StringFlag{
 			Name:        "rancher-server-url",
 			EnvVar:      "RANCHER_SERVER_URL",

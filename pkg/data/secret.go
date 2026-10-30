@@ -18,7 +18,7 @@ func createSecrets(mgmt *config.Management) error {
 	defaultSecrets := []corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: util.CattleSystemNamespaceName,
+				Namespace: util.HarvesterSystemNamespaceName,
 				Name:      util.AdditionalCASecretName,
 			},
 			Data: map[string][]byte{
@@ -27,7 +27,7 @@ func createSecrets(mgmt *config.Management) error {
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: util.CattleSystemNamespaceName,
+				Namespace: util.HarvesterSystemNamespaceName,
 				Name:      util.ContainerdRegistrySecretName,
 			},
 			Data: map[string][]byte{

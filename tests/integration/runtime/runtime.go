@@ -56,7 +56,6 @@ func SetConfig() (config.Options, error) {
 	options.HTTPListenPort = ports[0]
 	options.HTTPSListenPort = ports[1]
 	options.Namespace = testHarvesterNamespace
-	options.RancherEmbedded = false
 
 	// inject the preset envs, this is used for testing setting.
 	err = os.Setenv(settings.GetEnvKey(settings.APIUIVersion.Name), settings.APIUIVersion.Default)

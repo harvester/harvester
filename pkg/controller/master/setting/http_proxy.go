@@ -42,10 +42,6 @@ func (h *Handler) syncHTTPProxy(setting *harvesterv1.Setting) error {
 		return err
 	}
 
-	//redeploy system services. The proxy envs will be injected by the mutation webhook.
-	if err := h.redeployDeployment(util.CattleSystemNamespaceName, "rancher"); err != nil {
-		return err
-	}
 	return h.redeployDeployment(h.namespace, "harvester")
 }
 

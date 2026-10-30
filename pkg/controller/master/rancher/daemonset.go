@@ -17,7 +17,6 @@ import (
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/utils/ptr"
 )
 
 // reconcileIngressResources reconciles DaemonSet resources and watchs until the rke2-traefik DS is found
@@ -32,22 +31,7 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 
 	if ds.Name == util.Rke2TraefikAppName && ds.Namespace == util.KubeSystemNamespace {
 		logrus.Info("found traefik ds, checking if ingress object needs an update")
-		// traefik exists.. lets verify ingress and update settings
-		ingressObj, err := h.ingresses.Get(util.CattleSystemNamespaceName, util.RancherExposeIngressName, metav1.GetOptions{})
-		if err != nil {
-			return ds, fmt.Errorf("error looking up ingress object %s: %w", util.RancherExposeIngressName, err)
-		}
-
 		var rerunExpose bool
-		// update ingressClassName to traefik if needed
-		if ingressObj.Spec.IngressClassName == nil || *ingressObj.Spec.IngressClassName != util.TraefikIngressClassName {
-			ingressObj.Spec.IngressClassName = ptr.To(util.TraefikIngressClassName)
-			if _, err := h.ingresses.Update(ingressObj); err != nil {
-				return ds, fmt.Errorf("error updating ingress class on rancher-expose ingress: %w", err)
-			}
-			rerunExpose = true
-		}
-
 		// re-run registerExposeService may be needed since in HA nodes during upgrade traefik / nginx will be flapping until all controlplane nodes
 		// get the update as part of the OS update
 		svc, err := h.Services.Get(util.KubeSystemNamespace, traefikServiceName, metav1.GetOptions{})
@@ -71,7 +55,7 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 		if err != nil {
 			return ds, fmt.Errorf("error finding gvr for traefik tlsstore: %w", err)
 		}
-		_, err = h.DynamicClient.Resource(restMapping.Resource).Namespace(util.CattleSystemNamespaceName).Get(h.ctx, util.DefaultTraefikTLSStoreName, metav1.GetOptions{})
+		_, err = h.DynamicClient.Resource(restMapping.Resource).Namespace(util.HarvesterSystemNamespaceName).Get(h.ctx, util.DefaultTraefikTLSStoreName, metav1.GetOptions{})
 		if err == nil {
 			return ds, nil
 		}
@@ -85,6 +69,19 @@ func (h *Handler) reconcileIngressResources(_ string, ds *appsv1.DaemonSet) (*ap
 		return ds, err
 	}
 	return ds, nil
+}
+
+func doesTraefikServiceNeedUpdate(svc *corev1.Service) bool {
+	if svc.Annotations == nil {
+		return true
+	}
+
+	val, ok := svc.Annotations[keyKubevipIgnoreServiceSecurity]
+	if !ok || val != trueStr {
+		return true
+	}
+
+	return false
 }
 
 func (h *Handler) triggerTLSCertificateSettingUpdate() error {
@@ -125,17 +122,4 @@ func findGVR(gvk schema.GroupVersionKind, cfg *rest.Config) (*meta.RESTMapping, 
 		return nil, err
 	}
 	return newMapping, nil
-}
-
-func doesTraefikServiceNeedUpdate(svc *corev1.Service) bool {
-	if svc.Annotations == nil {
-		return true
-	}
-
-	val, ok := svc.Annotations[keyKubevipIgnoreServiceSecurity]
-	if !ok || val != trueStr {
-		return true
-	}
-
-	return false
 }
