@@ -341,6 +341,13 @@ func (le *LonghornEngine) shouldSkipVSUpdate(vmb *harvesterv1.VirtualMachineBack
 	return false, nil
 }
 
+func (le *LonghornEngine) Prepare(
+	_ *harvesterv1.VirtualMachineBackup,
+	_ map[string]snapshotv1.VolumeSnapshotClass,
+) (bool, error) {
+	return true, nil
+}
+
 func (le *LonghornEngine) Reconcile(
 	vmb *harvesterv1.VirtualMachineBackup,
 	volIndex int,
@@ -439,7 +446,7 @@ func (le *LonghornEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, e
 	return int64(lhBackup.Status.Progress), nil
 }
 
-// ForceDelete removes the VolumeSnapshot and any VolumeSnapshotContent that
+// removeVolume removes the VolumeSnapshot and any VolumeSnapshotContent that
 // references it, clearing finalizers so Kubernetes can free them immediately.
 // Used when the backup target changed: the underlying Longhorn snapshot delete
 // would otherwise fail and leave the VSC stuck Terminating.
@@ -448,7 +455,7 @@ func (le *LonghornEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, e
 // GC can delete the VS before this fires (the VS is namespaced; the VSC is
 // cluster-scoped and cannot be GC'd via owner refs). We look up VSCs by their
 // VolumeSnapshotRef so cleanup works in either order.
-func (le *LonghornEngine) ForceDelete(vmb *harvesterv1.VirtualMachineBackup, volIndex int) error {
+func (le *LonghornEngine) removeVolume(vmb *harvesterv1.VirtualMachineBackup, volIndex int) error {
 	vb := le.vmbo.GetVolBackup(vmb, volIndex)
 	vbName := le.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
@@ -468,6 +475,24 @@ func (le *LonghornEngine) ForceDelete(vmb *harvesterv1.VirtualMachineBackup, vol
 	}
 
 	return nil
+}
+
+func (le *LonghornEngine) Remove(
+	vmb *harvesterv1.VirtualMachineBackup,
+	removeRemote bool,
+) (*harvesterv1.VirtualMachineBackup, error) {
+	if !removeRemote {
+		return vmb, nil
+	}
+	for i, vb := range le.vmbo.GetVolBackups(vmb) {
+		if le.vmbo.GetVolBackupName(&vb) == nil {
+			continue
+		}
+		if err := le.removeVolume(vmb, i); err != nil {
+			return nil, err
+		}
+	}
+	return vmb, nil
 }
 
 // RegisterWatchers wires up a Longhorn-Backup → VMBackup event mapping so

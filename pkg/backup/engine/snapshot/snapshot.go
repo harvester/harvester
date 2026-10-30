@@ -37,6 +37,13 @@ func GetBackupEngine(
 	}
 }
 
+func (se *SnapshotEngine) Prepare(
+	_ *harvesterv1.VirtualMachineBackup,
+	_ map[string]snapshotv1.VolumeSnapshotClass,
+) (bool, error) {
+	return true, nil
+}
+
 func (se *SnapshotEngine) Reconcile(
 	vmb *harvesterv1.VirtualMachineBackup,
 	volIndex int,
@@ -91,8 +98,11 @@ func (se *SnapshotEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, e
 	return 0, nil
 }
 
-func (se *SnapshotEngine) ForceDelete(vmb *harvesterv1.VirtualMachineBackup, volIndex int) error {
-	return nil
+func (se *SnapshotEngine) Remove(
+	vmb *harvesterv1.VirtualMachineBackup,
+	_ bool,
+) (*harvesterv1.VirtualMachineBackup, error) {
+	return vmb, nil
 }
 
 // RegisterWatchers is a no-op for the snapshot engine; it owns no external

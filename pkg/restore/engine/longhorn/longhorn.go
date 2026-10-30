@@ -556,11 +556,26 @@ func (lre *LonghornRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) 
 	return 0, nil
 }
 
-// Delete removes the VolumeSnapshotContent created during restore for the given
+// Delete also handles untyped legacy restores by inspecting retained snapshot
+// contents. The source VMBackup and namespaced VolumeSnapshot may already be gone.
+func (lre *LonghornRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) error {
+	backupType := lre.vmro.GetType(vmr)
+	if backupType != "" && backupType != harvesterv1.Backup {
+		return nil
+	}
+	for i := range lre.vmro.GetVolRestores(vmr) {
+		if err := lre.removeVolume(vmr, i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// removeVolume removes the VolumeSnapshotContent created during restore for the given
 // volume index. VSC is cluster-scoped and uses Retain deletion policy (so the
 // underlying Longhorn backup survives VM deletion), which means it cannot be
 // garbage-collected via owner references and must be deleted explicitly here.
-func (lre *LonghornRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error {
+func (lre *LonghornRestoreEngine) removeVolume(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error {
 	vr := lre.vmro.GetVolRestore(vmr, volIndex)
 	if vr == nil {
 		return nil
@@ -580,7 +595,15 @@ func (lre *LonghornRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore,
 		return fmt.Errorf("get VolumeSnapshotContent %s: %w", vscName, err)
 	}
 
-	if err := lre.vscClient.Delete(vsc.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+	// Only clean the retained content created for this restore's snapshot.
+	vsName := name.SafeConcatName("restore", lre.vmro.GetName(vmr), vbName)
+	ref := vsc.Spec.VolumeSnapshotRef
+	if vsc.Spec.Driver != longhornDriver || vsc.Spec.DeletionPolicy != snapshotv1.VolumeSnapshotContentRetain ||
+		ref.Namespace != lre.vmro.GetNamespace(vmr) || ref.Name != vsName {
+		return nil
+	}
+	opts := &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &vsc.UID}}
+	if err := lre.vscClient.Delete(vsc.Name, opts); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete VolumeSnapshotContent %s: %w", vsc.Name, err)
 	}
 	return nil
