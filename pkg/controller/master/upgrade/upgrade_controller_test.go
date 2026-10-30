@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -207,13 +208,14 @@ func TestValidateUpgradeRepo(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			repoInfo := &repoinfo.RepoInfo{
 				Release: repoinfo.HarvesterRelease{
+					Harvester:                      "v1.9.1",
 					RancherSystemDefaultRegistry:   testCase.targetRegistry,
 					HarvesterSystemDefaultRegistry: testCase.targetHarvesterRegistry,
 					ServerFlavor:                   testCase.targetFlavor,
 				},
 			}
 
-			err := validateUpgradeRepo(testCase.currentFlavor, repoInfo)
+			err := validateUpgradeRepo(testCase.currentFlavor, "v1.9.0", false, repoInfo)
 			if testCase.expectedError == "" {
 				require.NoError(t, err)
 				return
@@ -246,9 +248,478 @@ func TestUpgradeEligibilityCheckDoesNotSkipFlavorValidation(t *testing.T) {
 	require.NoError(t, err)
 	upgrade.Status.RepoInfo = repoInfoStr
 
-	isEligible, reason := upgradeEligibilityCheck(upgrade)
+	isEligible, reason := upgradeEligibilityCheck(upgrade, true)
 	require.False(t, isEligible)
 	require.Contains(t, reason, "upgrading from a Prime release to a community release is not supported")
+}
+
+func TestUpgradeEligibilityCheckDoesNotSkipFlavorSwitchVersion(t *testing.T) {
+	currentFlavor := settings.ServerFlavor.Get()
+	require.NoError(t, settings.ServerFlavor.Set(settings.ServerFlavorCommunity))
+	t.Cleanup(func() {
+		require.NoError(t, settings.ServerFlavor.Set(currentFlavor))
+	})
+
+	testCases := []struct {
+		name           string
+		currentVersion string
+		targetVersion  string
+		expectedReason string
+	}{
+		{
+			name:           "same version",
+			currentVersion: "v1.9.1",
+			targetVersion:  "v1.9.1",
+			expectedReason: "switching from community to Prime at the same version is not supported",
+		},
+		{
+			name:           "downgrade",
+			currentVersion: "v1.10.1",
+			targetVersion:  "v1.9.1",
+			expectedReason: "switching from community to Prime requires a newer version",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			upgrade := &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						skipVersionCheckAnnotation: "true",
+					},
+				},
+				Status: harvesterv1.UpgradeStatus{
+					PreviousVersion: testCase.currentVersion,
+				},
+			}
+			repoInfo := &repoinfo.RepoInfo{
+				Release: repoinfo.HarvesterRelease{
+					Harvester:    testCase.targetVersion,
+					ServerFlavor: settings.ServerFlavorPrime,
+				},
+			}
+			repoInfoStr, err := repoInfo.Marshall()
+			require.NoError(t, err)
+			upgrade.Status.RepoInfo = repoInfoStr
+
+			isEligible, reason := upgradeEligibilityCheck(upgrade, false)
+			require.False(t, isEligible)
+			require.Contains(t, reason, testCase.expectedReason)
+		})
+	}
+}
+
+func TestUpgradeEligibilityCheckReleaseCandidate(t *testing.T) {
+	community := settings.ServerFlavorCommunity
+	prime := settings.ServerFlavorPrime
+
+	currentFlavor := settings.ServerFlavor.Get()
+	t.Cleanup(func() {
+		require.NoError(t, settings.ServerFlavor.Set(currentFlavor))
+	})
+
+	testCases := []struct {
+		name                 string
+		currentFlavor        string
+		currentVersion       string
+		targetFlavor         string
+		targetVersion        string
+		minUpgradableVersion string
+		allowSameVersion     bool
+		expectedReason       string
+	}{
+		{
+			name:                 "community release to Prime release candidate of a newer version",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release candidate to Prime release",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release candidate to Prime release candidate at the same version with annotation",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			allowSameVersion:     true,
+		},
+		{
+			name:                 "Prime release to Prime release candidate of a newer version",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.2-rc1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "Prime release candidate to Prime release candidate",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1-rc1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc2",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "Prime release candidate to Prime release",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1-rc2",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1",
+			minUpgradableVersion: "v1.9.1",
+		},
+		{
+			name:                 "community release to Prime release candidate below the minimum upgradable version is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.0",
+			targetFlavor:         prime,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			expectedReason:       "current version does not meet minimum upgrade requirement",
+		},
+		{
+			name:                 "community release to Prime release candidate of the same version with annotation is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.9.1",
+			targetFlavor:         prime,
+			targetVersion:        "v1.9.1-rc1",
+			minUpgradableVersion: "v1.9.1",
+			allowSameVersion:     true,
+			expectedReason:       "switching from community to Prime requires a newer version",
+		},
+		{
+			name:                 "community release to community release candidate of the same version is rejected",
+			currentFlavor:        community,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         community,
+			targetVersion:        "v1.10.1-rc1",
+			minUpgradableVersion: "v1.9.0",
+			expectedReason:       "downgrading is prohibited",
+		},
+		{
+			name:                 "Prime release to community release candidate is rejected",
+			currentFlavor:        prime,
+			currentVersion:       "v1.10.1",
+			targetFlavor:         community,
+			targetVersion:        "v1.10.2-rc1",
+			minUpgradableVersion: "v1.9.0",
+			expectedReason:       "upgrading from a Prime release to a community release is not supported",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.NoError(t, settings.ServerFlavor.Set(testCase.currentFlavor))
+
+			upgrade := &harvesterv1.Upgrade{
+				Status: harvesterv1.UpgradeStatus{
+					PreviousVersion: testCase.currentVersion,
+				},
+			}
+			repoInfo := &repoinfo.RepoInfo{
+				Release: repoinfo.HarvesterRelease{
+					Harvester:            testCase.targetVersion,
+					MinUpgradableVersion: testCase.minUpgradableVersion,
+					ServerFlavor:         testCase.targetFlavor,
+				},
+			}
+			repoInfoStr, err := repoInfo.Marshall()
+			require.NoError(t, err)
+			upgrade.Status.RepoInfo = repoInfoStr
+
+			isEligible, reason := upgradeEligibilityCheck(upgrade, testCase.allowSameVersion)
+			if testCase.expectedReason == "" {
+				require.True(t, isEligible, reason)
+				return
+			}
+			require.False(t, isEligible)
+			require.Contains(t, reason, testCase.expectedReason)
+		})
+	}
+}
+
+func TestValidateUpgradeFlavorVersion(t *testing.T) {
+	community := settings.ServerFlavorCommunity
+	prime := settings.ServerFlavorPrime
+
+	testCases := []struct {
+		name             string
+		currentFlavor    string
+		currentVersion   string
+		targetFlavor     string
+		targetVersion    string
+		allowSameVersion bool
+		expectedError    string
+	}{
+		{
+			name:           "community to Prime at a newer version",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.10.1",
+		},
+		{
+			name:           "community release candidate to Prime release",
+			currentFlavor:  community,
+			currentVersion: "v1.10.1-rc1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.10.1",
+		},
+		{
+			name:           "community release to Prime release candidate of a newer version",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.10.1-rc1",
+		},
+		{
+			name:           "community to Prime at the same version is rejected",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1",
+			expectedError:  "switching from community to Prime at the same version is not supported",
+		},
+		{
+			name:           "community to Prime at the same release candidate is rejected",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1-rc1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1-rc1",
+			expectedError:  "switching from community to Prime at the same version is not supported",
+		},
+		{
+			name:             "community to Prime at the same version with annotation",
+			currentFlavor:    community,
+			currentVersion:   "v1.9.1",
+			targetFlavor:     prime,
+			targetVersion:    "v1.9.1",
+			allowSameVersion: true,
+		},
+		{
+			name:           "community to Prime at an older version is rejected",
+			currentFlavor:  community,
+			currentVersion: "v1.10.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1",
+			expectedError:  "switching from community to Prime requires a newer version",
+		},
+		{
+			name:           "community release to Prime release candidate of the same version is rejected",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1-rc1",
+			expectedError:  "switching from community to Prime requires a newer version",
+		},
+		{
+			name:             "community to Prime at an older version with annotation is rejected",
+			currentFlavor:    community,
+			currentVersion:   "v1.10.1",
+			targetFlavor:     prime,
+			targetVersion:    "v1.9.1",
+			allowSameVersion: true,
+			expectedError:    "switching from community to Prime requires a newer version",
+		},
+		{
+			name:           "community to Prime dev target",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9-head",
+		},
+		{
+			name:           "community to Prime commit hash target",
+			currentFlavor:  community,
+			currentVersion: "v1.9-head",
+			targetFlavor:   prime,
+			targetVersion:  "f024f49a",
+		},
+		{
+			name:           "community dev to Prime release",
+			currentFlavor:  community,
+			currentVersion: "v1.9-head",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1",
+		},
+		{
+			name:           "community commit hash to Prime release",
+			currentFlavor:  community,
+			currentVersion: "f024f49a",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1",
+		},
+		{
+			name:           "community commit hash to Prime commit hash",
+			currentFlavor:  community,
+			currentVersion: "f024f49a",
+			targetFlavor:   prime,
+			targetVersion:  "dc559d6d",
+		},
+		{
+			name:           "community dirty commit hash to Prime release",
+			currentFlavor:  community,
+			currentVersion: "dc559d6d-dirty",
+			targetFlavor:   prime,
+			targetVersion:  "v1.9.1",
+		},
+		{
+			name:           "community dirty commit hash to Prime dirty commit hash",
+			currentFlavor:  community,
+			currentVersion: "dc559d6d-dirty",
+			targetFlavor:   prime,
+			targetVersion:  "f024f49a-dirty",
+		},
+		{
+			name:           "community release to Prime dirty commit hash",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "dc559d6d-dirty",
+		},
+		{
+			name:           "Prime commit hash to community release is rejected",
+			currentFlavor:  prime,
+			currentVersion: "dc559d6d-dirty",
+			targetFlavor:   community,
+			targetVersion:  "v1.9.1",
+			expectedError:  "upgrading from a Prime release to a community release is not supported",
+		},
+		{
+			name:           "Prime dirty commit hash to Prime release",
+			currentFlavor:  prime,
+			currentVersion: "dc559d6d-dirty",
+			targetFlavor:   prime,
+			targetVersion:  "v1.10.1",
+		},
+		{
+			name:           "community to Prime with an empty target version is rejected",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			expectedError:  "invalid target version",
+		},
+		{
+			name:          "community to Prime with an empty current version is rejected",
+			currentFlavor: community,
+			targetFlavor:  prime,
+			targetVersion: "v1.10.1",
+			expectedError: "invalid current version",
+		},
+		{
+			name:             "Prime to community with annotation is rejected",
+			currentFlavor:    prime,
+			currentVersion:   "v1.9.1",
+			targetFlavor:     community,
+			targetVersion:    "v1.9.1",
+			allowSameVersion: true,
+			expectedError:    "upgrading from a Prime release to a community release is not supported",
+		},
+		{
+			name:           "Prime to community dev target is rejected",
+			currentFlavor:  prime,
+			currentVersion: "v1.9.1",
+			targetFlavor:   community,
+			targetVersion:  "v1.9-head",
+			expectedError:  "upgrading from a Prime release to a community release is not supported",
+		},
+		{
+			name:           "Prime to Prime at a different version",
+			currentFlavor:  prime,
+			currentVersion: "v1.9.1",
+			targetFlavor:   prime,
+			targetVersion:  "v1.10.1",
+		},
+		{
+			name:           "community to community at a different version",
+			currentFlavor:  community,
+			currentVersion: "v1.9.1",
+			targetFlavor:   community,
+			targetVersion:  "v1.10.0",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := validateUpgradeFlavor(testCase.currentFlavor, testCase.currentVersion,
+				testCase.targetFlavor, testCase.targetVersion, testCase.allowSameVersion)
+			if testCase.expectedError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, testCase.expectedError)
+		})
+	}
+}
+
+func TestAllowsSameVersionFlavorSwitch(t *testing.T) {
+	newVersion := func(name string, annotations map[string]string) *harvesterv1.Version {
+		return &harvesterv1.Version{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        name,
+				Namespace:   util.HarvesterSystemNamespaceName,
+				Annotations: annotations,
+			},
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		spec     harvesterv1.UpgradeSpec
+		expected bool
+	}{
+		{
+			name:     "annotated Version",
+			spec:     harvesterv1.UpgradeSpec{Version: "allowed"},
+			expected: true,
+		},
+		{
+			name: "Version without annotation",
+			spec: harvesterv1.UpgradeSpec{Version: "plain"},
+		},
+		{
+			name: "Version annotated false",
+			spec: harvesterv1.UpgradeSpec{Version: "disallowed"},
+		},
+		{
+			name: "missing Version",
+			spec: harvesterv1.UpgradeSpec{Version: "missing"},
+		},
+		{
+			name: "upgrade by image ignores the Version",
+			spec: harvesterv1.UpgradeSpec{Version: "allowed", Image: "harvester-system/image"},
+		},
+		{
+			name: "upgrade by image only",
+			spec: harvesterv1.UpgradeSpec{Image: "harvester-system/image"},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset(
+		newVersion("allowed", map[string]string{allowSameVersionFlavorSwitchAnnotation: "true"}),
+		newVersion("plain", nil),
+		newVersion("disallowed", map[string]string{allowSameVersionFlavorSwitchAnnotation: "false"}),
+	)
+	h := &upgradeHandler{
+		namespace:    util.HarvesterSystemNamespaceName,
+		versionCache: fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			upgrade := &harvesterv1.Upgrade{Spec: testCase.spec}
+			assert.Equal(t, testCase.expected, h.allowsSameVersionFlavorSwitch(upgrade))
+		})
+	}
 }
 
 func newManagedChart(namespace, name string) *mgmtv3.ManagedChart {
@@ -523,6 +994,7 @@ func TestUpgradeHandler_OnChanged(t *testing.T) {
 			upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
 			upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+			versionClient:      fakeclients.VersionClient(clientset.HarvesterhciV1beta1().Versions),
 			versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
 			vmClient:           fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
 			vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
@@ -1036,6 +1508,76 @@ func TestRestoreKubevirtWorkloadUpdateMethodsInValues(t *testing.T) {
 			if tc.wantKeyPresent {
 				assert.Equal(t, tc.wantValue, got)
 			}
+		})
+	}
+}
+
+func TestDeleteUsedVersion(t *testing.T) {
+	newVersion := func(labels map[string]string) *harvesterv1.Version {
+		return &harvesterv1.Version{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "v1.9.1",
+				Namespace: util.HarvesterSystemNamespaceName,
+				Labels:    labels,
+			},
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		existing *harvesterv1.Version
+		spec     harvesterv1.UpgradeSpec
+		deleted  bool
+	}{
+		{
+			name:     "user-created Version is deleted",
+			existing: newVersion(map[string]string{util.LabelServerFlavor: settings.ServerFlavorPrime}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+			deleted:  true,
+		},
+		{
+			name:     "Version labeled by a user is deleted",
+			existing: newVersion(map[string]string{versionSourceLabel: "manual"}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+			deleted:  true,
+		},
+		{
+			name:     "synced Version is kept",
+			existing: newVersion(map[string]string{versionSourceLabel: versionSourceUpgradeChecker}),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1"},
+		},
+		{
+			name:     "Version is kept on an upgrade by image",
+			existing: newVersion(nil),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.9.1", Image: "harvester-system/image"},
+		},
+		{
+			name:     "missing Version is not an error",
+			existing: newVersion(nil),
+			spec:     harvesterv1.UpgradeSpec{Version: "v1.10.0"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(testCase.existing)
+			h := &upgradeHandler{
+				namespace:     util.HarvesterSystemNamespaceName,
+				versionClient: fakeclients.VersionClient(clientset.HarvesterhciV1beta1().Versions),
+				versionCache:  fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+			}
+			upgrade := &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{Name: testUpgradeName, Namespace: util.HarvesterSystemNamespaceName},
+				Spec:       testCase.spec,
+			}
+
+			require.NoError(t, h.deleteUsedVersion(upgrade))
+			// Deleting again must be a no-op.
+			require.NoError(t, h.deleteUsedVersion(upgrade))
+
+			versions, err := clientset.HarvesterhciV1beta1().Versions(util.HarvesterSystemNamespaceName).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.deleted, len(versions.Items) == 0)
 		})
 	}
 }

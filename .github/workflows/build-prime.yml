@@ -55,10 +55,18 @@ jobs:
       env:
         REF_NAME: ${{ github.ref_name }}
         BUCKET: ${{ secrets.PRIME_BUCKET_NAME }}
+        RELEASE_DOWNLOAD_URL: ${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
       run: |
         # Fail before building anything rather than at the ISO upload.
         if [[ -z "$BUCKET" ]]; then
           echo "PRIME_BUCKET_NAME secret is not set" >&2
+          exit 1
+        fi
+        # Public URL of s3://$BUCKET/suse-virtualization, without a trailing slash.
+        # Without it, Prime builds would point version.yaml and the
+        # release-download-url setting at the community URL.
+        if [[ ! "$RELEASE_DOWNLOAD_URL" =~ ^https://.*[^/]$ ]]; then
+          echo "PRIME_RELEASE_DOWNLOAD_URL secret must be an https:// URL without a trailing slash" >&2
           exit 1
         fi
 
@@ -220,6 +228,7 @@ jobs:
           ARCH=${{ env.arch }}
           VERSION=${{ needs.configure.outputs.build_version }}
           SERVER_FLAVOR=prime
+          RELEASE_DOWNLOAD_URL=${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
           HARVESTER_UI_VERSION=${{ needs.configure.outputs.tag }}
           HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${{ needs.configure.outputs.tag }}
 
@@ -338,6 +347,7 @@ jobs:
       env:
         DRONE_BRANCH: ${{ github.ref_type == 'branch' && github.ref_name || '' }}
         DRONE_TAG: ${{ needs.configure.outputs.tag }}
+        MK_RELEASE_DOWNLOAD_URL: ${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
 
     - name: Publish harvester-cluster-repo
       uses: *publish-prime-image

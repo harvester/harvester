@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	hversion "github.com/harvester/go-common/version"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	provisioningv1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
 	rkev1 "github.com/rancher/rancher/pkg/apis/rke.cattle.io/v1"
@@ -85,6 +86,10 @@ const (
 	reenableDeschedulerAddonAnnotation         = "harvesterhci.io/reenable-descheduler-addon"
 	kubevirtWorkloadUpdateMethodsAnnotation    = "harvesterhci.io/kubevirt-workload-update-methods"
 
+	// allowSameVersionFlavorSwitchAnnotation on a Version lets a community
+	// cluster switch to Prime at its current version. Internal use only.
+	allowSameVersionFlavorSwitchAnnotation = "harvesterhci.io/allow-same-version-flavor-switch"
+
 	defaultImagePreloadConcurrency = 1
 
 	vmReady condition.Cond = "Ready"
@@ -102,6 +107,7 @@ type upgradeHandler struct {
 	upgradeController ctlharvesterv1.UpgradeController
 	upgradeLogClient  ctlharvesterv1.UpgradeLogClient
 	upgradeLogCache   ctlharvesterv1.UpgradeLogCache
+	versionClient     ctlharvesterv1.VersionClient
 	versionCache      ctlharvesterv1.VersionCache
 	planClient        upgradectlv1.PlanClient
 	planCache         upgradectlv1.PlanCache
@@ -248,6 +254,9 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return upgrade, nil
 			}
 
+			if err := h.deleteUsedVersion(upgrade); err != nil {
+				return nil, err
+			}
 			latest, err := h.cleanup(upgrade, harvesterv1.UpgradeCompleted.IsTrue(upgrade))
 			if err != nil {
 				return nil, err
@@ -371,7 +380,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		toUpdate.Status.RepoInfo = repoInfoStr
 
 		// Upgrade Eligibility Check
-		isEligible, reason := upgradeEligibilityCheck(toUpdate)
+		isEligible, reason := upgradeEligibilityCheck(toUpdate, h.allowsSameVersionFlavorSwitch(toUpdate))
 
 		if !isEligible {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, reason, "")
@@ -798,7 +807,7 @@ func getCachedRepoInfo(upgrade *harvesterv1.Upgrade) (*repoinfo.RepoInfo, error)
 	return repoInfo, nil
 }
 
-func validateUpgradeRepo(currentFlavor string, repoInfo *repoinfo.RepoInfo) error {
+func validateUpgradeRepo(currentFlavor, currentVersion string, allowSameVersion bool, repoInfo *repoinfo.RepoInfo) error {
 	if err := validateRegistry("rancherSystemDefaultRegistry", repoInfo.Release.RancherSystemDefaultRegistry); err != nil {
 		return err
 	}
@@ -806,7 +815,7 @@ func validateUpgradeRepo(currentFlavor string, repoInfo *repoinfo.RepoInfo) erro
 		return err
 	}
 
-	return validateUpgradeFlavor(currentFlavor, repoInfo.Release.ServerFlavor)
+	return validateUpgradeFlavor(currentFlavor, currentVersion, repoInfo.Release.ServerFlavor, repoInfo.Release.Harvester, allowSameVersion)
 }
 
 // validateRegistry checks an optional registry host/path prefix.
@@ -823,7 +832,10 @@ func validateRegistry(name, registry string) error {
 	return nil
 }
 
-func validateUpgradeFlavor(currentFlavor, targetFlavor string) error {
+// validateUpgradeFlavor rejects Prime to community upgrades, and community to
+// Prime upgrades that don't move to a newer version. allowSameVersion also lets a
+// community to Prime upgrade keep the version.
+func validateUpgradeFlavor(currentFlavor, currentVersion, targetFlavor, targetVersion string, allowSameVersion bool) error {
 	if currentFlavor == "" {
 		currentFlavor = settings.ServerFlavorCommunity
 	}
@@ -840,17 +852,113 @@ func validateUpgradeFlavor(currentFlavor, targetFlavor string) error {
 	if currentFlavor == settings.ServerFlavorPrime && targetFlavor == settings.ServerFlavorCommunity {
 		return errors.New("upgrading from a Prime release to a community release is not supported")
 	}
+	if currentFlavor == settings.ServerFlavorCommunity && targetFlavor == settings.ServerFlavorPrime {
+		return validateFlavorSwitchVersion(currentVersion, targetVersion, allowSameVersion)
+	}
 
 	return nil
 }
 
-func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade) (bool, string) {
+// validateFlavorSwitchVersion requires a community to Prime switch to move to a
+// newer version, or to keep the version if allowSameVersion is set. It runs before
+// skip-version-check is honored, so the switch can't be a downgrade. Dev versions
+// on either side are exempt and left to versionguard, which can't compare them either.
+func validateFlavorSwitchVersion(currentVersion, targetVersion string, allowSameVersion bool) error {
+	target, err := hversion.NewHarvesterVersion(targetVersion)
+	if err != nil {
+		return fmt.Errorf("invalid target version %q: %w", targetVersion, err)
+	}
+	current, err := hversion.NewHarvesterVersion(currentVersion)
+	if err != nil {
+		return fmt.Errorf("invalid current version %q: %w", currentVersion, err)
+	}
+	if isDevVersion(target) || isDevVersion(current) {
+		return nil
+	}
+
+	same, err := target.IsEqual(current)
+	if err != nil {
+		return err
+	}
+	if same {
+		if allowSameVersion {
+			return nil
+		}
+		return fmt.Errorf("switching from community to Prime at the same version is not supported (version %s)", currentVersion)
+	}
+
+	newer, err := target.IsNewer(current)
+	if err != nil {
+		return err
+	}
+	if !newer {
+		return fmt.Errorf("switching from community to Prime requires a newer version (current %s, target %s)",
+			currentVersion, targetVersion)
+	}
+	return nil
+}
+
+// isDevVersion reports whether go-common treats v as a dev version, that is, not a
+// strict semantic version. go-common doesn't export this, but any comparison
+// involving a dev version fails with ErrIncomparableVersion.
+func isDevVersion(v *hversion.HarvesterVersion) bool {
+	_, err := v.IsNewer(v)
+	return errors.Is(err, hversion.ErrIncomparableVersion)
+}
+
+// deleteUsedVersion deletes the user-created Version the upgrade used. It doesn't
+// check the upgrade's outcome: call it only after the upgrade completes, so a
+// failed upgrade keeps its Version for a retry. The version syncer never deletes
+// user-created Versions, so it would otherwise stay listed, pointing at the
+// version the cluster now runs. Synced Versions are left to the syncer, and an
+// upgrade by image didn't use its Version.
+func (h *upgradeHandler) deleteUsedVersion(upgrade *harvesterv1.Upgrade) error {
+	if upgrade.Spec.Image != "" || upgrade.Spec.Version == "" {
+		return nil
+	}
+	version, err := h.versionCache.Get(h.namespace, upgrade.Spec.Version)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if version.Labels[versionSourceLabel] == versionSourceUpgradeChecker {
+		return nil
+	}
+
+	logrus.Infof("Deleting version %s/%s used by upgrade %s", version.Namespace, version.Name, upgrade.Name)
+	if err := h.versionClient.Delete(version.Namespace, version.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+// allowsSameVersionFlavorSwitch reports whether the Version the upgrade uses
+// allows a community to Prime switch at the current version. An upgrade by image
+// can't allow it: its ISO comes from the image, not from a Version.
+func (h *upgradeHandler) allowsSameVersionFlavorSwitch(upgrade *harvesterv1.Upgrade) bool {
+	if upgrade.Spec.Image != "" || upgrade.Spec.Version == "" {
+		return false
+	}
+	version, err := h.versionCache.Get(h.namespace, upgrade.Spec.Version)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			logrus.WithError(err).Warnf("failed to get version %s/%s", h.namespace, upgrade.Spec.Version)
+		}
+		return false
+	}
+	allow, err := strconv.ParseBool(version.Annotations[allowSameVersionFlavorSwitchAnnotation])
+	return err == nil && allow
+}
+
+func upgradeEligibilityCheck(upgrade *harvesterv1.Upgrade, allowSameVersionFlavorSwitch bool) (bool, string) {
 	repoInfo, err := getCachedRepoInfo(upgrade)
 	if err != nil {
 		return false, err.Error()
 	}
 
-	if err := validateUpgradeRepo(settings.ServerFlavor.Get(), repoInfo); err != nil {
+	if err := validateUpgradeRepo(settings.ServerFlavor.Get(), upgrade.Status.PreviousVersion, allowSameVersionFlavorSwitch, repoInfo); err != nil {
 		return false, err.Error()
 	}
 

@@ -60,8 +60,8 @@ func (c NodeClient) Delete(_ string, _ *metav1.DeleteOptions) error {
 	panic("implement me")
 }
 
-func (c NodeClient) List(metav1.ListOptions) (*v1.NodeList, error) {
-	panic("implement me")
+func (c NodeClient) List(opts metav1.ListOptions) (*v1.NodeList, error) {
+	return c().List(context.TODO(), opts)
 }
 
 func (c NodeClient) UpdateStatus(node *v1.Node) (*v1.Node, error) {
