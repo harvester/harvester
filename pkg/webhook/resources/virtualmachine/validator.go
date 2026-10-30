@@ -260,6 +260,10 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return err
 	}
 
+	if err := v.checkVmstatePersistenceStorageClass(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -350,9 +354,6 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	if err := v.checkReservedMemoryAnnotation(vm); err != nil {
-		return err
-	}
-	if err := v.checkVmstatePersistenceStorageClass(vm); err != nil {
 		return err
 	}
 	return v.rqCalculator.CheckIfVMCanStartByResourceQuota(vm)
