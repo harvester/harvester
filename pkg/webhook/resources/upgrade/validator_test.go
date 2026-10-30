@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -636,7 +637,7 @@ func Test_validateAddons(t *testing.T) {
 		clientset := fake.NewSimpleClientset()
 		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
 
-		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
+		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
 		addon := getTestAddon(tc.enabled)
 		if tc.addonState != "" {
 			setAddonState(addon, tc.addonState)
@@ -889,6 +890,53 @@ func TestUpgradeValidator_checkNodes_MaintenanceMode(t *testing.T) {
 			if tc.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), "disable or clear maintenance mode before upgrading")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUpgradeValidator_checkDefaultStorageClass(t *testing.T) {
+	cases := []struct {
+		name          string
+		hasDefaultSC  bool
+		expectedError bool
+	}{
+		{
+			name:          "no default StorageClass blocks upgrade",
+			hasDefaultSC:  false,
+			expectedError: true,
+		},
+		{
+			name:          "default StorageClass present allows upgrade",
+			hasDefaultSC:  true,
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.hasDefaultSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							"storageclass.kubernetes.io/is-default-class": "true",
+						},
+					},
+				}
+				_ = clientset.Tracker().Add(sc)
+			}
+
+			validator := &upgradeValidator{
+				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+
+			err := validator.checkDefaultStorageClass()
+			if tc.expectedError {
+				assert.NotNil(t, err)
 			} else {
 				assert.NoError(t, err)
 			}

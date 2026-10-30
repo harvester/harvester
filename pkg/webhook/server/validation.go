@@ -145,6 +145,7 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstance().Cache(),
 			clients.DiscoveryFactory.Discovery().V1().EndpointSlice().Cache(),
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			&http.Client{
 				Transport: kubeletTransport,
 				Timeout:   time.Second * 20,

@@ -192,6 +192,31 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validateLVMAddonUpdate(newAddon, oldAddon)
 	}
 
+	if isStorageBackedAddon(newAddon.Name) && !oldAddon.Spec.Enabled && newAddon.Spec.Enabled {
+		return v.validateDefaultStorageClass(newAddon)
+	}
+
+	return nil
+}
+
+// storageBackedAddons require a default StorageClass for PVC provisioning.
+var storageBackedAddons = map[string]struct{}{
+	util.RancherMonitoringName: {},
+	"rancher-k3k":             {},
+}
+
+func isStorageBackedAddon(name string) bool {
+	_, ok := storageBackedAddons[name]
+	return ok
+}
+
+func (v *addonValidator) validateDefaultStorageClass(addon *v1beta1.Addon) error {
+	if util.GetDefaultSC(v.storageClassCache) == nil {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"addon %s requires a default StorageClass for PVC provisioning; set one with: kubectl patch storageclass <name> -p '{\"metadata\":{\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'",
+			addon.Name,
+		))
+	}
 	return nil
 }
 

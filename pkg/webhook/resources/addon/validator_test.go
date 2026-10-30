@@ -2623,3 +2623,101 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateDefaultStorageClass(t *testing.T) {
+	testCases := []struct {
+		name            string
+		addonName       string
+		enabledBefore   bool
+		enabledAfter    bool
+		hasDefaultSC    bool
+		expectedError   bool
+	}{
+		{
+			name:          "enable rancher-monitoring without default SC",
+			addonName:     util.RancherMonitoringName,
+			enabledBefore: false,
+			enabledAfter:  true,
+			hasDefaultSC:  false,
+			expectedError: true,
+		},
+		{
+			name:          "enable rancher-monitoring with default SC",
+			addonName:     util.RancherMonitoringName,
+			enabledBefore: false,
+			enabledAfter:  true,
+			hasDefaultSC:  true,
+			expectedError: false,
+		},
+		{
+			name:          "enable rancher-k3k without default SC",
+			addonName:     "rancher-k3k",
+			enabledBefore: false,
+			enabledAfter:  true,
+			hasDefaultSC:  false,
+			expectedError: true,
+		},
+		{
+			name:          "disable rancher-monitoring without default SC is allowed",
+			addonName:     util.RancherMonitoringName,
+			enabledBefore: true,
+			enabledAfter:  false,
+			hasDefaultSC:  false,
+			expectedError: false,
+		},
+		{
+			name:          "non-storage-backed addon enable without default SC is allowed",
+			addonName:     "addon1",
+			enabledBefore: false,
+			enabledAfter:  true,
+			hasDefaultSC:  false,
+			expectedError: false,
+		},
+		{
+			name:          "already enabled addon update without default SC is allowed",
+			addonName:     util.RancherMonitoringName,
+			enabledBefore: true,
+			enabledAfter:  true,
+			hasDefaultSC:  false,
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.hasDefaultSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							"storageclass.kubernetes.io/is-default-class": "true",
+						},
+					},
+				}
+				_ = clientset.Tracker().Add(sc)
+			}
+
+			oldAddon := &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{Name: tc.addonName},
+				Spec:       harvesterv1.AddonSpec{Chart: "chart1", Enabled: tc.enabledBefore},
+			}
+			newAddon := &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{Name: tc.addonName},
+				Spec:       harvesterv1.AddonSpec{Chart: "chart1", Enabled: tc.enabledAfter},
+			}
+
+			validator := &addonValidator{
+				addons:            fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
+				storageClassCache:  fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+
+			err := validator.validateUpdatedAddon(newAddon, oldAddon)
+			if tc.expectedError {
+				assert.NotNil(t, err, tc.name)
+			} else {
+				assert.Nil(t, err, tc.name)
+			}
+		})
+	}
+}

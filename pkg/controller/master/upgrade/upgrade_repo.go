@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -31,6 +30,9 @@ const (
 	repoVMNamePrefix      = "upgrade-repo-"
 	repoServiceNamePrefix = "upgrade-repo-"
 	currentVersion        = "current"
+
+	isoVolumeName = "iso"
+	isoMountPath  = "/srv/www/htdocs/harvester-iso"
 )
 
 var (
@@ -141,14 +143,12 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 			},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
-			URL:         isoURL,
-			Checksum:    checksum,
-			Retry:       3,
-			// we use longhorn-static storage class for upgrade VM image because harvester-longhorn
-			// has "migratable: true" which blocks us from creating RWX filesystem type PVC.
-			TargetStorageClassName: util.StorageClassLonghornStatic,
+			DisplayName:            getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeDownload,
+			URL:                    isoURL,
+			Checksum:               checksum,
+			Retry:                  3,
+			TargetStorageClassName: "",
 			Backend:                harvesterv1.VMIBackendCDI,
 		},
 	}
@@ -396,11 +396,72 @@ func (r *Repo) getImagesDiffList() ([]string, error) {
 	return diffList, nil
 }
 
-func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*appsv1.Deployment, error) {
-	replicas, err := r.getDeploymentReplicaCount()
-	if err != nil {
-		return nil, err
+// applyISOMount configures c to mount the upgrade ISO from a PVC of the given volume mode.
+// Filesystem: CDI writes the ISO as disk.img, mounted via loop device.
+// Block: CDI writes the raw ISO directly; mounted as iso9660.
+func applyISOMount(c *corev1.Container, mode corev1.PersistentVolumeMode) {
+	c.Command = []string{"sh", "-c"}
+	switch mode {
+	case corev1.PersistentVolumeBlock:
+		c.VolumeDevices = []corev1.VolumeDevice{{Name: isoVolumeName, DevicePath: "/dev/iso"}}
+		c.Args = []string{`set -e
+mkdir -p /srv/www/htdocs/harvester-iso
+mount -t iso9660 -o ro /dev/iso /srv/www/htdocs/harvester-iso
+exec nginx -g 'daemon off;'`}
+	default: // Filesystem: CDI writes disk.img
+		c.VolumeMounts = []corev1.VolumeMount{{Name: isoVolumeName, MountPath: "/iso"}}
+		c.Args = []string{`set -e
+mkdir -p /srv/www/htdocs/harvester-iso
+mount -t iso9660 -o loop,ro /iso/disk.img /srv/www/htdocs/harvester-iso
+exec nginx -g 'daemon off;'`}
 	}
+}
+
+func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*appsv1.Deployment, error) {
+	pvc, err := r.h.pvcClient.Get(upgradeNamespace, vmImage.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upgrade repo PVC %s: %w", vmImage.Name, err)
+	}
+
+	// VolumeMode defaults to Filesystem when nil, matching the Kubernetes API server default.
+	// The storage class decides the actual mode; we read it here so applyISOMount can adapt.
+	volumeMode := corev1.PersistentVolumeFilesystem
+	if pvc.Spec.VolumeMode != nil {
+		volumeMode = *pvc.Spec.VolumeMode
+	}
+
+	// The newer rancher/harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
+	// what we need is just the nginx server to serve the ISO, so it’s fine to use the previous version here.
+	container := corev1.Container{
+		Name:            "nginx-iso-server",
+		Image:           fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, r.upgrade.Status.PreviousVersion),
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Ports: []corev1.ContainerPort{
+			{ContainerPort: 80, Protocol: corev1.ProtocolTCP},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: ptr.To(true),
+		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"sh", "-c", "cat " + isoMountPath + "/harvester-release.yaml >/dev/null 2>&1"},
+				},
+			},
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/harvester-iso/harvester-release.yaml",
+					Port:   intstr.FromInt(80),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+		},
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+	}
+	applyISOMount(&container, volumeMode)
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -415,7 +476,8 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: replicas,
+			Replicas: ptr.To(int32(1)),
+			Strategy: appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					harvesterUpgradeLabel:          r.upgrade.Name,
@@ -448,63 +510,11 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 							},
 						},
 					},
-					Containers: []corev1.Container{
-						{
-							Name: "nginx-iso-server",
-							// The newer rancher/harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
-							// what we need is just the nginx server to serve the ISO, so it’s fine to use the previous version here.
-							Image:           fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, r.upgrade.Status.PreviousVersion),
-							ImagePullPolicy: corev1.PullIfNotPresent,
-							Command:         []string{"sh", "-c"},
-							Args: []string{
-								`echo "Mounting ISO and starting Nginx..."
-mkdir -p /srv/www/htdocs/harvester-iso
-mount -o loop,ro /iso/disk.img /srv/www/htdocs/harvester-iso
-echo "iso mounted successfully to /srv/www/htdocs/harvester-iso"
-nginx -g "daemon off;"`,
-							},
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: 80,
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: ptr.To(true),
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "iso",
-									MountPath: "/iso",
-								},
-							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									Exec: &corev1.ExecAction{
-										Command: []string{
-											"sh", "-c",
-											"cat /srv/www/htdocs/harvester-iso/harvester-release.yaml 2>&1 /dev/null",
-										},
-									},
-								},
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/harvester-iso/harvester-release.yaml",
-										Port:   intstr.FromInt(80),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-							},
-							TerminationMessagePath:   "/dev/termination-log",
-							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
-						},
-					},
-					DNSPolicy: corev1.DNSClusterFirst,
+					Containers: []corev1.Container{container},
+					DNSPolicy:  corev1.DNSClusterFirst,
 					Volumes: []corev1.Volume{
 						{
-							Name: "iso",
+							Name: isoVolumeName,
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 									// the pvc name is the same as the vm image name
@@ -531,24 +541,4 @@ func (r *Repo) deleteDeployment() error {
 
 func (r *Repo) GetDeploymentName() string {
 	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
-}
-
-func (r *Repo) getDeploymentReplicaCount() (*int32, error) {
-	nodes, err := r.h.nodeCache.List(labels.Everything())
-	if err != nil {
-		return nil, fmt.Errorf("failed to list nodes: %w", err)
-	}
-	nonWitnessNodes := util.ExcludeWitnessNodes(nodes)
-	if len(nonWitnessNodes) == 0 {
-		return nil, errors.New("no non-witness nodes found in the cluster")
-	}
-
-	var replicas int32
-	if len(nonWitnessNodes) == 1 {
-		replicas = 1
-	} else {
-		replicas = 2
-	}
-
-	return &replicas, nil
 }
