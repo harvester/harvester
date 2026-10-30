@@ -5,7 +5,7 @@ prime:
       # Temporary: SUSE Storage has no 1.12.2 build yet. Accept the
       # mismatch only while the Longhorn chart is exactly this version;
       # remove once the tag above matches Longhorn again.
-      allowedLonghornVersion: 1.12.2-rc1
+      allowedLonghornVersion: 1.12.2-rc2
 
   # Image overrides applied to deploy/charts/harvester/values.yaml by
   # scripts/patch-harvester's replace_harvester_image_registry when PRIME_BUILD=true.
