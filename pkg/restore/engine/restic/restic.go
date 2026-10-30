@@ -8,7 +8,6 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
-	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -19,11 +18,13 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	backupcommon "github.com/harvester/harvester/pkg/backup/common"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
 	"github.com/harvester/harvester/pkg/restore/pvchelper"
-	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/jobcredentials"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	"github.com/harvester/harvester/pkg/util/jobprogress"
 	resticutil "github.com/harvester/harvester/pkg/util/restic"
 )
@@ -43,8 +44,8 @@ type ResticRestoreEngine struct {
 	secretCache   ctlcorev1.SecretCache
 	secretClient  ctlcorev1.SecretClient
 	jobController ctlbatchv1.JobController
-	jobCache      ctlbatchv1.JobCache
 	jobClient     ctlbatchv1.JobClient
+	vmrController ctlharvesterv1.VirtualMachineRestoreController
 	clientset     kubernetes.Interface
 }
 
@@ -57,6 +58,7 @@ func GetRestoreEngine(
 	secretCache ctlcorev1.SecretCache,
 	secretClient ctlcorev1.SecretClient,
 	jobController ctlbatchv1.JobController,
+	vmrController ctlharvesterv1.VirtualMachineRestoreController,
 	clientset kubernetes.Interface,
 ) engine.RestoreEngine {
 	return &ResticRestoreEngine{
@@ -68,15 +70,19 @@ func GetRestoreEngine(
 		secretCache:   secretCache,
 		secretClient:  secretClient,
 		jobController: jobController,
-		jobCache:      jobController.Cache(),
 		jobClient:     jobController,
+		vmrController: vmrController,
 		clientset:     clientset,
 	}
 }
 
 // RegisterWatchers registers a Job event handler that maps Job changes back to
-// the owning VMRestore and enqueues it.
+// the tracked VMRestore and enqueues it.
 func (re *ResticRestoreEngine) RegisterWatchers(ctx context.Context, enqueue func(namespace, name string)) {
+	lifecycle := restorecommon.JobHandler{
+		Reader: re.vmro, Delete: re.Delete,
+	}
+	re.vmrController.OnChange(ctx, "restic-restore-job-cleanup", lifecycle.OnRestoreChange)
 	re.jobController.OnChange(ctx, "restic-restore-job-watcher", func(_ string, job *batchv1.Job) (*batchv1.Job, error) {
 		if job == nil {
 			return nil, nil
@@ -84,13 +90,8 @@ func (re *ResticRestoreEngine) RegisterWatchers(ctx context.Context, enqueue fun
 		if job.Labels[resticutil.LabelResticJob] != resticutil.LabelValueTrue {
 			return job, nil
 		}
-		owner := util.FindOwnerReference(
-			job,
-			harvesterv1.SchemeGroupVersion.String(),
-			vmRestoreKind,
-		)
-		if owner != nil {
-			enqueue(job.Namespace, owner.Name)
+		if parent := joblifecycle.ParentName(job.ObjectMeta, vmRestoreKind); parent != "" {
+			enqueue(job.Namespace, parent)
 		}
 		return job, nil
 	})
@@ -105,10 +106,9 @@ func (re *ResticRestoreEngine) Reconcile(
 	if vr == nil {
 		return fmt.Errorf("volume restore at index %d not found", volIndex)
 	}
-	// Validate Job success even when progress=100 was already persisted. Logs
-	// from an older controller may have advanced progress before the Job exited.
+	// Persisted completion allows the Job TTL controller to remove the Job.
 	if re.vmro.GetVolRestoreProgress(vr) == 100 {
-		return engine.ReleaseSucceededJob(re.jobClient, re.vmro.GetNamespace(vmr), re.jobName(vmr, vr))
+		return re.releaseJob(vmr, re.jobName(vmr, vr))
 	}
 	vb := re.vmbo.GetVolBackup(vmb, volIndex)
 	if vb == nil {
@@ -122,18 +122,31 @@ func (re *ResticRestoreEngine) Reconcile(
 		return err
 	}
 
-	jobName := re.jobName(vmr, vr)
-	job, err := re.jobCache.Get(re.vmro.GetNamespace(vmr), jobName)
-	if err == nil {
-		return re.syncFromJob(vr, job)
-	}
-	if !apierrors.IsNotFound(err) {
+	job, err := re.ensureRestoreJob(vmr, vmb, vr, vb)
+	if err != nil {
 		return err
+	}
+	if err := re.ensureSecret(vmb, job); err != nil {
+		return err
+	}
+	return re.syncFromJob(vr, job)
+}
+
+func (re *ResticRestoreEngine) ensureRestoreJob(
+	vmr *harvesterv1.VirtualMachineRestore,
+	vmb *harvesterv1.VirtualMachineBackup,
+	vr *harvesterv1.VolumeRestore,
+	vb *harvesterv1.VolumeBackup,
+) (*batchv1.Job, error) {
+	jobName := re.jobName(vmr, vr)
+	job, err := re.getJob(vmr, jobName)
+	if !apierrors.IsNotFound(err) {
+		return job, err
 	}
 	if err := re.createRestoreJob(vmr, vmb, vr, vb, jobName); err != nil {
-		return err
+		return nil, err
 	}
-	return engine.ErrRetryLater
+	return nil, engine.ErrRetryLater
 }
 
 func (re *ResticRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error) {
@@ -150,16 +163,6 @@ func (re *ResticRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (in
 		return int64(current), nil
 	}
 	return int64(pct), nil
-}
-
-// Delete releases completion protection and removes the per-volume restore
-// Job. This also handles unfinished Jobs when a VMRestore is deleted.
-func (re *ResticRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error {
-	vr := re.vmro.GetVolRestore(vmr, volIndex)
-	if vr == nil {
-		return nil
-	}
-	return engine.DeleteRestoreJob(re.jobClient, re.vmro.GetNamespace(vmr), re.jobName(vmr, vr))
 }
 
 // waitsForImmediateBinding reports whether the PVC's StorageClass binds eagerly,
@@ -240,10 +243,7 @@ func (re *ResticRestoreEngine) createRestoreJob(
 	if err != nil {
 		return err
 	}
-	secretName, err := re.ensureResticSecret(vmr, vmb)
-	if err != nil {
-		return err
-	}
+	secretName := jobcredentials.Name(jobName)
 	vbName := re.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
 		return fmt.Errorf("volume backup name is nil")
@@ -271,13 +271,7 @@ func (re *ResticRestoreEngine) createRestoreJob(
 			Name:       jobName,
 			Namespace:  namespace,
 			Labels:     labels,
-			Finalizers: []string{engine.RestoreJobCompletionFinalizer},
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: harvesterv1.SchemeGroupVersion.String(),
-				Kind:       "VirtualMachineRestore",
-				Name:       re.vmro.GetName(vmr),
-				UID:        re.vmro.GetUID(vmr),
-			}},
+			Finalizers: []string{joblifecycle.CompletionFinalizer},
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:            ptr.To[int32](0),
@@ -320,11 +314,16 @@ func (re *ResticRestoreEngine) createRestoreJob(
 			},
 		},
 	}
-	_, err = re.jobClient.Create(job)
+	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
+	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return re.ensureSecret(vmb, job)
 }
 
 func (re *ResticRestoreEngine) checkRemoteSnapshot(
@@ -340,7 +339,11 @@ func (re *ResticRestoreEngine) checkRemoteSnapshot(
 		re.clientset,
 		checkName,
 		func(name string) (*batchv1.Job, error) {
-			return re.jobCache.Get(namespace, name)
+			job, err := re.getJob(vmr, name)
+			if err != nil {
+				return nil, err
+			}
+			return job, re.ensureSecret(vmb, job)
 		},
 		func(name string) error {
 			return re.createCheckJob(vmr, vmb, vb, name)
@@ -373,10 +376,7 @@ func (re *ResticRestoreEngine) createCheckJob(
 	if err != nil {
 		return err
 	}
-	secretName, err := re.ensureResticSecret(vmr, vmb)
-	if err != nil {
-		return err
-	}
+	secretName := jobcredentials.Name(jobName)
 	vbName := re.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
 		return fmt.Errorf("volume backup name is nil")
@@ -395,67 +395,36 @@ func (re *ResticRestoreEngine) createCheckJob(
 		Name:      jobName,
 		Namespace: namespace,
 		Labels:    labels,
-		OwnerReferences: []metav1.OwnerReference{{
-			APIVersion: harvesterv1.SchemeGroupVersion.String(),
-			Kind:       "VirtualMachineRestore",
-			Name:       re.vmro.GetName(vmr),
-			UID:        re.vmro.GetUID(vmr),
-		}},
-		Runtime: runtime,
+		Runtime:   runtime,
 		Tags: []string{
 			resticutil.NamespaceTag(re.vmbo.GetNamespace(vmb)),
 			resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
 			resticutil.SnapshotTag(*vbName),
 		},
 	})
-	_, err = re.jobClient.Create(job)
+	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
+	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return re.ensureSecret(vmb, job)
 }
 
-func (re *ResticRestoreEngine) ensureResticSecret(
-	vmr *harvesterv1.VirtualMachineRestore,
-	vmb *harvesterv1.VirtualMachineBackup,
-) (string, error) {
-	source, err := re.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+func (re *ResticRestoreEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
+	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
+	err := client.Ensure(job, func() (map[string][]byte, error) {
+		return backuputil.CredentialData(
+			re.secretCache, re.vmbo.GetBackupTarget(vmb), harvesterv1.Restic, resticutil.PasswordKey,
+		)
+	})
 	if err != nil {
-		return "", err
+		return fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
 	}
-	backupTarget := re.vmbo.GetBackupTarget(vmb)
-	if backupTarget == nil {
-		return "", fmt.Errorf("VMBackup does not record a backup target")
-	}
-	password, err := backuputil.RepositoryPassword(backupTarget.RepositoryID, harvesterv1.Restic)
-	if err != nil {
-		return "", err
-	}
-
-	namespace := re.vmro.GetNamespace(vmr)
-	name := re.credentialsName(vmr)
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: harvesterv1.SchemeGroupVersion.String(),
-				Kind:       "VirtualMachineRestore",
-				Name:       re.vmro.GetName(vmr),
-				UID:        re.vmro.GetUID(vmr),
-			}},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			util.AWSAccessKey:      source.Data[util.AWSAccessKey],
-			util.AWSSecretKey:      source.Data[util.AWSSecretKey],
-			resticutil.PasswordKey: []byte(password),
-		},
-	}
-	if _, err := re.secretClient.Create(secret); err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", err
-	}
-	return name, nil
+	return nil
 }
 
 func (re *ResticRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) (*resticutil.RepositoryConfig, error) {
@@ -466,15 +435,10 @@ func (re *ResticRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup)
 	return resticutil.Repository(target)
 }
 
-// syncFromJob reports only state transitions: failure → error, still running
-// → ErrRetryLater, and success → mark progress=100 and request another
-// reconciliation. The retry forces progress=100 to be persisted before the
-// Job's completion finalizer is released.
+// syncFromJob marks successful work for the controller to persist before release.
+// Failed Jobs remain protected until the controller persists the failure.
 func (re *ResticRestoreEngine) syncFromJob(vr *harvesterv1.VolumeRestore, job *batchv1.Job) error {
 	if job.Status.Failed > 0 {
-		if err := re.releaseJob(job.Namespace, job.Name); err != nil {
-			return err
-		}
 		return fmt.Errorf("restic restore job %s/%s failed", job.Namespace, job.Name)
 	}
 	if job.Status.Succeeded == 0 {
@@ -483,24 +447,22 @@ func (re *ResticRestoreEngine) syncFromJob(vr *harvesterv1.VolumeRestore, job *b
 	if err := re.vmro.SetVolRestoreProgress(vr, 100); err != nil {
 		return err
 	}
-	logrus.Debugf("restic restore job %s/%s completed", job.Namespace, job.Name)
 	return engine.ErrRetryLater
 }
 
-func (re *ResticRestoreEngine) releaseJob(namespace, name string) error {
-	if err := engine.ReleaseRestoreJob(re.jobClient, namespace, name); err != nil {
-		logrus.WithError(err).Warnf(
-			"failed to release restic restore job %s/%s",
-			namespace,
-			name,
-		)
-		return engine.ErrRetryLater
+func (re *ResticRestoreEngine) getJob(vmr *harvesterv1.VirtualMachineRestore, name string) (*batchv1.Job, error) {
+	job, err := joblifecycle.GetJob(re.jobClient, vmr, vmRestoreKind, name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("getting job: %w: %w", engine.ErrRetryLater, err)
 	}
-	return nil
+	return job, err
 }
 
-func (re *ResticRestoreEngine) credentialsName(vmr *harvesterv1.VirtualMachineRestore) string {
-	return wranglername.SafeConcatName("restic-credentials", re.vmro.GetName(vmr))
+func (re *ResticRestoreEngine) releaseJob(vmr *harvesterv1.VirtualMachineRestore, name string) error {
+	if err := joblifecycle.ReleaseJob(re.jobClient, vmr, vmRestoreKind, name); err != nil {
+		return fmt.Errorf("releasing restore job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return nil
 }
 
 func (re *ResticRestoreEngine) jobName(vmr *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) string {
@@ -538,4 +500,12 @@ func (re *ResticRestoreEngine) jobLocator(vr *harvesterv1.VolumeRestore) (name, 
 		return "", "", false
 	}
 	return wranglername.SafeConcatName(jobNamePrefix, restoreName, volName), ns, true
+}
+
+// Delete releases and removes independent Jobs when the restore ends or is deleted.
+func (re *ResticRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) error {
+	if re.vmro.GetType(vmr) != harvesterv1.Restic {
+		return nil
+	}
+	return joblifecycle.DeleteJobs(re.jobClient, vmr, vmRestoreKind)
 }

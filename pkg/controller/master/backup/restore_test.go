@@ -8,9 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
 )
@@ -93,8 +95,10 @@ func TestReconcileVolumeRestores(t *testing.T) {
 }
 
 type fakeRestoreEngine struct {
-	errors []error
-	calls  []int
+	errors    []error
+	calls     []int
+	deletes   int
+	deleteErr error
 }
 
 func (f *fakeRestoreEngine) Reconcile(
@@ -106,12 +110,13 @@ func (f *fakeRestoreEngine) Reconcile(
 	return f.errors[index]
 }
 
-func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VolumeRestore) (int64, error) {
-	return 0, nil
+func (f *fakeRestoreEngine) Delete(*harvesterv1.VirtualMachineRestore) error {
+	f.deletes++
+	return f.deleteErr
 }
 
-func (f *fakeRestoreEngine) Delete(*harvesterv1.VirtualMachineRestore, int) error {
-	return nil
+func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VolumeRestore) (int64, error) {
+	return 0, nil
 }
 
 func (f *fakeRestoreEngine) RegisterWatchers(
@@ -203,4 +208,122 @@ func (o *startupRestoreOperator) UpdateError(old *harvesterv1.VirtualMachineRest
 func (o *startupRestoreOperator) DeleteOldPVCs(*harvesterv1.VirtualMachineRestore, *kubevirtv1.VirtualMachine) error {
 	o.cleanups++
 	return nil
+}
+
+func TestRestoreDeletionUsesSavedType(t *testing.T) {
+	for _, backupType := range []harvesterv1.BackupType{
+		"", harvesterv1.Backup, harvesterv1.Snapshot, harvesterv1.Restic, harvesterv1.Kopia, "unknown",
+	} {
+		t.Run(string(backupType), func(t *testing.T) {
+			engines := map[harvesterv1.BackupType]engine.RestoreEngine{}
+			for _, kind := range []harvesterv1.BackupType{harvesterv1.Backup, harvesterv1.Snapshot, harvesterv1.Restic, harvesterv1.Kopia} {
+				engines[kind] = &fakeRestoreEngine{}
+			}
+			// The operator has no source cache: deletion must never resolve VMBackup.
+			h := &RestoreHandler{vmro: restorecommon.NewVMRestoreOperatorBuilder().Build(), engines: engines}
+			vmr := &harvesterv1.VirtualMachineRestore{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{restorecommon.BackupTypeAnnotation: string(backupType)},
+			}}
+			_, err := h.RestoreOnRemove("", vmr)
+			if backupType == "unknown" {
+				require.ErrorContains(t, err, "unsupported restore engine")
+			} else {
+				require.NoError(t, err)
+			}
+			wantCalls := map[harvesterv1.BackupType]int{backupType: 1}
+			if backupType == "" {
+				wantCalls = map[harvesterv1.BackupType]int{
+					harvesterv1.Snapshot: 1,
+					harvesterv1.Backup:   1,
+				}
+			}
+			for kind, re := range engines {
+				require.Equal(t, wantCalls[kind], re.(*fakeRestoreEngine).deletes,
+					"unexpected cleanup calls for %s", kind)
+			}
+		})
+	}
+}
+
+func TestRestoreDeletionRetries(t *testing.T) {
+	cleanupErr := errors.New("cleanup unavailable")
+	re := &fakeRestoreEngine{deleteErr: cleanupErr}
+	h := &RestoreHandler{
+		vmro:    restorecommon.NewVMRestoreOperatorBuilder().Build(),
+		engines: map[harvesterv1.BackupType]engine.RestoreEngine{harvesterv1.Restic: re},
+	}
+	vmr := &harvesterv1.VirtualMachineRestore{ObjectMeta: metav1.ObjectMeta{
+		Annotations: map[string]string{restorecommon.BackupTypeAnnotation: string(harvesterv1.Restic)},
+	}}
+	updated, err := h.RestoreOnRemove("", vmr)
+	require.ErrorIs(t, err, cleanupErr, "retain the VMRestore finalizer until cleanup succeeds")
+	require.Same(t, vmr, updated)
+	re.deleteErr = nil
+	updated, err = h.RestoreOnRemove("", vmr)
+	require.NoError(t, err)
+	require.Equal(t, 2, re.deletes)
+	require.Same(t, vmr, updated)
+}
+
+type recordingOperator struct {
+	restorecommon.VMRestoreOperator
+	vmb       *harvesterv1.VirtualMachineBackup
+	recorded  harvesterv1.BackupType
+	recordErr error
+	inits     int
+}
+
+func (o *recordingOperator) ResolveVMBackup(*harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineBackup, error) {
+	return o.vmb, nil
+}
+
+func (o *recordingOperator) UpdateType(_ *harvesterv1.VirtualMachineRestore, kind harvesterv1.BackupType) error {
+	o.recorded = kind
+	return o.recordErr
+}
+
+func (o *recordingOperator) InitVolumesStatus(*harvesterv1.VirtualMachineRestore, *harvesterv1.VirtualMachineBackup) error {
+	o.inits++
+	return nil
+}
+
+func TestRecordTypeBeforeResources(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("update-fails=%t", fail), func(t *testing.T) {
+			op := &recordingOperator{
+				VMRestoreOperator: restorecommon.NewVMRestoreOperatorBuilder().Build(),
+				vmb:               &harvesterv1.VirtualMachineBackup{Spec: harvesterv1.VirtualMachineBackupSpec{Type: harvesterv1.Kopia}},
+			}
+			if fail {
+				op.recordErr = errors.New("API unavailable")
+			}
+			h := &RestoreHandler{vmro: op, vmbo: backupcommon.NewVMBackupOperatorBuilder().Build()}
+			vmr := &harvesterv1.VirtualMachineRestore{
+				ObjectMeta: metav1.ObjectMeta{Finalizers: []string{"wrangler.cattle.io/" + restoreControllerName}},
+				Status:     harvesterv1.VirtualMachineRestoreStatus{Complete: ptr.To(false)},
+			}
+			_, err := h.RestoreOnChanged("", vmr)
+			require.Equal(t, op.recordErr, err)
+			require.Equal(t, harvesterv1.Kopia, op.recorded)
+			require.Zero(t, op.inits, "stop before initializing volumes or creating engine resources")
+			vmr.Annotations = map[string]string{restorecommon.BackupTypeAnnotation: string(harvesterv1.Kopia)}
+			_, err = h.RestoreOnChanged("", vmr)
+			require.NoError(t, err)
+			require.Equal(t, 1, op.inits, "proceed only after observing the persisted type")
+		})
+	}
+}
+
+func TestRestoreWaitsForFinalizer(t *testing.T) {
+	// No source cache or resource clients are available: reconciliation must stop
+	// until the removal handler has successfully persisted its finalizer.
+	h := &RestoreHandler{vmro: restorecommon.NewVMRestoreOperatorBuilder().Build()}
+	vmr := &harvesterv1.VirtualMachineRestore{
+		ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			restorecommon.BackupTypeAnnotation: string(harvesterv1.Restic),
+		}},
+		Status: harvesterv1.VirtualMachineRestoreStatus{Complete: ptr.To(false)},
+	}
+	_, err := h.RestoreOnChanged("", vmr)
+	require.NoError(t, err)
 }
