@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,13 +23,17 @@ import (
 func TestCreateVolumeBackupsWaitsForPreparation(t *testing.T) {
 	tests := []struct {
 		name           string
+		backupType     harvesterv1.BackupType
 		prepared       bool
 		prepareErr     error
 		wantReconciles int
 	}{
-		{name: "preparing snapshots", prepared: false, wantReconciles: 0},
-		{name: "snapshots ready", prepared: true, wantReconciles: 1},
-		{name: "preparation retry", prepareErr: engine.ErrRetryLater, wantReconciles: 0},
+		{name: "preparing snapshots", backupType: harvesterv1.Restic},
+		{name: "snapshots ready", backupType: harvesterv1.Restic, prepared: true, wantReconciles: 1},
+		{name: "preparation retry", backupType: harvesterv1.Kopia, prepareErr: engine.ErrRetryLater},
+		{name: "preparation failed", backupType: harvesterv1.Kopia, prepareErr: errors.New("prepare failed")},
+		{name: "longhorn ready", backupType: harvesterv1.Backup, prepared: true, wantReconciles: 1},
+		{name: "snapshot ready", backupType: harvesterv1.Snapshot, prepared: true, wantReconciles: 1},
 	}
 
 	for _, tt := range tests {
@@ -43,12 +48,12 @@ func TestCreateVolumeBackupsWaitsForPreparation(t *testing.T) {
 				vmbController: controller,
 				vmbo:          vmbo,
 				engines: map[harvesterv1.BackupType]engine.BackupEngine{
-					harvesterv1.Restic: backupEngine,
+					tt.backupType: backupEngine,
 				},
 			}
 			vmb := &harvesterv1.VirtualMachineBackup{
 				ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
-				Spec:       harvesterv1.VirtualMachineBackupSpec{Type: harvesterv1.Restic},
+				Spec:       harvesterv1.VirtualMachineBackupSpec{Type: tt.backupType},
 				Status: harvesterv1.VirtualMachineBackupStatus{
 					VolumeBackups: []harvesterv1.VolumeBackup{{Name: ptr.To("volume")}},
 				},
@@ -58,9 +63,14 @@ func TestCreateVolumeBackupsWaitsForPreparation(t *testing.T) {
 				vmb,
 				map[string]snapshotv1.VolumeSnapshotClass{},
 			)
-			require.NoError(t, err)
 			require.Equal(t, 1, backupEngine.prepareCalls)
 			require.Equal(t, tt.wantReconciles, backupEngine.reconcileCalls)
+			if tt.prepareErr != nil && tt.prepareErr != engine.ErrRetryLater {
+				require.ErrorIs(t, err, tt.prepareErr)
+				require.Empty(t, controller.enqueues)
+				return
+			}
+			require.NoError(t, err)
 			require.Len(t, controller.enqueues, 1)
 			require.Equal(t, engineRetryDelay, controller.enqueues[0].after)
 		})
@@ -95,8 +105,11 @@ func (e *preparingEngine) UpdateProgress(*harvesterv1.VolumeBackup) (int64, erro
 	return 0, nil
 }
 
-func (e *preparingEngine) ForceDelete(*harvesterv1.VirtualMachineBackup, int) error {
-	return nil
+func (e *preparingEngine) Remove(
+	vmb *harvesterv1.VirtualMachineBackup,
+	_ bool,
+) (*harvesterv1.VirtualMachineBackup, error) {
+	return vmb, nil
 }
 
 func (e *preparingEngine) RegisterWatchers(context.Context, func(string, string)) {}
