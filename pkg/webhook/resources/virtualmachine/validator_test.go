@@ -1993,6 +1993,81 @@ func TestCheckShareableVolumes(t *testing.T) {
 	}
 }
 
+func TestCheckDiskIOMode(t *testing.T) {
+	newVM := func(disks ...kubevirtv1.Disk) *kubevirtv1.VirtualMachine {
+		return &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: "vm1", Namespace: "default"},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							Devices: kubevirtv1.Devices{Disks: disks},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		vm       *kubevirtv1.VirtualMachine
+		errorKey string
+	}{
+		{
+			name: "native io with cache none passes",
+			vm:   newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheNone}),
+		},
+		{
+			name: "native io with unset cache passes",
+			vm:   newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative}),
+		},
+		{
+			name: "threads io with writeback cache passes",
+			vm:   newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IOThreads, Cache: kubevirtv1.CacheWriteBack}),
+		},
+		{
+			name: "disks without io or cache pass",
+			vm:   newVM(kubevirtv1.Disk{Name: "rootdisk"}, kubevirtv1.Disk{Name: "datadisk"}),
+		},
+		{
+			name:     "native io with writeback cache rejected",
+			vm:       newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+			errorKey: "disk rootdisk: io mode native requires cache mode none, got writeback",
+		},
+		{
+			name:     "native io with writethrough cache rejected",
+			vm:       newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteThrough}),
+			errorKey: "got writethrough",
+		},
+		{
+			name: "only the invalid disk is named",
+			vm: newVM(
+				kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheNone},
+				kubevirtv1.Disk{Name: "datadisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack},
+			),
+			errorKey: "disk datadisk:",
+		},
+		{
+			name: "vm without template passes",
+			vm:   &kubevirtv1.VirtualMachine{ObjectMeta: metav1.ObjectMeta{Name: "vm1", Namespace: "default"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkDiskIOMode(tc.vm)
+
+			if tc.errorKey != "" {
+				assert.Error(t, err, tc.name)
+				assert.Contains(t, err.Error(), tc.errorKey, tc.name)
+			} else {
+				assert.NoError(t, err, tc.name)
+			}
+		})
+	}
+}
+
 func TestGetVMImageIDFromSC(t *testing.T) {
 	const (
 		scName     = "lh-test-sc"
