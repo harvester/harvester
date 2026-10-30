@@ -33,13 +33,19 @@ func NewValidator(
 	}
 
 	return &virtualMachineImageValidator{
+		securityValidator: &securityValidator{
+			vmiCache: vmiCache,
+			scCache:  scCache,
+			sar:      sar,
+		},
 		validators: validators,
 	}
 }
 
 type virtualMachineImageValidator struct {
 	types.DefaultValidator
-	validators map[v1beta1.VMIBackend]backend.Validator
+	securityValidator *securityValidator
+	validators        map[v1beta1.VMIBackend]backend.Validator
 }
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
@@ -59,7 +65,10 @@ func (v *virtualMachineImageValidator) Resource() types.Resource {
 
 func (v *virtualMachineImageValidator) Create(request *types.Request, newObj runtime.Object) error {
 	vmi := newObj.(*v1beta1.VirtualMachineImage)
-	return v.validators[util.GetVMIBackend(vmi)].Create(request, vmi)
+	if err := v.validators[util.GetVMIBackend(vmi)].Create(request, vmi); err != nil {
+		return err
+	}
+	return v.securityValidator.Validate(request, vmi)
 }
 
 func (v *virtualMachineImageValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
