@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 )
 
 const (
+	BackupTypeAnnotation   = "restore.harvesterhci.io/backup-type"
 	RestoreNameAnnotation  = "restore.harvesterhci.io/name"
 	PvcNameAnnotation      = "pvc.harvesterhci.io/name"
 	PvcNameSpaceAnnotation = "pvc.harvesterhci.io/namespace"
@@ -84,6 +86,7 @@ type VMRestoreOperator interface {
 	SetErrorCondition(vmr *harvesterv1.VirtualMachineRestore, err error) *harvesterv1.VirtualMachineRestore
 
 	// Update operations
+	UpdateType(vmr *harvesterv1.VirtualMachineRestore, backupType harvesterv1.BackupType) error
 	Update(old, new *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error)
 	UpdateByStatus(old, new *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error)
 	UpdateOwnerRefAndTargetUID(vmr *harvesterv1.VirtualMachineRestore, vm *kubevirtv1.VirtualMachine) error
@@ -154,6 +157,7 @@ type VMRestoreReader interface {
 	IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
 	HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool
 	HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool
+	HasFinalizer(vmr *harvesterv1.VirtualMachineRestore, finalizer string) bool
 
 	// VolumeRestore accessors
 	GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore
@@ -167,6 +171,7 @@ type VMRestoreReader interface {
 	GetVolRestoreProgress(vr *harvesterv1.VolumeRestore) int
 
 	// VMRestore accessors
+	GetType(vmr *harvesterv1.VirtualMachineRestore) harvesterv1.BackupType
 	GetName(vmr *harvesterv1.VirtualMachineRestore) string
 	GetNamespace(vmr *harvesterv1.VirtualMachineRestore) string
 	GetUID(vmr *harvesterv1.VirtualMachineRestore) types.UID
@@ -251,6 +256,15 @@ func (c *vmrestoreReader) HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool
 
 func (c *vmrestoreReader) HasOwnerReference(vmr *harvesterv1.VirtualMachineRestore) bool {
 	return len(vmr.OwnerReferences) > 0
+}
+
+// GetType returns an empty type for restores created before engine tracking.
+func (a *vmrestoreReader) GetType(vmr *harvesterv1.VirtualMachineRestore) harvesterv1.BackupType {
+	return harvesterv1.BackupType(vmr.Annotations[BackupTypeAnnotation])
+}
+
+func (a *vmrestoreReader) HasFinalizer(vmr *harvesterv1.VirtualMachineRestore, finalizer string) bool {
+	return slices.Contains(vmr.Finalizers, finalizer)
 }
 
 func (a *vmrestoreReader) GetVolRestores(vmr *harvesterv1.VirtualMachineRestore) []harvesterv1.VolumeRestore {
@@ -529,6 +543,30 @@ func (vmro *vmrestoreOperator) SetDeletedVolumes(vmr *harvesterv1.VirtualMachine
 func (vmro *vmrestoreOperator) SetVolumeRestores(vmr *harvesterv1.VirtualMachineRestore, vrs []harvesterv1.VolumeRestore) error {
 	vmr.Status.VolumeRestores = vrs
 	return nil
+}
+
+// UpdateType persists the engine before resources are created. Once recorded,
+// the type cannot change, even if the source backup is replaced.
+func (vmro *vmrestoreOperator) UpdateType(vmr *harvesterv1.VirtualMachineRestore, backupType harvesterv1.BackupType) error {
+	switch backupType {
+	case harvesterv1.Backup, harvesterv1.Snapshot, harvesterv1.Restic, harvesterv1.Kopia:
+	default:
+		return fmt.Errorf("unsupported restore engine %q", backupType)
+	}
+	current := vmro.GetType(vmr)
+	if current == backupType {
+		return nil
+	}
+	if current != "" {
+		return fmt.Errorf("restore engine changed from %q to %q", current, backupType)
+	}
+	updated := vmr.DeepCopy()
+	if updated.Annotations == nil {
+		updated.Annotations = map[string]string{}
+	}
+	updated.Annotations[BackupTypeAnnotation] = string(backupType)
+	_, err := vmro.Update(vmr, updated)
+	return err
 }
 
 // Update operations
