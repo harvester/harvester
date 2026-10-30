@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -70,6 +71,7 @@ func NewValidator(
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointSliceCache ctldiscoveryv1.EndpointSliceCache,
+	scCache ctlstoragev1.StorageClassCache,
 	httpClient *http.Client,
 ) types.Validator {
 	return &upgradeValidator{
@@ -87,6 +89,7 @@ func NewValidator(
 		vmiCache:           vmiCache,
 		endpointSliceCache: endpointSliceCache,
 		settingCache:       settingCache,
+		storageClassCache:  scCache,
 		httpClient:         httpClient,
 	}
 }
@@ -108,6 +111,7 @@ type upgradeValidator struct {
 	vmiCache           ctlkubevirtv1.VirtualMachineInstanceCache
 	endpointSliceCache ctldiscoveryv1.EndpointSliceCache
 	settingCache       ctlharvesterv1.SettingCache
+	storageClassCache  ctlstoragev1.StorageClassCache
 	httpClient         *http.Client
 }
 
@@ -286,7 +290,19 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		}
 	}
 
+	if err := v.checkDefaultStorageClass(); err != nil {
+		return err
+	}
+
 	return v.checkCerts(upgrade)
+}
+
+func (v *upgradeValidator) checkDefaultStorageClass() error {
+	if util.GetDefaultSC(v.storageClassCache) == nil {
+		return werror.NewBadRequest("a default StorageClass is required for upgrade; set one with: " +
+			"kubectl patch storageclass <name> -p '{\"metadata\":{\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'")
+	}
+	return nil
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {
