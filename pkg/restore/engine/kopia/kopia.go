@@ -9,7 +9,6 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	wranglername "github.com/rancher/wrangler/v3/pkg/name"
-	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -20,11 +19,13 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	backupcommon "github.com/harvester/harvester/pkg/backup/common"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
 	"github.com/harvester/harvester/pkg/restore/pvchelper"
-	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/jobcredentials"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	"github.com/harvester/harvester/pkg/util/jobprogress"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
 )
@@ -44,8 +45,8 @@ type KopiaRestoreEngine struct {
 	secretCache   ctlcorev1.SecretCache
 	secretClient  ctlcorev1.SecretClient
 	jobController ctlbatchv1.JobController
-	jobCache      ctlbatchv1.JobCache
 	jobClient     ctlbatchv1.JobClient
+	vmrController ctlharvesterv1.VirtualMachineRestoreController
 	clientset     kubernetes.Interface
 }
 
@@ -58,6 +59,7 @@ func GetRestoreEngine(
 	secretCache ctlcorev1.SecretCache,
 	secretClient ctlcorev1.SecretClient,
 	jobController ctlbatchv1.JobController,
+	vmrController ctlharvesterv1.VirtualMachineRestoreController,
 	clientset kubernetes.Interface,
 ) engine.RestoreEngine {
 	return &KopiaRestoreEngine{
@@ -69,15 +71,19 @@ func GetRestoreEngine(
 		secretCache:   secretCache,
 		secretClient:  secretClient,
 		jobController: jobController,
-		jobCache:      jobController.Cache(),
 		jobClient:     jobController,
+		vmrController: vmrController,
 		clientset:     clientset,
 	}
 }
 
 // RegisterWatchers registers a Job event handler that maps Job changes back to
-// the owning VMRestore and enqueues it.
+// its VMRestore and enqueues it.
 func (ke *KopiaRestoreEngine) RegisterWatchers(ctx context.Context, enqueue func(namespace, name string)) {
+	lifecycle := restorecommon.JobHandler{
+		Reader: ke.vmro, Delete: ke.Delete,
+	}
+	ke.vmrController.OnChange(ctx, "kopia-restore-job-cleanup", lifecycle.OnRestoreChange)
 	ke.jobController.OnChange(ctx, "kopia-restore-job-watcher", func(_ string, job *batchv1.Job) (*batchv1.Job, error) {
 		if job == nil {
 			return nil, nil
@@ -85,13 +91,8 @@ func (ke *KopiaRestoreEngine) RegisterWatchers(ctx context.Context, enqueue func
 		if job.Labels[kopiautil.LabelKopiaJob] != kopiautil.LabelValueTrue {
 			return job, nil
 		}
-		owner := util.FindOwnerReference(
-			job,
-			harvesterv1.SchemeGroupVersion.String(),
-			vmRestoreKind,
-		)
-		if owner != nil {
-			enqueue(job.Namespace, owner.Name)
+		if parent := joblifecycle.ParentName(job.ObjectMeta, vmRestoreKind); parent != "" {
+			enqueue(job.Namespace, parent)
 		}
 		return job, nil
 	})
@@ -106,10 +107,9 @@ func (ke *KopiaRestoreEngine) Reconcile(
 	if vr == nil {
 		return fmt.Errorf("volume restore at index %d not found", volIndex)
 	}
-	// Validate Job success even when progress=100 was already persisted. Logs
-	// from an older controller may have advanced progress before the Job exited.
+	// Persisted completion allows the Job TTL controller to remove the Job.
 	if ke.vmro.GetVolRestoreProgress(vr) == 100 {
-		return engine.ReleaseSucceededJob(ke.jobClient, ke.vmro.GetNamespace(vmr), ke.jobName(vmr, vr))
+		return ke.releaseJob(vmr, ke.jobName(vmr, vr))
 	}
 	vb := ke.vmbo.GetVolBackup(vmb, volIndex)
 	if vb == nil {
@@ -123,19 +123,31 @@ func (ke *KopiaRestoreEngine) Reconcile(
 		return err
 	}
 
-	jobName := ke.jobName(vmr, vr)
-	namespace := ke.vmro.GetNamespace(vmr)
-	job, err := ke.jobCache.Get(namespace, jobName)
-	if err == nil {
-		return ke.syncFromJob(vr, job)
-	}
-	if !apierrors.IsNotFound(err) {
+	job, err := ke.ensureRestoreJob(vmr, vmb, vr, vb)
+	if err != nil {
 		return err
+	}
+	if err := ke.ensureSecret(vmb, job); err != nil {
+		return err
+	}
+	return ke.syncFromJob(vr, job)
+}
+
+func (ke *KopiaRestoreEngine) ensureRestoreJob(
+	vmr *harvesterv1.VirtualMachineRestore,
+	vmb *harvesterv1.VirtualMachineBackup,
+	vr *harvesterv1.VolumeRestore,
+	vb *harvesterv1.VolumeBackup,
+) (*batchv1.Job, error) {
+	jobName := ke.jobName(vmr, vr)
+	job, err := ke.getJob(vmr, jobName)
+	if !apierrors.IsNotFound(err) {
+		return job, err
 	}
 	if err := ke.createRestoreJob(vmr, vmb, vr, vb, jobName); err != nil {
-		return err
+		return nil, err
 	}
-	return engine.ErrRetryLater
+	return nil, engine.ErrRetryLater
 }
 
 func (ke *KopiaRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error) {
@@ -152,16 +164,6 @@ func (ke *KopiaRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int
 		return int64(current), nil
 	}
 	return int64(pct), nil
-}
-
-// Delete releases completion protection and removes the per-volume restore
-// Job. This also handles unfinished Jobs when a VMRestore is deleted.
-func (ke *KopiaRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error {
-	vr := ke.vmro.GetVolRestore(vmr, volIndex)
-	if vr == nil {
-		return nil
-	}
-	return engine.DeleteRestoreJob(ke.jobClient, ke.vmro.GetNamespace(vmr), ke.jobName(vmr, vr))
 }
 
 func (ke *KopiaRestoreEngine) ensurePVC(
@@ -239,10 +241,7 @@ func (ke *KopiaRestoreEngine) createRestoreJob(
 	if err != nil {
 		return err
 	}
-	secretName, err := ke.ensureKopiaSecret(vmr, vmb)
-	if err != nil {
-		return err
-	}
+	secretName := jobcredentials.Name(jobName)
 	vbName := ke.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
 		return fmt.Errorf("volume backup name is nil")
@@ -286,13 +285,7 @@ func (ke *KopiaRestoreEngine) createRestoreJob(
 			Name:       jobName,
 			Namespace:  namespace,
 			Labels:     labels,
-			Finalizers: []string{engine.RestoreJobCompletionFinalizer},
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: harvesterv1.SchemeGroupVersion.String(),
-				Kind:       "VirtualMachineRestore",
-				Name:       ke.vmro.GetName(vmr),
-				UID:        ke.vmro.GetUID(vmr),
-			}},
+			Finalizers: []string{joblifecycle.CompletionFinalizer},
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:            ptr.To[int32](0),
@@ -321,11 +314,16 @@ func (ke *KopiaRestoreEngine) createRestoreJob(
 			},
 		},
 	}
-	_, err = ke.jobClient.Create(job)
+	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
+	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return ke.ensureSecret(vmb, job)
 }
 
 func (ke *KopiaRestoreEngine) checkRemoteSnapshot(
@@ -341,7 +339,11 @@ func (ke *KopiaRestoreEngine) checkRemoteSnapshot(
 		ke.clientset,
 		checkName,
 		func(name string) (*batchv1.Job, error) {
-			return ke.jobCache.Get(namespace, name)
+			job, err := ke.getJob(vmr, name)
+			if err != nil {
+				return nil, err
+			}
+			return job, ke.ensureSecret(vmb, job)
 		},
 		func(name string) error {
 			return ke.createCheckJob(vmr, vmb, vb, name)
@@ -374,10 +376,7 @@ func (ke *KopiaRestoreEngine) createCheckJob(
 	if err != nil {
 		return err
 	}
-	secretName, err := ke.ensureKopiaSecret(vmr, vmb)
-	if err != nil {
-		return err
-	}
+	secretName := jobcredentials.Name(jobName)
 
 	namespace := ke.vmro.GetNamespace(vmr)
 	labels := kopiautil.JobLabels(nil)
@@ -389,67 +388,36 @@ func (ke *KopiaRestoreEngine) createCheckJob(
 		return engine.ErrRetryLater
 	}
 	job := kopiautil.NewSnapshotCheckJob(kopiautil.SnapshotCheckJobOptions{
-		Name:      jobName,
-		Namespace: namespace,
-		Labels:    labels,
-		OwnerReferences: []metav1.OwnerReference{{
-			APIVersion: harvesterv1.SchemeGroupVersion.String(),
-			Kind:       "VirtualMachineRestore",
-			Name:       ke.vmro.GetName(vmr),
-			UID:        ke.vmro.GetUID(vmr),
-		}},
+		Name:           jobName,
+		Namespace:      namespace,
+		Labels:         labels,
 		Runtime:        runtime,
 		Tags:           ke.snapshotTags(vmb, vb),
 		ConnectCommand: kopiautil.ConnectCommand(),
 	})
-	_, err = ke.jobClient.Create(job)
+	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
+	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return ke.ensureSecret(vmb, job)
 }
 
-func (ke *KopiaRestoreEngine) ensureKopiaSecret(
-	vmr *harvesterv1.VirtualMachineRestore,
-	vmb *harvesterv1.VirtualMachineBackup,
-) (string, error) {
-	source, err := ke.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+func (ke *KopiaRestoreEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
+	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
+	err := client.Ensure(job, func() (map[string][]byte, error) {
+		return backuputil.CredentialData(
+			ke.secretCache, ke.vmbo.GetBackupTarget(vmb), harvesterv1.Kopia, kopiautil.PasswordKey,
+		)
+	})
 	if err != nil {
-		return "", err
+		return fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
 	}
-	backupTarget := ke.vmbo.GetBackupTarget(vmb)
-	if backupTarget == nil {
-		return "", fmt.Errorf("VMBackup does not record a backup target")
-	}
-	password, err := backuputil.RepositoryPassword(backupTarget.RepositoryID, harvesterv1.Kopia)
-	if err != nil {
-		return "", err
-	}
-
-	namespace := ke.vmro.GetNamespace(vmr)
-	name := ke.credentialsName(vmr)
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: harvesterv1.SchemeGroupVersion.String(),
-				Kind:       "VirtualMachineRestore",
-				Name:       ke.vmro.GetName(vmr),
-				UID:        ke.vmro.GetUID(vmr),
-			}},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			util.AWSAccessKey:     source.Data[util.AWSAccessKey],
-			util.AWSSecretKey:     source.Data[util.AWSSecretKey],
-			kopiautil.PasswordKey: []byte(password),
-		},
-	}
-	if _, err := ke.secretClient.Create(secret); err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", err
-	}
-	return name, nil
+	return nil
 }
 
 func (ke *KopiaRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) (*kopiautil.Repository, error) {
@@ -460,15 +428,10 @@ func (ke *KopiaRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) 
 	return kopiautil.S3Repository(target)
 }
 
-// syncFromJob reports only state transitions: failure → error, still running
-// → ErrRetryLater, and success → mark progress=100 and request another
-// reconciliation. The retry forces progress=100 to be persisted before the
-// Job's completion finalizer is released.
+// syncFromJob marks success for the controller to persist before releasing the
+// Job on the next reconcile. Failed Jobs stay protected until failure is persisted.
 func (ke *KopiaRestoreEngine) syncFromJob(vr *harvesterv1.VolumeRestore, job *batchv1.Job) error {
 	if job.Status.Failed > 0 {
-		if err := ke.releaseJob(job.Namespace, job.Name); err != nil {
-			return err
-		}
 		return fmt.Errorf("kopia restore job %s/%s failed", job.Namespace, job.Name)
 	}
 	if job.Status.Succeeded == 0 {
@@ -477,24 +440,22 @@ func (ke *KopiaRestoreEngine) syncFromJob(vr *harvesterv1.VolumeRestore, job *ba
 	if err := ke.vmro.SetVolRestoreProgress(vr, 100); err != nil {
 		return err
 	}
-	logrus.Debugf("kopia restore job %s/%s completed", job.Namespace, job.Name)
 	return engine.ErrRetryLater
 }
 
-func (ke *KopiaRestoreEngine) releaseJob(namespace, name string) error {
-	if err := engine.ReleaseRestoreJob(ke.jobClient, namespace, name); err != nil {
-		logrus.WithError(err).Warnf(
-			"failed to release kopia restore job %s/%s",
-			namespace,
-			name,
-		)
-		return engine.ErrRetryLater
+func (ke *KopiaRestoreEngine) getJob(vmr *harvesterv1.VirtualMachineRestore, name string) (*batchv1.Job, error) {
+	job, err := joblifecycle.GetJob(ke.jobClient, vmr, vmRestoreKind, name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("getting job: %w: %w", engine.ErrRetryLater, err)
 	}
-	return nil
+	return job, err
 }
 
-func (ke *KopiaRestoreEngine) credentialsName(vmr *harvesterv1.VirtualMachineRestore) string {
-	return wranglername.SafeConcatName("kopia-credentials", ke.vmro.GetName(vmr))
+func (ke *KopiaRestoreEngine) releaseJob(vmr *harvesterv1.VirtualMachineRestore, name string) error {
+	if err := joblifecycle.ReleaseJob(ke.jobClient, vmr, vmRestoreKind, name); err != nil {
+		return fmt.Errorf("releasing restore job: %w: %w", engine.ErrRetryLater, err)
+	}
+	return nil
 }
 
 func (ke *KopiaRestoreEngine) jobName(vmr *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) string {
@@ -544,4 +505,12 @@ func (ke *KopiaRestoreEngine) jobLocator(vr *harvesterv1.VolumeRestore) (name, n
 		return "", "", false
 	}
 	return wranglername.SafeConcatName(jobNamePrefix, restoreName, volName), ns, true
+}
+
+// Delete releases and removes Jobs belonging to this VMRestore.
+func (ke *KopiaRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) error {
+	if ke.vmro.GetType(vmr) != harvesterv1.Kopia {
+		return nil
+	}
+	return joblifecycle.DeleteJobs(ke.jobClient, vmr, vmRestoreKind)
 }

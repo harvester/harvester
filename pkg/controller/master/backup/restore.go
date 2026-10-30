@@ -228,6 +228,7 @@ func newRestoreEngines(
 			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.jobs,
+			controllers.vmrs,
 			management.ClientSet,
 		),
 		harvesterv1.Kopia: restorekopia.GetRestoreEngine(
@@ -239,6 +240,7 @@ func newRestoreEngines(
 			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.jobs,
+			controllers.vmrs,
 			management.ClientSet,
 		),
 	}
@@ -271,8 +273,8 @@ func newRestoreHandler(
 
 // registerRestoreEventHandlers registers all event handlers for the restore controller
 func registerRestoreEventHandlers(ctx context.Context, controllers *restoreControllerSet, handler *RestoreHandler) {
-	controllers.vmrs.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
 	controllers.vmrs.OnRemove(ctx, restoreControllerName, handler.RestoreOnRemove)
+	controllers.vmrs.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
 	controllers.pvcs.OnChange(ctx, restoreControllerName, handler.PersistentVolumeClaimOnChange)
 	controllers.vms.OnChange(ctx, restoreControllerName, handler.VMOnChange)
 }
@@ -292,7 +294,12 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 		return nil, nil
 	}
 
-	if !h.vmro.IsProgressing(vmr) {
+	// Independent engine resources require durable cleanup protection first.
+	if !h.vmro.HasFinalizer(vmr, "wrangler.cattle.io/"+restoreControllerName) {
+		return nil, nil
+	}
+
+	if !h.vmro.IsProgressing(vmr) || h.vmro.IsFailed(vmr) {
 		return nil, nil
 	}
 
@@ -303,6 +310,10 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 	vmb, err := h.vmro.ResolveVMBackup(vmr)
 	if err != nil {
 		return nil, h.vmro.UpdateError(vmr, err)
+	}
+
+	if h.vmro.GetType(vmr) != h.vmbo.GetType(vmb) {
+		return nil, h.vmro.UpdateType(vmr, h.vmbo.GetType(vmb))
 	}
 
 	if h.vmro.IsMissingVolumes(vmr) {
@@ -340,43 +351,37 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 	return nil, h.updateStatus(vmr, vmrCpy, vm, isVolumesReady)
 }
 
-// RestoreOnRemove delegates per-volume cleanup to the restore engine, mirroring
-// the (engine, iterate volumes) pattern in reconcileVolumeRestores.
-func (h *RestoreHandler) RestoreOnRemove(_ string, vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
-	if vmr == nil || !h.vmro.HasStatus(vmr) {
+// RestoreOnRemove uses the persisted engine without looking up the source backup.
+// Untyped legacy restores only try snapshot and Longhorn cleanup.
+func (h *RestoreHandler) RestoreOnRemove(
+	_ string,
+	vmr *harvesterv1.VirtualMachineRestore,
+) (*harvesterv1.VirtualMachineRestore, error) {
+	if vmr == nil {
 		return nil, nil
 	}
-
-	re, err := h.resolveRestoreEngine(vmr)
-	if err != nil {
-		return nil, err
+	backupType := h.vmro.GetType(vmr)
+	if backupType == "" {
+		return vmr, h.cleanupLegacy(vmr)
 	}
-	if re == nil {
-		return nil, nil
+	restoreEngine := h.engines[backupType]
+	if restoreEngine == nil {
+		return vmr, fmt.Errorf("unsupported restore engine %q", backupType)
 	}
-
-	for i := range h.vmro.GetVolRestores(vmr) {
-		if err := re.Delete(vmr, i); err != nil {
-			return nil, err
-		}
-	}
-	return nil, nil
+	return vmr, restoreEngine.Delete(vmr)
 }
 
-// resolveRestoreEngine picks the restore engine for a VMRestore. When the
-// source VMBackup is gone (typically because the user deleted it ahead of the
-// restore) we fall back to the Longhorn engine — the only engine with
-// non-trivial cleanup (VolumeSnapshotContent is cluster-scoped, uses Retain
-// policy, so it can't be garbage-collected via owner references).
-func (h *RestoreHandler) resolveRestoreEngine(vmr *harvesterv1.VirtualMachineRestore) (engine.RestoreEngine, error) {
-	vmb, err := h.vmro.ResolveVMBackup(vmr)
-	if apierrors.IsNotFound(err) {
-		return h.engines[harvesterv1.Backup], nil
+func (h *RestoreHandler) cleanupLegacy(vmr *harvesterv1.VirtualMachineRestore) error {
+	for _, backupType := range []harvesterv1.BackupType{harvesterv1.Snapshot, harvesterv1.Backup} {
+		restoreEngine := h.engines[backupType]
+		if restoreEngine == nil {
+			continue
+		}
+		if err := restoreEngine.Delete(vmr); err != nil {
+			return err
+		}
 	}
-	if err != nil {
-		return nil, err
-	}
-	return h.getRestoreEngine(vmb), nil
+	return nil
 }
 
 // pv naming convention from externel-provisioner

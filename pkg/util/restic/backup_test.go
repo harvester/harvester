@@ -44,7 +44,7 @@ func TestLocalBackupCompletion(t *testing.T) {
 	out, err := runShell(t, command+" init")
 	require.NoError(t, err, out)
 	tags := []string{"ns=default", "vmb=backup", "sn=volume"}
-	// Simulate a snapshot left by the old stdin pipeline before this change.
+	// Simulate an interrupted backup that never added its completion tag.
 	out, err = runShell(t, "printf partial | "+command+
 		" backup --stdin --stdin-filename volume --tag=ns=default,vmb=backup,sn=volume")
 	require.NoError(t, err, out)
