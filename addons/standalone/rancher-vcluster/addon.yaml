@@ -10,6 +10,7 @@ metadata:
   name: rancher-vcluster
   namespace: rancher-vcluster
   labels:
+    addon.harvesterhci.io/deprecated: "true"
     addon.harvesterhci.io/experimental: "true"
 spec:
   enabled: false
