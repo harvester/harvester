@@ -11,7 +11,6 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -22,8 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	validationutil "k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
@@ -40,11 +37,7 @@ import (
 )
 
 const (
-	vClusterAddonName      = "rancher-vcluster"
-	vClusterAddonNamespace = "rancher-vcluster"
-	vCluster0190           = "v0.19.0"
-	vCluster0300           = "v0.30.0"
-	kubeOVNOperatorAddon   = util.KubeOVNOperatorName
+	kubeOVNOperatorAddon = util.KubeOVNOperatorName
 
 	labelParentSRIOVGPUDevice = "harvesterhci.io/parentSRIOVGPUDevice"
 )
@@ -176,8 +169,6 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 	}
 
 	switch newAddon.Name {
-	case vClusterAddonName:
-		return v.validateVClusterAddonUpdate(newAddon, oldAddon)
 	case util.RancherLoggingName:
 		return v.validateRancherLoggingAddonUpdate(newAddon, oldAddon)
 	case util.DeschedulerName:
@@ -193,13 +184,6 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 	}
 
 	return nil
-}
-
-func (v *addonValidator) validateVClusterAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
-	if newAddon.Namespace != vClusterAddonNamespace || !newAddon.Spec.Enabled {
-		return nil
-	}
-	return validateVClusterAddon(newAddon)
 }
 
 func (v *addonValidator) validateRancherLoggingAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
@@ -288,41 +272,6 @@ func (v *addonValidator) validateLVMAddonUpdate(newAddon *v1beta1.Addon, oldAddo
 
 func isAddonBeingDisabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
 	return oldAddon.Spec.Enabled && !newAddon.Spec.Enabled
-}
-
-func validateVClusterAddon(newAddon *v1beta1.Addon) error {
-	type contentValues struct {
-		Hostname string `yaml:"hostname,omitempty"`
-		Global   struct {
-			Hostname string `yaml:"hostname,omitempty"`
-		} `yaml:"global,omitempty"`
-	}
-
-	addonContent := &contentValues{}
-	// valuesContent contains a yaml string
-	if err := yaml.Unmarshal([]byte(newAddon.Spec.ValuesContent), addonContent); err != nil {
-		return werror.NewInternalError(fmt.Sprintf("unable to parse contentValues: %v for %s addon", err, vClusterAddonName))
-	}
-
-	// currently we only support v0.19.0 and v0.30.0 of vcluster
-	// the parsing is designed to handle only these two versions for now
-	var hostname string
-	if newAddon.Spec.Version == vCluster0190 {
-		hostname = addonContent.Hostname
-	} else {
-		hostname = addonContent.Global.Hostname
-	}
-	// ip addresses are valid fqdns
-	// this check will return error if hostname is fqdn
-	// but an ip address
-	if fqdnErrs := validationutil.IsFullyQualifiedDomainName(field.NewPath(""), hostname); len(fqdnErrs) == 0 {
-		if ipErrs := validationutil.IsValidIP(field.NewPath(""), hostname); len(ipErrs) == 0 {
-			return werror.NewBadRequest(fmt.Sprintf("%s is not a valid hostname", hostname))
-		}
-		return nil
-	}
-
-	return werror.NewBadRequest(fmt.Sprintf("invalid fqdn %s provided for %s addon", addonContent.Hostname, vClusterAddonName))
 }
 
 func (v *addonValidator) validateEnableRancherLoggingAddon(newAddon *v1beta1.Addon) error {
