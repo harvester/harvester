@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,9 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stesting "k8s.io/client-go/testing"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -1038,4 +1041,33 @@ func TestRestoreKubevirtWorkloadUpdateMethodsInValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpgradeHandler_OnChanged_ImageCreateConflict(t *testing.T) {
+	// The image from a previous reconcile already exists, and creating it again is
+	// rejected by the image webhook's display name check with a Conflict.
+	existingImage := newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeName)
+	upgrade := newTestUpgradeBuilder().
+		InitStatus().
+		LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").Build()
+
+	clientset := fake.NewSimpleClientset(upgrade, newVersionBuilder(testVersion).Build(), existingImage)
+	clientset.PrependReactor("create", "virtualmachineimages", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewConflict(harvesterv1.Resource("virtualmachineimages"), testUpgradeName, errors.New("A resource with the same name exists"))
+	})
+
+	handler := &upgradeHandler{
+		namespace:     harvesterSystemNamespace,
+		upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+		upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+		versionCache:  fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+		vmImageClient: fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		vmImageCache:  fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+	}
+
+	actual, err := handler.OnChanged(testUpgradeName, upgrade)
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("%s/%s", upgradeNamespace, testUpgradeName), actual.Status.ImageID)
+	assert.True(t, harvesterv1.UpgradeCompleted.IsUnknown(actual), "upgrade must not fail")
+	assert.True(t, harvesterv1.ImageReady.IsUnknown(actual))
 }
