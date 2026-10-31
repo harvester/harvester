@@ -221,6 +221,7 @@ func main() {
 					networkv1.VlanConfig{},
 					networkv1.VlanStatus{},
 					networkv1.ClusterNetwork{},
+					networkv1.HostNetworkConfig{},
 				},
 				GenerateTypes:   false,
 				GenerateClients: true,

@@ -91,3 +91,20 @@ func NewLinkMonitor(namespace, name string, obj LinkMonitor) *LinkMonitor {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// HostNetworkConfigList is a list of HostNetworkConfig resources
+type HostNetworkConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []HostNetworkConfig `json:"items"`
+}
+
+func NewHostNetworkConfig(namespace, name string, obj HostNetworkConfig) *HostNetworkConfig {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("HostNetworkConfig").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

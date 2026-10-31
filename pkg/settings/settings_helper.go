@@ -444,6 +444,10 @@ func GetClusterRegistrationURLSetting(setting *harvesterv1.Setting) *ClusterRegi
 type RWXNetworkConfig struct {
 	ShareStorageNetwork bool                `json:"share-storage-network"`
 	Network             *networkutil.Config `json:"network,omitempty"`
+	// HostIPRange and VIPRange are CIDRs inside the RWX network range, reserved for
+	// the Harvester hosts and the Share Manager VIPs respectively.
+	HostIPRange string `json:"hostIPRange,omitempty"`
+	VIPRange    string `json:"vipRange,omitempty"`
 }
 
 func GetRWXNetworkConfig(setting *harvesterv1.Setting) (*RWXNetworkConfig, error) {
