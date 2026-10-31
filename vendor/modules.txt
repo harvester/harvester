@@ -667,9 +667,6 @@ github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1
 # github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 ## explicit; go 1.17
 github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1
-# github.com/kubernetes/dashboard v1.10.1
-## explicit
-github.com/kubernetes/dashboard/src/app/backend/auth/api
 # github.com/kylelemons/godebug v1.1.0
 ## explicit; go 1.11
 github.com/kylelemons/godebug/diff

@@ -5,7 +5,6 @@ import (
 
 	ctlnodeharvester "github.com/harvester/node-manager/pkg/generated/controllers/node.harvesterhci.io"
 	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
-	dashboardapi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/rancher/lasso/pkg/controller"
 	catalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
@@ -86,8 +85,7 @@ type Scaled struct {
 	CdiUploadFactory         *ctlcdiuploadv1.Factory
 	starters                 []start.Starter
 
-	Management   *Management
-	TokenManager dashboardapi.TokenManager
+	Management *Management
 }
 
 type Management struct {
