@@ -31,5 +31,5 @@ func (bim *Mutator) Create(vmi *harvesterv1.VirtualMachineImage) (types.PatchOps
 }
 
 func (bim *Mutator) Update(_, newVMI *harvesterv1.VirtualMachineImage) (types.PatchOps, error) {
-	return bim.vmim.EnsureTargetSC(newVMI)
+	return bim.vmim.EnsureTargetSCOnUpdate(newVMI)
 }
