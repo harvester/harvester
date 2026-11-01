@@ -222,7 +222,6 @@ cdi:
       featureGates:
         - HonorWaitForFirstConsumer
         - WebhookPvcRendering
-      scratchSpaceStorageClass: harvester-longhorn
       podResourceRequirements:
         limits:
           memory: 2G
