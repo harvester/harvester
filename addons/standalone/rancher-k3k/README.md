@@ -20,7 +20,6 @@ rancher:
 k3kCluster:
   servers: 1
   version: v1.35.4-k3s1
-  storageClassName: "harvester-longhorn"
 ```
 
 The k3k cluster will sync the ingress for the newly deployed rancher to the underlying harvester cluster.
