@@ -18,6 +18,7 @@ func runShell(t *testing.T, command string) (string, error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+	// #nosec G702 -- tests intentionally execute generated scripts with trusted test inputs.
 	out, err := exec.CommandContext(ctx, "/bin/bash", "-c", command).CombinedOutput()
 	return string(out), err
 }
