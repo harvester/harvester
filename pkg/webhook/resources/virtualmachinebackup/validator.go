@@ -194,7 +194,7 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
 		}
 
 		backupType := v.vmbr.GetType(newVMBackup)
-		if backupType.UsesRemoteBackupTarget() && !isDataMoverBackup(backupType) {
+		if backupType.UsesRemoteBackupTarget() && !backupType.IsDataMover() {
 			if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
 				return err
 			}
@@ -212,7 +212,7 @@ func (v *virtualMachineBackupValidator) checkDataMoverVolumes(
 	vm *kubevirtv1.VirtualMachine,
 	backupType v1beta1.BackupType,
 ) error {
-	if !isDataMoverBackup(backupType) {
+	if !backupType.IsDataMover() {
 		return nil
 	}
 
@@ -273,10 +273,6 @@ func (v *virtualMachineBackupValidator) isLonghornV1Volume(pvc *corev1.Persisten
 	return lhVolume.Spec.DataEngine != longhornv1beta2.DataEngineTypeV2, nil
 }
 
-func isDataMoverBackup(backupType v1beta1.BackupType) bool {
-	return backupType == v1beta1.Restic || backupType == v1beta1.Kopia
-}
-
 func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
 	vm *kubevirtv1.VirtualMachine,
 	pvc *corev1.PersistentVolumeClaim,
@@ -306,7 +302,7 @@ func (v *virtualMachineBackupValidator) checkBackupTarget(backupType v1beta1.Bac
 	if backupTarget.IsDefaultBackupTarget() {
 		return fmt.Errorf("backup target is not set")
 	}
-	if isDataMoverBackup(backupType) && backupTarget.Type != settings.S3BackupType {
+	if backupType.IsDataMover() && backupTarget.Type != settings.S3BackupType {
 		return fmt.Errorf("%s backup requires an S3 backup target", backupType)
 	}
 

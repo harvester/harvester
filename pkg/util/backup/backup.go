@@ -108,7 +108,7 @@ func RepositoryPassword(repositoryID string, backupType harvesterv1.BackupType) 
 	if repositoryID == "" {
 		return "", fmt.Errorf("repository ID is empty")
 	}
-	if backupType != harvesterv1.Restic && backupType != harvesterv1.Kopia {
+	if !backupType.IsDataMover() {
 		return "", fmt.Errorf("unsupported data-mover backup type %q", backupType)
 	}
 	identity := strings.Join([]string{string(backupType), repositoryID}, "\x00")
