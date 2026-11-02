@@ -149,10 +149,8 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 			URL:         isoURL,
 			Checksum:    checksum,
 			Retry:       3,
-			// we use longhorn-static storage class for upgrade VM image because harvester-longhorn
-			// has "migratable: true" which blocks us from creating RWX filesystem type PVC.
-			TargetStorageClassName: util.StorageClassLonghornStatic,
-			Backend:                harvesterv1.VMIBackendCDI,
+			// Use default storage class for the upgrade image PVC, allow user to provide their custom PVC
+			Backend: harvesterv1.VMIBackendCDI,
 		},
 	}
 
