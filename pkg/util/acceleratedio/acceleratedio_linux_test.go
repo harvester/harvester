@@ -158,7 +158,7 @@ func (r *readGate) ReadAt(p []byte, offset int64) (int, error) {
 		<-r.release
 	}
 	for i := range p {
-		p[i] = byte(offset + int64(i))
+		p[i] = byte((offset + int64(i)) & 0xff)
 	}
 	return len(p), nil
 }
