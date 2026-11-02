@@ -129,7 +129,7 @@ func (v *scheuldeVMBackupValidator) Create(_ *types.Request, newObj runtime.Obje
 	newSVMBackup := newObj.(*v1beta1.ScheduleVMBackup)
 
 	backupType := newSVMBackup.Spec.VMBackupSpec.Type
-	if backupType == v1beta1.Restic || backupType == v1beta1.Kopia {
+	if backupType.IsDataMover() {
 		return werror.NewInvalidError(
 			fmt.Sprintf("%s is not supported for scheduled VM backups", backupType), fieldVMBackupType)
 	}
