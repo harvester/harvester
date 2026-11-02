@@ -17,6 +17,12 @@ spec:
       repository: << .KUBEOVN_OPERATOR_IMAGE_REPOSITORY >>
       tag: << .KUBEOVN_OPERATOR_IMAGE_TAG >>
     fullnameOverride: harvester-kubeovn-operator
+    global:
+      {{- if .IsDualStackEnabled }}
+      ipFamilyPolicy: PreferDualStack
+      {{- else }}
+      ipFamilyPolicy: SingleStack
+      {{- end }}
     enableConfiguration: true
     configurationSpec:
       components:
@@ -49,6 +55,16 @@ spec:
         podCIDR: 10.54.0.0/16
         podGateway: 10.54.0.1
         serviceCIDR: 10.55.0.0/16
+      {{- if .IsDualStackEnabled }}
+      # kube-ovn overlay ranges, separate from the RKE2 pod/service CIDRs
+      dualStack:
+        joinCIDR: 100.64.0.0/16,fd64::/112
+        pingerExternalAddress: 1.1.1.1,2606:4700:4700::1111
+        pingerExternalDomain: google.com.
+        podCIDR: 10.54.0.0/16,fd54::/112
+        podGateway: 10.54.0.1,fd54::1
+        serviceCIDR: 10.55.0.0/16,fd55::/112
+      {{- end }}
       kubeOvnCNI:
         requests:
           cpu: "100m"
@@ -85,6 +101,11 @@ spec:
         enableMetrics: true
         enableSSL: false
         networkType: geneve
+        {{- if .IsDualStackEnabled }}
+        netStack: dual_stack
+        {{- else }}
+        netStack: ipv4
+        {{- end }}
         nodeSubnet: join
         ovnLeaderProbeInterval: 5
         ovnNorthdNThreads: 1
