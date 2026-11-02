@@ -49,15 +49,16 @@ const (
 	Kopia    BackupType = "kopia"
 )
 
+// IsDataMover reports whether the backup type uses a data-mover engine.
+func (b BackupType) IsDataMover() bool {
+	return b == Restic || b == Kopia
+}
+
 // UsesRemoteBackupTarget reports whether this backup type persists data to the
 // configured remote BackupTarget. Snapshot stays in-cluster; Backup/Restic/Kopia
 // all push to S3 (via Longhorn-native, restic, or kopia respectively).
 func (b BackupType) UsesRemoteBackupTarget() bool {
-	switch b {
-	case Backup, Restic, Kopia:
-		return true
-	}
-	return false
+	return b == Backup || b.IsDataMover()
 }
 
 // UsesBackupSnapshotClass reports whether the backup type delegates remote
@@ -72,11 +73,7 @@ func (b BackupType) UsesBackupSnapshotClass() bool {
 // every VMBackup removal to forget the remote snapshots. Native Backup is
 // excluded because Longhorn manages its own backup CRs and S3 data.
 func (b BackupType) OwnsExternalState() bool {
-	switch b {
-	case Restic, Kopia:
-		return true
-	}
-	return false
+	return b.IsDataMover()
 }
 
 // +genclient
