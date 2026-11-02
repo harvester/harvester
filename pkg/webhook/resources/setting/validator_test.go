@@ -1206,6 +1206,30 @@ func Test_validateUpgradeConfig(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name: "enable shutdownVMOnMigrationFailure",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "shutdownVMOnMigrationFailure": true}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "disable shutdownVMOnMigrationFailure",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "shutdownVMOnMigrationFailure": false}`,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "non-boolean shutdownVMOnMigrationFailure should be rejected",
+			args: &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
+				Value:      `{"imagePreloadOption":{"strategy":{"type":"sequential"}}, "shutdownVMOnMigrationFailure": "yes"}`,
+			},
+			expectedErr: true,
+		},
+		{
 			name: "LogeReadyTimeout in expected range",
 			args: &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.UpgradeConfigSettingName},
