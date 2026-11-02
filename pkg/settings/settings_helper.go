@@ -323,6 +323,9 @@ type UpgradeConfig struct {
 	PreloadOption ImagePreloadOption `json:"imagePreloadOption,omitempty"`
 	// set true to restore vm to the pre-upgrade state
 	RestoreVM bool `json:"restoreVM,omitempty"`
+	// set true to shut down a vm whose live migration failed while its node is being drained for upgrade.
+	// the value is saved on the upgrade before nodes start upgrading, changing it afterwards has no effect on that upgrade.
+	ShutdownVMOnMigrationFailure bool `json:"shutdownVMOnMigrationFailure,omitempty"`
 	// LogReadyTimeout is the time in minutes to wait for LogReady condition to be set True or False.
 	LogReadyTimeout string `json:"logReadyTimeout,omitempty"`
 	// Options for specifying nodes to pause when entering the pre-draining state
