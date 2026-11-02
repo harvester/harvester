@@ -3,6 +3,7 @@ package upgrade
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -686,6 +687,10 @@ func applyNodeJob(upgrade *harvesterv1.Upgrade, repoInfo *repoinfo.RepoInfo, nod
 								{
 									Name:  "HARVESTER_UPGRADE_NODE_NAME",
 									Value: nodeName,
+								},
+								{
+									Name:  "HARVESTER_SHUTDOWN_VM_ON_MIGRATION_FAILURE",
+									Value: strconv.FormatBool(upgrade.Annotations[shutdownVMOnMigrationFailureAnnotation] == "true"),
 								},
 								{
 									Name: "HARVESTER_UPGRADE_POD_NAME",

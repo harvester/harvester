@@ -243,15 +243,19 @@ check_migrations_phase() {
 
       echo "found virtual machine migration. phase:${migration_phase}, node:${HARVESTER_UPGRADE_NODE_NAME}, ns: ${vmi_namespace}, vm:${vmi_name}, vmim:${vmim}"
 
-      # if the warning events confirmed a migration failure, shutdown this vm
       if [ "${migration_phase}" = "Failed" ]; then
         warnings=$(kubectl -n "${vmi_namespace}" events --for=virtualmachineinstancemigration/"${vmim}" --types=warning -ojsonpath='{.items[*].reason}' 2>/dev/null)
-        if [ ! -z "${warnings}" ]; then
-          if echo "${warnings}" | grep -i -q "failedmigration"; then
-            failure_reason=$(kubectl -n "${vmi_namespace}" get vmim "${vmim}" -ojsonpath='{.status.migrationState.failureReason}' 2>/dev/null)
-            echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, warnings: ${warnings}, failure reason: ${failure_reason}"
-            virtctl -n "${vmi_namespace}" stop "${vmi_name}" || true # don't fail upgrade if virtctl failed
-          fi
+        failure_reason=$(kubectl -n "${vmi_namespace}" get vmim "${vmim}" -ojsonpath='{.status.migrationState.failureReason}' 2>/dev/null)
+
+        # shutdown this vm only if it's enabled and the warning events confirmed a migration failure
+        if [ "${HARVESTER_SHUTDOWN_VM_ON_MIGRATION_FAILURE}" = "true" ] && echo "${warnings}" | grep -i -q "failedmigration"; then
+          echo "shutting down virtual machine ${vmi_namespace}/${vmi_name} due to failed migration. vmim: ${vmi_namespace}/${vmim}, warnings: ${warnings}, failure reason: ${failure_reason}"
+          virtctl -n "${vmi_namespace}" stop "${vmi_name}" || true # don't fail upgrade if virtctl failed
+        else
+          # always log the failure, as the warning events might have expired.
+          # kubevirt keeps retrying the evacuation, the upgrade waits until the vm is migrated or stopped
+          echo "virtual machine ${vmi_namespace}/${vmi_name} failed to migrate, waiting for the migration to be retried. vmim: ${vmi_namespace}/${vmim}, warnings: ${warnings}, failure reason: ${failure_reason}, shutdownVMOnMigrationFailure: ${HARVESTER_SHUTDOWN_VM_ON_MIGRATION_FAILURE}"
+          echo "to continue the upgrade, fix the migration failure or stop the virtual machine manually"
         fi
       fi
     done
