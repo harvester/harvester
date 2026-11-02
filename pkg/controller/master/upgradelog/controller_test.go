@@ -32,7 +32,7 @@ const (
 	testLoggingUID      = "test-logging-uid"
 	testStatefulSetName = "test-upgrade-upgradelog-fluentd"
 	testArchiveName     = "test-archive"
-	testImageVersion    = "dev"
+	testUpgradeImage    = "registry.example.com/harvester/harvester-upgrade:dev"
 )
 
 var (
@@ -906,7 +906,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			name: "The logging infra is ready and the upgrade is resumed, should therefore create the log-downloader Deployment",
 			given: input{
 				key:     testUpgradeLogName,
-				upgrade: newTestUpgradeBuilder().Build(),
+				upgrade: newTestUpgradeBuilder().WithAnnotation(util.AnnotationPreviousUpgradeImage, testUpgradeImage).Build(),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
 					OperatorDeployedCondition(corev1.ConditionTrue, "", "").
@@ -914,7 +914,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 					UpgradeEndedCondition(corev1.ConditionUnknown, "", "").Build(),
 			},
 			expected: output{
-				deployment: prepareLogDownloader(newTestUpgradeLogBuilder().Build(), testImageVersion),
+				deployment: prepareLogDownloader(newTestUpgradeLogBuilder().Build(), testUpgradeImage),
 				service:    prepareLogDownloaderSvc(newTestUpgradeLogBuilder().Build()),
 				upgradeLog: newTestUpgradeLogBuilder().
 					UpgradeLogReadyCondition(corev1.ConditionTrue, "", "").
@@ -1037,6 +1037,7 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			var err error
 			actual.deployment, err = handler.deploymentClient.Get(util.HarvesterSystemNamespaceName, testDeploymentName, metav1.GetOptions{})
 			assert.Nil(t, err)
+			assert.Equal(t, tc.expected.deployment.Spec.Template.Spec.Containers[0].Image, actual.deployment.Spec.Template.Spec.Containers[0].Image, "case %q", tc.name)
 		}
 
 		if tc.expected.logging != nil {
@@ -1100,6 +1101,78 @@ func TestHandler_OnUpgradeLogChange(t *testing.T) {
 			emptyConditionsTime(actual.upgradeLog.Status.Conditions)
 			assert.Equal(t, tc.expected.upgradeLog, actual.upgradeLog, "case %q", tc.name)
 		}
+	}
+}
+
+func TestGetLoggingImagesFromHelmValues(t *testing.T) {
+	newHelmValues := func(registry interface{}) map[string]interface{} {
+		values := map[string]interface{}{
+			"images": map[string]interface{}{
+				imageFluentbit:      map[string]interface{}{"repository": "rancher/mirrored-fluent-fluent-bit", "tag": "3.1.8"},
+				imageFluentd:        map[string]interface{}{"repository": "rancher/mirrored-kube-logging-fluentd", "tag": "v1.16-4.10-full"},
+				imageConfigReloader: map[string]interface{}{"repository": "rancher/mirrored-kube-logging-config-reloader", "tag": "v0.0.6"},
+			},
+		}
+		if registry != nil {
+			values["global"] = map[string]interface{}{
+				"cattle": map[string]interface{}{"systemDefaultRegistry": registry},
+			}
+		}
+		return values
+	}
+	newImages := func(prefix string) map[string]settings.Image {
+		return map[string]settings.Image{
+			imageFluentbit:      {Repository: prefix + "rancher/mirrored-fluent-fluent-bit", Tag: "3.1.8"},
+			imageFluentd:        {Repository: prefix + "rancher/mirrored-kube-logging-fluentd", Tag: "v1.16-4.10-full"},
+			imageConfigReloader: {Repository: prefix + "rancher/mirrored-kube-logging-config-reloader", Tag: "v0.0.6"},
+		}
+	}
+
+	var testCases = []struct {
+		name       string
+		helmValues map[string]interface{}
+		expected   map[string]settings.Image
+		expectErr  bool
+	}{
+		{
+			name:       "no global values, should keep the repositories untouched",
+			helmValues: newHelmValues(nil),
+			expected:   newImages(""),
+		},
+		{
+			name:       "empty systemDefaultRegistry, should keep the repositories untouched",
+			helmValues: newHelmValues(""),
+			expected:   newImages(""),
+		},
+		{
+			name:       "systemDefaultRegistry is set, should prefix the repositories with it",
+			helmValues: newHelmValues("registry.example.com"),
+			expected:   newImages("registry.example.com/"),
+		},
+		{
+			name:       "systemDefaultRegistry with a path is set, should prefix the repositories with it",
+			helmValues: newHelmValues("registry.example.com/prime"),
+			expected:   newImages("registry.example.com/prime/"),
+		},
+		{
+			name: "missing image, should return an error",
+			helmValues: map[string]interface{}{
+				"images": map[string]interface{}{
+					imageFluentbit: map[string]interface{}{"repository": "rancher/mirrored-fluent-fluent-bit", "tag": "3.1.8"},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		actual, err := getLoggingImagesFromHelmValues(tc.helmValues)
+		if tc.expectErr {
+			assert.Error(t, err, "case %q", tc.name)
+			continue
+		}
+		assert.NoError(t, err, "case %q", tc.name)
+		assert.Equal(t, tc.expected, actual, "case %q", tc.name)
 	}
 }
 

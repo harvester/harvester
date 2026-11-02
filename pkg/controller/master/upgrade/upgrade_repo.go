@@ -37,7 +37,8 @@ var (
 	// Images in the list will be retained during the image pruning process at
 	// the end of an upgrade.
 	imageRetainList = []string{
-		"rancher/harvester-upgrade",
+		// Matches both rancher/harvester-upgrade and <registry>/harvester/harvester-upgrade.
+		"/harvester-upgrade:",
 		"longhornio/longhorn-engine",
 		"longhornio/longhorn-instance-manager",
 		"rancher/mirrored-banzaicloud-fluentd",
@@ -451,9 +452,9 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 					Containers: []corev1.Container{
 						{
 							Name: "nginx-iso-server",
-							// The newer rancher/harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
+							// The newer harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
 							// what we need is just the nginx server to serve the ISO, so it’s fine to use the previous version here.
-							Image:           fmt.Sprintf("%s:%s", util.HarvesterUpgradeImageRepository, r.upgrade.Status.PreviousVersion),
+							Image:           util.GetPreviousUpgradeImage(r.upgrade),
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command:         []string{"sh", "-c"},
 							Args: []string{

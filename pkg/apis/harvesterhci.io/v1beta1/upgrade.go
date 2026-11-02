@@ -1,8 +1,6 @@
 package v1beta1
 
 import (
-	"fmt"
-
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -77,8 +75,7 @@ type NodeUpgradeStatus struct {
 }
 
 // GetUpgradeImage returns the upgrade image as a Docker image reference, e.g. `rancher/harvester-upgrade:latest`.
-// If the `spec.upgradeImage` field is not provided, it constructs the image reference using the provided repository and tag.
-func (u *Upgrade) GetUpgradeImage(repository, tag string) string {
-	defaultValue := fmt.Sprintf("%s:%s", repository, tag)
-	return ptr.Deref(u.Spec.UpgradeImage, defaultValue)
+// If the `spec.upgradeImage` field is not provided, it returns the provided default image.
+func (u *Upgrade) GetUpgradeImage(defaultImage string) string {
+	return ptr.Deref(u.Spec.UpgradeImage, defaultImage)
 }
