@@ -551,7 +551,7 @@ func (v *settingValidator) validateRepositoryTransition(target *settings.BackupT
 
 	for _, vmBackup := range vmBackups {
 		backupType := v.vmbr.GetType(vmBackup)
-		if backupType != v1beta1.Restic && backupType != v1beta1.Kopia {
+		if !backupType.IsDataMover() {
 			continue
 		}
 		if backuputil.IsBackupTargetSame(v.vmbr.GetBackupTarget(vmBackup), target) {
