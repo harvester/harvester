@@ -59,10 +59,12 @@ type VMController struct {
 	jobClient        ctlbatchv1.JobClient
 	jobCache         ctlbatchv1.JobCache
 	podClient        v1.PodClient
+	podCache         v1.PodCache
 	pvcClient        v1.PersistentVolumeClaimClient
 	pvcCache         v1.PersistentVolumeClaimCache
 	vmClient         ctlkubevirtv1.VirtualMachineClient
 	vmController     ctlkubevirtv1.VirtualMachineController
+	vmCache          ctlkubevirtv1.VirtualMachineCache
 	vmiCache         ctlkubevirtv1.VirtualMachineInstanceCache
 	vmiClient        ctlkubevirtv1.VirtualMachineInstanceClient
 	vmImgClient      ctlharvesterv1.VirtualMachineImageClient
