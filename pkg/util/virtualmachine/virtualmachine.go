@@ -326,7 +326,8 @@ func IsDeleteProtected(vm *kubevirtv1.VirtualMachine) bool {
 
 // DeleteProtectionError returns the message used when a protected VM delete is refused.
 func DeleteProtectionError(vm *kubevirtv1.VirtualMachine) error {
-	return fmt.Errorf("VirtualMachine %s/%s has delete protection enabled; disable delete protection (set label %s to \"false\") before deleting it",
+	return fmt.Errorf("VirtualMachine %s has delete protection enabled; disable delete protection (set label %s to \"false\") before deleting it",
+	util.GetNamespacedName(vm)
 		vm.Namespace, vm.Name, util.LabelVMDeleteProtection)
 }
 
