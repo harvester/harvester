@@ -7,7 +7,7 @@ pull_request_rules:
       - -conflict
     actions:
       merge:
-        method: squash
+        method: rebase
 
   - name: Automatically approve Renovate PRs
     conditions:
