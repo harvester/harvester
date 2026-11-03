@@ -2,9 +2,8 @@
 
 ## Summary
 
-Small edge clusters, typically three nodes in a store, restaurant or branch office, need a
-dedicated storage network so that Longhorn replication does not compete with VM and management
-traffic. Today that requires a storage switch, and a 10/25 GbE switch per site is often the most
+Small edge clusters of three nodes in a store, restaurant or branch office need a dedicated
+storage network so that Longhorn replication does not compete with VM and management traffic. Today that requires a storage switch, and a 10/25 GbE switch per site is often the most
 expensive and least reliable item in the rack. A **switchless full mesh** avoids it: each node uses
 two spare NICs, cabled directly to the other two nodes.
 
@@ -18,6 +17,10 @@ attached directly to the cluster network bridge as an *isolated* bridge port
 loop and no node relays traffic for the others. Pods (Longhorn instance managers, virt-handler) sit
 on ordinary bridge ports and reach both neighbors. Unicast leaves only on the cable to the right
 peer. An isolated cluster network is reserved for the storage, RWX and VM live migration networks.
+
+The scope is a **3-node cluster**: three data nodes, each with exactly two mesh NICs. Larger
+clusters should use a storage switch, and a 2-node cluster needs only one cable and no isolated
+mode (see [Non-goals](#non-goals)).
 
 On a 3-node test cluster (1 GbE mesh), the 3-replica VM write throughput went from 38.2 MB/s
 (broadcast bond) to 69.8 MB/s (isolated mode, MTU 9000), and each cable carried exactly one copy of
@@ -57,7 +60,8 @@ links, with no switch to oversubscribe.
 - Also allow the RWX network and the VM live migration network on the mesh. Both are point-to-point
   between nodes, as storage replication is.
 - Report the state of each mesh link per node.
-- Prevent configurations that do not work on a mesh (VM networks, HostNetworkConfigs, mixed modes).
+- Prevent configurations that do not work on a mesh (VM networks, HostNetworkConfigs, mixed modes,
+  more than 3 data nodes, a NIC count other than two).
 - Keep today's behavior unchanged for every existing cluster network.
 
 ### Non-goals
@@ -73,6 +77,15 @@ links, with no switch to oversubscribe.
   reaches its direct neighbors, with no DHCP server and no gateway. Node-to-node host traffic would
   work in static mode, so this can be relaxed later if a use case appears.
 - The management network on the mesh.
+- **Meshes of more than 3 data nodes.** A full mesh of N nodes needs N−1 NICs per node and
+  N(N−1)/2 cables: 3 NICs and 6 cables at 4 nodes, 4 NICs and 10 cables at 5 nodes. Cabling and
+  troubleshooting grow faster than the savings, and a storage switch is the better choice at that
+  size. The webhook rejects isolated mode on more than 3 data nodes (see [Implementation Overview](#implementation-overview)).
+- **2-node clusters.** Two data nodes need a single direct cable. A VlanConfig with that one NIC
+  has no loop, so isolated mode is not needed (see the 2 nodes and a witness layout under
+  [Failure behavior](#failure-behavior-and-constraints)). A site that starts with 2 nodes and adds
+  a third uses that layout first, then cables the triangle and switches the cluster network to
+  isolated mode with the existing storage network change procedure.
 - Automatic discovery of which NIC is cabled to which node (possible follow-up, for example with LLDP).
 
 ## Proposal
@@ -131,7 +144,7 @@ between two nodes, say A and B, is gone until the cable is replaced.
 
 ### User Experience In Detail
 
-1. Cable the mesh: on each node, one NIC to each of the other nodes. NIC names should be the same
+1. Cable the mesh: on each of the three nodes, one NIC to each of the other two nodes. NIC names should be the same
    on all nodes. Otherwise use one Network Configuration per node group, as today.
 2. **Networks > Cluster Networks > Create**, for example `storage`.
 3. **Create Network Configuration** for it: select the two mesh NICs and set **Uplink Mode** to
@@ -190,20 +203,23 @@ All changes are in harvester-network-controller (PR #445) and the UI extension (
 **Manager.** It sets and clears the `uplink-mode` label, and adds the mesh NICs to the cluster
 network's LinkMonitor name rule, so each link reports up or down per node.
 
-**Mesh completeness check.** In bond mode the VlanConfig does not care how many NICs it has. In
-isolated mode the NIC count matters: a full mesh of N nodes needs N−1 links with carrier on every
-node. The agent reports a `MeshComplete` condition on each VlanStatus: `False` when fewer than N−1
-isolated uplinks have carrier, where N is the number of non-witness nodes covered by the cluster
-network. The UI shows it as a warning on the cluster network. This is a status check, not an
-admission rule, because N changes over time: a node being added, replaced or re-cabled is a valid
-temporary partial mesh, and rejecting the VlanConfig would make those procedures harder. Which peer
-each NIC is cabled to (two NICs to the same node, or one NIC to a switch) is not verified, so
-cabling stays the user's responsibility in this HEP. Verifying peers with LLDP is a follow-up (see
-[Non-goals](#non-goals)).
+**Cabling is the user's responsibility.** With the scope fixed at 3 data nodes, the NIC count is
+static (two per node), so the webhook checks it at admission. Whether the cables are actually
+connected, and to the right peers, is not checked: there is no mesh completeness condition and no
+controller-side cabling check. A missing or miswired cable shows up as a `down` link in the
+LinkMonitor and as `degraded` Longhorn volumes. The docs will include a short validation step
+after cabling: check that both mesh NICs have carrier on every node, and that a test volume with 3
+replicas is `healthy`. A status condition, or peer verification with LLDP, can be added later if
+users need it (see [Non-goals](#non-goals)).
 
 **Webhooks.**
 
-- isolated mode needs at least one NIC, no duplicate NICs, and is rejected on `mgmt`.
+- isolated mode needs **exactly two NICs**, no duplicates, and is rejected on `mgmt`.
+- **At most 3 data nodes.** The isolated VlanConfigs of a cluster network, together, may select at
+  most 3 non-witness nodes. This is checked when a VlanConfig is created or updated. A fourth node
+  that joins the cluster later and matches the node selector is not blocked by admission, so the
+  docs will state that isolated mode is supported on 3 data nodes only, and the network controller
+  logs a warning and emits an event on the VlanConfig in that case.
 - **One mode per cluster network.** All VlanConfigs of a cluster network must use the same mode.
   Mixed mode (some nodes bonded, some isolated) is not allowed. A bonded node on a mesh needs
   `broadcast` to be correct, and each isolated node would then receive both copies. It also makes
@@ -250,8 +266,8 @@ With one cable per node pair (two NICs per node in a 3-node cluster):
   detects it at the replica level.
 - **Two replicas or fewer:** volumes with fewer than 3 replicas can lose their only remote replica
   on a single cable failure. The docs will recommend 3 replicas on a mesh.
-- **Scale:** a full mesh of N nodes needs N−1 mesh NICs per node. The design is not limited to 3
-  nodes, but 3 is the target and the only tested size. Nodes added later need the same cabling.
+- **Scale:** isolated mode is supported on exactly 3 data nodes (see [Non-goals](#non-goals)).
+  Replacing a node is supported: the new node gets the same two cables and NIC names.
 - **Two nodes and a witness:** a witness node runs no Longhorn replicas, instance managers or VMs,
   and the storage network checks already skip witness nodes. The storage network then only connects
   the two data nodes, so one direct cable is enough and isolated mode is not needed: a VlanConfig
@@ -302,8 +318,8 @@ while MTU already established the "first VlanConfig decides" pattern.
 
 ### Test plan
 
-Unit tests (in PR #445): webhook mode rules, one mode per cluster network, NAD and
-HostNetworkConfig guardrails, LinkMonitor rule generation. UI model tests in PR #1203.
+Unit tests (in PR #445): webhook mode rules, one mode per cluster network, the two-NIC and
+3-data-node limits, NAD and HostNetworkConfig guardrails, LinkMonitor rule generation. UI model tests in PR #1203.
 
 **Test setup.** Integration testing needs a dedicated cluster with a direct-cabled mesh: on each
 node, one NIC cabled to each other node, plus a separate management network. Regular QA clusters
@@ -323,13 +339,14 @@ Integration (3 nodes with a direct-cabled mesh):
 3. RWX network and VM migration network on the mesh. Migration traffic uses the direct cable
    between source and target.
 4. Guardrails: a VM network NAD, a HostNetworkConfig, a bond VlanConfig on the same cluster network,
-   and isolated mode on `mgmt` are all denied.
+   isolated mode on `mgmt`, an isolated VlanConfig with one or three NICs, and an isolated
+   VlanConfig that selects a fourth data node are all denied.
 5. Failures during a VM write: one cable down, one node's both cables down, node reboot. The write
    completes, the volume degrades and recovers, the port returns isolated after link-up or reboot,
    and the LinkMonitor shows the state.
 6. Permanent cable failure (Story 4): with the A–B cable down, a migration between A and B fails,
-   migrating the affected VMs to C restores healthy volumes, and `MeshComplete` is `False` on A
-   and B.
+   migrating the affected VMs to C restores healthy volumes, and the LinkMonitor shows the link
+   `down` on A and B.
 7. Switch an existing cluster network bond → isolated → bond using the documented procedure.
 8. Tagged storage VLAN on an isolated cluster network.
 9. A second VlanConfig on an isolated cluster network gets the mode from the first; a different
