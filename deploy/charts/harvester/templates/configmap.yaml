@@ -90,11 +90,11 @@ data:
           $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/replicas", "value": 2}]'
           $KUBECTL patch managedchart harvester -n fleet-local --type=json -p='[{"op":"replace", "path":"/spec/values/webhook/replicas", "value": 2}]'
           $KUBECTL annotate --overwrite deployment rancher -n cattle-system management.cattle.io/scale-available="2"
-          cat > /host/etc/rancher/rke2/config.yaml.d/40-etcd-only.yaml <<EOF
-          disable-apiserver: true
-          disable-controller-manager: true
-          disable-scheduler: true
-          EOF
+    cat > /host/etc/rancher/rke2/config.yaml.d/40-etcd-only.yaml <<EOF
+    disable-apiserver: true
+    disable-controller-manager: true
+    disable-scheduler: true
+    EOF
           kickout_longhorn_node $HOSTNAME
           break
         fi
