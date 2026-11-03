@@ -485,10 +485,10 @@ EOF
 }
 
 # Keep the install-time IP family choice across upgrades. Clusters installed
-# before dual-stack was selectable have no install.ipFamilies in harvester.config
+# before dual-stack was selectable have no install.ipfamilies in harvester.config
 # and are IPv4-only, but their /oem/90_custom.yaml may carry a zz-harvester-enable-ipv6.conf
 # sysctl drop-in that enables IPv6 in the kernel. Override it so these nodes stay
-# IPv4-only. When install.ipFamilies lists IPv6, the existing setting is kept.
+# IPv4-only. When install.ipfamilies lists IPv6, the existing setting is kept.
 set_oem_ipv6_sysctl() {
   local config_file="${HOST_DIR}/oem/harvester.config"
   local override_file="${HOST_DIR}/oem/91_ipv6_sysctl.yaml"
@@ -497,8 +497,8 @@ set_oem_ipv6_sysctl() {
   # missing or unparsable we cannot tell whether this is a dual-stack node, so
   # leave the existing settings alone rather than breaking IPv6 at next boot.
   local families
-  if [ ! -f "$config_file" ] || ! families=$(yq '.install.ipFamilies[]' "$config_file" 2>/dev/null); then
-    echo "Cannot read install.ipFamilies from $config_file, keep the existing IPv6 sysctl settings"
+  if [ ! -f "$config_file" ] || ! families=$(yq '(.install.ipfamilies // [])[]' "$config_file" 2>/dev/null); then
+    echo "Cannot read install.ipfamilies from $config_file, keep the existing IPv6 sysctl settings"
     rm -f "$override_file"
     return
   fi
