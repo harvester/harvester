@@ -3,6 +3,7 @@ package virtualmachine
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -307,28 +308,28 @@ func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
 
 // Creators whose VMs are lifecycle-managed by another controller and must stay deletable
 // by it, so they never receive delete protection from the default-vm-delete-protection setting.
+// The Rancher Harvester node driver and CAPHV set util.VirtualMachineCreatorNodeDriver.
 const (
-	// CreatorNodeDriver is set by the Rancher Harvester node driver and by CAPHV.
-	CreatorNodeDriver = "docker-machine-driver-harvester"
 	// CreatorHarvester marks VMs Harvester creates for itself, e.g. the upgrade repo VM.
 	CreatorHarvester = "harvester"
 )
 
 // IsDeleteProtected reports whether the VM carries the kubevirt.io/vm-delete-protection
-// label set to "true" or "True", matching the KubeVirt SSP ValidatingAdmissionPolicy.
+// label set to a true value as accepted by strconv.ParseBool ("1", "t", "T", "TRUE",
+// "true" or "True"). This covers the "true" and "True" values the KubeVirt SSP
+// ValidatingAdmissionPolicy checks.
 func IsDeleteProtected(vm *kubevirtv1.VirtualMachine) bool {
 	if vm == nil {
 		return false
 	}
-	value := vm.Labels[util.LabelVMDeleteProtection]
-	return value == "true" || value == "True"
+	protected, err := strconv.ParseBool(vm.Labels[util.LabelVMDeleteProtection])
+	return err == nil && protected
 }
 
 // DeleteProtectionError returns the message used when a protected VM delete is refused.
 func DeleteProtectionError(vm *kubevirtv1.VirtualMachine) error {
 	return fmt.Errorf("VirtualMachine %s has delete protection enabled; disable delete protection (set label %s to \"false\") before deleting it",
-	util.GetNamespacedName(vm)
-		vm.Namespace, vm.Name, util.LabelVMDeleteProtection)
+		util.GetNamespacedName(vm), util.LabelVMDeleteProtection)
 }
 
 // IsDeleteProtectionDefaultExempt reports whether the default-vm-delete-protection setting
@@ -341,7 +342,7 @@ func IsDeleteProtectionDefaultExempt(vm *kubevirtv1.VirtualMachine) bool {
 		return true
 	}
 	switch vm.Labels[util.LabelVMCreator] {
-	case CreatorNodeDriver, CreatorHarvester:
+	case util.VirtualMachineCreatorNodeDriver, CreatorHarvester:
 		return true
 	}
 	return false
