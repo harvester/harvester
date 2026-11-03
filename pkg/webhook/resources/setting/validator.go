@@ -2334,12 +2334,18 @@ func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *types.Request, _ *v
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
 }
 
+// validateDefaultVMDeleteProtectionHelper accepts the values strconv.ParseBool accepts,
+// which is how the VM mutator reads this setting. An empty value is valid: a setting's
+// value stays empty until the user changes it (and is cleared again on reset), and the
+// mutator then falls back to the setting's default.
 func validateDefaultVMDeleteProtectionHelper(value string) error {
-	switch value {
-	case "", "true", "false":
+	if value == "" {
 		return nil
 	}
-	return fmt.Errorf("invalid value %q, must be \"true\" or \"false\"", value)
+	if _, err := strconv.ParseBool(value); err != nil {
+		return fmt.Errorf("invalid value %q, must be a boolean such as \"true\" or \"false\"", value)
+	}
+	return nil
 }
 
 func validateDefaultVMDeleteProtection(setting *v1beta1.Setting) error {

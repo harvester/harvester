@@ -79,7 +79,7 @@ func TestPatchDeleteProtection(t *testing.T) {
 		{
 			name:         "setting true, node driver / CAPHV VM is exempt",
 			settingValue: "true",
-			vm:           newDeleteProtectionVM("default", map[string]string{util.LabelVMCreator: vmutil.CreatorNodeDriver}),
+			vm:           newDeleteProtectionVM("default", map[string]string{util.LabelVMCreator: util.VirtualMachineCreatorNodeDriver}),
 			expectedOps:  nil,
 		},
 		{
@@ -125,9 +125,14 @@ func TestVMValidatorDeleteProtection(t *testing.T) {
 		{name: "no labels", labels: nil, expectError: false},
 		{name: "label false", labels: map[string]string{util.LabelVMDeleteProtection: "false"}, expectError: false},
 		{name: "label empty", labels: map[string]string{util.LabelVMDeleteProtection: ""}, expectError: false},
-		{name: "label TRUE is not accepted, same as KubeVirt", labels: map[string]string{util.LabelVMDeleteProtection: "TRUE"}, expectError: false},
+		{name: "label 0", labels: map[string]string{util.LabelVMDeleteProtection: "0"}, expectError: false},
+		{name: "label not a bool", labels: map[string]string{util.LabelVMDeleteProtection: "yes"}, expectError: false},
+		{name: "label with spaces is not a bool", labels: map[string]string{util.LabelVMDeleteProtection: " true "}, expectError: false},
 		{name: "label true", labels: map[string]string{util.LabelVMDeleteProtection: "true"}, expectError: true},
 		{name: "label True", labels: map[string]string{util.LabelVMDeleteProtection: "True"}, expectError: true},
+		{name: "label TRUE", labels: map[string]string{util.LabelVMDeleteProtection: "TRUE"}, expectError: true},
+		{name: "label 1", labels: map[string]string{util.LabelVMDeleteProtection: "1"}, expectError: true},
+		{name: "label t", labels: map[string]string{util.LabelVMDeleteProtection: "t"}, expectError: true},
 	}
 
 	v := &vmValidator{}
