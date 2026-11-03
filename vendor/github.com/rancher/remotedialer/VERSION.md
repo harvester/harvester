@@ -2,7 +2,8 @@ RemoteDialer follows a pre-release (v0.x) strategy of semver. There is limited c
 
 The current supported release lines are:
 
-| RemoteDialer Branch | RemoteDialer Minor version | 
+| RemoteDialer Branch | RemoteDialer Minor version
 |--------------------------|------------------------------------|
-| main | v0.4 |
-| release/v0.3 | v0.3 |
+| main | v0.5
+| release/v0.4 | v0.4
+| release/v0.3 | v0.3

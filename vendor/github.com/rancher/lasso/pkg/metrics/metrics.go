@@ -45,7 +45,7 @@ var (
 			Name:      "total_handler_execution",
 			Help:      "Total count of handler executions",
 		},
-		[]string{controllerNameLabel, handlerNameLabel, hasErrorLabel},
+		[]string{contextLabel, controllerNameLabel, handlerNameLabel, hasErrorLabel},
 	)
 	TotalCachedObjects = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -62,13 +62,14 @@ var (
 		Subsystem: lassoSubsystem,
 		Name:      "reconcile_time_seconds",
 		Help:      "Histogram of the durations per reconciliation per controller",
-	}, []string{controllerNameLabel, handlerNameLabel, hasErrorLabel})
+	}, []string{contextLabel, controllerNameLabel, handlerNameLabel, hasErrorLabel})
 )
 
-func IncTotalHandlerExecutions(controllerName, handlerName string, hasError bool) {
+func IncTotalHandlerExecutions(ctxID, controllerName, handlerName string, hasError bool) {
 	if prometheusMetrics {
 		TotalControllerExecutions.With(
 			prometheus.Labels{
+				contextLabel:        ctxID,
 				controllerNameLabel: controllerName,
 				handlerNameLabel:    handlerName,
 				hasErrorLabel:       strconv.FormatBool(hasError),
@@ -105,10 +106,11 @@ func DelTotalCachedObjects(ctxID string, gvk schema.GroupVersionKind) {
 	}
 }
 
-func ReportReconcileTime(controllerName, handlerName string, hasError bool, observeTime float64) {
+func ReportReconcileTime(ctxID, controllerName, handlerName string, hasError bool, observeTime float64) {
 	if prometheusMetrics {
 		reconcileTime.With(
 			prometheus.Labels{
+				contextLabel:        ctxID,
 				controllerNameLabel: controllerName,
 				handlerNameLabel:    handlerName,
 				hasErrorLabel:       strconv.FormatBool(hasError),

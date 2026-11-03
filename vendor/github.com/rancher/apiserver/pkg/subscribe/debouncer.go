@@ -2,7 +2,6 @@ package subscribe
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/rancher/apiserver/pkg/types"
@@ -18,8 +17,6 @@ const (
 )
 
 type debouncer struct {
-	lock sync.Mutex
-
 	timer        *time.Timer
 	debounceRate time.Duration
 
@@ -39,47 +36,48 @@ func newDebouncer(debounceRate time.Duration, eventsCh chan types.APIEvent) *deb
 }
 
 func (d *debouncer) Run(ctx context.Context) {
+	defer close(d.outCh)
+
+	var latestRV string
 	state := FirstNotification
-loop:
 	for {
 		select {
 		case <-ctx.Done():
-			break loop
+			// Despite context being closed, respect the original channel state, only closing outCh when inCh is closed
+			for range d.inCh {
+			}
+			return
 		case ev, ok := <-d.inCh:
+			if !ok {
+				return
+			}
 			if ev.Error != nil {
 				ev.Name = string(SubscriptionModeNotification)
 				d.outCh <- ev
-				break loop
+				return
 			}
 
-			if !ok {
-				break loop
-			}
-
-			d.lock.Lock()
+			latestRV = ev.Revision
 			switch state {
 			case FirstNotification:
 				d.outCh <- types.APIEvent{
-					Name: string(SubscriptionModeNotification),
+					Name:     string(SubscriptionModeNotification),
+					Revision: ev.Revision,
 				}
 				state = TimerStopped
 			case TimerStopped:
 				state = TimerStarted
 				d.timer.Reset(d.debounceRate)
 			}
-			d.lock.Unlock()
 		case <-d.timer.C:
-			d.lock.Lock()
 			d.outCh <- types.APIEvent{
-				Name: string(SubscriptionModeNotification),
+				Name:     string(SubscriptionModeNotification),
+				Revision: latestRV,
 			}
-			d.timer.Stop()
 			state = TimerStopped
-			d.lock.Unlock()
+			d.timer.Stop()
 		}
 	}
-
-	close(d.outCh)
 }
 
 func (d *debouncer) NotificationsChan() chan types.APIEvent {

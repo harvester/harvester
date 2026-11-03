@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/schema"
 	"github.com/rancher/steve/pkg/server"
-	"github.com/rancher/steve/pkg/stores/proxy"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -63,7 +62,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 	nads := scaled.CniFactory.K8s().V1().NetworkAttachmentDefinition()
 	resourceQuotas := scaled.Management.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota()
 	jobs := scaled.Management.BatchFactory.Batch().V1().Job()
-	namespaces := scaled.CoreFactory.Core().V1().Namespace()
 
 	vmiOperator, err := common.GetVMIOperator(vmImages, vmImages.Cache(), storageClasses.Cache(), http.Client{})
 	if err != nil {
@@ -129,14 +127,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 		settingCache:  settings.Cache(),
 		volumeCache:   scaled.LonghornFactory.Longhorn().V1beta2().Volume().Cache(),
 		clientSet:     scaled.Management.ClientSet,
-	}
-
-	vmStore := &vmStore{
-		Store:    proxy.NewProxyStore(server.ClientFactory, nil, server.AccessSetLookup, namespaces.Cache()),
-		vms:      scaled.VirtFactory.Kubevirt().V1().VirtualMachine(),
-		vmCache:  scaled.VirtFactory.Kubevirt().V1().VirtualMachine().Cache(),
-		pvcs:     scaled.CoreFactory.Core().V1().PersistentVolumeClaim(),
-		pvcCache: scaled.CoreFactory.Core().V1().PersistentVolumeClaim().Cache(),
 	}
 
 	t := schema.Template{
@@ -232,7 +222,15 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 			}
 		},
 		Formatter: vmformatter.formatter,
-		Store:     vmStore,
+		StoreFactory: func(store types.Store) types.Store {
+			return &vmStore{
+				Store:    store,
+				vms:      vms,
+				vmCache:  vms.Cache(),
+				pvcs:     pvcs,
+				pvcCache: pvcs.Cache(),
+			}
+		},
 	}
 
 	server.SchemaFactory.AddTemplate(t)

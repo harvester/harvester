@@ -1,29 +1,26 @@
 package informer
 
 import (
-	"bytes"
 	"context"
-	"database/sql"
-	"encoding/gob"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"maps"
-	"reflect"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/rancher/steve/pkg/sqlcache/db/transaction"
 	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
@@ -38,54 +35,45 @@ type ListOptionIndexer struct {
 	namespaced    bool
 	indexedFields []string
 
-	latestRVLock sync.RWMutex
-	latestRV     string
-
-	watchersLock sync.RWMutex
-	watchers     map[*watchKey]*watcher
+	// lock protects both latestRV and watchers
+	lock     sync.RWMutex
+	latestRV string
+	watchers map[*watchKey]*watcher
 
 	// gcInterval is how often to run the garbage collection
 	gcInterval time.Duration
 	// gcKeepCount is how many events to keep in _events table when gc runs
 	gcKeepCount int
 
-	upsertEventsQuery        string
-	findEventsRowByRVQuery   string
-	listEventsAfterQuery     string
-	deleteEventsByCountQuery string
-	dropEventsQuery          string
-	addFieldsQuery           string
-	deleteFieldsByKeyQuery   string
-	deleteFieldsQuery        string
-	dropFieldsQuery          string
-	upsertLabelsQuery        string
-	deleteLabelsByKeyQuery   string
-	deleteLabelsQuery        string
-	dropLabelsQuery          string
-
-	upsertEventsStmt        *sql.Stmt
-	findEventsRowByRVStmt   *sql.Stmt
-	listEventsAfterStmt     *sql.Stmt
-	deleteEventsByCountStmt *sql.Stmt
-	dropEventsStmt          *sql.Stmt
-	addFieldsStmt           *sql.Stmt
-	deleteFieldsByKeyStmt   *sql.Stmt
-	deleteFieldsStmt        *sql.Stmt
-	dropFieldsStmt          *sql.Stmt
-	upsertLabelsStmt        *sql.Stmt
-	deleteLabelsByKeyStmt   *sql.Stmt
-	deleteLabelsStmt        *sql.Stmt
-	dropLabelsStmt          *sql.Stmt
+	upsertEventsStmt        db.Stmt
+	findEventsRowByRVStmt   db.Stmt
+	listEventsAfterStmt     db.Stmt
+	deleteEventsByCountStmt db.Stmt
+	dropEventsStmt          db.Stmt
+	addFieldsStmt           db.Stmt
+	deleteFieldsStmt        db.Stmt
+	dropFieldsStmt          db.Stmt
+	upsertLabelsStmt        db.Stmt
+	deleteLabelsStmt        db.Stmt
+	dropLabelsStmt          db.Stmt
 }
 
 var (
-	defaultIndexedFields    = []string{"metadata.name", "metadata.creationTimestamp"}
-	defaultIndexNamespaced  = "metadata.namespace"
+	defaultIndexedFields   = []string{"metadata.name", "metadata.creationTimestamp"}
+	defaultIndexNamespaced = "metadata.namespace"
+	immutableFields        = sets.New(
+		"metadata.creationTimestamp",
+		"metadata.namespace",
+		"metadata.name",
+		"id",
+	)
 	subfieldRegex           = regexp.MustCompile(`([a-zA-Z]+)|(\[[-a-zA-Z./]+])|(\[[0-9]+])`)
 	containsNonNumericRegex = regexp.MustCompile(`\D`)
 
-	ErrInvalidColumn    = errors.New("supplied column is invalid")
-	ErrTooOld           = errors.New("resourceversion too old")
+	ErrInvalidColumn   = errors.New("supplied column is invalid")
+	ErrTooOld          = errors.New("resourceversion too old")
+	ErrUnknownRevision = errors.New("unknown revision")
+
 	projectIDFieldLabel = "field.cattle.io/projectId"
 	namespacesDbName    = "_v1_Namespace"
 )
@@ -102,7 +90,7 @@ const (
                        event BLOB NOT NULL,
                        eventnonce BLOB,
 	               dekid BLOB,
-                       PRIMARY KEY (type, rv)
+                       PRIMARY KEY (rv, type)
           )`
 	listEventsAfterFmt = `SELECT type, rv, event, eventnonce, dekid
 	       FROM "%s_events"
@@ -112,6 +100,13 @@ const (
                FROM "%s_events"
                WHERE rv = ?
        `
+	upsertEventsStmtFmt = `
+INSERT INTO "%s_events" (rv, type, event, eventnonce, dekid)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(type, rv) DO UPDATE SET
+  event = excluded.event,
+  eventnonce = excluded.eventnonce,
+  dekid = excluded.dekid`
 	deleteEventsByCountFmt = `DELETE FROM "%s_events"
 	WHERE rowid < (
 	    SELECT MIN(rowid) FROM (
@@ -121,9 +116,10 @@ const (
 	dropEventsFmt = `DROP TABLE IF EXISTS "%s_events"`
 
 	createFieldsTableFmt = `CREATE TABLE "%s_fields" (
-			key TEXT NOT NULL PRIMARY KEY,
-            %s
-	   )`
+		key TEXT NOT NULL REFERENCES "%s"(key) ON DELETE CASCADE,
+		%s,
+		PRIMARY KEY (key)
+    )`
 	createFieldsIndexFmt = `CREATE INDEX "%s_%s_index" ON "%s_fields"("%s")`
 	deleteFieldsFmt      = `DELETE FROM "%s_fields"`
 	dropFieldsFmt        = `DROP TABLE IF EXISTS "%s_fields"`
@@ -138,10 +134,13 @@ const (
 	)`
 	createLabelsTableIndexFmt = `CREATE INDEX IF NOT EXISTS "%s_labels_index" ON "%s_labels"(label, value)`
 
-	upsertLabelsStmtFmt      = `REPLACE INTO "%s_labels"(key, label, value) VALUES (?, ?, ?)`
-	deleteLabelsByKeyStmtFmt = `DELETE FROM "%s_labels" WHERE KEY = ?`
-	deleteLabelsStmtFmt      = `DELETE FROM "%s_labels"`
-	dropLabelsStmtFmt        = `DROP TABLE IF EXISTS "%s_labels"`
+	upsertLabelsStmtFmt = `
+INSERT INTO "%s_labels" (key, label, value)
+VALUES (?, ?, ?)
+ON CONFLICT(key, label) DO UPDATE SET
+  value = excluded.value`
+	deleteLabelsStmtFmt = `DELETE FROM "%s_labels"`
+	dropLabelsStmtFmt   = `DROP TABLE IF EXISTS "%s_labels"`
 )
 
 type ListOptionIndexerOptions struct {
@@ -150,6 +149,11 @@ type ListOptionIndexerOptions struct {
 	//
 	// For example, .metadata.resourceVersion should be specified as []string{"metadata", "resourceVersion"}
 	Fields [][]string
+	// Used for specifying types of non-TEXT database fields.
+	// The key is a fully-qualified field name, like 'metadata.fields[1]'.
+	// The value is a type name, most likely "INT" but could be "REAL". The default type is "TEXT",
+	// and we don't (currently) use NULL or BLOB types.
+	TypeGuidance map[string]string
 	// IsNamespaced determines whether the GVK for this ListOptionIndexer is
 	// namespaced
 	IsNamespaced bool
@@ -162,10 +166,6 @@ type ListOptionIndexerOptions struct {
 // NewListOptionIndexer returns a SQLite-backed cache.Indexer of unstructured.Unstructured Kubernetes resources of a certain GVK
 // ListOptionIndexer is also able to satisfy ListOption queries on indexed (sub)fields.
 func NewListOptionIndexer(ctx context.Context, s Store, opts ListOptionIndexerOptions) (*ListOptionIndexer, error) {
-	// necessary in order to gob/ungob unstructured.Unstructured objects
-	gob.Register(map[string]interface{}{})
-	gob.Register([]interface{}{})
-
 	i, err := NewIndexer(ctx, cache.Indexers{}, s)
 	if err != nil {
 		return nil, err
@@ -194,8 +194,6 @@ func NewListOptionIndexer(ctx context.Context, s Store, opts ListOptionIndexerOp
 	l.RegisterAfterUpdate(l.addIndexFields)
 	l.RegisterAfterUpdate(l.addLabels)
 	l.RegisterAfterUpdate(l.notifyEventModified)
-	l.RegisterAfterDelete(l.deleteFieldsByKey)
-	l.RegisterAfterDelete(l.deleteLabelsByKey)
 	l.RegisterAfterDelete(l.notifyEventDeleted)
 	l.RegisterAfterDeleteAll(l.deleteFields)
 	l.RegisterAfterDeleteAll(l.deleteLabels)
@@ -204,57 +202,76 @@ func NewListOptionIndexer(ctx context.Context, s Store, opts ListOptionIndexerOp
 	l.RegisterBeforeDropAll(l.dropFields)
 	columnDefs := make([]string, len(indexedFields))
 	for index, field := range indexedFields {
-		column := fmt.Sprintf(`"%s" TEXT`, field)
+		typeName := "TEXT"
+		newTypeName, ok := opts.TypeGuidance[field]
+		if ok {
+			typeName = newTypeName
+		}
+		column := fmt.Sprintf(`"%s" %s`, field, typeName)
 		columnDefs[index] = column
 	}
 
 	dbName := db.Sanitize(i.GetName())
-	columns := make([]string, len(indexedFields))
-	qmarks := make([]string, len(indexedFields))
-	setStatements := make([]string, len(indexedFields))
+	columns := make([]string, 0, len(indexedFields))
+	qmarks := make([]string, 0, len(indexedFields))
+	setStatements := make([]string, 0, len(indexedFields))
 
-	err = l.WithTransaction(ctx, true, func(tx transaction.Client) error {
+	err = l.WithTransaction(ctx, true, func(tx db.TxClient) error {
+		dropEventsQuery := fmt.Sprintf(dropEventsFmt, dbName)
+		if _, err := tx.Exec(dropEventsQuery); err != nil {
+			return err
+		}
+
 		createEventsTableQuery := fmt.Sprintf(createEventsTableFmt, dbName)
-		_, err = tx.Exec(createEventsTableQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createEventsTableFmt, Err: err}
+		if _, err := tx.Exec(createEventsTableQuery); err != nil {
+			return err
 		}
 
-		createFieldsTableQuery := fmt.Sprintf(createFieldsTableFmt, dbName, strings.Join(columnDefs, ", "))
-		_, err = tx.Exec(createFieldsTableQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createFieldsTableQuery, Err: err}
+		dropFieldsQuery := fmt.Sprintf(dropFieldsFmt, dbName)
+		if _, err := tx.Exec(dropFieldsQuery); err != nil {
+			return err
 		}
 
-		for index, field := range indexedFields {
+		createFieldsTableQuery := fmt.Sprintf(createFieldsTableFmt, dbName, dbName, strings.Join(columnDefs, ", "))
+		if _, err := tx.Exec(createFieldsTableQuery); err != nil {
+			return err
+		}
+
+		for _, field := range indexedFields {
 			// create index for field
 			createFieldsIndexQuery := fmt.Sprintf(createFieldsIndexFmt, dbName, field, dbName, field)
-			_, err = tx.Exec(createFieldsIndexQuery)
-			if err != nil {
-				return &db.QueryError{QueryString: createFieldsIndexQuery, Err: err}
+			if _, err := tx.Exec(createFieldsIndexQuery); err != nil {
+				return err
 			}
 
 			// format field into column for prepared statement
 			column := fmt.Sprintf(`"%s"`, field)
-			columns[index] = column
+			columns = append(columns, column)
 
 			// add placeholder for column's value in prepared statement
-			qmarks[index] = "?"
+			qmarks = append(qmarks, "?")
 
 			// add formatted set statement for prepared statement
-			setStatement := fmt.Sprintf(`"%s" = excluded."%s"`, field, field)
-			setStatements[index] = setStatement
+			// optimization: avoid SET for fields which cannot change
+			if !immutableFields.Has(field) {
+				setStatement := fmt.Sprintf(`"%s" = excluded."%s"`, field, field)
+				setStatements = append(setStatements, setStatement)
+			}
 		}
+
+		dropLabelsQuery := fmt.Sprintf(dropLabelsStmtFmt, dbName)
+		if _, err := tx.Exec(dropLabelsQuery); err != nil {
+			return err
+		}
+
 		createLabelsTableQuery := fmt.Sprintf(createLabelsTableFmt, dbName, dbName)
-		_, err = tx.Exec(createLabelsTableQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createLabelsTableQuery, Err: err}
+		if _, err := tx.Exec(createLabelsTableQuery); err != nil {
+			return err
 		}
 
 		createLabelsTableIndexQuery := fmt.Sprintf(createLabelsTableIndexFmt, dbName, dbName)
-		_, err = tx.Exec(createLabelsTableIndexQuery)
-		if err != nil {
-			return &db.QueryError{QueryString: createLabelsTableIndexQuery, Err: err}
+		if _, err := tx.Exec(createLabelsTableIndexQuery); err != nil {
+			return err
 		}
 
 		return nil
@@ -263,48 +280,29 @@ func NewListOptionIndexer(ctx context.Context, s Store, opts ListOptionIndexerOp
 		return nil, err
 	}
 
-	l.upsertEventsQuery = fmt.Sprintf(
-		`REPLACE INTO "%s_events"(rv, type, event, eventnonce, dekid) VALUES (?, ?, ?, ?, ?)`,
-		dbName,
-	)
-	l.upsertEventsStmt = l.Prepare(l.upsertEventsQuery)
+	l.upsertEventsStmt = l.Prepare(fmt.Sprintf(upsertEventsStmtFmt, dbName))
+	l.listEventsAfterStmt = l.Prepare(fmt.Sprintf(listEventsAfterFmt, dbName))
+	l.findEventsRowByRVStmt = l.Prepare(fmt.Sprintf(findEventsRowByRVFmt, dbName))
+	l.deleteEventsByCountStmt = l.Prepare(fmt.Sprintf(deleteEventsByCountFmt, dbName, dbName))
+	l.dropEventsStmt = l.Prepare(fmt.Sprintf(dropEventsFmt, dbName))
 
-	l.listEventsAfterQuery = fmt.Sprintf(listEventsAfterFmt, dbName)
-	l.listEventsAfterStmt = l.Prepare(l.listEventsAfterQuery)
-
-	l.findEventsRowByRVQuery = fmt.Sprintf(findEventsRowByRVFmt, dbName)
-	l.findEventsRowByRVStmt = l.Prepare(l.findEventsRowByRVQuery)
-
-	l.deleteEventsByCountQuery = fmt.Sprintf(deleteEventsByCountFmt, dbName, dbName)
-	l.deleteEventsByCountStmt = l.Prepare(l.deleteEventsByCountQuery)
-
-	l.dropEventsQuery = fmt.Sprintf(dropEventsFmt, dbName)
-	l.dropEventsStmt = l.Prepare(l.dropEventsQuery)
-
-	l.addFieldsQuery = fmt.Sprintf(
-		`INSERT INTO "%s_fields"(key, %s) VALUES (?, %s) ON CONFLICT DO UPDATE SET %s`,
+	addFieldsOnConflict := "NOTHING"
+	if len(setStatements) > 0 {
+		addFieldsOnConflict = "UPDATE SET " + strings.Join(setStatements, ", ")
+	}
+	l.addFieldsStmt = l.Prepare(fmt.Sprintf(
+		`INSERT INTO "%s_fields"(key, %s) VALUES (?, %s) ON CONFLICT DO %s`,
 		dbName,
 		strings.Join(columns, ", "),
 		strings.Join(qmarks, ", "),
-		strings.Join(setStatements, ", "),
-	)
-	l.deleteFieldsByKeyQuery = fmt.Sprintf(`DELETE FROM "%s_fields" WHERE key = ?`, dbName)
-	l.deleteFieldsQuery = fmt.Sprintf(deleteFieldsFmt, dbName)
-	l.dropFieldsQuery = fmt.Sprintf(dropFieldsFmt, dbName)
+		addFieldsOnConflict,
+	))
+	l.deleteFieldsStmt = l.Prepare(fmt.Sprintf(deleteFieldsFmt, dbName))
+	l.dropFieldsStmt = l.Prepare(fmt.Sprintf(dropFieldsFmt, dbName))
 
-	l.addFieldsStmt = l.Prepare(l.addFieldsQuery)
-	l.deleteFieldsByKeyStmt = l.Prepare(l.deleteFieldsByKeyQuery)
-	l.deleteFieldsStmt = l.Prepare(l.deleteFieldsQuery)
-	l.dropFieldsStmt = l.Prepare(l.dropFieldsQuery)
-
-	l.upsertLabelsQuery = fmt.Sprintf(upsertLabelsStmtFmt, dbName)
-	l.deleteLabelsByKeyQuery = fmt.Sprintf(deleteLabelsByKeyStmtFmt, dbName)
-	l.deleteLabelsQuery = fmt.Sprintf(deleteLabelsStmtFmt, dbName)
-	l.dropLabelsQuery = fmt.Sprintf(dropLabelsStmtFmt, dbName)
-	l.upsertLabelsStmt = l.Prepare(l.upsertLabelsQuery)
-	l.deleteLabelsByKeyStmt = l.Prepare(l.deleteLabelsByKeyQuery)
-	l.deleteLabelsStmt = l.Prepare(l.deleteLabelsQuery)
-	l.dropLabelsStmt = l.Prepare(l.dropLabelsQuery)
+	l.upsertLabelsStmt = l.Prepare(fmt.Sprintf(upsertLabelsStmtFmt, dbName))
+	l.deleteLabelsStmt = l.Prepare(fmt.Sprintf(deleteLabelsStmtFmt, dbName))
+	l.dropLabelsStmt = l.Prepare(fmt.Sprintf(dropLabelsStmtFmt, dbName))
 
 	l.gcInterval = opts.GCInterval
 	l.gcKeepCount = opts.GCKeepCount
@@ -315,137 +313,207 @@ func NewListOptionIndexer(ctx context.Context, s Store, opts ListOptionIndexerOp
 func (l *ListOptionIndexer) GetLatestResourceVersion() []string {
 	var latestRV []string
 
-	l.latestRVLock.RLock()
+	l.lock.RLock()
 	latestRV = []string{l.latestRV}
-	l.latestRVLock.RUnlock()
+	l.lock.RUnlock()
 
 	return latestRV
 }
 
 func (l *ListOptionIndexer) Watch(ctx context.Context, opts WatchOptions, eventsCh chan<- watch.Event) error {
-	l.latestRVLock.RLock()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// We can keep receiving events while replaying older events for the watcher.
+	// By early registering this watcher, this channel will buffer any new events while we are still backfilling old events.
+	// When we finish, calling backfillDone will write all events in the buffer, then listen to new events as normal.
+	const maxBufferSize = 100
+	watcherChannel, backfillDone, closeWatcher := watcherWithBackfill(ctx, eventsCh, maxBufferSize)
+	defer closeWatcher()
+
+	l.lock.Lock()
 	latestRV := l.latestRV
-	l.latestRVLock.RUnlock()
+	key := l.addWatcherLocked(watcherChannel, opts.Filter)
+	l.lock.Unlock()
+	defer l.removeWatcher(key)
 
 	targetRV := opts.ResourceVersion
-	if opts.ResourceVersion == "" {
+	if targetRV == "" {
 		targetRV = latestRV
 	}
 
-	var events []watch.Event
-	var key *watchKey
-	// Even though we're not writing in this transaction, we prevent other writes to SQL
-	// because we don't want to add more events while we're backfilling events, so we don't miss events
-	err := l.WithTransaction(ctx, true, func(tx transaction.Client) error {
-		rowIDRow := tx.Stmt(l.findEventsRowByRVStmt).QueryRowContext(ctx, targetRV)
-		if err := rowIDRow.Err(); err != nil {
-			return &db.QueryError{QueryString: l.findEventsRowByRVQuery, Err: err}
-		}
-
+	if err := l.WithTransaction(ctx, false, func(tx db.TxClient) error {
 		var rowID int
-		err := rowIDRow.Scan(&rowID)
-		if errors.Is(err, sql.ErrNoRows) {
-			if targetRV != latestRV {
-				return ErrTooOld
+		// use a closure to ensure rows is always closed immediately after it's needed
+		if err := func() error {
+			rows, err := l.QueryForRows(ctx, tx.Stmt(l.findEventsRowByRVStmt), targetRV)
+			if err != nil {
+				return err
 			}
-		} else if err != nil {
-			return fmt.Errorf("failed scan rowid: %w", err)
+			defer rows.Close()
+
+			if !rows.Next() {
+				// query returned no results
+				if targetRV != latestRV {
+					return ErrTooOld
+				}
+				return nil
+			}
+			if err := rows.Scan(&rowID); err != nil {
+				return fmt.Errorf("failed scan rowid: %w", err)
+			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 
 		// Backfilling previous events from resourceVersion
-		rows, err := tx.Stmt(l.listEventsAfterStmt).QueryContext(ctx, rowID)
+		rows, err := l.QueryForRows(ctx, tx.Stmt(l.listEventsAfterStmt), rowID)
 		if err != nil {
-			return &db.QueryError{QueryString: l.listEventsAfterQuery, Err: err}
+			return err
 		}
 		defer rows.Close()
 
-		for rows.Next() {
-			typ, buf, err := l.decryptScanEvent(rows)
+		var latestRevisionReached bool
+		for !latestRevisionReached && rows.Next() {
+			obj := &unstructured.Unstructured{}
+			eventType, err := l.decryptScanEvent(rows, obj)
 			if err != nil {
 				return fmt.Errorf("scanning event row: %w", err)
 			}
-
-			example := &unstructured.Unstructured{}
-			val, err := fromBytes(buf, reflect.TypeOf(example))
-			if err != nil {
-				return fmt.Errorf("decoding event object: %w", err)
+			if obj.GetResourceVersion() == latestRV {
+				// This iteration will be the last one, as we already reached the last event at the moment we started the loop
+				latestRevisionReached = true
 			}
-
-			obj, ok := val.Elem().Interface().(runtime.Object)
-			if !ok {
-				continue
-			}
-
 			filter := opts.Filter
 			if !matchFilter(filter.ID, filter.Namespace, filter.Selector, obj) {
 				continue
 			}
 
-			events = append(events, watch.Event{
-				Type:   watch.EventType(typ),
-				Object: val.Elem().Interface().(runtime.Object),
-			})
+			ev := watch.Event{
+				Type:   eventType,
+				Object: obj,
+			}
+			select {
+			case eventsCh <- ev:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
-
-		if err := rows.Err(); err != nil {
-			return err
-		}
-
-		for _, event := range events {
-			eventsCh <- event
-		}
-
-		key = l.addWatcher(eventsCh, opts.Filter)
-		return nil
-	})
-	if err != nil {
-		// We might have added a watcher but the transaction failed in
-		// which case we still want to remove the watcher
-		if key != nil {
-			l.removeWatcher(key)
-		}
+		// Close returns both the iteration error and the close error; it
+		// must be called before reading any iteration error to release the
+		// closemu RLock that decryptScanEvent's Scan(*sql.RawBytes) kept
+		// open across return (see db.Rows interface doc).
+		return rows.Close()
+	}); err != nil {
 		return err
 	}
+	backfillDone()
 
 	<-ctx.Done()
-	l.removeWatcher(key)
 	return nil
 }
 
-func (l *ListOptionIndexer) decryptScanEvent(rows db.Rows) (watch.EventType, []byte, error) {
+func (l *ListOptionIndexer) decryptScanEvent(rows db.Rows, into runtime.Object) (watch.EventType, error) {
 	var typ, rv string
-	var event, eventNonce sql.RawBytes
-	var kid uint32
-	err := rows.Scan(&typ, &rv, &event, &eventNonce, &kid)
-	if err != nil {
-		return watch.Error, nil, err
+	var serialized db.SerializedObject
+	if err := rows.Scan(&typ, &rv, &serialized.Bytes, &serialized.Nonce, &serialized.KeyID); err != nil {
+		return watch.Error, err
 	}
-	if l.Decryptor() != nil && l.GetShouldEncrypt() {
-		decryptedData, err := l.Decryptor().Decrypt(event, eventNonce, kid)
-		if err != nil {
-			return watch.Error, nil, err
+	if err := l.Deserialize(serialized, into); err != nil {
+		return watch.Error, err
+	}
+	return watch.EventType(typ), nil
+}
+
+// watcherWithBackfill creates a proxy channel that buffers events during a "backfill" phase
+// and then seamlessly transitions to live event processing.
+func watcherWithBackfill[T any](ctx context.Context, eventsCh chan<- T, maxBufferSize int) (chan T, func(), func()) {
+	backfillCtx, signalBackfillDone := context.WithCancel(ctx)
+	watcherCh := make(chan T)
+	done := make(chan struct{})
+
+	// The single proxy goroutine that manages all state.
+	go func() {
+		defer close(done)
+		defer func() {
+			// this goroutine can exit prematurely when the parent context is cancelled
+			// this ensures the producer can finish writing and finish the cancellation sequence (closeWatcher is called from the parent)
+			for range watcherCh {
+			}
+		}()
+
+		var queue []T // Use a slice as an internal FIFO queue.
+
+		// Phase 1: Accumulate while we're backfilling
+	acc:
+		for len(queue) < maxBufferSize { // Only accumulate until reaching max buffer size, then block ingestion instead
+			select {
+			case event, ok := <-watcherCh:
+				if !ok {
+					// writeChan was closed, assume that context is done, so the remaining queue will never be sent
+					return
+				}
+				queue = append(queue, event)
+			case <-backfillCtx.Done():
+				break acc
+			}
 		}
-		return watch.EventType(typ), decryptedData, nil
-	}
-	return watch.EventType(typ), event, nil
-}
 
-func toBytes(obj any) []byte {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(obj)
-	if err != nil {
-		panic(fmt.Errorf("error while gobbing object: %w", err))
-	}
-	bb := buf.Bytes()
-	return bb
-}
+		// Check backfill was completed, in case the above loop aborted early
+		<-backfillCtx.Done()
+		if ctx.Err() != nil {
+			return
+		}
 
-func fromBytes(buf sql.RawBytes, typ reflect.Type) (reflect.Value, error) {
-	dec := gob.NewDecoder(bytes.NewReader(buf))
-	singleResult := reflect.New(typ)
-	err := dec.DecodeValue(singleResult)
-	return singleResult, err
+		// Phase 2: start flushing while still accepting events from watcherCh
+		for len(queue) > 0 {
+			// Only accept new events from write buffer if the queue has space, blocking the sender (equivalent to a full buffered channel)
+			// cases reading from a nil channel will be ignored
+			var readChan <-chan T
+			if len(queue) < maxBufferSize {
+				readChan = watcherCh
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-readChan: // This case is disabled if readChan is nil (queue is full)
+				if !ok {
+					// watcherCh was closed, assume that context is done, so the remaining queue will never be sent
+					return
+				}
+				queue = append(queue, event)
+			case eventsCh <- queue[0]:
+				// We successfully sent the event, so we can remove it from the queue.
+				queue = queue[1:]
+			}
+		}
+		queue = nil // no longer needed, release the backing array for GC
+
+		// Final phase: when flushing is completed, the original channel is piped to watcherCh
+		for {
+			select {
+			case event, ok := <-watcherCh:
+				if !ok {
+					return // watcherCh was closed.
+				}
+				// Send event directly, blocking until the consumer is ready.
+				select {
+				case eventsCh <- event:
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return watcherCh, signalBackfillDone, func() {
+		close(watcherCh)
+		<-done
+	}
 }
 
 type watchKey struct {
@@ -457,30 +525,28 @@ type watcher struct {
 	filter WatchFilter
 }
 
-func (l *ListOptionIndexer) addWatcher(eventCh chan<- watch.Event, filter WatchFilter) *watchKey {
+func (l *ListOptionIndexer) addWatcherLocked(eventCh chan<- watch.Event, filter WatchFilter) *watchKey {
 	key := new(watchKey)
-	l.watchersLock.Lock()
 	l.watchers[key] = &watcher{
 		ch:     eventCh,
 		filter: filter,
 	}
-	l.watchersLock.Unlock()
 	return key
 }
 
 func (l *ListOptionIndexer) removeWatcher(key *watchKey) {
-	l.watchersLock.Lock()
+	l.lock.Lock()
 	delete(l.watchers, key)
-	l.watchersLock.Unlock()
+	l.lock.Unlock()
 }
 
 /* Core methods */
 
-func (l *ListOptionIndexer) notifyEventAdded(key string, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) notifyEventAdded(key string, obj any, tx db.TxClient) error {
 	return l.notifyEvent(watch.Added, nil, obj, tx)
 }
 
-func (l *ListOptionIndexer) notifyEventModified(key string, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) notifyEventModified(key string, obj any, tx db.TxClient) error {
 	oldObj, exists, err := l.GetByKey(key)
 	if err != nil {
 		return fmt.Errorf("error getting old object: %w", err)
@@ -493,7 +559,7 @@ func (l *ListOptionIndexer) notifyEventModified(key string, obj any, tx transact
 	return l.notifyEvent(watch.Modified, oldObj, obj, tx)
 }
 
-func (l *ListOptionIndexer) notifyEventDeleted(key string, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) notifyEventDeleted(key string, obj any, tx db.TxClient) error {
 	oldObj, exists, err := l.GetByKey(key)
 	if err != nil {
 		return fmt.Errorf("error getting old object: %w", err)
@@ -505,7 +571,7 @@ func (l *ListOptionIndexer) notifyEventDeleted(key string, obj any, tx transacti
 	return l.notifyEvent(watch.Deleted, oldObj, obj, tx)
 }
 
-func (l *ListOptionIndexer) notifyEvent(eventType watch.EventType, oldObj any, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) notifyEvent(eventType watch.EventType, oldObj any, obj any, tx db.TxClient) error {
 	acc, err := meta.Accessor(obj)
 	if err != nil {
 		return err
@@ -518,7 +584,7 @@ func (l *ListOptionIndexer) notifyEvent(eventType watch.EventType, oldObj any, o
 		return err
 	}
 
-	l.watchersLock.RLock()
+	l.lock.RLock()
 	for _, watcher := range l.watchers {
 		if !matchWatch(watcher.filter.ID, watcher.filter.Namespace, watcher.filter.Selector, oldObj, obj) {
 			continue
@@ -529,44 +595,30 @@ func (l *ListOptionIndexer) notifyEvent(eventType watch.EventType, oldObj any, o
 			Object: obj.(runtime.Object).DeepCopyObject(),
 		}
 	}
-	l.watchersLock.RUnlock()
+	l.lock.RUnlock()
 
-	l.latestRVLock.Lock()
-	defer l.latestRVLock.Unlock()
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	l.latestRV = latestRV
 	return nil
 }
 
-func (l *ListOptionIndexer) upsertEvent(tx transaction.Client, eventType watch.EventType, latestRV string, obj any) error {
-	objBytes := toBytes(obj)
-	var dataNonce []byte
-	var err error
-	var kid uint32
-	if l.Encryptor() != nil && l.GetShouldEncrypt() {
-		objBytes, dataNonce, kid, err = l.Encryptor().Encrypt(objBytes)
-		if err != nil {
-			return err
-		}
-	}
-
-	_, err = tx.Stmt(l.upsertEventsStmt).Exec(latestRV, eventType, objBytes, dataNonce, kid)
+func (l *ListOptionIndexer) upsertEvent(tx db.TxClient, eventType watch.EventType, latestRV string, obj any) error {
+	serialized, err := l.Serialize(obj, l.GetShouldEncrypt())
 	if err != nil {
-		return &db.QueryError{QueryString: l.upsertEventsQuery, Err: err}
+		return err
 	}
-
+	_, err = tx.Stmt(l.upsertEventsStmt).Exec(latestRV, eventType, serialized.Bytes, serialized.Nonce, serialized.KeyID)
 	return err
 }
 
-func (l *ListOptionIndexer) dropEvents(tx transaction.Client) error {
+func (l *ListOptionIndexer) dropEvents(tx db.TxClient) error {
 	_, err := tx.Stmt(l.dropEventsStmt).Exec()
-	if err != nil {
-		return &db.QueryError{QueryString: l.dropEventsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
 // addIndexFields saves sortable/filterable fields into tables
-func (l *ListOptionIndexer) addIndexFields(key string, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) addIndexFields(key string, obj any, tx db.TxClient) error {
 	args := []any{key}
 	for _, field := range l.indexedFields {
 		value, err := getField(obj, field)
@@ -581,6 +633,31 @@ func (l *ListOptionIndexer) addIndexFields(key string, obj any, tx transaction.C
 			args = append(args, fmt.Sprint(typedValue))
 		case []string:
 			args = append(args, strings.Join(typedValue, "|"))
+		case map[string]any:
+			isPod := false
+			if u, ok := obj.(*unstructured.Unstructured); ok {
+				isPod = u.GroupVersionKind().Kind == "Pod"
+			}
+			if isPod {
+				// The pod restart transform func will split pod restart column (eg: `X (D ago)`)
+				// into two fields. We want to sort / filter on count.
+				if count, ok := typedValue["count"]; ok {
+					switch c := count.(type) {
+					case int64:
+						args = append(args, c)
+					case int:
+						args = append(args, fmt.Sprint(c))
+					case float64:
+						args = append(args, fmt.Sprint(int64(c)))
+					default:
+						args = append(args, "")
+					}
+				} else {
+					args = append(args, "")
+				}
+			} else {
+				args = append(args, "")
+			}
 		default:
 			err2 := fmt.Errorf("field %v has a non-supported type value: %v", field, value)
 			return err2
@@ -588,76 +665,42 @@ func (l *ListOptionIndexer) addIndexFields(key string, obj any, tx transaction.C
 	}
 
 	_, err := tx.Stmt(l.addFieldsStmt).Exec(args...)
-	if err != nil {
-		return &db.QueryError{QueryString: l.addFieldsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
 // labels are stored in tables that shadow the underlying object table for each GVK
-func (l *ListOptionIndexer) addLabels(key string, obj any, tx transaction.Client) error {
+func (l *ListOptionIndexer) addLabels(key string, obj any, tx db.TxClient) error {
 	k8sObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return fmt.Errorf("addLabels: unexpected object type, expected unstructured.Unstructured: %v", obj)
 	}
 	incomingLabels := k8sObj.GetLabels()
 	for k, v := range incomingLabels {
-		_, err := tx.Stmt(l.upsertLabelsStmt).Exec(key, k, v)
-		if err != nil {
-			return &db.QueryError{QueryString: l.upsertLabelsQuery, Err: err}
+		if _, err := tx.Stmt(l.upsertLabelsStmt).Exec(key, k, v); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (l *ListOptionIndexer) deleteFieldsByKey(key string, _ any, tx transaction.Client) error {
-	args := []any{key}
-
-	_, err := tx.Stmt(l.deleteFieldsByKeyStmt).Exec(args...)
-	if err != nil {
-		return &db.QueryError{QueryString: l.deleteFieldsByKeyQuery, Err: err}
-	}
-	return nil
-}
-
-func (l *ListOptionIndexer) deleteFields(tx transaction.Client) error {
+func (l *ListOptionIndexer) deleteFields(tx db.TxClient) error {
 	_, err := tx.Stmt(l.deleteFieldsStmt).Exec()
-	if err != nil {
-		return &db.QueryError{QueryString: l.deleteFieldsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
-func (l *ListOptionIndexer) dropFields(tx transaction.Client) error {
+func (l *ListOptionIndexer) dropFields(tx db.TxClient) error {
 	_, err := tx.Stmt(l.dropFieldsStmt).Exec()
-	if err != nil {
-		return &db.QueryError{QueryString: l.dropFieldsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
-func (l *ListOptionIndexer) deleteLabelsByKey(key string, _ any, tx transaction.Client) error {
-	_, err := tx.Stmt(l.deleteLabelsByKeyStmt).Exec(key)
-	if err != nil {
-		return &db.QueryError{QueryString: l.deleteLabelsByKeyQuery, Err: err}
-	}
-	return nil
-}
-
-func (l *ListOptionIndexer) deleteLabels(tx transaction.Client) error {
+func (l *ListOptionIndexer) deleteLabels(tx db.TxClient) error {
 	_, err := tx.Stmt(l.deleteLabelsStmt).Exec()
-	if err != nil {
-		return &db.QueryError{QueryString: l.deleteLabelsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
-func (l *ListOptionIndexer) dropLabels(tx transaction.Client) error {
+func (l *ListOptionIndexer) dropLabels(tx db.TxClient) error {
 	_, err := tx.Stmt(l.dropLabelsStmt).Exec()
-	if err != nil {
-		return &db.QueryError{QueryString: l.dropLabelsQuery, Err: err}
-	}
-	return nil
+	return err
 }
 
 // ListByOptions returns objects according to the specified list options and partitions.
@@ -690,6 +733,26 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 	queryInfo := &QueryInfo{}
 	queryUsesLabels := hasLabelFilter(lo.Filters) || len(lo.ProjectsOrNamespaces.Filters) > 0
 	joinTableIndexByLabelName := make(map[string]int)
+
+	l.lock.RLock()
+	latestRV := l.latestRV
+	l.lock.RUnlock()
+
+	if len(lo.Revision) > 0 {
+		currentRevision, err := strconv.ParseInt(latestRV, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		requestRevision, err := strconv.ParseInt(lo.Revision, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		if currentRevision < requestRevision {
+			return nil, ErrUnknownRevision
+		}
+	}
 
 	// First, what kind of filtering will we be doing?
 	// 1- Intro: SELECT and JOIN clauses
@@ -737,7 +800,6 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 				}
 			}
 		}
-
 	}
 
 	if len(lo.ProjectsOrNamespaces.Filters) > 0 {
@@ -781,53 +843,15 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 	}
 
 	// WHERE clauses (from partitions and their corresponding parameters)
-	partitionClauses := []string{}
-	for _, thisPartition := range partitions {
-		if thisPartition.Passthrough {
-			// nothing to do, no extra filtering to apply by definition
+	partitionClauses, partitionClausesParams := generatePartitionClauses(namespace, partitions, "f")
+	if n := len(partitionClauses); n > 0 {
+		if n == 1 {
+			whereClauses = append(whereClauses, partitionClauses[0])
 		} else {
-			singlePartitionClauses := []string{}
-
-			// filter by namespace
-			if thisPartition.Namespace != "" && thisPartition.Namespace != "*" {
-				singlePartitionClauses = append(singlePartitionClauses, fmt.Sprintf(`f."metadata.namespace" = ?`))
-				params = append(params, thisPartition.Namespace)
-			}
-
-			// optionally filter by names
-			if !thisPartition.All {
-				names := thisPartition.Names
-
-				if len(names) == 0 {
-					// degenerate case, there will be no results
-					singlePartitionClauses = append(singlePartitionClauses, "FALSE")
-				} else {
-					singlePartitionClauses = append(singlePartitionClauses, fmt.Sprintf(`f."metadata.name" IN (?%s)`, strings.Repeat(", ?", len(thisPartition.Names)-1)))
-					// sort for reproducibility
-					sortedNames := thisPartition.Names.UnsortedList()
-					sort.Strings(sortedNames)
-					for _, name := range sortedNames {
-						params = append(params, name)
-					}
-				}
-			}
-
-			if len(singlePartitionClauses) > 0 {
-				partitionClauses = append(partitionClauses, strings.Join(singlePartitionClauses, " AND "))
-			}
+			whereClauses = append(whereClauses, "(\n      ("+strings.Join(partitionClauses, ") OR\n      (")+")\n)")
 		}
+		params = append(params, partitionClausesParams...)
 	}
-	if len(partitions) == 0 {
-		// degenerate case, there will be no results
-		whereClauses = append(whereClauses, "FALSE")
-	}
-	if len(partitionClauses) == 1 {
-		whereClauses = append(whereClauses, partitionClauses[0])
-	}
-	if len(partitionClauses) > 1 {
-		whereClauses = append(whereClauses, "(\n      ("+strings.Join(partitionClauses, ") OR\n      (")+")\n)")
-	}
-
 	if len(whereClauses) > 0 {
 		query += "\n  WHERE\n    "
 		for index, clause := range whereClauses {
@@ -850,7 +874,7 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 		for _, sortDirective := range lo.SortList.SortDirectives {
 			fields := sortDirective.Fields
 			if isLabelsFieldList(fields) {
-				clause, err := buildSortLabelsClause(fields[2], joinTableIndexByLabelName, sortDirective.Order == sqltypes.ASC)
+				clause, err := buildSortLabelsClause(fields[2], joinTableIndexByLabelName, sortDirective.Order == sqltypes.ASC, sortDirective.SortAsIP)
 				if err != nil {
 					return nil, err
 				}
@@ -859,6 +883,9 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 				fieldEntry, err := l.getValidFieldEntry("f", fields)
 				if err != nil {
 					return queryInfo, err
+				}
+				if sortDirective.SortAsIP {
+					fieldEntry = fmt.Sprintf("inet_aton(%s)", fieldEntry)
 				}
 				direction := "ASC"
 				if sortDirective.Order == sqltypes.DESC {
@@ -915,26 +942,131 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 	return queryInfo, nil
 }
 
+func namesSignatures(names []string) uint64 {
+	h := fnv.New64a()
+	for _, name := range names {
+		io.WriteString(h, name)
+		io.WriteString(h, "\x00") // Null separator
+	}
+	return h.Sum64()
+}
+
+func generatePartitionClauses(namespaceFilter string, partitions []partition.Partition, mainFieldPrefix string) (clauses []string, params []any) {
+	if len(partitions) == 0 {
+		// degenerate case, there will be no results
+		return []string{"FALSE"}, nil
+	}
+
+	// Map of Signature -> List of Namespaces belonging to this group
+	groups := make(map[uint64]struct {
+		names         []string
+		namespaces    []string
+		allNamespaces bool
+	})
+
+	singleNamespace := namespaceFilter != "" && namespaceFilter != "*"
+	for _, thisPartition := range partitions {
+		filterByNamespace := thisPartition.Namespace != "" && thisPartition.Namespace != "*"
+		filterByNames := !thisPartition.All
+
+		// Passthrough provides access to everything
+		// Same for non-namespaced partitions with All=true
+		if thisPartition.Passthrough || (!filterByNamespace && !filterByNames) {
+			// nothing to do, no extra filtering to apply by definition
+			return nil, nil
+		}
+
+		if singleNamespace && filterByNamespace && thisPartition.Namespace != namespaceFilter {
+			// Omit not matching partitions, since there is a higher-level clause already
+			continue
+		}
+
+		var sig uint64 // 0 is a valid signature, representing "All: true"
+		var names []string
+		if filterByNames {
+			// Case B: Restricted Access
+			names = sets.List(thisPartition.Names)
+			if len(names) == 0 {
+				continue // Degenerate case (FALSE)
+			}
+			sig = namesSignatures(names)
+			if sig == 0 { // Safety: In the astronomically unlikely event we hash to 0, bump it so it doesn't grant Full access
+				sig = 1
+			}
+		}
+
+		group, ok := groups[sig]
+		if !ok {
+			group.names = names
+		}
+		if !filterByNamespace {
+			group.allNamespaces = true
+			group.namespaces = nil
+		}
+		if !group.allNamespaces {
+			group.namespaces = append(group.namespaces, thisPartition.Namespace)
+		}
+		groups[sig] = group
+
+	}
+	if len(groups) == 0 {
+		// Partitions didn't grant access to any resource
+		return []string{"FALSE"}, nil
+	}
+
+	if g, ok := groups[0]; ok && (singleNamespace || g.allNamespaces) {
+		// special case for the group with no name restrictions:
+		// 1. If single namespace, the namespace condition would be redundant
+		// 2. All resources in all namespaces means everything, so the `WHERE` will be omitted
+		return nil, nil
+	}
+
+	for _, sig := range slices.Sorted(maps.Keys(groups)) {
+		group := groups[sig]
+		slices.Sort(group.namespaces)
+		var conditions []string
+		switch {
+		case sig == 0:
+			clauses = append(clauses, mainFieldPrefix+`."metadata.namespace" IN ( ?`+strings.Repeat(", ?", len(group.namespaces)-1)+" )")
+			for _, ns := range group.namespaces {
+				params = append(params, ns)
+			}
+		case !singleNamespace && !group.allNamespaces:
+			conditions = append(conditions, mainFieldPrefix+`."metadata.namespace" IN ( ?`+strings.Repeat(", ?", len(group.namespaces)-1)+" )")
+			for _, ns := range group.namespaces {
+				params = append(params, ns)
+			}
+			fallthrough
+		default:
+			conditions = append(conditions, mainFieldPrefix+`."metadata.name" IN ( ?`+strings.Repeat(", ?", len(group.names)-1)+" )")
+			for _, name := range group.names {
+				params = append(params, name)
+			}
+			clauses = append(clauses, strings.Join(conditions, " AND "))
+		}
+	}
+
+	return clauses, params
+}
+
 func (l *ListOptionIndexer) executeQuery(ctx context.Context, queryInfo *QueryInfo) (result *unstructured.UnstructuredList, total int, token string, err error) {
 	stmt := l.Prepare(queryInfo.query)
 	defer func() {
-		cerr := l.CloseStmt(stmt)
-		if cerr != nil {
-			err = errors.Join(err, &db.QueryError{QueryString: queryInfo.query, Err: cerr})
+		if cerr := stmt.Close(); cerr != nil && err == nil {
+			err = errors.Join(err, cerr)
 		}
 	}()
 
 	var items []any
-	err = l.WithTransaction(ctx, false, func(tx transaction.Client) error {
-		txStmt := tx.Stmt(stmt)
+	err = l.WithTransaction(ctx, false, func(tx db.TxClient) error {
 		now := time.Now()
-		rows, err := txStmt.QueryContext(ctx, queryInfo.params...)
+		rows, err := l.QueryForRows(ctx, tx.Stmt(stmt), queryInfo.params...)
 		if err != nil {
-			return &db.QueryError{QueryString: queryInfo.query, Err: err}
+			return err
 		}
 		elapsed := time.Since(now)
 		logLongQuery(elapsed, queryInfo.query, queryInfo.params)
-		items, err = l.ReadObjects(rows, l.GetType(), l.GetShouldEncrypt())
+		items, err = l.ReadObjects(rows, l.GetType())
 		if err != nil {
 			return fmt.Errorf("read objects: %w", err)
 		}
@@ -943,16 +1075,14 @@ func (l *ListOptionIndexer) executeQuery(ctx context.Context, queryInfo *QueryIn
 		if queryInfo.countQuery != "" {
 			countStmt := l.Prepare(queryInfo.countQuery)
 			defer func() {
-				cerr := l.CloseStmt(countStmt)
-				if cerr != nil {
-					err = errors.Join(err, &db.QueryError{QueryString: queryInfo.countQuery, Err: cerr})
+				if cerr := countStmt.Close(); cerr != nil {
+					err = errors.Join(err, cerr)
 				}
 			}()
-			txStmt := tx.Stmt(countStmt)
 			now = time.Now()
-			rows, err := txStmt.QueryContext(ctx, queryInfo.countParams...)
+			rows, err := l.QueryForRows(ctx, tx.Stmt(countStmt), queryInfo.countParams...)
 			if err != nil {
-				return &db.QueryError{QueryString: queryInfo.countQuery, Err: err}
+				return err
 			}
 			elapsed = time.Since(now)
 			logLongQuery(elapsed, queryInfo.countQuery, queryInfo.countParams)
@@ -975,9 +1105,9 @@ func (l *ListOptionIndexer) executeQuery(ctx context.Context, queryInfo *QueryIn
 		continueToken = fmt.Sprintf("%d", offset+limit)
 	}
 
-	l.latestRVLock.RLock()
+	l.lock.RLock()
 	latestRV := l.latestRV
-	l.latestRVLock.RUnlock()
+	l.lock.RUnlock()
 
 	return toUnstructuredList(items, latestRV), total, continueToken, nil
 }
@@ -1116,8 +1246,12 @@ func (l *ListOptionIndexer) buildClauseFromProjectsOrNamespaces(orFilters sqltyp
 		orFilters.Filters[0].Op)
 }
 
-func buildSortLabelsClause(labelName string, joinTableIndexByLabelName map[string]int, isAsc bool) (string, error) {
+func buildSortLabelsClause(labelName string, joinTableIndexByLabelName map[string]int, isAsc bool, sortAsIP bool) (string, error) {
 	ltIndex, err := internLabel(labelName, joinTableIndexByLabelName, -1)
+	fieldEntry := fmt.Sprintf("lt%d.value", ltIndex)
+	if sortAsIP {
+		fieldEntry = fmt.Sprintf("inet_aton(%s)", fieldEntry)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -1127,7 +1261,7 @@ func buildSortLabelsClause(labelName string, joinTableIndexByLabelName map[strin
 		dir = "DESC"
 		nullsPosition = "FIRST"
 	}
-	return fmt.Sprintf("lt%d.value %s NULLS %s", ltIndex, dir, nullsPosition), nil
+	return fmt.Sprintf("%s %s NULLS %s", fieldEntry, dir, nullsPosition), nil
 }
 
 func getUnboundSortLabels(lo *sqltypes.ListOptions) []string {
@@ -1492,8 +1626,9 @@ func getField(a any, field string) (any, error) {
 				return nil, err
 			}
 			if !found {
-				// particularly with labels/annotation indexes, it is totally possible that some objects won't have these,
-				// so either we this is not an error state or it could be an error state with a type that callers can check for
+				// Particularly with labels/annotation indexes, it is totally possible that some objects won't have these.
+				// So either this is not an error state, or it could be an error state with a type that callers
+				// will need to deal with somehow.
 				return nil, nil
 			}
 		case []interface{}:
@@ -1623,12 +1758,9 @@ func (l *ListOptionIndexer) RunGC(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			err := l.WithTransaction(ctx, true, func(tx transaction.Client) error {
+			err := l.WithTransaction(ctx, true, func(tx db.TxClient) error {
 				_, err := tx.Stmt(l.deleteEventsByCountStmt).Exec(l.gcKeepCount)
-				if err != nil {
-					return &db.QueryError{QueryString: l.deleteEventsByCountQuery, Err: err}
-				}
-				return nil
+				return err
 			})
 			if err != nil {
 				logrus.Errorf("garbage collection for %s: %v", l.GetName(), err)

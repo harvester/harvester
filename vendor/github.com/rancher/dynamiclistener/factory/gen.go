@@ -195,6 +195,10 @@ func (t *TLS) generateCert(secret *v1.Secret, cn ...string) (*v1.Secret, bool, e
 }
 
 func (t *TLS) IsExpired(secret *v1.Secret) bool {
+	if secret == nil {
+		return false
+	}
+
 	certsPem := secret.Data[v1.TLSCertKey]
 	if len(certsPem) == 0 {
 		return false

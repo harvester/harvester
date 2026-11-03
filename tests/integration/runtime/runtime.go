@@ -6,6 +6,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/tests/framework/env"
 	"github.com/harvester/harvester/tests/framework/fuzz"
 )
 
@@ -57,6 +58,7 @@ func SetConfig() (config.Options, error) {
 	options.HTTPSListenPort = ports[1]
 	options.Namespace = testHarvesterNamespace
 	options.RancherEmbedded = false
+	options.SQLCache = env.IsSQLCacheEnabled()
 
 	// inject the preset envs, this is used for testing setting.
 	err = os.Setenv(settings.GetEnvKey(settings.APIUIVersion.Name), settings.APIUIVersion.Default)
