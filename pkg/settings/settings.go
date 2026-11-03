@@ -54,6 +54,7 @@ var (
 	StorageNetwork                         = NewSetting(StorageNetworkName, "")
 	RWXNetwork                             = NewSetting(RWXNetworkSettingName, `{"share-storage-network":false}`)
 	DefaultVMTerminationGracePeriodSeconds = NewSetting(DefaultVMTerminationGracePeriodSecondsSettingName, "120")
+	DefaultVMDeleteProtection              = NewSetting(DefaultVMDeleteProtectionSettingName, "false")
 	AutoRotateRKE2CertsSet                 = NewSetting(AutoRotateRKE2CertsSettingName, InitAutoRotateRKE2Certs())
 	KubeconfigTTL                          = NewSetting(KubeconfigDefaultTokenTTLMinutesSettingName, "0") // "0" is default value to ensure token does not expire
 	LonghornV2DataEngineEnabled            = NewSetting(LonghornV2DataEngineSettingName, "false")
@@ -65,7 +66,7 @@ var (
 	// HarvesterCSICCMVersion this is the chart version from https://github.com/harvester/charts instead of image versions
 	HarvesterCSICCMVersion            = NewSetting(HarvesterCSICCMSettingName, `{"harvester-cloud-provider":">=0.0.1 <0.3.0","harvester-csi-provider":">=0.0.1 <0.3.0"}`)
 	NTPServers                        = NewSetting(NTPServersSettingName, "")
-	WhiteListedSettings               = []string{ServerFlavorSettingName, ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName}
+	WhiteListedSettings               = []string{ServerFlavorSettingName, ServerVersionSettingName, DefaultStorageClassSettingName, HarvesterCSICCMSettingName, DefaultVMTerminationGracePeriodSecondsSettingName, DefaultVMDeleteProtectionSettingName}
 	UpgradeConfigSet                  = NewSetting(UpgradeConfigSettingName, `{"imagePreloadOption":{"strategy":{"type":"sequential"}},"nodeUpgradeOption":{"strategy":{"mode":"auto"}},"restoreVM": false, "shutdownVMOnMigrationFailure": false, "logReadyTimeout": "5"}`)
 	MaxHotplugRatio                   = NewSetting(MaxHotplugRatioSettingName, "4")
 	VMMigrationNetwork                = NewSetting(VMMigrationNetworkSettingName, "")
@@ -101,6 +102,7 @@ const (
 	StorageNetworkName                                = "storage-network"
 	RWXNetworkSettingName                             = "rwx-network"
 	DefaultVMTerminationGracePeriodSecondsSettingName = "default-vm-termination-grace-period-seconds"
+	DefaultVMDeleteProtectionSettingName              = "default-vm-delete-protection"
 	SupportBundleExpirationSettingName                = "support-bundle-expiration"
 	NTPServersSettingName                             = "ntp-servers"
 	AutoRotateRKE2CertsSettingName                    = "auto-rotate-rke2-certs"

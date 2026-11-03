@@ -107,6 +107,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SSLParametersName:                                 validateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
+	settings.DefaultVMDeleteProtectionSettingName:              validateDefaultVMDeleteProtection,
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
@@ -132,6 +133,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.SSLParametersName:                                 validateUpdateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
+	settings.DefaultVMDeleteProtectionSettingName:              validateUpdateDefaultVMDeleteProtection,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
@@ -2330,6 +2332,29 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 
 func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
+}
+
+func validateDefaultVMDeleteProtectionHelper(value string) error {
+	switch value {
+	case "", "true", "false":
+		return nil
+	}
+	return fmt.Errorf("invalid value %q, must be \"true\" or \"false\"", value)
+}
+
+func validateDefaultVMDeleteProtection(setting *v1beta1.Setting) error {
+	if err := validateDefaultVMDeleteProtectionHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := validateDefaultVMDeleteProtectionHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func validateUpdateDefaultVMDeleteProtection(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateDefaultVMDeleteProtection(newSetting)
 }
 
 func validateAutoRotateRKE2CertsHelper(value string) error {
