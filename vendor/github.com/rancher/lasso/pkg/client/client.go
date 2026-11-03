@@ -339,14 +339,21 @@ func (c *Client) injectKind(w watch.Interface, err error) (watch.Interface, erro
 	}()
 
 	return &watcher{
-		Interface: w,
+		wrapped:   w,
 		eventChan: eventChan,
 	}, nil
 }
 
 type watcher struct {
-	watch.Interface
+	wrapped   watch.Interface
 	eventChan chan watch.Event
+}
+
+func (w *watcher) Stop() {
+	w.wrapped.Stop()
+	// Drain eventChan until the processing goroutine closes it, propagated from the original ResultChan
+	for range w.eventChan {
+	}
 }
 
 // ResultChan returns a receive only channel of watch events.

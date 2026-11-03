@@ -36,7 +36,7 @@ type Subscribe struct {
 	Namespace       string           `json:"namespace,omitempty"`
 	ID              string           `json:"id,omitempty"`
 	Selector        string           `json:"selector,omitempty"`
-	// DebounceMs will debounce event when Mode is SubscriptionModeNotification. Unused for other Mode values.
+	// DebounceMs will debounce events when Mode is SubscriptionModeNotification. Unused for other Mode values.
 	DebounceMs int `json:"debounceMs,omitempty"`
 }
 
@@ -63,7 +63,9 @@ func handler(apiOp *types.APIRequest, getter SchemasGetter, serverVersion string
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	watches := NewWatchSession(apiOp, getter)
 	defer watches.Close()
@@ -72,7 +74,7 @@ func handler(apiOp *types.APIRequest, getter SchemasGetter, serverVersion string
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	defer func() {
-		// Ensure that events gets fully consumed
+		// Ensure that events get fully consumed
 		go func() {
 			for range events {
 			}
@@ -114,7 +116,9 @@ func writeData(apiOp *types.APIRequest, getter SchemasGetter, c *websocket.Conn,
 	if err != nil {
 		return err
 	}
-	defer messageWriter.Close()
+	defer func() {
+		_ = messageWriter.Close()
+	}()
 
 	return json.NewEncoder(messageWriter).Encode(event)
 }

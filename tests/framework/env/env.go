@@ -34,6 +34,11 @@ const (
 	// default to false.
 	envEnableE2ETests = "ENABLE_E2E_TESTS"
 
+	// Specify whether the Harvester API server under test serves lists from the
+	// Steve SQL cache, default to true like the API server. Set it to false to
+	// test the previous, non SQL cache backend.
+	envSQLCache = "HARVESTER_SQL_CACHE"
+
 	// Specify images to be pre-loaded into nodes. Use comma "," to specify multiple
 	// images. e.g., "repo1/image1:tag1,repo2/image2:tag2"
 	envPreloadingImages = "PRELOADING_IMAGES"
@@ -61,6 +66,11 @@ const (
 // IsTrue validates that the specified environment variable is true.
 func IsTrue(key string) bool {
 	return strings.EqualFold(os.Getenv(key), "true")
+}
+
+// IsFalse validates that the specified environment variable is false.
+func IsFalse(key string) bool {
+	return strings.EqualFold(os.Getenv(key), "false")
 }
 
 // IsUsingExistingCluster validates whether use an existing cluster for testing,
@@ -102,6 +112,12 @@ func IsUsingEmulation() bool {
 // IsE2ETestsEnabled validates whether to enable the e2e tests
 func IsE2ETestsEnabled() bool {
 	return IsTrue(envEnableE2ETests)
+}
+
+// IsSQLCacheEnabled validates whether the Harvester API server under test uses the SQL cache,
+// unless "HARVESTER_SQL_CACHE=false", the lists are served from the Steve SQL cache.
+func IsSQLCacheEnabled() bool {
+	return !IsFalse(envSQLCache)
 }
 
 // GetPreloadingImages returns preloading image names
