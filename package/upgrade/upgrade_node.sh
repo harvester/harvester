@@ -495,11 +495,11 @@ set_oem_ipv6_sysctl() {
 
   # Only disable IPv6 when harvester.config was read successfully. If it is
   # missing or unparsable we cannot tell whether this is a dual-stack node, so
-  # leave the existing settings alone rather than breaking IPv6 at next boot.
+  # leave everything as it is, including any override written by an earlier
+  # upgrade, rather than flipping IPv6 at next boot.
   local families
   if [ ! -f "$config_file" ] || ! families=$(yq '(.install.ipfamilies // [])[]' "$config_file" 2>/dev/null); then
     echo "Cannot read install.ipfamilies from $config_file, keep the existing IPv6 sysctl settings"
-    rm -f "$override_file"
     return
   fi
 
