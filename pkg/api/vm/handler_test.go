@@ -12,8 +12,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8suser "k8s.io/apiserver/pkg/authentication/user"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	kubevirtutil "kubevirt.io/kubevirt/pkg/virt-operator/util"
@@ -1596,38 +1598,107 @@ func TestEjectCdRomVolumeAction(t *testing.T) {
 		},
 	}
 
-	clientset := fake.NewSimpleClientset(vm, pvc)
-
-	handler := &vmActionHandler{
-		vmClient:  fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
-		vmCache:   fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
-		pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
-		pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+	tests := []struct {
+		name string
+		// vmUpdateConflicts is the number of VM updates failing with a conflict.
+		vmUpdateConflicts int
+		// pvcDeleteConflicts is the number of PVC deletions failing with a
+		// conflict, like the PVC webhook does while its VM cache still sees the
+		// volume. A value above the backoff steps makes the deletion fail for good.
+		pvcDeleteConflicts  int
+		expectConflictError bool
+		expectVMUpdateCalls int
+		expectPVCDeleted    bool
+	}{
+		{
+			name:                "eject succeeds",
+			expectVMUpdateCalls: 1,
+			expectPVCDeleted:    true,
+		},
+		{
+			name:                "VM update conflict is retried",
+			vmUpdateConflicts:   1,
+			expectVMUpdateCalls: 2,
+			expectPVCDeleted:    true,
+		},
+		{
+			name:                "PVC delete conflict is retried without re-running the VM update",
+			pvcDeleteConflicts:  3,
+			expectVMUpdateCalls: 1,
+			expectPVCDeleted:    true,
+		},
+		{
+			name:                "persistent PVC delete conflict is returned with the PVC name",
+			pvcDeleteConflicts:  100,
+			expectConflictError: true,
+			expectVMUpdateCalls: 1,
+			expectPVCDeleted:    false,
+		},
 	}
 
-	input := EjectCdRomVolumeActionInput{
-		DeviceName: "cdrom1",
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(vm.DeepCopy(), pvc.DeepCopy())
+
+			vmUpdateCalls := 0
+			pvcDeleteCalls := 0
+			clientset.PrependReactor("update", "virtualmachines", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+				vmUpdateCalls++
+				if vmUpdateCalls <= tc.vmUpdateConflicts {
+					return true, nil, apierrors.NewConflict(kubevirtv1.Resource("virtualmachines"), vmName, errors.New("object has been modified"))
+				}
+				return false, nil, nil
+			})
+			clientset.PrependReactor("delete", "persistentvolumeclaims", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+				pvcDeleteCalls++
+				if pvcDeleteCalls <= tc.pvcDeleteConflicts {
+					return true, nil, apierrors.NewConflict(corev1.Resource("persistentvolumeclaims"), pvcName, errors.New("volume is currently attached to VM"))
+				}
+				return false, nil, nil
+			})
+
+			handler := &vmActionHandler{
+				vmClient:  fakeclients.VirtualMachineClient(clientset.KubevirtV1().VirtualMachines),
+				vmCache:   fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
+				pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
+				pvcCache:  fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+			}
+
+			input := EjectCdRomVolumeActionInput{
+				DeviceName: "cdrom1",
+			}
+
+			_, err := handler.pvcCache.Get(pvcNamespace, pvcName)
+			assert.Nil(t, err, "Should find pvc initially")
+
+			err = handler.ejectCdRomVolume(vmName, vmNamespace, input)
+			if tc.expectConflictError {
+				assert.True(t, apierrors.IsConflict(err), "ejectCdRomVolume should return the conflict error, got: %v", err)
+				assert.Contains(t, err.Error(), pvcName, "the error should name the PVC to delete manually")
+			} else {
+				assert.Nil(t, err, "ejectCdRomVolume shouldn't return error")
+			}
+
+			assert.Equal(t, tc.expectVMUpdateCalls, vmUpdateCalls, "Unexpected number of VM updates")
+
+			vmUpdated, err := handler.vmCache.Get(vmNamespace, vmName)
+			assert.Nil(t, err, "Should get the updated VM")
+
+			assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should have hot-unplug volume")
+
+			volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+			entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
+			assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
+			assert.Len(t, entries, 0, "Should remove from volumeClaimTemplates annotation")
+
+			_, err = handler.pvcCache.Get(pvcNamespace, pvcName)
+			if tc.expectPVCDeleted {
+				assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
+			} else {
+				assert.Nil(t, err, "Should keep pvc")
+			}
+		})
 	}
-
-	pvcCache := handler.pvcCache
-	_, err1 := pvcCache.Get(pvcNamespace, pvcName)
-	assert.Nil(t, err1, "Should find pvc initially")
-
-	err := handler.ejectCdRomVolume(context.Background(), vmName, vmNamespace, input)
-	assert.Nil(t, err, "ejectCdRomVolume shouldn't return error")
-
-	vmUpdated, err := handler.vmCache.Get(vmNamespace, vmName)
-	assert.Nil(t, err, "Should get the updated VM")
-
-	assert.Len(t, vmUpdated.Spec.Template.Spec.Volumes, 0, "Should have hot-unplug volume")
-
-	volumeClaimTemplates := vmUpdated.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
-	entries, err := util.UnmarshalVolumeClaimTemplates(volumeClaimTemplates)
-	assert.Nil(t, err, "Should unmarshal volumeClaimTemplates annotation correctly")
-	assert.Len(t, entries, 0, "Should remove from volumeClaimTemplates annotation")
-
-	_, err = pvcCache.Get(pvcNamespace, pvcName)
-	assert.True(t, apierrors.IsNotFound(err), "Should delete pvc")
 }
 
 func TestBuildVirtualMachineRestore(t *testing.T) {
