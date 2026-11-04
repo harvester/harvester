@@ -484,6 +484,63 @@ stages:
 EOF
 }
 
+# Keep the install-time IP family choice across upgrades. Clusters installed
+# before dual-stack was selectable have no install.ipfamilies in harvester.config
+# and are IPv4-only, but their /oem/90_custom.yaml may carry a zz-harvester-enable-ipv6.conf
+# sysctl drop-in that enables IPv6 in the kernel. Override it so these nodes stay
+# IPv4-only. When install.ipfamilies lists IPv6, the existing setting is kept.
+set_oem_ipv6_sysctl() {
+  local config_file="${HOST_DIR}/oem/harvester.config"
+  local override_file="${HOST_DIR}/oem/91_ipv6_sysctl.yaml"
+
+  if [ -z "$UPGRADE_PREVIOUS_VERSION" ]; then
+    detect_upgrade
+  fi
+
+  # Only v1.9.x installers wrote the IPv6-enabling drop-in unconditionally.
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]$ ]]; then
+    echo "version: $UPGRADE_PREVIOUS_VERSION does not require updating the IPv6 sysctl settings"
+    return
+  fi
+
+  # Only disable IPv6 when harvester.config was read successfully. If it is
+  # missing or unparsable we cannot tell whether this is a dual-stack node, so
+  # leave everything as it is, including any override written by an earlier
+  # upgrade, rather than flipping IPv6 at next boot.
+  local families
+  if [ ! -f "$config_file" ] || ! families=$(yq '(.install.ipfamilies // [])[]' "$config_file" 2>/dev/null); then
+    echo "Cannot read install.ipfamilies from $config_file, keep the existing IPv6 sysctl settings"
+    return
+  fi
+
+  if echo "$families" | grep -qx "IPv6"; then
+    echo "IPv6 is enabled in harvester.config, keep the existing IPv6 sysctl settings"
+    rm -f "$override_file"
+    return
+  fi
+
+  echo "IPv6 is not enabled in harvester.config, keep the node IPv4-only"
+  cat > "$override_file" << EOF
+name: Keep IPv6 disabled for IPv4-only install
+stages:
+    initramfs:
+        - files:
+            - path: /etc/sysctl.d/zz-harvester-enable-ipv6.conf
+              permissions: 0644
+              owner: 0
+              group: 0
+              content: |
+                # Written by harvester upgrade (IPv4-only install)
+                net.ipv6.conf.all.disable_ipv6 = 1
+                net.ipv6.conf.default.disable_ipv6 = 1
+                net.ipv6.conf.lo.disable_ipv6 = 1
+          sysctl:
+            net.ipv6.conf.all.disable_ipv6: "1"
+            net.ipv6.conf.default.disable_ipv6: "1"
+            net.ipv6.conf.lo.disable_ipv6: "1"
+EOF
+}
+
 calculateCPUReservedInMilliCPU() {
   local cores=$1
   local maxPods=$2
@@ -847,6 +904,7 @@ command_post_drain() {
   set_reserved_resource
   set_rke2_device_permissions
   set_oem_cleanup_kubelet
+  set_oem_ipv6_sysctl
   # A post-drain signal from Rancher doesn't mean RKE2 agent/server is already patched and restarted
   # Let's wait until the RKE2 settled.
   wait_rke2_upgrade
@@ -889,6 +947,7 @@ command_single_node_upgrade() {
   set_reserved_resource
   set_rke2_device_permissions
   set_oem_cleanup_kubelet
+  set_oem_ipv6_sysctl
 
   # switch ingress
   switch_ingress
