@@ -498,8 +498,7 @@ set_oem_ipv6_sysctl() {
   fi
 
   # Only v1.9.x installers wrote the IPv6-enabling drop-in unconditionally.
-  # Pre-release builds (e.g. v1.9.0-rc1) are matched too.
-  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]+(-.+)?$ ]]; then
+  if [[ ! "$UPGRADE_PREVIOUS_VERSION" =~ ^v1\.9\.[0-9]$ ]]; then
     echo "version: $UPGRADE_PREVIOUS_VERSION does not require updating the IPv6 sysctl settings"
     return
   fi
