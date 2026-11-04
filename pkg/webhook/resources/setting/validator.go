@@ -109,7 +109,6 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
-	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateMaxHotplugRatio,
 	settings.LHIMResourcesSettingName:                          validateLHIMResources,
@@ -134,7 +133,6 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
-	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
 	settings.AdditionalGuestMemoryOverheadRatioName:            validateUpdateAdditionalGuestMemoryOverheadRatio,
 	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateUpdateLonghornV2DataEngineMemorySize,
@@ -2397,41 +2395,6 @@ func validateAutoRotateRKE2Certs(setting *v1beta1.Setting) error {
 
 func validateUpdateAutoRotateRKE2Certs(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateAutoRotateRKE2Certs(newSetting)
-}
-
-func validateKubeConfigTTLSettingHelper(value string) error {
-	if value == "" {
-		return nil
-	}
-
-	num, err := webhookUtil.StrictAtoi(value)
-	if err != nil {
-		return err
-	}
-
-	if num < 0 {
-		return fmt.Errorf("kubeconfig-default-token-ttl-minutes can't be negative")
-	}
-
-	if num > maxTTLDurationMinutes {
-		return fmt.Errorf("kubeconfig-default-token-ttl-minutes exceeds 100 years")
-	}
-	return nil
-}
-
-func validateKubeConfigTTLSetting(newSetting *v1beta1.Setting) error {
-	if err := validateKubeConfigTTLSettingHelper(newSetting.Default); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
-	}
-
-	if err := validateKubeConfigTTLSettingHelper(newSetting.Value); err != nil {
-		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
-	}
-	return nil
-}
-
-func validateUpdateKubeConfigTTLSetting(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return validateKubeConfigTTLSetting(newSetting)
 }
 
 func validateUpgradeConfigHelper(setting *v1beta1.Setting) (*settings.UpgradeConfig, error) {
