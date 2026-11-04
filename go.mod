@@ -81,7 +81,6 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
 	github.com/kubeovn/kube-ovn v1.14.10
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
-	github.com/kubernetes/dashboard v1.10.1
 	github.com/longhorn/backupstore v0.0.0-20250804022317-794abf817297
 	github.com/longhorn/longhorn-manager v1.10.0
 	github.com/mattn/go-isatty v0.0.22
