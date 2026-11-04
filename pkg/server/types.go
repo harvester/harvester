@@ -16,7 +16,6 @@ import (
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/steve/pkg/accesscontrol"
-	"github.com/rancher/steve/pkg/aggregation"
 	steveauth "github.com/rancher/steve/pkg/auth"
 	steveserver "github.com/rancher/steve/pkg/server"
 	"github.com/rancher/wrangler/v3/pkg/generic"
@@ -38,6 +37,7 @@ import (
 	"github.com/harvester/harvester/pkg/indexeres"
 	"github.com/harvester/harvester/pkg/server/customizers"
 	"github.com/harvester/harvester/pkg/server/ui"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 type HarvesterServer struct {
@@ -72,6 +72,7 @@ var (
 const (
 	RancherKubeConfigSecretName = "rancher-kubeconfig"
 	RancherKubeConfigSecretKey  = "kubernetes.kubeconfig"
+	caName                      = "harvester-ca"
 )
 
 func RancherRESTConfig(ctx context.Context, restConfig *rest.Config, options config.Options) (*rest.Config, error) {
@@ -164,7 +165,10 @@ func Wait(ctx context.Context, config *rest.Config) error {
 
 func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, opts config.Options) error {
 	listenOpts := &server.ListenOpts{
-		Secrets: s.controllers.Core.Secret(),
+		Secrets:       s.controllers.Core.Secret(),
+		CertNamespace: opts.Namespace,
+		CertName:      util.InternalTLSSecretName,
+		CAName:        util.InternalTLSCAName,
 		TLSListenerConfig: dynamiclistener.Config{
 			CloseConnOnCertChange: true,
 			TLSConfig: &tls.Config{
@@ -177,9 +181,6 @@ func (s *HarvesterServer) ListenAndServe(listenerCfg *dynamiclistener.Config, op
 	if listenerCfg != nil {
 		listenOpts.TLSListenerConfig = *listenerCfg
 	}
-
-	s.steve.StartAggregation(s.Context)
-	s.startAggregation(opts)
 
 	if err := server.ListenAndServe(s.Context, opts.HTTPSListenPort, opts.HTTPListenPort, s.Handler, listenOpts); err != nil {
 		return err
@@ -285,14 +286,6 @@ func (s *HarvesterServer) start(options config.Options) error {
 	}
 
 	return nil
-}
-
-func (s *HarvesterServer) startAggregation(options config.Options) {
-	aggregation.Watch(s.Context,
-		s.Scaled().Management.CoreFactory.Core().V1().Secret(),
-		options.Namespace,
-		data.AggregationSecretName,
-		s.steve)
 }
 
 type StartHook func(context.Context, *steveserver.Server, *steveserver.Controllers, config.Options) error

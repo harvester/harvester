@@ -18,7 +18,6 @@ import (
 	"github.com/harvester/harvester/pkg/api/backuptarget"
 	"github.com/harvester/harvester/pkg/api/forkliftproxy"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
-	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/readyz"
 	"github.com/harvester/harvester/pkg/api/supportbundle"
 	"github.com/harvester/harvester/pkg/api/uiinfo"
@@ -120,21 +119,6 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 	vueUI := ui.Vue
 	m.Handle("/dashboard/", vueUI.IndexFile())
 	m.PathPrefix("/dashboard/").Handler(vueUI.IndexFileOnNotFound())
-
-	if r.options.RancherURL != "" {
-		host, scheme, err := parseRancherServerURL(r.options.RancherURL)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		rancherHandler := &proxy.Handler{
-			Host:   host,
-			Scheme: scheme,
-		}
-		m.PathPrefix("/v3-public/").Handler(rancherHandler)
-		m.PathPrefix("/v3/").Handler(rancherHandler)
-		m.PathPrefix("/v1/userpreferences").Handler(rancherHandler)
-		m.PathPrefix("/v1/management.cattle.io.setting").Handler(rancherHandler)
-	}
 
 	m.NotFoundHandler = router.Routes(h)
 

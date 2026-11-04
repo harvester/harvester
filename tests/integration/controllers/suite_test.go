@@ -15,7 +15,6 @@ import (
 	"github.com/rancher/lasso/pkg/controller"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	ctlcatalogv1 "github.com/rancher/rancher/pkg/generated/controllers/catalog.cattle.io"
 	ctlrancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
@@ -194,11 +193,6 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 		return err
 	}
 
-	catalog, err := ctlcatalogv1.NewFactoryFromConfigWithOptions(restConfig, opts)
-	if err != nil {
-		return err
-	}
-
 	rancher, err := ctlrancherv3.NewFactoryFromConfigWithOptions(restConfig, opts)
 	if err != nil {
 		return err
@@ -209,7 +203,6 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 		CoreFactory:              core,
 		BatchFactory:             batch,
 		HelmFactory:              helm,
-		CatalogFactory:           catalog,
 		RancherManagementFactory: rancher,
 	}
 
@@ -228,7 +221,7 @@ func startControllers(ctx context.Context, restConfig *rest.Config, opts *ctlhar
 	}
 
 	logrus.Infof("sync status of batch informer: %v", batch.Batch().V1().Job().Informer().HasSynced())
-	if err = start.All(ctx, 10, harvesterFactory, core, batch, helm, catalog, rancher); err != nil {
+	if err = start.All(ctx, 10, harvesterFactory, core, batch, helm, rancher); err != nil {
 		return err
 	}
 

@@ -6,10 +6,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/mitchellh/mapstructure"
-	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	rancherv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	ctlappsv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -20,7 +18,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -93,169 +90,59 @@ type VIPConfig struct {
 }
 
 func Register(ctx context.Context, management *config.Management, options config.Options) error {
-	if options.RancherEmbedded {
-		rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
-		rancherUsers := management.RancherManagementFactory.Management().V3().User()
-		rancherTokens := management.RancherManagementFactory.Management().V3().Token()
-		ingresses := management.NetworkingFactory.Networking().V1().Ingress()
-		secrets := management.CoreFactory.Core().V1().Secret()
-		services := management.CoreFactory.Core().V1().Service()
-		configmaps := management.CoreFactory.Core().V1().ConfigMap()
-		nodes := management.CoreFactory.Core().V1().Node()
-		pods := management.CoreFactory.Core().V1().Pod()
-		namespaces := management.CoreFactory.Core().V1().Namespace()
-		deployments := management.AppsFactory.Apps().V1().Deployment()
-		settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
-		daemonSets := management.AppsFactory.Apps().V1().DaemonSet()
-		dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
+	ingresses := management.NetworkingFactory.Networking().V1().Ingress()
+	secrets := management.CoreFactory.Core().V1().Secret()
+	services := management.CoreFactory.Core().V1().Service()
+	configmaps := management.CoreFactory.Core().V1().ConfigMap()
+	nodes := management.CoreFactory.Core().V1().Node()
+	pods := management.CoreFactory.Core().V1().Pod()
+	namespaces := management.CoreFactory.Core().V1().Namespace()
+	deployments := management.AppsFactory.Apps().V1().Deployment()
+	settings := management.HarvesterFactory.Harvesterhci().V1beta1().Setting()
+	daemonSets := management.AppsFactory.Apps().V1().DaemonSet()
+	dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
 
-		if err != nil {
-			return fmt.Errorf("error generating dynamic client during rancher handler registration: %v", err)
-		}
-		h := Handler{
-			RancherSettings:          rancherSettings,
-			RancherSettingController: rancherSettings,
-			RancherSettingCache:      rancherSettings.Cache(),
-			RancherUserCache:         rancherUsers.Cache(),
-			RancherTokenController:   rancherTokens,
-			ingresses:                ingresses,
-			Services:                 services,
-			Configmaps:               configmaps,
-			Secrets:                  secrets,
-			SecretCache:              secrets.Cache(),
-			nodeController:           nodes,
-			podCache:                 pods.Cache(),
-			podClient:                pods,
-			Namespace:                options.Namespace,
-			Deployments:              deployments,
-			SettingCache:             settings.Cache(),
-			NamespaceCache:           namespaces.Cache(),
-			NamespaceClient:          namespaces,
-			NamespaceController:      namespaces,
-			SettingClient:            settings,
-			DynamicClient:            dynamicClient,
-			ctx:                      ctx,
-			RestConfig:               management.RestConfig,
-		}
-
-		nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
-		rancherSettings.OnChange(ctx, controllerRancherName, h.RancherSettingOnChange)
-		secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
-		deployments.OnChange(ctx, controllerCAPIDeployment, h.PatchCAPIDeployment)
-		rancherTokens.OnChange(ctx, controllerRancherName, h.RancherTokenOnChange)
-		namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
-		namespaces.OnChange(ctx, controllerNamespaceName, h.onNamespaceChanged)
-		daemonSets.OnChange(ctx, daemonSetsController, h.reconcileIngressResources)
-
-		if err := h.registerExposeService(); err != nil {
-			return err
-		}
-		if err := h.cleanUpLegacyExposeService(); err != nil {
-			return err
-		}
+	if err != nil {
+		return fmt.Errorf("error generating dynamic client during rancher handler registration: %v", err)
+	}
+	h := Handler{
+		ingresses:           ingresses,
+		Services:            services,
+		Configmaps:          configmaps,
+		Secrets:             secrets,
+		SecretCache:         secrets.Cache(),
+		nodeController:      nodes,
+		podCache:            pods.Cache(),
+		podClient:           pods,
+		Namespace:           options.Namespace,
+		Deployments:         deployments,
+		SettingCache:        settings.Cache(),
+		NamespaceCache:      namespaces.Cache(),
+		NamespaceClient:     namespaces,
+		NamespaceController: namespaces,
+		SettingClient:       settings,
+		DynamicClient:       dynamicClient,
+		ctx:                 ctx,
+		RestConfig:          management.RestConfig,
 	}
 
-	return nil
+	nodes.OnChange(ctx, controllerRancherName, h.PodResourcesOnChanged)
+	secrets.OnChange(ctx, controllerRancherName, h.TLSSecretOnChange)
+	namespaces.OnRemove(ctx, controllerNamespaceName, h.onNamespaceRemoved)
+	namespaces.OnChange(ctx, controllerNamespaceName, h.onNamespaceChanged)
+	daemonSets.OnChange(ctx, daemonSetsController, h.reconcileIngressResources)
+
+	return h.registerExposeService()
+
 }
 
 // registerExposeService help to create ingress-expose svc in the kube-system namespace,
 // by default it is nodePort, if the VIP is enabled it will be set to LoadBalancer type service.
 func (h *Handler) registerExposeService() error {
-	// verify if traefik exists
-	traefikExists, err := h.doesTraefikExist()
-	if err != nil {
-		return err
-	}
-
-	// if traefik does not exist yet, then we continue working
-	// as normal operation and using ingress
-	if !traefikExists {
-		_, err := h.Services.Get(util.KubeSystemNamespace, ingressExposeServiceName, v1.GetOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-		if apierrors.IsNotFound(err) {
-			return h.createIngressExposeService()
-		}
-		return nil
-	}
-
-	// clean up old nginx service as it is no longer needed
-	if err := h.cleanupIngressExpose(); err != nil {
-		return fmt.Errorf("error cleaning up ingress expose service: %w", err)
-	}
 	// traefik exists post rke2 upgrade
 	// and we can just traefik service annotations
 	return h.patchTraefikServiceAnnotations()
 
-}
-
-func (h *Handler) createIngressExposeService() error {
-	vip, err := h.getVipConfig()
-	if err != nil {
-		return err
-	}
-
-	svc := &corev1.Service{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      ingressExposeServiceName,
-			Namespace: util.KubeSystemNamespace,
-			Annotations: map[string]string{
-				keyKubevipIgnoreServiceSecurity: trueStr,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Type: corev1.ServiceTypeNodePort,
-			Selector: map[string]string{
-				appLabelName: util.Rke2IngressNginxAppName,
-			},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "https-internal",
-					Port:       443,
-					Protocol:   corev1.ProtocolTCP,
-					TargetPort: intstr.FromInt(443),
-				},
-				{
-					Name:       "http",
-					Port:       80,
-					Protocol:   corev1.ProtocolTCP,
-					TargetPort: intstr.FromInt(80),
-				},
-			},
-		},
-	}
-
-	// set vip loadBalancer type and ip
-	enabled, err := strconv.ParseBool(vip.Enabled)
-	if err != nil {
-		return err
-	}
-	if enabled && vip.ServiceType == corev1.ServiceTypeLoadBalancer {
-		svc.Spec.Type = vip.ServiceType
-		// After kube-vip v0.5.2, it uses annotation kube-vip.io/loadbalancerIPs to set the loadBalancerIP
-		if strings.ToLower(vip.Mode) == vipDHCPMode {
-			svc.Annotations[keyKubevipRequestIP] = vip.IP
-			svc.Annotations[keyKubevipHwaddr] = vip.HwAddress
-			svc.Annotations[keyKubevipLoadBalancerIPs] = vipDHCPLoadBalancerIP
-		} else {
-			svc.Annotations[keyKubevipLoadBalancerIPs] = vip.IP
-		}
-	}
-
-	if _, err := h.Services.Create(svc); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// cleanUpLegacyExposeService removes rancher-expose service in cattle-system
-func (h *Handler) cleanUpLegacyExposeService() error {
-	if err := h.Services.Delete(util.CattleSystemNamespaceName, rancherExposeServiceName, &v1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	return nil
 }
 
 func (h *Handler) getVipConfig() (*VIPConfig, error) {
@@ -286,34 +173,6 @@ func (h *Handler) restartKubevipPods() error {
 	}
 
 	return nil
-}
-
-// RancherTokenOnChange updates the expiresAt field of the token.
-// Although we have embedded rancher, we don't start the rancher's token controller.
-// So, we should have our own handler to update the token.
-func (h *Handler) RancherTokenOnChange(_ string, token *v3.Token) (*v3.Token, error) {
-	if token == nil || token.DeletionTimestamp != nil {
-		return nil, nil
-	}
-
-	if token.TTLMillis != 0 && token.ExpiresAt == "" {
-		//compute and save expiresAt
-		newToken := token.DeepCopy()
-		var err error
-
-		created := newToken.ObjectMeta.CreationTimestamp.Time
-		ttlDuration := time.Duration(newToken.TTLMillis) * time.Millisecond
-		expiresAtTime := created.Add(ttlDuration)
-		newToken.ExpiresAt = expiresAtTime.UTC().Format(time.RFC3339)
-
-		if newToken, err = h.RancherTokenController.Update(newToken); err != nil {
-			return token, err
-		}
-
-		token = newToken
-	}
-
-	return token, nil
 }
 
 // checks if rke2-traefik service already exists
@@ -376,13 +235,4 @@ func (h *Handler) patchTraefikServiceAnnotations() error {
 	}
 
 	return err
-}
-
-// remove nginx ingress expose service
-func (h *Handler) cleanupIngressExpose() error {
-	err := h.Services.Delete(util.KubeSystemNamespace, ingressExposeServiceName, &v1.DeleteOptions{})
-	if !apierrors.IsNotFound(err) {
-		return err
-	}
-	return nil
 }

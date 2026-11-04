@@ -245,20 +245,6 @@ func Test_shouldPatch(t *testing.T) {
 			output: true,
 		},
 		{
-			name: "should patch pods with label app=rancher on cattle-system namespace",
-			input: input{
-				pod: corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "cattle-system",
-						Labels: map[string]string{
-							"app": "rancher",
-						},
-					},
-				},
-			},
-			output: true,
-		},
-		{
 			name: "should not patch pods with label app=rancher on other namespaces",
 			input: input{
 				pod: corev1.Pod{

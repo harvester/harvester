@@ -29,11 +29,6 @@ var matchingLabelsForNamespace = map[string][]labels.Set{
 			"app.kubernetes.io/component": "apiserver",
 		},
 	},
-	util.CattleSystemNamespaceName: {
-		{
-			"app": "rancher",
-		},
-	},
 }
 
 const (

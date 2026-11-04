@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) TLSSecretOnChange(_ string, secret *corev1.Secret) (*corev1.Secret, error) {
-	if secret == nil || secret.DeletionTimestamp != nil || secret.Namespace != util.CattleSystemNamespaceName || secret.Name != util.InternalTLSSecretName {
+	if secret == nil || secret.DeletionTimestamp != nil || secret.Namespace != util.HarvesterSystemNamespaceName || secret.Name != util.InternalTLSSecretName {
 		return nil, nil
 	}
 	return nil, h.addVIPToSAN()
@@ -21,7 +21,7 @@ func (h *Handler) addVIPToSAN() error {
 	if err != nil {
 		return err
 	}
-	secret, err := h.SecretCache.Get(util.CattleSystemNamespaceName, util.InternalTLSSecretName)
+	secret, err := h.SecretCache.Get(util.HarvesterSystemNamespaceName, util.InternalTLSSecretName)
 	if err != nil {
 		return err
 	}
