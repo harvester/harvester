@@ -35,7 +35,6 @@ type VirtualMachineImage struct {
 // +kubebuilder:validation:XValidation:rule="has(self.backingImageName) == has(oldSelf.backingImageName)", message="backingImageName cannot be added or removed after creation"
 type VirtualMachineImageSpec struct {
 	// +optional
-	// +kubebuilder:default=backingimage
 	// +kubebuilder:validation:Enum=backingimage;cdi
 	Backend VMIBackend `json:"backend"`
 
