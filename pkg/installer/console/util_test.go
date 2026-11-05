@@ -17,6 +17,136 @@ import (
 	"github.com/harvester/harvester/pkg/installer/widgets"
 )
 
+func TestRoleSetupLonghornDefaultDiskLabel(t *testing.T) {
+	testCases := []struct {
+		name      string
+		install   config.Install
+		labels    map[string]string
+		wantLabel bool
+	}{
+		{
+			name:      "default node creates a Longhorn default disk",
+			install:   config.Install{Role: config.RoleDefault},
+			wantLabel: true,
+		},
+		{
+			name:      "skipped node does not create a Longhorn default disk",
+			install:   config.Install{Role: config.RoleDefault, SkipLonghornDefaultDisk: true},
+			wantLabel: false,
+		},
+		{
+			name:      "skipped node removes a configured Longhorn default disk label",
+			install:   config.Install{Role: config.RoleDefault, SkipLonghornDefaultDisk: true},
+			labels:    map[string]string{"node.longhorn.io/create-default-disk": "true"},
+			wantLabel: false,
+		},
+		{
+			name:      "witness node never creates a Longhorn default disk",
+			install:   config.Install{Role: config.RoleWitness},
+			wantLabel: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := &config.HarvesterConfig{OS: config.OS{Labels: testCase.labels}, Install: testCase.install}
+
+			err := roleSetup(cfg)
+
+			require.NoError(t, err)
+			assert.Equal(t, testCase.wantLabel, cfg.Labels["node.longhorn.io/create-default-disk"] == "true")
+		})
+	}
+}
+
+func TestApplyInstallProfile(t *testing.T) {
+	testCases := []struct {
+		name         string
+		statusCode   int
+		body         string
+		wantProfile  bool
+		wantSkip     bool
+		wantDataDisk string
+		wantErr      string
+	}{
+		{
+			name:         "cluster profile overrides join configuration",
+			statusCode:   http.StatusOK,
+			body:         `{"skipLonghornDefaultDisk":true}`,
+			wantProfile:  true,
+			wantSkip:     true,
+			wantDataDisk: "",
+		},
+		{
+			name:         "older cluster leaves disk selection unlocked",
+			statusCode:   http.StatusNotFound,
+			wantSkip:     false,
+			wantDataDisk: "/dev/sdb",
+		},
+		{
+			name:       "rejected join token stops installation",
+			statusCode: http.StatusUnauthorized,
+			wantErr:    "got 401 status code",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/v1/harvester/installProfile", r.URL.Path)
+				assert.Equal(t, "Bearer join-token", r.Header.Get("Authorization"))
+				w.WriteHeader(testCase.statusCode)
+				_, _ = w.Write([]byte(testCase.body))
+			}))
+			defer server.Close()
+
+			cfg := &config.HarvesterConfig{
+				ServerURL: server.URL,
+				Token:     "join-token",
+				Install: config.Install{
+					Mode:                    config.ModeJoin,
+					SkipLonghornDefaultDisk: false,
+					DataDisk:                "/dev/sdb",
+				},
+			}
+
+			profile, err := applyInstallProfile(cfg)
+
+			if testCase.wantErr != "" {
+				require.ErrorContains(t, err, testCase.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, testCase.wantProfile, profile != nil)
+			assert.Equal(t, testCase.wantSkip, cfg.Install.SkipLonghornDefaultDisk)
+			assert.Equal(t, testCase.wantDataDisk, cfg.Install.DataDisk)
+		})
+	}
+}
+
+func TestApplyInstallProfileAcceptsSelfSignedCertificate(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"skipLonghornDefaultDisk":true}`))
+	}))
+	defer server.Close()
+
+	cfg := &config.HarvesterConfig{
+		ServerURL: server.URL,
+		Token:     "join-token",
+		Install: config.Install{
+			Mode:     config.ModeJoin,
+			DataDisk: "/dev/sdb",
+		},
+	}
+
+	profile, err := applyInstallProfile(cfg)
+
+	require.NoError(t, err)
+	assert.NotNil(t, profile)
+	assert.True(t, cfg.Install.SkipLonghornDefaultDisk)
+	assert.Empty(t, cfg.Install.DataDisk)
+}
+
 func TestGetSSHKeysFromURL(t *testing.T) {
 	testCases := []struct {
 		name         string
