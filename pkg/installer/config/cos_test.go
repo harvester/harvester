@@ -415,6 +415,49 @@ func TestBootstrapTemplates_IPFamilyPolicy(t *testing.T) {
 	}
 }
 
+func TestSkipLonghornDefaultDiskSkipsLonghornStorageClasses(t *testing.T) {
+	config := &HarvesterConfig{Install: Install{SkipLonghornDefaultDisk: true}}
+
+	setConfigDefaultValues(config)
+
+	assert.True(t, config.Harvester.StorageClass.SkipLonghornStorageClasses)
+}
+
+func TestSkipLonghornDefaultDiskBootstrapsSetting(t *testing.T) {
+	config := &HarvesterConfig{Install: Install{SkipLonghornDefaultDisk: true}}
+
+	setConfigDefaultValues(config)
+
+	assert.Equal(t, "true", config.SystemSettings["skip-longhorn-default-disk"])
+}
+
+func TestSkipLonghornDefaultDiskDisablesLonghornStorageClass(t *testing.T) {
+	config := &HarvesterConfig{Install: Install{SkipLonghornDefaultDisk: true}}
+
+	setConfigDefaultValues(config)
+	content, err := render("rancherd-10-harvester.yaml", config)
+
+	assert.NoError(t, err)
+	assert.Contains(t, content, "persistence:\n          createStorageClass: false")
+}
+
+func TestHarvesterChartEnablesLabeledDefaultLonghornDisks(t *testing.T) {
+	content, err := render("rancherd-10-harvester.yaml", &HarvesterConfig{})
+
+	assert.NoError(t, err)
+	assert.Contains(t, content, "createDefaultDiskLabeledNodes: true")
+	assert.NotContains(t, content, "createStorageClass: false")
+}
+
+func TestSkipLonghornDefaultDiskRequiresLabelForDefaultLonghornDisks(t *testing.T) {
+	content, err := render("rancherd-10-harvester.yaml", &HarvesterConfig{
+		Install: Install{SkipLonghornDefaultDisk: true},
+	})
+
+	assert.NoError(t, err)
+	assert.Contains(t, content, "createDefaultDiskLabeledNodes: true")
+}
+
 // qemu-pr-helper (virt-handler) drops capabilities and must traverse /etc/multipath
 // to read prkeys for SCSI-3 persistent reservations on multipath devices.
 func TestDisableLonghornMultipathing_DirectoryIsTraversable(t *testing.T) {
