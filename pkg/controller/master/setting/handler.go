@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic"
@@ -94,6 +95,8 @@ type Handler struct {
 	namespaces           ctlcorev1.NamespaceClient
 	namespacesCache      ctlcorev1.NamespaceCache
 	dynamicClient        *dynamic.DynamicClient
+	storageClasses       ctlstoragev1.StorageClassClient
+	storageClassCache    ctlstoragev1.StorageClassCache
 	ctx                  context.Context
 }
 
