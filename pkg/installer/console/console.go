@@ -46,8 +46,9 @@ func initLogs() error {
 type Console struct {
 	context context.Context
 	*gocui.Gui
-	elements map[string]widgets.Element
-	config   *config.HarvesterConfig
+	elements           map[string]widgets.Element
+	config             *config.HarvesterConfig
+	joinInstallProfile *installProfile
 }
 
 // RunConsole starts the console

@@ -66,6 +66,12 @@ func newProxyClient() http.Client {
 	}
 }
 
+func newInsecureProxyClient() http.Client {
+	client := newProxyClient()
+	client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	return client
+}
+
 func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 	return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 }
@@ -87,6 +93,61 @@ func getURL(client http.Client, url string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+type installProfile struct {
+	SkipLonghornDefaultDisk bool `json:"skipLonghornDefaultDisk"`
+}
+
+func applyInstallProfile(hvstConfig *config.HarvesterConfig) (*installProfile, error) {
+	if hvstConfig.Install.Mode != config.ModeJoin {
+		return nil, nil
+	}
+
+	client := newInsecureProxyClient()
+	for attempt := 0; ; attempt++ {
+		profile, retry, err := getInstallProfile(client, hvstConfig.ServerURL, hvstConfig.Token)
+		if err == nil {
+			if profile != nil {
+				hvstConfig.Install.SkipLonghornDefaultDisk = profile.SkipLonghornDefaultDisk
+				if profile.SkipLonghornDefaultDisk {
+					hvstConfig.Install.DataDisk = ""
+				}
+			}
+			return profile, nil
+		}
+		if !retry || attempt == 3 {
+			return nil, fmt.Errorf("failed to fetch install profile: %w", err)
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func getInstallProfile(client http.Client, serverURL, token string) (*installProfile, bool, error) {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(serverURL, "/")+"/v1/harvester/installProfile", nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, true, err
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode >= http.StatusInternalServerError, fmt.Errorf("got %d status code", resp.StatusCode)
+	}
+
+	profile := &installProfile{}
+	if err := json.NewDecoder(resp.Body).Decode(profile); err != nil {
+		return nil, false, err
+	}
+	return profile, false, nil
 }
 
 func validatePingServerURL(url string) error {
@@ -509,16 +570,25 @@ func roleSetup(c *config.HarvesterConfig) error {
 	case config.RoleWitness:
 		c.Labels[util.HarvesterWitnessNodeLabelKey] = "true"
 	case config.RoleDefault:
-		// do not set any label
+		// do not set any role label
 	default:
 		return fmt.Errorf("unknown role %s, please correct it", c.Role)
 	}
+	if c.Role == config.RoleWitness || c.SkipLonghornDefaultDisk {
+		delete(c.Labels, "node.longhorn.io/create-default-disk")
+		return nil
+	}
+	c.Labels["node.longhorn.io/create-default-disk"] = "true"
 	return nil
 }
 
 func doInstall(g *gocui.Gui, hvstConfig *config.HarvesterConfig, webhooks RendererWebhooks) error {
 	ctx := context.TODO()
 	webhooks.Handle(EventInstallStarted)
+
+	if _, err := applyInstallProfile(hvstConfig); err != nil {
+		return err
+	}
 
 	err := updateSystemSettings(hvstConfig)
 	if err != nil {
