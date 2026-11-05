@@ -38,6 +38,7 @@ func Register(ctx context.Context, management *config.Management, options config
 	rancherSettings := management.RancherManagementFactory.Management().V3().Setting()
 	kubevirt := management.VirtFactory.Kubevirt().V1().KubeVirt()
 	namespaces := management.CoreFactory.Core().V1().Namespace()
+	storageClasses := management.StorageFactory.Storage().V1().StorageClass()
 	dynamicClient, err := dynamic.NewForConfig(management.RestConfig)
 	if err != nil {
 		return fmt.Errorf("error generating dynamic client in settings handler: %w", err)
@@ -79,6 +80,8 @@ func Register(ctx context.Context, management *config.Management, options config
 		kubeVirtConfigCache:  kubevirt.Cache(),
 		namespaces:           namespaces,
 		namespacesCache:      namespaces.Cache(),
+		storageClasses:       storageClasses,
+		storageClassCache:    storageClasses.Cache(),
 		dynamicClient:        dynamicClient,
 		ctx:                  ctx,
 
