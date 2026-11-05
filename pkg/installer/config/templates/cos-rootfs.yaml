@@ -33,7 +33,7 @@ environment:
     {{ $path }}
     {{- end }}
     {{- end }}
-    {{- if not .ShouldMountDataPartition }}
+    {{- if and (not .ShouldMountDataPartition) (not .Install.SkipLonghornDefaultDisk) }}
     /var/lib/harvester/defaultdisk
     {{- end }}
   PERSISTENT_STATE_BIND: "true"
