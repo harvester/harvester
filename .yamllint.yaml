@@ -1,0 +1,10 @@
+# yamllint config, also used by CodeRabbit (replaces its built-in profile-based config).
+# Mirrors CodeRabbit's "chill" profile and skips Go/Helm-templated YAML, which is not valid YAML.
+extends: relaxed
+
+ignore: |
+  vendor/
+  pkg/generated/
+  **/templates/
+  addons/built-in/*/addon-template.yaml
+  pkg/installer/config/testdata/
