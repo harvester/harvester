@@ -476,6 +476,8 @@ storageClass:
   defaultStorageClass: true
   reclaimPolicy: Delete
   replicaCount: 3
+  ## When true, harvester-longhorn and vmstate-persistence StorageClasses are not created.
+  skipLonghornStorageClasses: false
 
 harvester-network-controller:
   ## Specify to install harvester network controller,
