@@ -78,12 +78,16 @@ func (r *Repo) Bootstrap() error {
 	logrus.Infof("Create upgrade repo with image %v and service", image)
 
 	_, err = r.CreateDeployment(upgradeImage)
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
+	// Ensure the Service is created even if the Deployment already exists.
 	_, err = r.createService()
-	return err
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }
 
 // Clean repo related resources
