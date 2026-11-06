@@ -66,6 +66,12 @@ func main() {
 			Usage:       "Specify whether the Harvester is running with embedded Rancher mode, default to false",
 			Destination: &options.RancherEmbedded,
 		},
+		cli.BoolTFlag{
+			Name:        "sql-cache",
+			EnvVar:      "HARVESTER_SQL_CACHE",
+			Usage:       "Serve the resource lists of the API from a SQL cache, default to true",
+			Destination: &options.SQLCache,
+		},
 		cli.StringFlag{
 			Name:        "rancher-server-url",
 			EnvVar:      "RANCHER_SERVER_URL",

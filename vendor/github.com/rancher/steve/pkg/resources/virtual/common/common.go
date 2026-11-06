@@ -28,7 +28,7 @@ func (d *DefaultFields) TransformCommon(obj *unstructured.Unstructured) (*unstru
 	obj = addIDField(obj)
 	obj, err := addSummaryFields(obj, d.Cache)
 	if err != nil {
-		return nil, fmt.Errorf("unable to add summary fields: %w", err)
+		return obj, fmt.Errorf("unable to add summary fields: %w", err)
 	}
 	return obj, nil
 }

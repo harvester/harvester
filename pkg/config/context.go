@@ -59,6 +59,7 @@ type Options struct {
 	RancherEmbedded bool
 	RancherURL      string
 	HCIMode         bool
+	SQLCache        bool
 }
 
 type Scaled struct {

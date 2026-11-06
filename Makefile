@@ -184,12 +184,20 @@ test: gen-version-env
 
 
 # ---- Test integration ----
+# Optional environment variables, passed on to the container:
+# - KEEP_TESTING_CLUSTER  do not delete the kind cluster after the run
+# - HARVESTER_SQL_CACHE   set to false to test the API server without the Steve SQL cache (default: true)
+# - INTEGRATION_FOCUS     only run the specs that match this regular expression (ginkgo --focus)
+# - INTEGRATION_PATH      only run the suites in this path, relative to the repository root
+#                         (default: tests/integration/...)
+# Example: make test-integration INTEGRATION_FOCUS="list queries" INTEGRATION_PATH=tests/integration/api
 test-integration: gen-version-env package-harvester-webhook
 	$(BANNER)
 	$(DOCKER_BUILD) --target test-integration -t $(MK_TEST_INTEGRATION_IMAGE)
 	docker run $(MK_DOCKER_RUN_OPTS_TTY) --rm --privileged --network host \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    -v harvester-test-integration-go-cache-${MK_REPO_ID}:/go/src/github.com/harvester/harvester/.cache/go-build \
+	    -e INTEGRATION_FOCUS -e INTEGRATION_PATH -e KEEP_TESTING_CLUSTER -e HARVESTER_SQL_CACHE \
 	    $(MK_TEST_INTEGRATION_IMAGE) \
 	    ./scripts/test-integration
 
@@ -290,9 +298,12 @@ clean:
 	@rm -rf $(ROOT)/dist/artifacts $(ROOT)/dist/harvester-cluster-repo
 
 
+# ---- Clean all ----
+# This cleans all artifacts including a kind cluster that is left over from test-integration (KEEP_TESTING_CLUSTER=true).
 clean-all: clean
 	$(BANNER)
 	@docker rmi -f $(MK_ISO_BUILDER_IMAGE) $(MK_TEST_INTEGRATION_IMAGE) || true
+	@docker ps -aq --filter label=io.x-k8s.kind.cluster=harvester | xargs -r docker rm -f || true
 
 
 # ---- Image cache management ----
