@@ -30,6 +30,11 @@ on:
           required: false
           default: "pr-baseline"
           type: string
+        cdi_storage:
+          description: "CDI test storage backend: lvm (default) or none"
+          required: false
+          default: "lvm"
+          type: string
 
 concurrency:
   group: ${{ github.workflow }}-e2e-tests-${{ github.event.pull_request.number || github.ref }}
@@ -50,9 +55,9 @@ jobs:
     - name: Set Build Environment Variables
       run: |
         if [ ! -e "Dockerfile.dapper" ]; then
-          echo "BUILDX_BUILD=true" >> $GITHUB_ENV
+          echo "BUILDX_BUILD=true" >> "$GITHUB_ENV"
         else
-          echo "BUILDX_BUILD=false" >> $GITHUB_ENV
+          echo "BUILDX_BUILD=false" >> "$GITHUB_ENV"
         fi
 
     # Build binaries
@@ -194,7 +199,7 @@ jobs:
 
     - name: Create testing cluster
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
         # in case the runner is restarted, start admin first
         task op:admin-poweron
         ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "$golden_target_branch"
@@ -204,7 +209,7 @@ jobs:
     - name: Configure containerd mirror
       if: ${{ inputs.registry_as_mirror == true || inputs.registry_as_mirror == 'true' }}
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
 
         protocol="https"
         if [ "${{ inputs.insecure_registry }}" = "true" ]; then protocol="http"; fi
@@ -219,7 +224,7 @@ jobs:
 
     - name: Patch Harvester images
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
 
         # need egress on to reach the registry
         task op:admin-enable-egress
@@ -235,17 +240,28 @@ jobs:
         task op:harvester-patch-images -- $repo ${{inputs.build_version }}-${{ env.arch }}
 
     - name: Run tests
+      env:
+        CDI_STORAGE_BACKEND: ${{ inputs.cdi_storage }}
       run: |
         echo "Running E2E tests"
+
+        case "$CDI_STORAGE_BACKEND" in
+          lvm|none) ;;
+          *)
+            echo "::error::Invalid CDI storage backend: $CDI_STORAGE_BACKEND"
+            exit 1
+            ;;
+        esac
 
         git clone "${{ inputs.harvester_tests_repo }}" qa-tests
         cd qa-tests/harvester_robot_tests/
 
         cat > .env <<EOF
         HARVESTER_OPERATION_STRATEGY="crd"
-        HARVESTER_ENDPOINT="https://$(yq -e '.vip' $HOME/harvester-dev/config.yaml)"
+        CDI_STORAGE_BACKEND="$CDI_STORAGE_BACKEND"
+        HARVESTER_ENDPOINT="https://$(yq -e '.vip' "$HOME/harvester-dev/config.yaml")"
         HARVESTER_USERNAME="admin"
-        HARVESTER_PASSWORD="$(yq -e '.harvester.admin_password' $HOME/harvester-dev/config.yaml)"
+        HARVESTER_PASSWORD="$(yq -e '.harvester.admin_password' "$HOME/harvester-dev/config.yaml")"
 
         OPENSUSE_IMAGE_URL="${{ inputs.artifact_server_url }}/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
         EOF
