@@ -122,6 +122,10 @@ kubevirt:
           - VmiMemoryOverheadReport
           - WorkloadEncryptionSEV
 
+      ## persistentReservationConfiguration is managed by the persistent-reservation-enabled
+      ## setting (default false), which always sets it explicitly. Don't set it here: Helm
+      ## upgrades would reset the value configured through the setting.
+
       vmRolloutStrategy: "LiveUpdate"
 
       ## Specify the network configuration of VirtualMachineInstance.
