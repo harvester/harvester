@@ -259,6 +259,10 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return err
 	}
 
+	if err := v.checkVMStateStorageClass(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1043,5 +1047,15 @@ func (v *vmValidator) validateTargetVolumeEntry(entry util.VolumeClaimTemplateEn
 				entry.Name, sourceSize.String()), fieldPath)
 	}
 
+	return nil
+}
+
+func (v *vmValidator) checkVMStateStorageClass(vm *kubevirtv1.VirtualMachine) error {
+	if err := util.CheckVMStateStorageClass(vm, v.scCache); err != nil {
+		if util.IsVMStateStorageClassMissing(err) {
+			return werror.NewInvalidError(err.Error(), "spec.template.spec")
+		}
+		return werror.NewInternalError(err.Error())
+	}
 	return nil
 }
