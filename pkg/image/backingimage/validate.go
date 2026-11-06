@@ -1,18 +1,27 @@
 package backingimage
 
 import (
+	"fmt"
+
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/common"
+	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
 type Validator struct {
-	vmiv common.VMIValidator
+	vmiv     common.VMIValidator
+	pvcCache ctlcorev1.PersistentVolumeClaimCache
 }
 
-func GetValidator(vmiv common.VMIValidator) backend.Validator {
-	return &Validator{vmiv: vmiv}
+func GetValidator(vmiv common.VMIValidator,
+	pvcCache ctlcorev1.PersistentVolumeClaimCache) backend.Validator {
+	return &Validator{vmiv: vmiv, pvcCache: pvcCache}
 }
 
 func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMachineImage) error {
@@ -87,11 +96,11 @@ func (biv *Validator) Delete(vmi *harvesterv1.VirtualMachineImage) error {
 		return nil
 	}
 
-	if err := biv.vmiv.VMTemplateVersionOccupation(vmi); err != nil {
+	if err := biv.checkSCUsage(vmi); err != nil {
 		return err
 	}
 
-	if err := biv.vmiv.PVCOccupation(vmi); err != nil {
+	if err := biv.vmiv.VMTemplateVersionOccupation(vmi); err != nil {
 		return err
 	}
 
@@ -99,5 +108,23 @@ func (biv *Validator) Delete(vmi *harvesterv1.VirtualMachineImage) error {
 		return err
 	}
 
+	return nil
+}
+
+func (biv *Validator) checkSCUsage(vmi *harvesterv1.VirtualMachineImage) error {
+	scName := vmi.Status.StorageClassName
+	pvcs, err := biv.pvcCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	for _, pvc := range pvcs {
+		if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != scName {
+			continue
+		}
+		message := fmt.Sprintf("Cannot delete image %s/%s: being used by volume %s/%s",
+			vmi.Namespace, vmi.Spec.DisplayName, pvc.Namespace, pvc.Name)
+		return werror.NewInvalidError(message, "")
+	}
 	return nil
 }
