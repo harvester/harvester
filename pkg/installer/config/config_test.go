@@ -411,6 +411,16 @@ func TestHarvesterRootfsRendering(t *testing.T) {
 			},
 		},
 		{
+			name: "Test skip Longhorn default disk omits default disk persistent path",
+			harvConfig: HarvesterConfig{
+				Install: Install{SkipLonghornDefaultDisk: true},
+			},
+			assertion: func(t *testing.T, rootfs *Rootfs) {
+				assert.NotContains(t, rootfs.Environment["VOLUMES"], "LABEL=HARV_LH_DEFAULT:/var/lib/harvester/defaultdisk")
+				assert.NotContains(t, rootfs.Environment["PERSISTENT_STATE_PATHS"], "/var/lib/harvester/defaultdisk")
+			},
+		},
+		{
 			name: "Test additional persistent state paths",
 			harvConfig: HarvesterConfig{
 				OS: OS{
@@ -612,6 +622,14 @@ func TestHarvesterConfigMerge_Addons(t *testing.T) {
 	assert.Equal(t, true, conf.Addons["rancher-logging"].Enabled, "Addons Enabled true should be merged")
 	assert.Equal(t, "the value to overwrite original", conf.Addons["rancher-logging"].ValuesContent, "Addons ValuesContent should be merged")
 	assert.Equal(t, false, conf.Addons["rancher-monitoring"].Enabled, "Addons Enabled false should be merged")
+}
+
+func TestSkipLonghornDefaultDiskSkipsRootDiskDataPartition(t *testing.T) {
+	config := HarvesterConfig{
+		Install: Install{SkipLonghornDefaultDisk: true},
+	}
+
+	assert.False(t, config.ShouldCreateDataPartitionOnOsDisk())
 }
 
 func TestHarvesterReservedResourcesConfigRendering(t *testing.T) {
