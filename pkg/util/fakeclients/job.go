@@ -56,11 +56,15 @@ func (c JobClient) Create(job *batchv1.Job) (*batchv1.Job, error) {
 func (c JobClient) UpdateStatus(*batchv1.Job) (*batchv1.Job, error) {
 	panic("implement me")
 }
-func (c JobClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
-	panic("implement me")
+func (c JobClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+	deleteOptions := metav1.DeleteOptions{}
+	if options != nil {
+		deleteOptions = *options
+	}
+	return c(namespace).Delete(context.TODO(), name, deleteOptions)
 }
-func (c JobClient) List(_ string, _ metav1.ListOptions) (*batchv1.JobList, error) {
-	panic("implement me")
+func (c JobClient) List(namespace string, opts metav1.ListOptions) (*batchv1.JobList, error) {
+	return c(namespace).List(context.TODO(), opts)
 }
 func (c JobClient) Watch(_ string, _ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")

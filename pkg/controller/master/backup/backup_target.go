@@ -12,9 +12,12 @@ import (
 	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -23,6 +26,8 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
+	resticutil "github.com/harvester/harvester/pkg/util/restic"
 )
 
 const (
@@ -42,6 +47,7 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 		settings:            settings,
 		lhBackupTargets:     lhBackupTargets,
 		lhBackupTargetCache: lhBackupTargets.Cache(),
+		clientset:           management.ClientSet,
 	}
 
 	settings.OnChange(ctx, backupTargetControllerName, backupTargetController.OnBackupTargetChange)
@@ -55,13 +61,27 @@ type TargetHandler struct {
 	settings            ctlharvesterv1.SettingClient
 	lhBackupTargets     ctllonghornv1.BackupTargetClient
 	lhBackupTargetCache ctllonghornv1.BackupTargetCache
+	clientset           kubernetes.Interface
 }
 
 // OnBackupTargetChange handles backupTarget setting object on change
 func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
-	if setting == nil || setting.DeletionTimestamp != nil ||
-		setting.Name != settings.BackupTargetSettingName {
+	if setting == nil {
 		return setting, nil
+	}
+	switch setting.Name {
+	case settings.ThirdPartyBackupConfigSettingName:
+		target, err := backuputil.CurrentTarget()
+		if err != nil {
+			return setting, err
+		}
+		return setting, h.reconcileKopiaMaintenance(target)
+	case settings.BackupTargetSettingName:
+	default:
+		return setting, nil
+	}
+	if setting.DeletionTimestamp != nil {
+		return setting, h.reconcileKopiaMaintenance(nil)
 	}
 
 	target, err := settings.DecodeBackupTarget(setting.Value)
@@ -73,22 +93,31 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 
 	switch target.Type {
 	case settings.S3BackupType:
-		// Since S3 access key id and secret access key are stripped after S3 backup target has been verified
-		// in reUpdateBackupTargetSettingSecret
-		// stop the controller to reconcile it
+		// S3 credentials are removed from setting.Value after being stored in the
+		// backup-target Secret. On the resulting reconciliation, only refresh the
+		// deterministic repository passwords.
 		if target.SecretAccessKey == "" && target.AccessKeyID == "" {
+			if err = h.syncRepositoryPasswords(target); err != nil {
+				return h.setConfiguredCondition(setting, "", err)
+			}
 			break
+		}
+		// A submitted target with credentials represents a newly configured or
+		// changed S3 target. Stop the old repository maintenance schedules before
+		// replacing the shared credentials and repository parameters.
+		if err = h.reconcileKopiaMaintenance(nil); err != nil {
+			return h.setConfiguredCondition(setting, "", err)
 		}
 
 		if err = h.updateLonghornTarget(target); err != nil {
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
-		if err = h.updateBackupTargetSecret(target); err != nil {
+		if err = h.syncBackupSecret(target); err != nil {
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
-		if setting, err = h.reUpdateBackupTargetSettingSecret(setting, target); err != nil {
+		if setting, err = h.stripBackupTargetCredentials(setting, target); err != nil {
 			return h.setConfiguredCondition(setting, "", err)
 		}
 
@@ -105,6 +134,9 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 	default:
 		// reset backup target to default, then delete/update related settings
 		if target.IsDefaultBackupTarget() {
+			if err = h.reconcileKopiaMaintenance(nil); err != nil {
+				return h.setConfiguredCondition(setting, "", err)
+			}
 			if err = h.updateLonghornTarget(target); err != nil {
 				return h.setConfiguredCondition(setting, "", err)
 			}
@@ -130,19 +162,132 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 		}
 	}
 
+	if err = h.reconcileKopiaMaintenance(target); err != nil {
+		return h.setConfiguredCondition(setting, "", err)
+	}
+
 	if len(setting.Status.Conditions) == 0 || harvesterv1.SettingConfigured.IsFalse(setting) {
 		return h.setConfiguredCondition(setting, "", nil)
 	}
 	return setting, nil
 }
 
-func (h *TargetHandler) reUpdateBackupTargetSettingSecret(setting *harvesterv1.Setting, target *settings.BackupTarget) (*harvesterv1.Setting, error) {
+type kopiaMaintenanceSchedule struct {
+	name     string
+	schedule string
+	full     bool
+}
+
+var kopiaMaintenanceSchedules = []kopiaMaintenanceSchedule{
+	{name: kopiautil.QuickMaintenanceCronJobName, schedule: kopiautil.QuickMaintenanceSchedule},
+	{name: kopiautil.FullMaintenanceCronJobName, schedule: kopiautil.FullMaintenanceSchedule, full: true},
+}
+
+// reconcileKopiaMaintenance owns the cluster-wide Kopia maintenance schedules.
+// A nil, default, non-S3, or disabled target removes both CronJobs. Otherwise it
+// creates or updates the schedules to match the current backup-target setting.
+func (h *TargetHandler) reconcileKopiaMaintenance(target *settings.BackupTarget) error {
+	if h.clientset == nil {
+		return fmt.Errorf("kubernetes clientset is nil")
+	}
+
+	if target == nil || target.IsDefaultBackupTarget() || target.Type != settings.S3BackupType || !target.KopiaGCEnabled {
+		return h.deleteKopiaMaintenance()
+	}
+
+	repository, err := kopiautil.S3Repository(target)
+	if err != nil {
+		return err
+	}
+	for _, maintenance := range kopiaMaintenanceSchedules {
+		desired, err := kopiautil.NewMaintenanceCronJob(
+			maintenance.name,
+			maintenance.schedule,
+			maintenance.full,
+			util.BackupTargetSecretName,
+			repository,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to build Kopia maintenance CronJob %s: %w", maintenance.name, err)
+		}
+
+		if err := h.syncMaintenanceCronJob(desired); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *TargetHandler) deleteKopiaMaintenance() error {
+	cronJobs := h.clientset.BatchV1().CronJobs(util.LonghornSystemNamespaceName)
+	for _, maintenance := range kopiaMaintenanceSchedules {
+		err := cronJobs.Delete(h.ctx, maintenance.name, metav1.DeleteOptions{})
+		if err == nil || apierrors.IsNotFound(err) {
+			continue
+		}
+		return fmt.Errorf("failed to delete Kopia maintenance CronJob %s/%s: %w",
+			util.LonghornSystemNamespaceName, maintenance.name, err)
+	}
+	return nil
+}
+
+func (h *TargetHandler) syncMaintenanceCronJob(desired *batchv1.CronJob) error {
+	cronJobs := h.clientset.BatchV1().CronJobs(desired.Namespace)
+	current, err := cronJobs.Get(h.ctx, desired.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return h.createMaintenanceJob(desired)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	if maintenanceMatches(current, desired) {
+		return nil
+	}
+
+	desired.ResourceVersion = current.ResourceVersion
+	if _, err = cronJobs.Update(h.ctx, desired, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("failed to update Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	return nil
+}
+
+func (h *TargetHandler) createMaintenanceJob(desired *batchv1.CronJob) error {
+	cronJobs := h.clientset.BatchV1().CronJobs(desired.Namespace)
+	_, err := cronJobs.Create(h.ctx, desired, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create Kopia maintenance CronJob %s/%s: %w",
+			desired.Namespace, desired.Name, err)
+	}
+	return nil
+}
+
+func maintenanceMatches(current, desired *batchv1.CronJob) bool {
+	containers := current.Spec.JobTemplate.Spec.Template.Spec.Containers
+	if len(containers) != 1 {
+		return false
+	}
+	// DeepDerivative ignores removed map entries. Compare resources explicitly
+	// so resource overrides absent from the desired template are removed.
+	desiredResources := desired.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Resources
+	return apiequality.Semantic.DeepEqual(containers[0].Resources, desiredResources) &&
+		apiequality.Semantic.DeepEqual(current.Labels, desired.Labels) &&
+		apiequality.Semantic.DeepDerivative(desired.Spec, current.Spec)
+}
+
+func (h *TargetHandler) stripBackupTargetCredentials(
+	setting *harvesterv1.Setting,
+	target *settings.BackupTarget,
+) (*harvesterv1.Setting, error) {
 	// only do a second update when s3 with credentials
 	if target.Type != settings.S3BackupType {
 		return nil, nil
 	}
 
-	// reset the s3 credentials to prevent controller reconcile and not to expose secret key
+	// Remove S3 credentials from setting.Value after they have been stored in
+	// the backup-target Secret. The resulting reconciliation skips credential
+	// synchronization because both credentials are empty.
 	target.SecretAccessKey = ""
 	target.AccessKeyID = ""
 	targetBytes, err := json.Marshal(target)
@@ -201,38 +346,53 @@ func getBackupSecretData(target *settings.BackupTarget) (map[string]string, erro
 	return data, nil
 }
 
-func (h *TargetHandler) updateBackupTargetSecret(target *settings.BackupTarget) error {
-	backupSecretData, err := getBackupSecretData(target)
+func (h *TargetHandler) syncBackupSecret(target *settings.BackupTarget) error {
+	values, err := getBackupSecretData(target)
 	if err != nil {
 		return err
 	}
-	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
+	data := stringMapToBytes(values)
+	if err := setRepositoryPasswords(data, target); err != nil {
+		return err
+	}
 
-		newSecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      util.BackupTargetSecretName,
-				Namespace: util.LonghornSystemNamespaceName,
-			},
-		}
-		newSecret.StringData = backupSecretData
-		if _, err = h.secrets.Create(newSecret); err != nil {
-			return err
-		}
-	} else {
-		secretCpy := secret.DeepCopy()
-		secretCpy.StringData = backupSecretData
-		if !reflect.DeepEqual(secret.StringData, secretCpy.StringData) {
-			if _, err := h.secrets.Update(secretCpy); err != nil {
-				return err
-			}
-		}
+	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+	switch {
+	case apierrors.IsNotFound(err):
+		err = h.createBackupSecret(data)
+	case err != nil:
+		return err
+	default:
+		err = h.updateBackupSecret(secret, data)
+	}
+	if err != nil {
+		return err
 	}
 
 	return h.updateLonghornBackupTargetSecretSetting()
+}
+
+func (h *TargetHandler) createBackupSecret(data map[string][]byte) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util.BackupTargetSecretName,
+			Namespace: util.LonghornSystemNamespaceName,
+		},
+		Data: data,
+	}
+	_, err := h.secrets.Create(secret)
+	return err
+}
+
+func (h *TargetHandler) updateBackupSecret(secret *corev1.Secret, data map[string][]byte) error {
+	secretCpy := secret.DeepCopy()
+	secretCpy.Data = data
+	secretCpy.StringData = nil
+	if reflect.DeepEqual(secret.Data, secretCpy.Data) {
+		return nil
+	}
+	_, err := h.secrets.Update(secretCpy)
+	return err
 }
 
 func (h *TargetHandler) resetBackupTargetSecret() error {
@@ -243,7 +403,11 @@ func (h *TargetHandler) resetBackupTargetSecret() error {
 	if secret != nil && len(secret.Data) != 0 {
 		secretCpy := secret.DeepCopy()
 		secretCpy.Data = map[string][]byte{}
-		if _, err = h.secrets.Update(secretCpy); err != nil {
+		secretCpy.StringData = nil
+		if !reflect.DeepEqual(secret.Data, secretCpy.Data) {
+			_, err = h.secrets.Update(secretCpy)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -262,6 +426,44 @@ func (h *TargetHandler) resetBackupTargetSecret() error {
 
 	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
 	return err
+}
+
+func (h *TargetHandler) syncRepositoryPasswords(target *settings.BackupTarget) error {
+	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+	if err != nil {
+		return fmt.Errorf("failed to get backup target secret: %w", err)
+	}
+	data := secret.DeepCopy().Data
+	if data == nil {
+		data = map[string][]byte{}
+	}
+	if err := setRepositoryPasswords(data, target); err != nil {
+		return err
+	}
+	return h.updateBackupSecret(secret, data)
+}
+
+func setRepositoryPasswords(data map[string][]byte, target *settings.BackupTarget) error {
+	repositoryID := backuputil.RepositoryID(target)
+	for backupType, key := range map[harvesterv1.BackupType]string{
+		harvesterv1.Restic: resticutil.PasswordKey,
+		harvesterv1.Kopia:  kopiautil.PasswordKey,
+	} {
+		password, err := backuputil.RepositoryPassword(repositoryID, backupType)
+		if err != nil {
+			return err
+		}
+		data[key] = []byte(password)
+	}
+	return nil
+}
+
+func stringMapToBytes(data map[string]string) map[string][]byte {
+	result := make(map[string][]byte, len(data))
+	for key, value := range data {
+		result[key] = []byte(value)
+	}
+	return result
 }
 
 func (h *TargetHandler) updateLonghornBackupTargetSecretSetting() error {
