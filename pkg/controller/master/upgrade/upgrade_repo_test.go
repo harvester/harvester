@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -17,6 +18,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -25,6 +27,9 @@ func newTestUpgradeRepo() (*Repo, *fake.Clientset) {
 		WithImage(testUpgradeImage).
 		ImageIDStatus(fmt.Sprintf("%s/%s", upgradeNamespace, testUpgradeImage)).
 		ImageReadyCondition(corev1.ConditionTrue, "", "").Build()
+	upgrade.APIVersion = "harvesterhci.io/v1beta1"
+	upgrade.Kind = "Upgrade"
+	upgrade.UID = "current-upgrade-uid"
 	clientset := fake.NewSimpleClientset(
 		upgrade,
 		newTestExistingVirtualMachineImage(upgradeNamespace, testUpgradeImage),
@@ -80,6 +85,145 @@ func TestRepoBootstrap(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, deployment, actualDeployment)
 			assert.Equal(t, service, actualService)
+		})
+	}
+}
+
+func TestRepoBootstrapExistingMetadata(t *testing.T) {
+	type testCase struct {
+		name    string
+		mutate  func(metav1.Object)
+		wantErr string
+	}
+	testCases := []testCase{
+		{
+			name: "missing labels",
+			mutate: func(obj metav1.Object) {
+				obj.SetLabels(nil)
+			},
+			wantErr: "label",
+		},
+		{
+			name: "wrong upgrade label",
+			mutate: func(obj metav1.Object) {
+				obj.GetLabels()[harvesterUpgradeLabel] = "another-upgrade"
+			},
+			wantErr: harvesterUpgradeLabel,
+		},
+		{
+			name: "wrong component label",
+			mutate: func(obj metav1.Object) {
+				obj.GetLabels()[harvesterUpgradeComponentLabel] = "another-component"
+			},
+			wantErr: harvesterUpgradeComponentLabel,
+		},
+		{
+			name: "missing owner",
+			mutate: func(obj metav1.Object) {
+				obj.SetOwnerReferences(nil)
+			},
+			wantErr: "owner reference",
+		},
+		{
+			name: "same upgrade name with old UID",
+			mutate: func(obj metav1.Object) {
+				obj.GetOwnerReferences()[0].UID = "old-upgrade-uid"
+			},
+			wantErr: "owner reference",
+		},
+		{
+			name: "wrong owner name",
+			mutate: func(obj metav1.Object) {
+				obj.GetOwnerReferences()[0].Name = "another-upgrade"
+			},
+			wantErr: "owner reference",
+		},
+		{
+			name: "wrong owner kind",
+			mutate: func(obj metav1.Object) {
+				obj.GetOwnerReferences()[0].Kind = "VirtualMachineImage"
+			},
+			wantErr: "owner reference",
+		},
+		{
+			name: "wrong owner API version",
+			mutate: func(obj metav1.Object) {
+				obj.GetOwnerReferences()[0].APIVersion = "another.example/v1"
+			},
+			wantErr: "owner reference",
+		},
+		{
+			name: "additional metadata",
+			mutate: func(obj metav1.Object) {
+				obj.GetLabels()["example.com/extra"] = "value"
+				obj.SetAnnotations(map[string]string{"example.com/extra": "value"})
+				obj.SetOwnerReferences(append([]metav1.OwnerReference{{
+					APIVersion: "v1", Kind: "ConfigMap", Name: "another-owner", UID: "another-uid",
+				}}, obj.GetOwnerReferences()...))
+			},
+		},
+	}
+	for _, resource := range []schema.GroupVersionResource{
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Version: "v1", Resource: "services"},
+	} {
+		cases := append([]testCase{}, testCases...)
+		if resource.Resource == "services" {
+			for _, value := range []string{"", "another-creator"} {
+				cases = append(cases, testCase{
+					name: "creator=" + value,
+					mutate: func(obj metav1.Object) {
+						delete(obj.GetLabels(), util.LabelVMCreator)
+						if value != "" {
+							obj.GetLabels()[util.LabelVMCreator] = value
+						}
+					},
+					wantErr: util.LabelVMCreator,
+				})
+			}
+		}
+		for _, tc := range cases {
+			t.Run(resource.Resource+"/"+tc.name, func(t *testing.T) {
+				repo, clientset := newTestUpgradeRepo()
+				require.NoError(t, repo.Bootstrap())
+				obj, err := clientset.Tracker().Get(resource, upgradeNamespace, repo.GetDeploymentName())
+				require.NoError(t, err)
+				metadata, err := meta.Accessor(obj)
+				require.NoError(t, err)
+				tc.mutate(metadata)
+				require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
+
+				err = repo.Bootstrap()
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, tc.wantErr)
+					assert.Contains(t, err.Error(), metadata.GetName())
+					_, err = repo.h.OnChanged(repo.upgrade.Name, repo.upgrade)
+					require.NoError(t, err)
+					upgrade, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.Background(), repo.upgrade.Name, metav1.GetOptions{})
+					require.NoError(t, err)
+					assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(upgrade))
+					assert.Empty(t, harvesterv1.RepoProvisioned.GetStatus(upgrade))
+				}
+				actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
+				require.NoError(t, err)
+				assert.Equal(t, obj, actual)
+			})
+		}
+	}
+}
+
+func TestRepoBootstrapGetFailure(t *testing.T) {
+	for _, resource := range []string{"deployments", "services"} {
+		t.Run(resource, func(t *testing.T) {
+			repo, clientset := newTestUpgradeRepo()
+			require.NoError(t, repo.Bootstrap())
+			getErr := errors.New("failed to read existing resource")
+			clientset.PrependReactor("get", resource, func(_ k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, getErr
+			})
+			require.ErrorIs(t, repo.Bootstrap(), getErr)
 		})
 	}
 }
