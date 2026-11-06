@@ -36,7 +36,6 @@ spec:
         storage:
           volumeClaimTemplate:
             spec:
-              storageClassName: harvester-longhorn
               accessModes:
               - ReadWriteOnce
               resources:
@@ -53,7 +52,6 @@ spec:
       persistence:
         enabled: true
         size: 2Gi
-        storageClassName: harvester-longhorn
         type: pvc
         accessModes:
         - ReadWriteOnce
@@ -87,7 +85,6 @@ spec:
               resources:
                 requests:
                   storage: 50Gi
-              storageClassName: harvester-longhorn
               volumeMode: Filesystem
         {{- if .Vip }}
         externalUrl: "https://{{ .Vip }}/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-prometheus:9090/proxy/"
