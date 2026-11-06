@@ -39,7 +39,7 @@ docker.io/rancher/kuberlr-kubectl:v8.1.2
 docker.io/rancher/mirrored-kube-vip-kube-vip-iptables:v1.2.4
 docker.io/rancher/support-bundle-kit:master-head
 ghcr.io/k8snetworkplumbingwg/whereabouts:v0.9.4
-registry.k8s.io/descheduler/descheduler:v0.36.0
+registry.k8s.io/descheduler/descheduler:v0.37.0
 registry.k8s.io/sig-storage/snapshot-controller:v8.6.0
 registry.suse.com/bci/bci-base:16.0
 registry.suse.com/suse/sles/16.0/cdi-apiserver:1.65.0
@@ -95,8 +95,8 @@ docker.io/rancher/system-agent-installer-rke2:v1.36.5-rke2r1
 docker.io/rancher/hardened-cni-plugins:v1.9.1-build20261022
 docker.io/rancher/hardened-multus-cni:v4.3.1-build20261022
 
-docker.io/rancher/rke2-runtime:v1.37.1-rke2r1
-docker.io/rancher/hardened-kubernetes:v1.37.1-rke2r1-build20260924
+docker.io/rancher/rke2-runtime:v1.37.2-rke2r1
+docker.io/rancher/hardened-kubernetes:v1.37.2-rke2r1-build20261029
 docker.io/rancher/hardened-coredns:v1.14.7-build20261020
 docker.io/rancher/hardened-cluster-autoscaler:v1.11.0-build20261020
 docker.io/rancher/hardened-dns-node-cache:1.27.2-r1-build20261022
