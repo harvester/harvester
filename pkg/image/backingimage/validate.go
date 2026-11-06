@@ -33,10 +33,6 @@ func (biv *Validator) Create(request *types.Request, vmi *harvesterv1.VirtualMac
 		return err
 	}
 
-	if err := biv.vmiv.CheckSecurityParameters(request, vmi); err != nil {
-		return err
-	}
-
 	if err := biv.vmiv.CheckImagePVC(request, vmi); err != nil {
 		return err
 	}
