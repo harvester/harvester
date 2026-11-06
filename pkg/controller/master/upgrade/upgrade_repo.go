@@ -81,13 +81,57 @@ func (r *Repo) Bootstrap() error {
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
+	if apierrors.IsAlreadyExists(err) {
+		deployment, err := r.h.deploymentClient.Get(upgradeNamespace, r.GetDeploymentName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get existing repo deployment %s/%s: %w", upgradeNamespace, r.GetDeploymentName(), err)
+		}
+		if err := r.validateResourceMetadata(deployment, map[string]string{
+			harvesterUpgradeLabel:          r.upgrade.Name,
+			harvesterUpgradeComponentLabel: upgradeComponentRepo,
+		}); err != nil {
+			return fmt.Errorf("invalid existing repo deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+		}
+	}
 
 	// Ensure the Service is created even if the Deployment already exists.
 	_, err = r.createService()
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
+	if apierrors.IsAlreadyExists(err) {
+		service, err := r.h.serviceClient.Get(upgradeNamespace, r.getRepoServiceName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get existing repo service %s/%s: %w", upgradeNamespace, r.getRepoServiceName(), err)
+		}
+		if err := r.validateResourceMetadata(service, map[string]string{
+			util.LabelVMCreator:            "harvester",
+			harvesterUpgradeLabel:          r.upgrade.Name,
+			harvesterUpgradeComponentLabel: upgradeComponentRepo,
+		}); err != nil {
+			return fmt.Errorf("invalid existing repo service %s/%s: %w", service.Namespace, service.Name, err)
+		}
+	}
 	return nil
+}
+
+func (r *Repo) validateResourceMetadata(obj metav1.Object, expectedLabels map[string]string) error {
+	// Check required labels only; other controllers may add labels and annotations.
+	for key, expected := range expectedLabels {
+		if actual := obj.GetLabels()[key]; actual != expected {
+			return fmt.Errorf("label %q: expected %q, got %q", key, expected, actual)
+		}
+	}
+
+	// Upgrade owner references do not set the Controller flag.
+	expectedOwner := upgradeReference(r.upgrade)
+	for _, owner := range obj.GetOwnerReferences() {
+		if owner.UID == expectedOwner.UID && owner.Name == expectedOwner.Name &&
+			owner.Kind == expectedOwner.Kind && owner.APIVersion == expectedOwner.APIVersion {
+			return nil
+		}
+	}
+	return fmt.Errorf("missing owner reference to upgrade %s/%s with UID %s", r.upgrade.Namespace, r.upgrade.Name, r.upgrade.UID)
 }
 
 // Clean repo related resources
