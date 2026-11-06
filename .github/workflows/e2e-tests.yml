@@ -26,6 +26,15 @@ on:
   schedule:
     - cron: "10 1 * * *"
   workflow_dispatch:
+    inputs:
+      cdi_storage:
+        description: "CDI test storage backend (none disables automatic preparation)"
+        required: false
+        default: "lvm"
+        type: choice
+        options:
+          - lvm
+          - none
 
 jobs:
   configure_input_vars:
@@ -51,3 +60,4 @@ jobs:
       registry: 172.17.0.1:5000
       insecure_registry: true
       registry_as_mirror: true
+      cdi_storage: ${{ inputs.cdi_storage || 'lvm' }}
