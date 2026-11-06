@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	k8stesting "k8s.io/client-go/testing"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -39,9 +40,12 @@ func newTestUpgradeRepo() (*Repo, *fake.Clientset) {
 		ctx:              context.Background(),
 		upgradeClient:    fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
 		nodeCache:        fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		vmCache:          fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 		vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 		deploymentClient: fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
 		serviceClient:    fakeclients.ServiceClient(clientset.CoreV1().Services),
+		scClient:         fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
+		clusterCache:     fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
 	}
 	return NewUpgradeRepo(handler.ctx, upgrade, handler), clientset
 }
@@ -205,6 +209,27 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 					require.NoError(t, err)
 					assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(upgrade))
 					assert.Empty(t, harvesterv1.RepoProvisioned.GetStatus(upgrade))
+
+					// Model an already removed image so the next reconciliation can
+					// exercise repo cleanup without the legacy image deletion path.
+					require.NoError(t, clientset.HarvesterhciV1beta1().VirtualMachineImages(upgradeNamespace).
+						Delete(context.Background(), testUpgradeImage, metav1.DeleteOptions{}))
+					// Stop after Repo.Cleanup(), before unrelated cluster cleanup.
+					clusterErr := errors.New("cluster cleanup unavailable")
+					clientset.PrependReactor("get", "clusters", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+						return true, nil, clusterErr
+					})
+					_, err = repo.h.OnChanged(upgrade.Name, upgrade)
+					require.ErrorIs(t, err, clusterErr)
+					actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
+					if tc.wantErr == "owner reference" {
+						require.NoError(t, err)
+						assert.Equal(t, obj, actual)
+					} else {
+						// Incorrect labels do not prevent cleaning up our own resources.
+						assert.True(t, apierrors.IsNotFound(err))
+					}
+					return
 				}
 				actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
 				require.NoError(t, err)
@@ -225,6 +250,94 @@ func TestRepoBootstrapGetFailure(t *testing.T) {
 			})
 			require.ErrorIs(t, repo.Bootstrap(), getErr)
 		})
+	}
+}
+
+func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
+	repo, clientset := newTestUpgradeRepo()
+	require.NoError(t, repo.Bootstrap())
+
+	for _, resource := range []schema.GroupVersionResource{
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Version: "v1", Resource: "services"},
+	} {
+		name := repo.GetDeploymentName()
+		obj, err := clientset.Tracker().Get(resource, upgradeNamespace, name)
+		require.NoError(t, err)
+		metadata, err := meta.Accessor(obj)
+		require.NoError(t, err)
+		ownerReferences := metadata.GetOwnerReferences()
+		ownerReferences[0].UID = "another-upgrade-uid"
+		metadata.SetOwnerReferences(ownerReferences)
+		require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
+	}
+
+	require.NoError(t, repo.deleteDeployment())
+	require.NoError(t, repo.deleteService())
+
+	for _, resource := range []schema.GroupVersionResource{
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Version: "v1", Resource: "services"},
+	} {
+		_, err := clientset.Tracker().Get(resource, upgradeNamespace, repo.GetDeploymentName())
+		require.NoError(t, err)
+	}
+}
+
+func TestRepoDeleteResource(t *testing.T) {
+	for _, resource := range []schema.GroupVersionResource{
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Version: "v1", Resource: "services"},
+	} {
+		for _, failure := range []string{"", "get", "delete"} {
+			t.Run(resource.Resource+"/"+failure, func(t *testing.T) {
+				repo, clientset := newTestUpgradeRepo()
+				remove := repo.deleteDeployment
+				if resource.Resource == "services" {
+					remove = repo.deleteService
+				}
+				// Already absent resources need no cleanup.
+				require.NoError(t, remove())
+				require.NoError(t, repo.Bootstrap())
+				obj, err := clientset.Tracker().Get(resource, upgradeNamespace, repo.GetDeploymentName())
+				require.NoError(t, err)
+				metadata, err := meta.Accessor(obj)
+				require.NoError(t, err)
+				uid := types.UID("repo-resource-uid")
+				metadata.SetUID(uid)
+				require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
+
+				injectedErr := errors.New("cleanup API failure")
+				deleteCalled := false
+				clientset.PrependReactor("delete", resource.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
+					deleteCalled = true
+					options := action.(k8stesting.DeleteAction).GetDeleteOptions()
+					require.NotNil(t, options.Preconditions)
+					require.NotNil(t, options.Preconditions.UID)
+					assert.Equal(t, uid, *options.Preconditions.UID)
+					if failure == "delete" {
+						return true, nil, injectedErr
+					}
+					return false, nil, nil
+				})
+				if failure == "get" {
+					clientset.PrependReactor("get", resource.Resource, func(_ k8stesting.Action) (bool, runtime.Object, error) {
+						return true, nil, injectedErr
+					})
+				}
+				err = remove()
+				if failure != "" {
+					require.ErrorIs(t, err, injectedErr)
+					_, err = clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
+					require.NoError(t, err)
+				} else {
+					require.NoError(t, err)
+					_, err = clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
+					require.True(t, apierrors.IsNotFound(err))
+				}
+				assert.Equal(t, failure != "get", deleteCalled)
+			})
+		}
 	}
 }
 
