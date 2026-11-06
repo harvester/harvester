@@ -78,12 +78,67 @@ func (r *Repo) Bootstrap() error {
 	logrus.Infof("Create upgrade repo with image %v and service", image)
 
 	_, err = r.CreateDeployment(upgradeImage)
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
+	if apierrors.IsAlreadyExists(err) {
+		deployment, err := r.h.deploymentClient.Get(upgradeNamespace, r.GetDeploymentName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get existing repo deployment %s/%s: %w", upgradeNamespace, r.GetDeploymentName(), err)
+		}
+		if err := r.validateResourceMetadata(deployment, map[string]string{
+			harvesterUpgradeLabel:          r.upgrade.Name,
+			harvesterUpgradeComponentLabel: upgradeComponentRepo,
+		}); err != nil {
+			return fmt.Errorf("invalid existing repo deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+		}
+	}
 
+	// Ensure the Service is created even if the Deployment already exists.
 	_, err = r.createService()
-	return err
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	if apierrors.IsAlreadyExists(err) {
+		service, err := r.h.serviceClient.Get(upgradeNamespace, r.getRepoServiceName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get existing repo service %s/%s: %w", upgradeNamespace, r.getRepoServiceName(), err)
+		}
+		if err := r.validateResourceMetadata(service, map[string]string{
+			util.LabelVMCreator:            "harvester",
+			harvesterUpgradeLabel:          r.upgrade.Name,
+			harvesterUpgradeComponentLabel: upgradeComponentRepo,
+		}); err != nil {
+			return fmt.Errorf("invalid existing repo service %s/%s: %w", service.Namespace, service.Name, err)
+		}
+	}
+	return nil
+}
+
+func (r *Repo) validateResourceMetadata(obj metav1.Object, expectedLabels map[string]string) error {
+	// Check required labels only; other controllers may add labels and annotations.
+	for key, expected := range expectedLabels {
+		if actual := obj.GetLabels()[key]; actual != expected {
+			return fmt.Errorf("label %q: expected %q, got %q", key, expected, actual)
+		}
+	}
+
+	if r.hasUpgradeOwner(obj) {
+		return nil
+	}
+	return fmt.Errorf("missing owner reference to upgrade %s/%s with UID %s", r.upgrade.Namespace, r.upgrade.Name, r.upgrade.UID)
+}
+
+func (r *Repo) hasUpgradeOwner(obj metav1.Object) bool {
+	// Upgrade owner references do not set the Controller flag.
+	expectedOwner := upgradeReference(r.upgrade)
+	for _, owner := range obj.GetOwnerReferences() {
+		if owner.UID == expectedOwner.UID && owner.Name == expectedOwner.Name &&
+			owner.Kind == expectedOwner.Kind && owner.APIVersion == expectedOwner.APIVersion {
+			return true
+		}
+	}
+	return false
 }
 
 // Clean repo related resources
@@ -202,8 +257,20 @@ func (r *Repo) deleteVM() error {
 
 func (r *Repo) deleteService() error {
 	nm := r.getRepoServiceName()
-	// no serviceCache, delete via client directly
-	err := r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{})
+	service, err := r.h.serviceClient.Get(upgradeNamespace, nm, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get service %s/%s for cleanup: %w", upgradeNamespace, nm, err)
+	}
+	if !r.hasUpgradeOwner(service) {
+		logrus.Warnf("Skip deleting service %s/%s because it is not owned by upgrade %s/%s", upgradeNamespace, nm, r.upgrade.Namespace, r.upgrade.Name)
+		return nil
+	}
+	err = r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &service.UID},
+	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete service %s/%s error %w", upgradeNamespace, nm, err)
 	}
@@ -523,7 +590,22 @@ nginx -g "daemon off;"`,
 }
 
 func (r *Repo) deleteDeployment() error {
-	err := r.h.deploymentClient.Delete(r.GetVMNamespace(), r.GetDeploymentName(), &metav1.DeleteOptions{})
+	namespace := r.GetVMNamespace()
+	name := r.GetDeploymentName()
+	deployment, err := r.h.deploymentClient.Get(namespace, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get deployment %s/%s for cleanup: %w", namespace, name, err)
+	}
+	if !r.hasUpgradeOwner(deployment) {
+		logrus.Warnf("Skip deleting deployment %s/%s because it is not owned by upgrade %s/%s", namespace, name, r.upgrade.Namespace, r.upgrade.Name)
+		return nil
+	}
+	err = r.h.deploymentClient.Delete(namespace, name, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &deployment.UID},
+	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete deployment %s/%s error %w", r.GetVMNamespace(), r.GetDeploymentName(), err)
 	}
