@@ -13,10 +13,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	indexeresutil "github.com/harvester/harvester/pkg/util/indexeres"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -59,6 +63,8 @@ type vmiValidator struct {
 	pvcCache               ctlcorev1.PersistentVolumeClaimCache
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache
 	vmBackupCache          ctlharvesterv1.VirtualMachineBackupCache
+	vmCache                ctlkv1.VirtualMachineCache
+	dvCache                ctlcdiv1.DataVolumeCache
 }
 
 func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
@@ -67,6 +73,8 @@ func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	vmCache ctlkv1.VirtualMachineCache,
+	dvCache ctlcdiv1.DataVolumeCache,
 	sar authorizationv1client.SubjectAccessReviewInterface) VMIValidator {
 	vmiv := &vmiValidator{
 		vmiCache:               vmiCache,
@@ -76,6 +84,8 @@ func GetVMIValidator(vmiCache ctlharvesterv1.VirtualMachineImageCache,
 		pvcCache:               pvcCache,
 		vmTemplateVersionCache: vmTemplateVersionCache,
 		vmBackupCache:          vmBackupCache,
+		vmCache:                vmCache,
+		dvCache:                dvCache,
 	}
 	vmiv.podCache.AddIndexer(util.IndexPodByPVC, util.IndexPodByPVCFunc)
 	vmiv.vmiCache.AddIndexer(util.IndexVMIByBackingImageName, util.IndexVMIByBackingImageNameFunc)
@@ -361,18 +371,103 @@ func (v *vmiValidator) VMTemplateVersionOccupation(vmi *v1beta1.VirtualMachineIm
 }
 
 func (v *vmiValidator) PVCOccupation(vmi *v1beta1.VirtualMachineImage) error {
+	if util.GetVMIBackend(vmi) != v1beta1.VMIBackendCDI {
+		return v.checkSCUsage(vmi)
+	}
+
+	// The VM importer uses the VMImage's golden PVC directly.
+	if err := v.checkPVCUsage(vmi); err != nil {
+		return err
+	}
+	return v.checkPVCClones(vmi)
+}
+
+func (v *vmiValidator) checkSCUsage(vmi *v1beta1.VirtualMachineImage) error {
+	scName := vmi.Status.StorageClassName
+	if scName == "" {
+		return nil
+	}
+
 	pvcs, err := v.pvcCache.List(corev1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return err
 	}
 
 	for _, pvc := range pvcs {
-		if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == vmi.Status.StorageClassName {
-			message := fmt.Sprintf("Cannot delete image %s/%s: being used by volume %s/%s", vmi.Namespace, vmi.Spec.DisplayName, pvc.Namespace, pvc.Name)
-			return werror.NewInvalidError(message, "")
+		if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != scName {
+			continue
+		}
+		message := fmt.Sprintf("Cannot delete image %s/%s: being used by volume %s/%s",
+			vmi.Namespace, vmi.Spec.DisplayName, pvc.Namespace, pvc.Name)
+		return werror.NewInvalidError(message, "")
+	}
+	return nil
+}
+
+func (v *vmiValidator) checkPVCUsage(vmi *v1beta1.VirtualMachineImage) error {
+	// CDI creates the image's DataVolume and PVC with the image's namespace and name.
+	pvcKey := util.NamespacedName(vmi.Namespace, vmi.Name)
+	vms, err := v.vmCache.GetByIndex(indexeresutil.VMByPVCIndex, pvcKey)
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get VMs using image PVC %s: %v", pvcKey, err))
+	}
+
+	for _, vm := range vms {
+		if vm.DeletionTimestamp != nil {
+			continue
+		}
+		return werror.NewConflict(fmt.Sprintf("cannot delete image %s: its PVC is used by VM %s/%s",
+			pvcKey, vm.Namespace, vm.Name))
+	}
+	return nil
+}
+
+func (v *vmiValidator) checkPVCClones(vmi *v1beta1.VirtualMachineImage) error {
+	dvs, err := v.dvCache.List(corev1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get image PVC clones: %v", err))
+	}
+
+	for _, dv := range dvs {
+		if !usesImagePVC(dv, vmi) {
+			continue
+		}
+		if err := v.checkClonePVC(vmi, dv); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func usesImagePVC(dv *cdiv1.DataVolume, vmi *v1beta1.VirtualMachineImage) bool {
+	if dv.Spec.Source == nil || dv.Spec.Source.PVC == nil {
+		return false
+	}
+	source := dv.Spec.Source.PVC
+	namespace := source.Namespace
+	if namespace == "" {
+		namespace = dv.Namespace
+	}
+	return namespace == vmi.Namespace && source.Name == vmi.Name
+}
+
+func (v *vmiValidator) checkClonePVC(vmi *v1beta1.VirtualMachineImage, dv *cdiv1.DataVolume) error {
+	claimName := dv.Status.ClaimName
+	if claimName == "" {
+		claimName = dv.Name
+	}
+	_, err := v.pvcCache.Get(dv.Namespace, claimName)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("failed to get clone PVC %s/%s: %v",
+			dv.Namespace, claimName, err))
+	}
+	// Keep the image while its clone PVC exists, even after cloning succeeds.
+	message := fmt.Sprintf("cannot delete image %s/%s: being used by clone PVC %s/%s",
+		vmi.Namespace, vmi.Name, dv.Namespace, claimName)
+	return werror.NewConflict(message)
 }
 
 func (v *vmiValidator) VMBackupOccupation(vmi *v1beta1.VirtualMachineImage) error {
