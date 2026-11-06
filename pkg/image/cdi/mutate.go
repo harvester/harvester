@@ -20,5 +20,5 @@ func (cm *Mutator) Create(vmImg *harvesterv1.VirtualMachineImage) (types.PatchOp
 }
 
 func (cm *Mutator) Update(_, newVMImg *harvesterv1.VirtualMachineImage) (types.PatchOps, error) {
-	return cm.vmim.EnsureTargetSC(newVMImg)
+	return cm.vmim.EnsureTargetSCOnUpdate(newVMImg)
 }
