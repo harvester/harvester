@@ -91,10 +91,6 @@ func (biv *Validator) Delete(vmi *harvesterv1.VirtualMachineImage) error {
 		return err
 	}
 
-	if err := biv.vmiv.PVCOccupation(vmi); err != nil {
-		return err
-	}
-
 	if err := biv.vmiv.VMBackupOccupation(vmi); err != nil {
 		return err
 	}

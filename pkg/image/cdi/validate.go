@@ -12,7 +12,7 @@ type Validator struct {
 }
 
 func GetValidator(vmiv common.VMIValidator) backend.Validator {
-	return &Validator{vmiv}
+	return &Validator{vmiv: vmiv}
 }
 
 func (cv *Validator) Create(req *types.Request, vmImg *harvesterv1.VirtualMachineImage) error {

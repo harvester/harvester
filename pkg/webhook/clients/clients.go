@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/rest"
 
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io"
 	ctlclusterv1 "github.com/harvester/harvester/pkg/generated/controllers/cluster.x-k8s.io"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core"
 	ctldiscoveryv1 "github.com/harvester/harvester/pkg/generated/controllers/discovery.k8s.io"
@@ -32,6 +33,7 @@ type Clients struct {
 	HarvesterFactory         *ctlharvesterv1.Factory
 	HarvesterCoreFactory     *ctlharvestercorev1.Factory
 	KubevirtFactory          *ctlkubevirtv1.Factory
+	CdiFactory               *ctlcdiv1.Factory
 	CNIFactory               *ctlcniv1.Factory
 	SnapshotFactory          *ctlsnapshotv1.Factory
 	FleetFactory             *ctlfleetv1.Factory
@@ -81,6 +83,15 @@ func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool
 	}
 
 	if err = kubevirtFactory.Start(ctx, threadiness); err != nil {
+		return nil, err
+	}
+
+	cdiFactory, err := ctlcdiv1.NewFactoryFromConfigWithOptions(rest, clients.FactoryOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = cdiFactory.Start(ctx, threadiness); err != nil {
 		return nil, err
 	}
 
@@ -186,6 +197,7 @@ func New(ctx context.Context, rest *rest.Config, threadiness int, crdExists bool
 		HarvesterFactory:         harvesterFactory,
 		HarvesterCoreFactory:     harvesterCoreFactory,
 		KubevirtFactory:          kubevirtFactory,
+		CdiFactory:               cdiFactory,
 		CNIFactory:               cniFactory,
 		SnapshotFactory:          snapshotFactory,
 		FleetFactory:             fleetFactory,

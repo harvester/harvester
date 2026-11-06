@@ -8,7 +8,9 @@ import (
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	ctlcdiv1 "github.com/harvester/harvester/pkg/generated/controllers/cdi.kubevirt.io/v1beta1"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/image/backend"
 	"github.com/harvester/harvester/pkg/image/backingimage"
 	"github.com/harvester/harvester/pkg/image/cdi"
@@ -24,9 +26,12 @@ func NewValidator(
 	vmTemplateVersionCache ctlharvesterv1.VirtualMachineTemplateVersionCache,
 	scCache ctlstoragev1.StorageClassCache,
 	vmBackupCache ctlharvesterv1.VirtualMachineBackupCache,
+	vmCache ctlkv1.VirtualMachineCache,
+	dvCache ctlcdiv1.DataVolumeCache,
 	sar authorizationv1client.SubjectAccessReviewInterface) types.Validator {
 
-	vmiv := common.GetVMIValidator(vmiCache, scCache, podCache, pvcCache, vmTemplateVersionCache, vmBackupCache, sar)
+	vmiv := common.GetVMIValidator(vmiCache, scCache, podCache, pvcCache,
+		vmTemplateVersionCache, vmBackupCache, vmCache, dvCache, sar)
 	validators := map[v1beta1.VMIBackend]backend.Validator{
 		v1beta1.VMIBackendBackingImage: backingimage.GetValidator(vmiv),
 		v1beta1.VMIBackendCDI:          cdi.GetValidator(vmiv),
@@ -34,12 +39,14 @@ func NewValidator(
 
 	return &virtualMachineImageValidator{
 		validators: validators,
+		vmiv:       vmiv,
 	}
 }
 
 type virtualMachineImageValidator struct {
 	types.DefaultValidator
 	validators map[v1beta1.VMIBackend]backend.Validator
+	vmiv       common.VMIValidator
 }
 
 func (v *virtualMachineImageValidator) Resource() types.Resource {
@@ -70,5 +77,9 @@ func (v *virtualMachineImageValidator) Update(_ *types.Request, oldObj runtime.O
 
 func (v *virtualMachineImageValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
 	vmi := oldObj.(*v1beta1.VirtualMachineImage)
+	if err := v.vmiv.PVCOccupation(vmi); err != nil {
+		return err
+	}
+
 	return v.validators[util.GetVMIBackend(vmi)].Delete(vmi)
 }
