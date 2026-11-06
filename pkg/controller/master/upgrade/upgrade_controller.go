@@ -195,14 +195,27 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 			}
 
 			image, err := repo.CreateImageFromISO(version.Spec.ISOURL, version.Spec.ISOChecksum)
-			if err != nil && apierrors.IsAlreadyExists(err) {
-				image, err = h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
-				if err != nil {
-					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+			// A stale cache can make us create the image twice; the second create is then
+			// rejected either as AlreadyExists or by the display name check as Conflict.
+			if err != nil && (apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err)) {
+				existing, getErr := h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
+				var failErr error
+				switch {
+				case apierrors.IsNotFound(getErr):
+					// The conflict came from another image with the same display name.
+					failErr = err
+				case getErr != nil:
+					return nil, getErr
+				case !isOwnedByUpgrade(existing, upgrade):
+					failErr = fmt.Errorf("image %s/%s already exists and is not owned by upgrade %s: %w", existing.Namespace, existing.Name, upgrade.Name, err)
+				}
+				if failErr != nil {
+					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, failErr.Error(), "")
 					return h.upgradeClient.Update(toUpdate)
 				}
+				image = existing
 				logrus.Infof("Reuse the existing image: %s/%s", image.Namespace, image.Name)
-			} else if err != nil && !apierrors.IsAlreadyExists(err) {
+			} else if err != nil {
 				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 				return h.upgradeClient.Update(toUpdate)
 			}
