@@ -30,6 +30,19 @@ on:
           required: false
           default: "pr-baseline"
           type: string
+<<<<<<< HEAD
+=======
+        test_files:
+          description: "Space-separated test files/dirs, each run after test_tags"
+          required: false
+          default: ""
+          type: string
+        cdi_storage:
+          description: "CDI test storage backend: lvm (default) or none"
+          required: false
+          default: "lvm"
+          type: string
+>>>>>>> 75baeb0 (fix: protect CDI VM images while their PVCs are in use)
 
 concurrency:
   group: ${{ github.workflow }}-e2e-tests-${{ github.event.pull_request.number || github.ref }}
@@ -50,9 +63,9 @@ jobs:
     - name: Set Build Environment Variables
       run: |
         if [ ! -e "Dockerfile.dapper" ]; then
-          echo "BUILDX_BUILD=true" >> $GITHUB_ENV
+          echo "BUILDX_BUILD=true" >> "$GITHUB_ENV"
         else
-          echo "BUILDX_BUILD=false" >> $GITHUB_ENV
+          echo "BUILDX_BUILD=false" >> "$GITHUB_ENV"
         fi
 
     # Build binaries
@@ -194,7 +207,7 @@ jobs:
 
     - name: Create testing cluster
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
         # in case the runner is restarted, start admin first
         task op:admin-poweron
         ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "$golden_target_branch"
@@ -204,7 +217,7 @@ jobs:
     - name: Configure containerd mirror
       if: ${{ inputs.registry_as_mirror == true || inputs.registry_as_mirror == 'true' }}
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
 
         protocol="https"
         if [ "${{ inputs.insecure_registry }}" = "true" ]; then protocol="http"; fi
@@ -219,7 +232,7 @@ jobs:
 
     - name: Patch Harvester images
       run: |
-        cd $HOME/harvester-dev
+        cd "$HOME/harvester-dev"
 
         # need egress on to reach the registry
         task op:admin-enable-egress
@@ -235,6 +248,15 @@ jobs:
         task op:harvester-patch-images -- $repo ${{inputs.build_version }}-${{ env.arch }}
 
     - name: Run tests
+<<<<<<< HEAD
+=======
+      env:
+        TESTS_REPO: ${{ inputs.harvester_tests_repo }}
+        TESTS_BRANCH: ${{ inputs.harvester_tests_branch }}
+        TEST_TAGS: ${{ inputs.test_tags }}
+        TEST_FILES: ${{ inputs.test_files }}
+        CDI_STORAGE_BACKEND: ${{ inputs.cdi_storage }}
+>>>>>>> 75baeb0 (fix: protect CDI VM images while their PVCs are in use)
       run: |
         echo "Running E2E tests"
 
@@ -243,9 +265,10 @@ jobs:
 
         cat > .env <<EOF
         HARVESTER_OPERATION_STRATEGY="crd"
-        HARVESTER_ENDPOINT="https://$(yq -e '.vip' $HOME/harvester-dev/config.yaml)"
+        CDI_STORAGE_BACKEND="$CDI_STORAGE_BACKEND"
+        HARVESTER_ENDPOINT="https://$(yq -e '.vip' "$HOME/harvester-dev/config.yaml")"
         HARVESTER_USERNAME="admin"
-        HARVESTER_PASSWORD="$(yq -e '.harvester.admin_password' $HOME/harvester-dev/config.yaml)"
+        HARVESTER_PASSWORD="$(yq -e '.harvester.admin_password' "$HOME/harvester-dev/config.yaml")"
 
         OPENSUSE_IMAGE_URL="${{ inputs.artifact_server_url }}/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
         EOF
