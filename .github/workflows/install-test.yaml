@@ -156,10 +156,6 @@ jobs:
           # download-images.sh writes files via mktemp (mode 600); the nginx
           # worker (uid 101) in the artifacts server cannot read them -> 403
           chmod -R a+rX artifacts/images
-      - name: Start artifacts server
-        working-directory: ${{ steps.dev.outputs.DEV_HOME }}
-        run: |
-          task artifacts-up
       - name: Deploy Harvester cluster
         working-directory: ${{ steps.dev.outputs.DEV_HOME }}
         run: |
