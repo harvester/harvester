@@ -127,12 +127,13 @@ func TestVMValidatorDeleteProtection(t *testing.T) {
 		{name: "label empty", labels: map[string]string{util.LabelVMDeleteProtection: ""}, expectError: false},
 		{name: "label 0", labels: map[string]string{util.LabelVMDeleteProtection: "0"}, expectError: false},
 		{name: "label not a bool", labels: map[string]string{util.LabelVMDeleteProtection: "yes"}, expectError: false},
-		{name: "label with spaces is not a bool", labels: map[string]string{util.LabelVMDeleteProtection: " true "}, expectError: false},
+		{name: "label with spaces", labels: map[string]string{util.LabelVMDeleteProtection: " true "}, expectError: false},
+		// Only "true" and "True" enable protection, as in the KubeVirt SSP policy.
+		{name: "label TRUE", labels: map[string]string{util.LabelVMDeleteProtection: "TRUE"}, expectError: false},
+		{name: "label 1", labels: map[string]string{util.LabelVMDeleteProtection: "1"}, expectError: false},
+		{name: "label t", labels: map[string]string{util.LabelVMDeleteProtection: "t"}, expectError: false},
 		{name: "label true", labels: map[string]string{util.LabelVMDeleteProtection: "true"}, expectError: true},
 		{name: "label True", labels: map[string]string{util.LabelVMDeleteProtection: "True"}, expectError: true},
-		{name: "label TRUE", labels: map[string]string{util.LabelVMDeleteProtection: "TRUE"}, expectError: true},
-		{name: "label 1", labels: map[string]string{util.LabelVMDeleteProtection: "1"}, expectError: true},
-		{name: "label t", labels: map[string]string{util.LabelVMDeleteProtection: "t"}, expectError: true},
 	}
 
 	v := &vmValidator{}

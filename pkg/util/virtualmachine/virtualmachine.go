@@ -3,7 +3,6 @@ package virtualmachine
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -315,15 +314,19 @@ const (
 )
 
 // IsDeleteProtected reports whether the VM carries the kubevirt.io/vm-delete-protection
-// label set to a true value as accepted by strconv.ParseBool ("1", "t", "T", "TRUE",
-// "true" or "True"). This covers the "true" and "True" values the KubeVirt SSP
-// ValidatingAdmissionPolicy checks.
+// label set to "true" or "True". These are the only values the KubeVirt SSP
+// ValidatingAdmissionPolicy accepts, so a manifest behaves the same on Harvester and
+// on any other KubeVirt cluster.
 func IsDeleteProtected(vm *kubevirtv1.VirtualMachine) bool {
 	if vm == nil {
 		return false
 	}
-	protected, err := strconv.ParseBool(vm.Labels[util.LabelVMDeleteProtection])
-	return err == nil && protected
+	switch vm.Labels[util.LabelVMDeleteProtection] {
+	case "true", "True":
+		return true
+	default:
+		return false
+	}
 }
 
 // DeleteProtectionError returns the message used when a protected VM delete is refused.
