@@ -1,0 +1,452 @@
+# Switchless full-mesh storage network
+
+## Summary
+
+Small edge clusters of three nodes in a store, restaurant or branch office need a dedicated
+storage network so that Longhorn replication does not compete with VM and management traffic.
+Today that requires a storage switch, and a 10/25 GbE switch per site is often the most expensive
+and least reliable item in the rack. A **switchless full mesh** avoids it: each node is cabled
+directly to the other two nodes, with one or two cables per peer.
+
+Harvester can already put the storage network on a mesh, but only with a `broadcast` bond, the one
+bond mode that is correct when each link reaches a different neighbor. Broadcast sends every frame
+out every cable, which roughly halves the replica write bandwidth.
+
+This HEP adds an **isolated uplink mode** to the cluster network. Instead of one bond, each
+**peer link** (the cable or cables to one neighbor) is attached to the cluster network bridge as an
+*isolated* bridge port (`IFLA_BRPORT_ISOLATED`). The kernel never forwards between isolated ports, so the triangle has no
+loop and no node relays traffic for the others. Pods (Longhorn instance managers, virt-handler) sit
+on ordinary bridge ports and reach both neighbors. Unicast leaves only on the cable to the right
+peer. An isolated cluster network is reserved for the storage, RWX and VM live migration networks.
+
+The scope is a **3-node cluster**: three data nodes, each with two peer links. Two layouts are
+supported:
+
+- **2 NICs per node** (one cable per peer, 3 cables): the cheapest layout. A cable failure cuts the
+  direct path between one node pair, and Longhorn volumes on that pair run `degraded` until it is
+  repaired.
+- **4 NICs per node** (two cables per peer, 6 cables): the two NICs to the same peer form a
+  per-peer bond, and the bond is the isolated port. A single cable or NIC failure keeps every pair
+  connected at half bandwidth, and no volume degrades.
+
+Larger clusters should use a storage switch, and a 2-node cluster needs only one cable and no
+isolated mode (see [Non-goals](#non-goals)).
+
+On a 3-node test cluster (1 GbE mesh), the 3-replica VM write throughput went from 38.2 MB/s
+(broadcast bond) to 69.8 MB/s (isolated mode, MTU 9000), and each cable carried exactly one copy of
+the data.
+
+### Related Issues
+
+- Epic: https://github.com/harvester/harvester/issues/12019
+- Backend: https://github.com/harvester/harvester/issues/11993, PR harvester/network-controller-harvester#445 (draft)
+- UI: https://github.com/harvester/harvester/issues/12018, PR harvester/harvester-ui-extension#1203 (draft)
+
+## Motivation
+
+Edge customers such as supermarkets and restaurants run Harvester on three small nodes per site,
+across hundreds of sites. The per-site budget does not stretch to a 10 GbE switch for storage in
+every store, and a switch adds a single point of failure, a device to power, mount and patch, and
+another part to replace remotely. Direct cables (DAC or Cat6) are cheap, and most servers already
+have two unused ports. What is missing is a supported way to use them efficiently.
+
+Measured on the same hardware (3 × Ampere Altra, Intel I350 1 GbE, Longhorn v1, 3 replicas, 1 GiB
+`dd oflag=direct` inside a VM):
+
+| Setup | Guest write | Data per cable (engine node) |
+|---|---|---|
+| Broadcast bond (works today), MTU 1500 | 38.2 MB/s | 2150 MiB on each cable: both replica streams on both cables |
+| Isolated ports, MTU 1500 | 60.0 MB/s | 1072 MiB on each cable |
+| Isolated ports, MTU 9000 | 69.8 MB/s | 1034 MiB on each cable, 0 on the third cable |
+
+iperf3 between storage network pods reached 990 Mbit/s on every cable, and 1.98 Gbit/s from one node
+to both neighbors at once. That is the reason a mesh is worth having: each node gets the sum of its
+links, with no switch to oversubscribe.
+
+### Goals
+
+- Run the Harvester storage network on a switchless full mesh with one copy of each frame per
+  cable, and no loops.
+- Also allow the RWX network and the VM live migration network on the mesh. Both are point-to-point
+  between nodes, as storage replication is.
+- Report the state of each mesh link per node.
+- Survive a single cable or NIC failure without degraded volumes when the user cables two links
+  per peer (4 NICs per node).
+- Prevent configurations that do not work on a mesh (VM networks, HostNetworkConfigs, mixed modes,
+  more than 3 data nodes, a peer link count other than two).
+- Keep today's behavior unchanged for every existing cluster network.
+
+### Non-goals
+
+- **Path redundancy per node pair with one cable per pair** (see [Failure behavior](#failure-behavior-and-constraints)).
+  With 2 NICs per node, redundancy comes from Longhorn replicas. Per-pair redundancy needs the
+  4-NIC layout.
+- More than two cables per peer.
+- **Relaying through a third node** when a cable fails (a routed mesh). See [Alternatives](#alternatives-considered).
+- VM networks or host networks (`HostNetworkConfig`) on the mesh. A VM network needs one L2 segment
+  that reaches every node and the outside world, which a mesh is not. A HostNetworkConfig is blocked
+  for a similar reason: its use cases (reaching external storage, a backup target or a gateway, DHCP
+  from an upstream server) need a segment that leaves the cluster, and on a mesh each node only
+  reaches its direct neighbors, with no DHCP server and no gateway. Node-to-node host traffic would
+  work in static mode, so this can be relaxed later if a use case appears.
+- The management network on the mesh.
+- **Meshes of more than 3 data nodes.** A full mesh of N nodes needs N−1 NICs per node and
+  N(N−1)/2 cables: 3 NICs and 6 cables at 4 nodes, 4 NICs and 10 cables at 5 nodes. Cabling and
+  troubleshooting grow faster than the savings, and a storage switch is the better choice at that
+  size. The webhook rejects isolated mode on more than 3 data nodes (see [Implementation Overview](#implementation-overview)).
+- **2-node clusters.** Two data nodes need a single direct cable. A VlanConfig with that one NIC
+  has no loop, so isolated mode is not needed (see the 2 nodes and a witness layout under
+  [Failure behavior](#failure-behavior-and-constraints)). A site that starts with 2 nodes and adds
+  a third uses that layout first, then cables the triangle and switches the cluster network to
+  isolated mode with the existing storage network change procedure.
+- Automatic discovery of which NIC is cabled to which node (possible follow-up, for example with
+  LLDP). In the 4-NIC layout with 802.3ad, LACP already detects a per-peer bond whose two cables
+  reach different nodes (see [Multiple cables per node pair](#multiple-cables-per-node-pair-four-nics-per-node)).
+
+## Proposal
+
+### User Stories
+
+#### Story 1: storage network for a 3-node store without a switch
+
+A retailer runs a 3-node Harvester cluster in each store. The management network uses the store's
+existing 1 GbE switch. They want Longhorn replication on its own network.
+
+**Before:** they either buy a storage switch per store, share the management network with storage,
+or cable a mesh with a broadcast bond and lose about half of the bandwidth.
+
+**After:** they cable each node's two spare ports to the other two nodes, create a cluster network
+with the uplink mode *Isolated ports (switchless mesh)*, and select it in the `storage-network`
+setting. Replication runs at line rate on each cable.
+
+#### Story 2: faster live migration during maintenance
+
+The same cluster runs node maintenance and upgrades, which live-migrate every VM off a node. With
+`vm-migration-network` on the mesh, migration traffic runs on the direct cable between source and
+target node and does not load the management network. On the test cluster, a VM with about 2 GB of
+RAM in use migrated in about 23 s, with 2433 MiB on the direct cable and about 1 MiB on the
+management network.
+
+#### Story 3: an operator sees a bad cable
+
+A cable is unplugged during a store refit. The cluster network link monitor shows the NIC as `down`
+on that node, and Longhorn shows the affected volumes as `degraded` instead of failed. After the
+cable is reconnected, the port returns as an isolated port and the replicas rebuild (delta rebuild,
+not a full copy).
+
+#### Story 4: a cable breaks permanently
+
+A cable or transceiver fails and stays dead until someone replaces it (suggested by
+@w13915984028). The management network is fine, so the cluster stays up, but the direct path
+between two nodes, say A and B, is gone until the cable is replaced.
+
+- **Storage:** volumes whose engine runs on A or B lose the replica on the other end and stay
+  `degraded`. Longhorn cannot rebuild that replica while the cable is down: with 3 replicas on 3
+  nodes, the only node it can place it on is the one it cannot reach.
+- **Migration:** with `vm-migration-network` on the mesh, a live migration between A and B fails,
+  because nothing relays through C. Migrations to and from C still work.
+- **No self-healing:** this is the limitation of a static mesh with isolated ports and no routing
+  (see [Non-goals](#non-goals)). The LinkMonitor shows the NIC as `down` on both nodes until the
+  cable is replaced.
+- **Mitigation until the repair:** C still reaches both A and B. Live-migrating the affected VMs to
+  C moves their volume engines there, the missing replicas rebuild, and the volumes return to
+  `healthy`. The cluster then runs with reduced placement freedom (A and B cannot exchange storage
+  traffic) until the cable is replaced. The docs will describe this procedure and recommend an
+  alert on mesh link state.
+- **The 4-NIC layout avoids all of this:** with two cables per peer grouped as a per-peer bond,
+  one dead cable leaves the A–B bond up on its second cable. Volumes stay `healthy`, migrations
+  between A and B work at half bandwidth, and the LinkMonitor shows the failed NIC. Only losing
+  both cables of a pair behaves as described above
+  (see [Multiple cables per node pair](#multiple-cables-per-node-pair-four-nics-per-node)).
+
+### User Experience In Detail
+
+1. Cable the mesh: on each of the three nodes, one or two NICs to each of the other two nodes. NIC
+   names should be the same on all nodes. Otherwise use one Network Configuration per node group,
+   as today.
+2. **Networks > Cluster Networks > Create**, for example `storage`.
+3. **Create Network Configuration** for it: set **Uplink Mode** to **Isolated ports (switchless
+   mesh)**, then pick the NICs of **Peer link 1** and **Peer link 2** (one or two NICs each, the
+   NICs cabled to the same neighbor in the same peer link). With two NICs per peer link, the bond
+   options are shown with `802.3ad` preselected; with one NIC they are hidden. Optionally set
+   MTU 9000.
+4. The cluster network is shown as *switchless mesh* and the network configuration type as
+   *VLAN, isolated ports*. Each mesh NIC appears in the link status per node.
+5. **Settings > storage-network** (and optionally `rwx-network` and `vm-migration-network`): select
+   `storage (switchless mesh)` and a range, as today.
+6. The cluster network is not offered in the VM network and host network forms. The webhook rejects
+   such objects if they are created through the API.
+
+Changing the uplink mode later follows the existing storage network procedure: stop the VMs, clear
+`storage-network`, edit the network configuration, then set `storage-network` again.
+
+### API changes
+
+Two new optional fields on the VlanConfig uplink: `mode` and `peerLinks`. With 2 NICs per node:
+
+```yaml
+apiVersion: network.harvesterhci.io/v1beta1
+kind: VlanConfig
+metadata:
+  name: storage-mesh
+spec:
+  clusterNetwork: storage
+  uplink:
+    mode: isolated          # new: "" (default) or "bond" = today's behavior
+    peerLinks:              # new: exactly two entries in isolated mode, one per neighbor
+    - nics: [ens2f0]
+    - nics: [ens2f1]
+    linkAttributes:
+      mtu: 9000
+```
+
+With 4 NICs per node, each peer link lists the two NICs cabled to the same neighbor, and
+`bondOptions` applies to each per-peer bond:
+
+```yaml
+  uplink:
+    mode: isolated
+    peerLinks:
+    - nics: [ens2f0, ens3f0]   # both cables to the same neighbor
+    - nics: [ens2f1, ens3f1]
+    bondOptions:
+      mode: 802.3ad            # default for per-peer bonds; active-backup is also allowed
+      miimon: 100
+    linkAttributes:
+      mtu: 9000
+```
+
+- In isolated mode, `nics` must be empty and `peerLinks` is required. In bond mode, `peerLinks`
+  must be empty. One field per mode keeps validation simple, and the UI writes the right one.
+- `bondOptions` is used only when the peer links have two NICs, and the UI does not save it
+  otherwise.
+- The manager labels the cluster network `network.harvesterhci.io/uplink-mode=isolated` while an
+  isolated VlanConfig exists, so that the UI and other components can identify it. The label is
+  informational: the webhooks enforce the rules from the VlanConfigs, so editing the label does
+  not bypass them.
+
+No changes to the ClusterNetwork, NAD or setting schemas. The storage network NAD already targets
+`<cn>-br`, so Harvester core needs no change.
+
+## Design
+
+### Implementation Overview
+
+All changes are in harvester-network-controller (PR #445) and the UI extension (PR #1203).
+
+**Agent (per node).** For `mode: isolated`, instead of creating `<cn>-bo`, it builds one bridge port
+per peer link:
+
+- a peer link with one NIC uses the NIC itself as the port.
+- a peer link with two NICs gets a bond, `<cn>-p0` or `<cn>-p1` (the same length as `<cn>-bo`, so
+  the existing cluster network name limit still fits), with the `bondOptions` and the two NICs as
+  slaves.
+- each port is set down, attached to `<cn>-br`, marked isolated (`netlink.LinkSetIsolated`), gets its
+  MTU, and is brought up. It is isolated before it comes up, so it never forwards, even during boot.
+- VLAN IDs are applied to every port instead of the single bond (`vlan.Vlan` now holds a list of
+  uplinks), so tagged storage VLANs work.
+- switching modes, or between 2 and 4 NICs, removes leftover bonds and releases directly attached
+  NICs before building the new layout.
+
+**Manager.** It sets and clears the `uplink-mode` label, and adds every mesh NIC (2 or 4 per node)
+to the cluster network's LinkMonitor name rule, so each cable reports up or down per node. In the
+4-NIC layout, a NIC that is `down` while its peer link stays up is the signal to replace a cable
+before the second one fails.
+
+**Cabling is the user's responsibility.** With the scope fixed at 3 data nodes, the shape is
+static (two peer links per node), so the webhook checks it at admission. Whether the cables are actually
+connected, and to the right peers, is not checked: there is no mesh completeness condition and no
+controller-side cabling check. A missing or miswired cable shows up as a `down` link in the
+LinkMonitor and as `degraded` Longhorn volumes. The docs will include a short validation step
+after cabling: check that every mesh NIC has carrier on every node, that in the 4-NIC layout each
+per-peer bond shows a single LACP partner, and that a test volume with 3 replicas is `healthy`. A status condition, or peer verification with LLDP, can be added later if
+users need it (see [Non-goals](#non-goals)).
+
+**Webhooks.**
+
+- isolated mode needs **exactly two peer links**, each with one or two NICs, and both peer links
+  with the same number of NICs. No NIC may appear twice, `nics` must be empty, and the mode is
+  rejected on `mgmt`.
+- with two NICs per peer link, `bondOptions.mode` must be `802.3ad` (the default) or
+  `active-backup`. The balance modes and `broadcast` are rejected: per-peer bonds connect two hosts
+  directly, and those modes either need a switch to reorder frames correctly or bring back the
+  duplicated traffic this feature removes.
+- **At most 3 data nodes.** The isolated VlanConfigs of a cluster network, together, may select at
+  most 3 non-witness nodes. This is checked when a VlanConfig is created or updated. A fourth node
+  that joins the cluster later and matches the node selector is not blocked by admission, so the
+  docs will state that isolated mode is supported on 3 data nodes only, and the network controller
+  logs a warning and emits an event on the VlanConfig in that case.
+- **One mode per cluster network.** All VlanConfigs of a cluster network must use the same mode.
+  Mixed mode (some nodes bonded, some isolated) is not allowed. A bonded node on a mesh needs
+  `broadcast` to be correct, and each isolated node would then receive both copies. It also makes
+  the failure behavior depend on the node, which is hard to reason about and to support.
+- an isolated cluster network only carries the storage, RWX and VM migration networks. Other NADs
+  and HostNetworkConfigs are denied. A cluster network cannot become isolated while such objects
+  use it.
+
+#### How traffic finds the right cable (no routes)
+
+The mesh is one L2 segment with one subnet, the same as today's storage network (bridge CNI +
+Whereabouts). No per-peer `/32` routes and no route controller are needed:
+
+- A pod's `net1` sits on `<cn>-br`. To reach a peer pod in the same subnet, it sends ARP. The bridge
+  floods the broadcast to both isolated uplinks; isolation only blocks uplink-to-uplink forwarding,
+  not pod-to-uplink.
+- The peer replies on its direct cable, and the bridge learns the peer MAC on that port (FDB).
+  Unicast to that MAC then goes out only that cable.
+- When Whereabouts gives a pod a new IP, or a pod restarts with a new MAC, ARP and MAC learning
+  update the path automatically. A link-down event flushes the FDB entries of that port.
+
+Verified on the test cluster with per-port counters and FDB dumps:
+
+- every remote MAC was learned only on the cable directly connected to its host, never on the
+  third cable.
+- traffic between two nodes moved 0 bytes on the cable not involved.
+- 400 ARP broadcasts for a non-existent IP were never relayed to the third cable.
+
+#### Failure behavior and constraints
+
+With one cable per node pair (two NICs per node in a 3-node cluster):
+
+- **A single cable or NIC failure cuts the direct path of exactly one node pair.** Nothing reroutes
+  through the third node, since isolation prevents relaying by design. The other two pairs are not
+  affected.
+- **Longhorn provides the redundancy.** A 3-replica volume whose engine is on one end of the dead
+  cable loses one replica, stays attached and serves I/O on the other two, and rebuilds once the
+  cable is back. In tests, VM writes completed with 0 guest I/O errors. The volume was `healthy`
+  again 62–129 s after link-up (20 GiB volume, 1 GbE, delta rebuild).
+- **A second failure** can cut one node off the storage network completely. Its replicas fail, and
+  volumes keep running on the remaining replicas, as with a node failure today.
+- **One-sided failures** (one end of a cable down, the far end keeps carrier) were observed with
+  `ip link set down`. In isolated mode this behaves like a dead cable for that pair. Longhorn
+  detects it at the replica level.
+- **Two replicas or fewer:** volumes with fewer than 3 replicas can lose their only remote replica
+  on a single cable failure. The docs will recommend 3 replicas on a mesh.
+- **Scale:** isolated mode is supported on exactly 3 data nodes (see [Non-goals](#non-goals)).
+  Replacing a node is supported: the new node gets the same cables and NIC names.
+- **4 NICs per node:** a single cable or NIC failure only takes one slave out of a per-peer bond.
+  The pair stays connected at half bandwidth, volumes stay `healthy`, and no rebuild is needed.
+  Losing both cables of a pair behaves like the one-cable failure above. A node failure degrades
+  volumes as it does today, since redundancy against node loss still comes from Longhorn.
+- **Two nodes and a witness:** a witness node runs no Longhorn replicas, instance managers or VMs,
+  and the storage network checks already skip witness nodes. The storage network then only connects
+  the two data nodes, so one direct cable is enough and isolated mode is not needed: a VlanConfig
+  with that single NIC, selecting the two data nodes, has no loop. This is cheaper still, but
+  volumes have at most 2 replicas, so the reduced redundancy described below applies. The docs will
+  cover this layout; it is not part of the isolated-mode work.
+- **Shared BMC ports:** on servers whose BMC shares a mesh port (NC-SI), BMC broadcasts (for example
+  DHCP) appear on the mesh. They are harmless and not relayed, but the docs will recommend a
+  dedicated BMC port.
+
+#### Multiple cables per node pair (four NICs per node)
+
+A user with four spare NICs could cable two links per pair, expecting per-pair redundancy. Plain
+isolated ports are the wrong tool for that. With two isolated ports leading to the same peer, the
+bridge decides the egress port only by where it last learned the peer MAC. There is no control over
+which link carries the traffic, no load balancing, no detection of one-sided failures, and every
+broadcast reaches the peer twice. (Raised by @rrajendran17 during review.)
+
+This HEP uses **one bond per peer, with each bond as an isolated port** (`peerLinks` with two NICs
+each). Each bond handles failover and hashing between its two links, and isolation still prevents
+relaying between peers.
+
+- **802.3ad is the default.** LACP works on a direct host-to-host cable, and no switch is needed.
+  LACPDUs detect one-sided failures (one end of a cable down, the far end with carrier), which
+  carrier-based `miimon` alone does not. LACP also catches a miswired peer link: if the two cables
+  reach different nodes, the partners differ, only one link joins the aggregator, and the bond
+  reports it.
+- **`active-backup`** is allowed for NICs or drivers without LACP support. It detects carrier loss
+  only, because ARP monitoring needs an IP address on the bond, which the bridge port does not have.
+- **Hashing:** with `xmit_hash_policy: layer3+4`, the replica connections of different volumes
+  spread across both cables. A single TCP connection stays on one cable, so one volume's replica
+  stream does not exceed one cable's bandwidth.
+
+The two peer links must have the same number of NICs, so a node cannot mix one bonded peer and one
+single-cable peer. Mixed links would make the failure behavior depend on which pair failed.
+
+### Alternatives considered
+
+| Option | Why not |
+|---|---|
+| Broadcast bond (works today) | Correct but sends every frame on every cable: about 55% of the isolated-mode write throughput, double TX on every node. |
+| One bond across all mesh NICs (active-backup, balance-*, 802.3ad) | Treats the links as interchangeable paths to one L2 domain. In a mesh each link reaches a different node, so frames go to the wrong neighbor. 802.3ad across all NICs also fails, because the links have different LACP partners. (802.3ad is the right mode inside a per-peer bond, where both links reach the same node.) |
+| STP on `<cn>-br` | Blocks one cable to break the loop, so one pair relays through the third node: a wasted cable and a node acting as a forwarder. The controller runs with STP off. |
+| Routed mesh (FRR/OSPF or static `/32` routes, one subnet per link) | Allows relaying on failure, but the storage network is a single L2 subnet with dynamic Whereabouts IPs. It would need a route controller that watches Longhorn pods, and changes to Longhorn's network model. |
+| A storage switch | The cost and extra failure point this feature exists to avoid. Remains the right choice for larger clusters. |
+| Out-of-band DaemonSet that isolates ports (the first prototype) | Works, but edits a bridge owned by the network controller, and is invisible to VlanStatus, LinkMonitor and the UI. |
+
+#### Where the mode is configured
+
+The mode is on the **VlanConfig** (`uplink.mode`), next to the bond options it replaces, and
+follows the same pattern as the uplink MTU (suggested by @w13915984028). The first VlanConfig of a
+cluster network sets the mode, and the manager records it on the ClusterNetwork (the `uplink-mode`
+label, plus the source VlanConfig, as `uplink-mtu` and `mtu-source-vc` do for the MTU). The webhook
+rejects later VlanConfigs with a different mode, and the UI preselects and locks the mode when
+another VlanConfig is created for that cluster network. The ClusterNetwork stays a name for a
+network with no uplink settings of its own.
+
+A "Switchless mesh" option on the ClusterNetwork was considered. It would make "one mode per
+cluster network" structural, but it adds the first uplink-related field to the ClusterNetwork,
+while MTU already established the "first VlanConfig decides" pattern.
+
+### Test plan
+
+Unit tests (in PR #445): webhook mode rules, one mode per cluster network, the peer link shape
+(two peer links, one or two NICs each, same count), the per-peer bond mode, the 3-data-node limit, NAD and HostNetworkConfig guardrails, LinkMonitor rule generation. UI model tests in PR #1203.
+
+**Test setup.** Integration testing needs a dedicated cluster with a direct-cabled mesh: on each
+node, one NIC cabled to each other node, plus a separate management network. Regular QA clusters
+behind a switch cannot run these cases. For functional (not performance) tests, a nested setup
+should also work: three Harvester VMs and three virtual networks, each connecting exactly two of the
+VMs, so every virtual link behaves like a cable. The nested setup still needs to be validated, and
+QA should plan for one of the two before testing starts. Failure cases need a way to take a single
+link down (unplug the cable, or set the virtual link down from the hypervisor).
+
+Integration (3 nodes with a direct-cabled mesh):
+
+1. Create an isolated VlanConfig: on every node, the NICs are isolated ports of `<cn>-br`, no
+   `<cn>-bo` exists, VlanStatus is Ready, the cluster network is labeled, and idle links stay
+   silent (no loop).
+2. Storage network on the mesh: instance managers get `lhnet1`. A 3-replica write puts one copy on
+   each cable of the engine node and 0 on the third cable.
+3. RWX network and VM migration network on the mesh. Migration traffic uses the direct cable
+   between source and target.
+4. Guardrails: a VM network NAD, a HostNetworkConfig, a bond VlanConfig on the same cluster network,
+   isolated mode on `mgmt`, an isolated VlanConfig with one or three peer links, peer links with
+   different NIC counts, a per-peer bond in `balance-rr` or `broadcast`, and an isolated VlanConfig
+   that selects a fourth data node are all denied.
+5. Failures during a VM write: one cable down, one node's both cables down, node reboot. The write
+   completes, the volume degrades and recovers, the port returns isolated after link-up or reboot,
+   and the LinkMonitor shows the state.
+6. Permanent cable failure (Story 4): with the A–B cable down, a migration between A and B fails,
+   migrating the affected VMs to C restores healthy volumes, and the LinkMonitor shows the link
+   `down` on A and B.
+7. Switch an existing cluster network bond → isolated → bond using the documented procedure.
+8. Tagged storage VLAN on an isolated cluster network.
+9. A second VlanConfig on an isolated cluster network gets the mode from the first; a different
+   mode is rejected.
+10. 4-NIC layout (needs 6 cables): per-peer bonds `<cn>-p0`/`<cn>-p1` are isolated ports, each LACP
+    bond has one partner, and a 3-replica write spreads over both cables of each peer. Pull one
+    cable during a VM write: no guest I/O error, no volume degrades, the LinkMonitor shows the NIC
+    `down`, and the bond keeps the pair connected. Pull both cables of a pair: same behavior as
+    case 5. Miswire one peer link (its two cables to different nodes): the bond reports two
+    partners and only one active link.
+11. Switch an isolated cluster network from 2 to 4 NICs per node with the documented procedure.
+
+### Upgrade strategy
+
+- The field is optional and defaults to today's behavior. Existing VlanConfigs and cluster networks
+  are not changed. No migration is needed.
+- The CRD gains the optional `uplink.mode` enum and `uplink.peerLinks` list, shipped with the
+  network controller chart.
+- The UI shows the option only on clusters with the new controller (feature flag for v1.10.0).
+- **Downgrade:** an older controller ignores `uplink.mode` and would build a bond. Remove isolated
+  VlanConfigs, or switch them to a broadcast bond, before downgrading. This will be documented.
+- Users who run a broadcast bond on a mesh today can switch to isolated mode with the existing
+  "change a storage network VlanConfig" procedure (VMs stopped).
+
+## Note
+
+Prototype and measurements: Harvester v1.9.1-rc3, 3 × Ampere Altra (arm64), Intel I350 1 GbE
+direct-cabled triangle, management on a separate 10 GbE network. Faster links (10/25 GbE DAC)
+change the absolute numbers but not the design. Detailed results are in the Epic.
