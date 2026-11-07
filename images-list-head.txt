@@ -35,7 +35,7 @@ docker.io/rancher/harvester-upgrade:master-head
 docker.io/rancher/harvester-vm-import-controller:main-head
 docker.io/rancher/harvester-webhook:master-head
 docker.io/rancher/harvester:master-head
-docker.io/rancher/kuberlr-kubectl:v8.1.2
+docker.io/rancher/kuberlr-kubectl:v9.0.1
 docker.io/rancher/mirrored-kube-vip-kube-vip-iptables:v1.2.4
 docker.io/rancher/support-bundle-kit:master-head
 ghcr.io/k8snetworkplumbingwg/whereabouts:v0.9.4
@@ -83,7 +83,7 @@ docker.io/rancher/prom-prometheus:v3.8.1
 docker.io/rancher/rancher:v2.16-head
 docker.io/rancher/rancher-agent:v2.16-head
 docker.io/rancher/rancher-webhook:v2.16-head
-docker.io/rancher/shell:v0.8.3
+docker.io/rancher/shell:v0.9.1-rc.2
 docker.io/rancher/system-agent:v0.15.3-suc
 docker.io/rancher/system-upgrade-controller:v0.20.2
 docker.io/rancher/turtles:v0.27.4
