@@ -1,0 +1,157 @@
+name: E2E Tests
+on:
+  push:
+    branches:
+    - master
+    - release-*
+    - v*
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/e2e-tests.yml'
+      - '.github/workflows/e2e-tests-factory.yml'
+      - 'cmd/**'
+      - 'pkg/**'
+      - 'vendor/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'Makefile'
+      - 'scripts/build'
+      - 'package/**'
+      - '!cmd/installer/**'
+      - '!pkg/installer/**'
+      - '!package/harvester-repo/**'
+      - '!package/harvester-os/**'
+  schedule:
+    - cron: "10 1 * * *"
+  workflow_dispatch:
+    inputs:
+      harvester_tests_repo:
+        description: "Git repository of the E2E tests"
+        required: false
+        default: "https://github.com/harvester/tests"
+        type: string
+      harvester_tests_branch:
+        description: "Branch of the E2E tests (empty for the default branch)"
+        required: false
+        default: ""
+        type: string
+      extra_test_tags:
+        description: "Extra test tags to run with pr-baseline (comma separated)"
+        required: false
+        default: ""
+        type: string
+      extra_test_files:
+        description: "Extra test files/dirs under tests/ to run (comma separated)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  configure_input_vars:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_short: ${{ steps.set_vars.outputs.sha_short }}
+      branch: ${{ steps.set_vars.outputs.branch }}
+      tests_repo: ${{ steps.tests_src.outputs.repo }}
+      tests_branch: ${{ steps.tests_src.outputs.branch }}
+      test_tags: ${{ steps.tests_src.outputs.tags }}
+      test_files: ${{ steps.tests_src.outputs.files }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Declare branch and sha_short
+      id: set_vars
+      run: |
+        echo "sha_short=$(git rev-parse --short=8 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+        echo "branch=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}" >> "$GITHUB_OUTPUT"
+
+    # A PR can customize the E2E tests with lines in its description
+    # (keys are case-insensitive, lists are comma separated):
+    #   E2E-Tests-Repo: https://github.com/<owner>/<repo>
+    #   E2E-Tests-Branch: <branch>
+    #   E2E-Tests-Tags: <tag>, ...         run together with pr-baseline
+    #   E2E-Tests-Files: tests/<path>, ... each runs after pr-baseline
+    - name: Resolve E2E tests settings
+      id: tests_src
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ inputs.harvester_tests_repo || 'https://github.com/harvester/tests' }}
+        BRANCH: ${{ inputs.harvester_tests_branch }}
+        TAGS: ${{ inputs.extra_test_tags }}
+        FILES: ${{ inputs.extra_test_files }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$1"; exit 1; }
+        to_list() { tr ', \t' '\n\n\n' <<<"$1" | sed '/^$/d'; }
+
+        repo="$REPO"
+        branch="$BRANCH"
+        tags="$TAGS"
+        files="$FILES"
+        if [ -n "$PR_NUMBER" ]; then
+          # Fetch the body live so that editing the PR description and
+          # re-running the workflow picks up the change.
+          body=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.body // ""' | tr -d '\r')
+          pr_value() {
+            sed -nE "s#^$1:[[:space:]]*(.*[^[:space:]])[[:space:]]*\$#\1#Ip" <<<"$body" | head -1
+          }
+          v=$(pr_value E2E-Tests-Repo); repo="${v:-$repo}"
+          v=$(pr_value E2E-Tests-Branch); branch="${v:-$branch}"
+          v=$(pr_value E2E-Tests-Tags); tags="${v:-$tags}"
+          v=$(pr_value E2E-Tests-Files); files="${v:-$files}"
+        fi
+
+        # The tests' run.sh evals its arguments, so only allow safe values.
+        repo="${repo%/}"
+        grep -Eqx 'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' <<<"$repo" ||
+          fail "Invalid E2E tests repo: $repo"
+        [ -z "$branch" ] || grep -Eqx '[A-Za-z0-9._/-]+' <<<"$branch" ||
+          fail "Invalid E2E tests branch: $branch"
+
+        # Robot Framework matches tags case-insensitively; lowercasing
+        # keeps a tag from containing the OR operator.
+        include="pr-baseline"
+        while read -r t; do
+          grep -Eqx '[A-Za-z0-9_.-]+' <<<"$t" || fail "Invalid E2E test tag: $t"
+          include="${include}OR${t,,}"
+        done < <(to_list "$tags")
+
+        test_files=()
+        while read -r f; do
+          grep -Eqx 'tests/[A-Za-z0-9_./-]+' <<<"$f" && [[ "$f" != *..* ]] ||
+            fail "Invalid E2E test file: $f"
+          test_files+=("$f")
+        done < <(to_list "$files")
+
+        {
+          echo "repo=$repo"
+          echo "branch=$branch"
+          echo "tags=$include"
+          echo "files=${test_files[*]}"
+        } >> "$GITHUB_OUTPUT"
+        {
+          echo "E2E tests source: \`$repo\` @ \`${branch:-<default branch>}\`"
+          echo
+          echo "E2E test tags: \`$include\`"
+          if [ ${#test_files[@]} -gt 0 ]; then
+            echo
+            echo "E2E test files: \`${test_files[*]}\`"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+  calling-e2e-tests:
+    needs: configure_input_vars
+    uses: ./.github/workflows/e2e-tests-factory.yml
+    with:
+      build_version: ${{ needs.configure_input_vars.outputs.branch }}-${{ needs.configure_input_vars.outputs.sha_short }}-head
+      registry: 172.17.0.1:5000
+      insecure_registry: true
+      registry_as_mirror: true
+      harvester_tests_repo: ${{ needs.configure_input_vars.outputs.tests_repo }}
+      harvester_tests_branch: ${{ needs.configure_input_vars.outputs.tests_branch }}
+      test_tags: ${{ needs.configure_input_vars.outputs.test_tags }}
+      test_files: ${{ needs.configure_input_vars.outputs.test_files }}
