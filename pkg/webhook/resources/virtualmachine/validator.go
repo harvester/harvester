@@ -475,11 +475,18 @@ func checkDiskIOMode(vm *kubevirtv1.VirtualMachine) error {
 	}
 
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
-		if disk.IO == kubevirtv1.IONative && disk.Cache != "" && disk.Cache != kubevirtv1.CacheNone {
-			return werror.NewInvalidError(
-				fmt.Sprintf("disk %s: io mode native requires cache mode none, got %s", disk.Name, disk.Cache),
-				"spec.template.spec.domain.devices.disks")
+		if disk.IO != kubevirtv1.IONative ||
+			disk.Cache == "" ||
+			disk.Cache == kubevirtv1.CacheNone {
+			continue
 		}
+
+		return werror.NewInvalidError(
+			fmt.Sprintf(
+				"disk %s: io mode native requires cache mode none, got %s",
+				disk.Name, disk.Cache,
+			),
+			"spec.template.spec.domain.devices.disks")
 	}
 	return nil
 }
