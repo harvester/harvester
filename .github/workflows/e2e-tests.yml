@@ -33,9 +33,9 @@ on:
         default: "https://github.com/harvester/tests"
         type: string
       harvester_tests_branch:
-        description: "Branch of the E2E tests (empty for the default branch)"
+        description: "Branch of the E2E tests"
         required: false
-        default: ""
+        default: "v1.9"
         type: string
       extra_test_tags:
         description: "Extra test tags to run with pr-baseline (comma separated)"
@@ -80,7 +80,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO: ${{ inputs.harvester_tests_repo || 'https://github.com/harvester/tests' }}
-        BRANCH: ${{ inputs.harvester_tests_branch }}
+        BRANCH: ${{ inputs.harvester_tests_branch || 'v1.9' }}
         TAGS: ${{ inputs.extra_test_tags }}
         FILES: ${{ inputs.extra_test_files }}
       run: |
