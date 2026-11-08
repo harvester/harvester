@@ -321,6 +321,13 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 		return err
 	}
 
+	// Keep the CD-ROM check on its original gate (interfaces changed), so that a
+	// networks-only change, such as a live NAD swap, isn't rejected because of an
+	// existing CD-ROM configuration.
+	if !interfacesChanged(oldVM, newVM) {
+		return nil
+	}
+
 	if err := v.checkCdRomVolumeIsValid(newVM); err != nil {
 		return err
 	}
@@ -333,12 +340,18 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 // running VM (KubeVirt LiveUpdateNADRef) can move a NIC to a different cluster
 // network, so the duplicate MAC address check must run again.
 func interfacesOrNetworksChanged(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
+	if interfacesChanged(oldVM, newVM) {
+		return true
+	}
+	return !reflect.DeepEqual(oldVM.Spec.Template.Spec.Networks, newVM.Spec.Template.Spec.Networks)
+}
+
+// interfacesChanged reports whether the VM's interfaces differ.
+func interfacesChanged(oldVM, newVM *kubevirtv1.VirtualMachine) bool {
 	if oldVM.Spec.Template == nil || newVM.Spec.Template == nil {
 		return true
 	}
-	oldSpec, newSpec := oldVM.Spec.Template.Spec, newVM.Spec.Template.Spec
-	return !reflect.DeepEqual(oldSpec.Domain.Devices.Interfaces, newSpec.Domain.Devices.Interfaces) ||
-		!reflect.DeepEqual(oldSpec.Networks, newSpec.Networks)
+	return !reflect.DeepEqual(oldVM.Spec.Template.Spec.Domain.Devices.Interfaces, newVM.Spec.Template.Spec.Domain.Devices.Interfaces)
 }
 
 func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {

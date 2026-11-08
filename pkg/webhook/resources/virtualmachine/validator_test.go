@@ -2254,40 +2254,47 @@ func TestInterfacesOrNetworksChanged(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		oldVM    *kubevirtv1.VirtualMachine
-		newVM    *kubevirtv1.VirtualMachine
-		expected bool
+		name               string
+		oldVM              *kubevirtv1.VirtualMachine
+		newVM              *kubevirtv1.VirtualMachine
+		expected           bool
+		expectedInterfaces bool
 	}{
 		{
-			name:     "nothing changed",
-			oldVM:    newVM("default/vlan-1", "00:00:00:00:00:01"),
-			newVM:    newVM("default/vlan-1", "00:00:00:00:00:01"),
-			expected: false,
+			name:               "nothing changed",
+			oldVM:              newVM("default/vlan-1", "00:00:00:00:00:01"),
+			newVM:              newVM("default/vlan-1", "00:00:00:00:00:01"),
+			expected:           false,
+			expectedInterfaces: false,
 		},
 		{
-			name:     "interface MAC address changed",
-			oldVM:    newVM("default/vlan-1", "00:00:00:00:00:01"),
-			newVM:    newVM("default/vlan-1", "00:00:00:00:00:02"),
-			expected: true,
+			name:               "interface MAC address changed",
+			oldVM:              newVM("default/vlan-1", "00:00:00:00:00:01"),
+			newVM:              newVM("default/vlan-1", "00:00:00:00:00:02"),
+			expected:           true,
+			expectedInterfaces: true,
 		},
 		{
-			name:     "only multus networkName changed",
-			oldVM:    newVM("default/vlan-1", "00:00:00:00:00:01"),
-			newVM:    newVM("default/vlan-2", "00:00:00:00:00:01"),
-			expected: true,
+			// the CD-ROM check stays on the interfaces gate, so a NAD-only change must not trigger it
+			name:               "only multus networkName changed",
+			oldVM:              newVM("default/vlan-1", "00:00:00:00:00:01"),
+			newVM:              newVM("default/vlan-2", "00:00:00:00:00:01"),
+			expected:           true,
+			expectedInterfaces: false,
 		},
 		{
-			name:     "nil template",
-			oldVM:    &kubevirtv1.VirtualMachine{},
-			newVM:    newVM("default/vlan-1", "00:00:00:00:00:01"),
-			expected: true,
+			name:               "nil template",
+			oldVM:              &kubevirtv1.VirtualMachine{},
+			newVM:              newVM("default/vlan-1", "00:00:00:00:00:01"),
+			expected:           true,
+			expectedInterfaces: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, interfacesOrNetworksChanged(tc.oldVM, tc.newVM))
+			assert.Equal(t, tc.expectedInterfaces, interfacesChanged(tc.oldVM, tc.newVM))
 		})
 	}
 }
