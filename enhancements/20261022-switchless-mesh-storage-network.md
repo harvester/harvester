@@ -178,13 +178,17 @@ between two nodes, say A and B, is gone until the cable is replaced.
    such objects if they are created through the API.
 
 Changing the uplink mode later follows the existing storage network procedure: stop the VMs, clear
-`storage-network`, edit the network configuration, then set `storage-network` again.
+`storage-network`, edit the network configuration, then set `storage-network` again. If
+`rwx-network` or `vm-migration-network` uses the same cluster network, or `rwx-network` shares the
+storage network, stop the workloads that use it and clear it as well first, wait until its network
+attachment is removed, and set it again after `storage-network` is configured.
 
 All VlanConfigs of a cluster network share one mode (see below), so when the cluster network has
 more than one VlanConfig (for example one per node group with different NIC names), editing one of
-them to the other mode is rejected. In that case, after clearing `storage-network`, delete all
+them to the other mode is rejected. In that case, after clearing the settings above, save the
+specifications of the VlanConfigs (node selector, NICs, MTU and bond options), delete all
 VlanConfigs of the cluster network but one, change the mode of the remaining one, and create the
-others again with the new mode, then set `storage-network` again.
+others again from the saved specifications with the new mode, then set the settings again.
 
 ### API changes
 
@@ -448,10 +452,14 @@ Integration (3 nodes with a direct-cabled mesh):
 - The UI shows the option only on clusters with the new controller (feature flag for v1.10.0).
 - **Downgrade:** an older controller ignores `uplink.mode` and `uplink.peerLinks`, and only reads
   `uplink.nics`. Remove isolated VlanConfigs, or switch them to a broadcast bond, before
-  downgrading. Switching to a bond means moving every NIC of `uplink.peerLinks` into
-  `uplink.nics` (all four with 4 NICs per node), clearing `uplink.peerLinks`, setting
-  `uplink.mode` to `bond` (or removing it) and `uplink.bondOptions.mode` to `broadcast`. This will
-  be documented.
+  downgrading. Both need the storage network (and `rwx-network`, if it uses the cluster network)
+  cleared first, as in the mode change above, since a VlanConfig whose cluster network is still
+  used by such a network can't be removed. Switching to a bond means moving the NICs of
+  `uplink.peerLinks` into `uplink.nics`, clearing `uplink.peerLinks`, setting `uplink.mode` to
+  `bond` (or removing it) and `uplink.bondOptions.mode` to `broadcast`. With 4 NICs per node, move
+  only one NIC per peer (two in total): a broadcast bond over both cables of a peer would deliver
+  every frame twice. The second cable of each peer is then unused, so the cable redundancy is lost
+  until the upgrade. This will be documented.
 - Users who run a broadcast bond on a mesh today can switch to isolated mode with the existing
   "change a storage network VlanConfig" procedure (VMs stopped).
 
