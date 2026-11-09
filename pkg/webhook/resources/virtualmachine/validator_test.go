@@ -2226,7 +2226,7 @@ func TestVmValidator_Create(t *testing.T) {
 	}
 }
 
-func TestCheckVmstatePersistenceStorageClass(t *testing.T) {
+func TestCheckVMStateStorageClass(t *testing.T) {
 	persistentTrue := true
 
 	tests := []struct {
@@ -2376,7 +2376,7 @@ func TestCheckVmstatePersistenceStorageClass(t *testing.T) {
 			v := &vmValidator{
 				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 			}
-			err := v.checkVMStateStorageClass(tc.vm)
+			err := v.validateVMStateStorageClass(tc.vm)
 			if tc.expectError {
 				assert.Error(t, err)
 			} else {

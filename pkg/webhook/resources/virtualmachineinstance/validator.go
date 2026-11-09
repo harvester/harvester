@@ -37,10 +37,10 @@ func (v *vmiValidator) Resource() types.Resource {
 
 func (v *vmiValidator) Create(_ *types.Request, newObj runtime.Object) error {
 	vmi := newObj.(*kubevirtv1.VirtualMachineInstance)
-	return v.checkVMStateStorageClass(vmi)
+	return v.validateVMStateStorageClass(vmi)
 }
 
-func (v *vmiValidator) checkVMStateStorageClass(vmi *kubevirtv1.VirtualMachineInstance) error {
+func (v *vmiValidator) validateVMStateStorageClass(vmi *kubevirtv1.VirtualMachineInstance) error {
 	if err := util.CheckVMStateStorageClass(vmi, v.scCache); err != nil {
 		if util.IsVMStateStorageClassMissing(err) {
 			return werror.NewInvalidError(err.Error(), "spec.domain")

@@ -17,6 +17,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	authorizationv1client "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	ctlharvestercorev1 "github.com/harvester/harvester/pkg/generated/controllers/core/v1"
@@ -259,7 +260,7 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return err
 	}
 
-	if err := v.checkVMStateStorageClass(vm); err != nil {
+	if err := v.validateVMStateStorageClass(vm); err != nil {
 		return err
 	}
 
@@ -283,6 +284,12 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 	if oldVM == nil {
 		return nil
+	}
+
+	if !backendstorage.IsBackendStorageNeeded(oldVM) && backendstorage.IsBackendStorageNeeded(newVM) {
+		if err := v.validateVMStateStorageClass(newVM); err != nil {
+			return err
+		}
 	}
 
 	if err := v.checkChangedVolumeClaimTemplateEntries(request, oldVM, newVM); err != nil {
@@ -1050,10 +1057,10 @@ func (v *vmValidator) validateTargetVolumeEntry(entry util.VolumeClaimTemplateEn
 	return nil
 }
 
-func (v *vmValidator) checkVMStateStorageClass(vm *kubevirtv1.VirtualMachine) error {
+func (v *vmValidator) validateVMStateStorageClass(vm *kubevirtv1.VirtualMachine) error {
 	if err := util.CheckVMStateStorageClass(vm, v.scCache); err != nil {
 		if util.IsVMStateStorageClassMissing(err) {
-			return werror.NewInvalidError(err.Error(), "spec.template.spec")
+			return werror.NewInvalidError(err.Error(), "spec.template.spec.domain")
 		}
 		return werror.NewInternalError(err.Error())
 	}

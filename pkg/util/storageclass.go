@@ -11,8 +11,12 @@ import (
 	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 )
 
-// ErrVMStateStorageClassMissing is returned when vmstate-persistence SC is needed but absent.
-var ErrVMStateStorageClassMissing = fmt.Errorf("storage class %q is missing; required for persistent vTPM or EFI. Add a Longhorn disk or create this storage class", StorageClassVmstatePersistence)
+// ErrVMStateStorageClassMissing indicates a missing VM-state StorageClass.
+var ErrVMStateStorageClassMissing = fmt.Errorf(
+	"storage class %q is missing; required for persistent vTPM or EFI. "+
+		"Add a Longhorn disk or create this storage class",
+	StorageClassVmstatePersistence,
+)
 
 // CheckVMStateStorageClass returns ErrVMStateStorageClassMissing when the vmstate-persistence SC
 // is needed but absent, a wrapped error on lookup failure, or nil otherwise.
