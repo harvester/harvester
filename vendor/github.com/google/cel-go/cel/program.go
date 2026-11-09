@@ -16,10 +16,13 @@ package cel
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
+	"time"
 
+	"github.com/google/cel-go/cel/async"
 	"github.com/google/cel-go/common/ast"
+	"github.com/google/cel-go/common/functions"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
@@ -29,7 +32,7 @@ import (
 type Program interface {
 	// Eval returns the result of an evaluation of the Ast and environment against the input vars.
 	//
-	// The vars value may either be an `interpreter.Activation` or a `map[string]any`.
+	// The vars value may either be an `Activation` or a `map[string]any`.
 	//
 	// If the `OptTrackState`, `OptTrackCost` or `OptExhaustiveEval` flags are used, the `details` response will
 	// be non-nil. Given this caveat on `details`, the return state from evaluation will be:
@@ -47,14 +50,54 @@ type Program interface {
 	// to support cancellation and timeouts. This method must be used in conjunction with the
 	// InterruptCheckFrequency() option for cancellation interrupts to be impact evaluation.
 	//
-	// The vars value may either be an `interpreter.Activation` or `map[string]any`.
+	// The vars value may either be an `Activation` or `map[string]any`.
 	//
 	// The output contract for `ContextEval` is otherwise identical to the `Eval` method.
 	ContextEval(context.Context, any) (ref.Val, *EvalDetails, error)
+
+	// ConcurrentEval evaluates the program concurrently, returning a channel that will receive
+	// the final EvalResult when all asynchronous operations complete, or the context expires.
+	//
+	// The vars value may either be an `Activation` or `map[string]any`.
+	//
+	// Liveness: ConcurrentEval relies on context cancellation to terminate. If an async function
+	// never returns and does not honor its context, and the supplied context has no deadline, the
+	// call will block indefinitely. Always pass a context with a deadline or cancellation.
+	//
+	// Error handling is fail-fast: as soon as a re-evaluation pass yields an error, that error is
+	// returned and any still in-flight async calls are cancelled (their contexts are done) and
+	// their results discarded. Async functions should therefore be free of unwanted side effects
+	// on partial evaluation, or guard them with idempotency/cancellation handling.
+	ConcurrentEval(context.Context, any) <-chan EvalResult
 }
 
+// Activation used to resolve identifiers by name and references by id.
+//
+// An Activation is the primary mechanism by which a caller supplies input into a CEL program.
+type Activation = interpreter.Activation
+
+// NewActivation returns an activation based on a map-based binding where the map keys are
+// expected to be qualified names used with ResolveName calls.
+//
+// The input `bindings` may either be of type `Activation` or `map[string]any`.
+//
+// Lazy bindings may be supplied within the map-based input in either of the following forms:
+// - func() any
+// - func() ref.Val
+//
+// The output of the lazy binding will overwrite the variable reference in the internal map.
+//
+// Values which are not represented as ref.Val types on input may be adapted to a ref.Val using
+// the types.Adapter configured in the environment.
+func NewActivation(bindings any) (Activation, error) {
+	return interpreter.NewActivation(bindings)
+}
+
+// PartialActivation extends the Activation interface with a set of unknown AttributePatterns.
+type PartialActivation = interpreter.PartialActivation
+
 // NoVars returns an empty Activation.
-func NoVars() interpreter.Activation {
+func NoVars() Activation {
 	return interpreter.EmptyActivation()
 }
 
@@ -64,10 +107,9 @@ func NoVars() interpreter.Activation {
 // This method relies on manually configured sets of missing attribute patterns. For a method which
 // infers the missing variables from the input and the configured environment, use Env.PartialVars().
 //
-// The `vars` value may either be an interpreter.Activation or any valid input to the
-// interpreter.NewActivation call.
+// The `vars` value may either be an Activation or any valid input to the NewActivation call.
 func PartialVars(vars any,
-	unknowns ...*interpreter.AttributePattern) (interpreter.PartialActivation, error) {
+	unknowns ...*AttributePatternType) (PartialActivation, error) {
 	return interpreter.NewPartialActivation(vars, unknowns...)
 }
 
@@ -84,12 +126,15 @@ func PartialVars(vars any,
 // fully qualified variable name may be `ns.app.a`, `ns.a`, or `a` per the CEL namespace resolution
 // rules. Pick the fully qualified variable name that makes sense within the container as the
 // AttributePattern `varName` argument.
+func AttributePattern(varName string) *AttributePatternType {
+	return interpreter.NewAttributePattern(varName)
+}
+
+// AttributePatternType represents a top-level variable with an optional set of qualifier patterns.
 //
 // See the interpreter.AttributePattern and interpreter.AttributeQualifierPattern for more info
 // about how to create and manipulate AttributePattern values.
-func AttributePattern(varName string) *interpreter.AttributePattern {
-	return interpreter.NewAttributePattern(varName)
-}
+type AttributePatternType = interpreter.AttributePattern
 
 // EvalDetails holds additional information observed during the Eval() call.
 type EvalDetails struct {
@@ -100,6 +145,9 @@ type EvalDetails struct {
 // State of the evaluation, non-nil if the OptTrackState or OptExhaustiveEval is specified
 // within EvalOptions.
 func (ed *EvalDetails) State() interpreter.EvalState {
+	if ed == nil {
+		return interpreter.NewEvalState()
+	}
 	return ed.state
 }
 
@@ -113,39 +161,43 @@ func (ed *EvalDetails) ActualCost() *uint64 {
 	return &cost
 }
 
+// EvalResult encapsulates the response from a ConcurrentEval call.
+type EvalResult struct {
+	Val         ref.Val
+	EvalDetails *EvalDetails
+	Err         error
+}
+
 // prog is the internal implementation of the Program interface.
 type prog struct {
 	*Env
 	evalOpts                EvalOption
-	defaultVars             interpreter.Activation
+	defaultVars             Activation
 	dispatcher              interpreter.Dispatcher
 	interpreter             interpreter.Interpreter
 	interruptCheckFrequency uint
 
 	// Intermediate state used to configure the InterpretableDecorator set provided
 	// to the initInterpretable call.
-	decorators         []interpreter.InterpretableDecorator
+	plannerOptions     []interpreter.PlannerOption
 	regexOptimizations []*interpreter.RegexOptimization
 
 	// Interpretable configured from an Ast and aggregate decorator set based on program options.
-	interpretable     interpreter.Interpretable
+	interpretable     interpreter.InterpretableV2
+	observable        *interpreter.ObservableInterpretable
 	callCostEstimator interpreter.ActualCostEstimator
 	costOptions       []interpreter.CostTrackerOption
 	costLimit         *uint64
-}
 
-func (p *prog) clone() *prog {
-	costOptsCopy := make([]interpreter.CostTrackerOption, len(p.costOptions))
-	copy(costOptsCopy, p.costOptions)
+	// hasAsync indicates the planned expression contains an asynchronous function call, which can
+	// only be resolved by ConcurrentEval.
+	hasAsync bool
 
-	return &prog{
-		Env:                     p.Env,
-		evalOpts:                p.evalOpts,
-		defaultVars:             p.defaultVars,
-		dispatcher:              p.dispatcher,
-		interpreter:             p.interpreter,
-		interruptCheckFrequency: p.interruptCheckFrequency,
-	}
+	// Async evaluation configuration used by ConcurrentEval.
+	drainStrategy             async.DrainStrategy
+	asyncObserver             async.Observer
+	asyncCompletionBufferSize int
+	asyncMaxConcurrency       int
 }
 
 // newProgram creates a program instance with an environment, an ast, and an optional list of
@@ -159,10 +211,11 @@ func newProgram(e *Env, a *ast.AST, opts []ProgramOption) (Program, error) {
 	// Ensure the default attribute factory is set after the adapter and provider are
 	// configured.
 	p := &prog{
-		Env:         e,
-		decorators:  []interpreter.InterpretableDecorator{},
-		dispatcher:  disp,
-		costOptions: []interpreter.CostTrackerOption{},
+		Env:            e,
+		plannerOptions: []interpreter.PlannerOption{},
+		dispatcher:     disp,
+		costOptions:    []interpreter.CostTrackerOption{},
+		drainStrategy:  async.DrainReady(100 * time.Microsecond),
 	}
 
 	// Configure the program via the ProgramOption values.
@@ -174,15 +227,35 @@ func newProgram(e *Env, a *ast.AST, opts []ProgramOption) (Program, error) {
 		}
 	}
 
-	// Add the function bindings created via Function() options.
-	for _, fn := range e.functions {
-		bindings, err := fn.Bindings()
-		if err != nil {
-			return nil, err
+	e.funcBindOnce.Do(func() {
+		var bindings []*functions.Overload
+		e.functionBindings = []*functions.Overload{}
+		for _, fn := range e.functions {
+			bindings, err = fn.Bindings()
+			if err != nil {
+				return
+			}
+			e.functionBindings = append(e.functionBindings, bindings...)
 		}
-		err = disp.Add(bindings...)
-		if err != nil {
-			return nil, err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the function bindings created via Function() options.
+	err = disp.Add(e.functionBindings...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine whether the environment declares any asynchronous function. Async is a property of
+	// the binding, so its presence is known from the environment alone, without inspecting the
+	// program plan. The synchronous entry points (Eval, ContextEval) reject programs from an env
+	// with async functions; callers needing synchronous evaluation should use a non-async env.
+	for _, b := range e.functionBindings {
+		if b.Async != nil {
+			p.hasAsync = true
+			break
 		}
 	}
 
@@ -191,6 +264,12 @@ func newProgram(e *Env, a *ast.AST, opts []ProgramOption) (Program, error) {
 	attrFactorOpts := []interpreter.AttrFactoryOption{
 		interpreter.EnableErrorOnBadPresenceTest(p.HasFeature(featureEnableErrorOnBadPresenceTest)),
 	}
+	if a.SourceInfo().HasExtension("json_name", ast.NewExtensionVersion(1, 1)) {
+		if !e.HasFeature(featureJSONFieldNames) {
+			return nil, errors.New("the AST extension 'json_name' requires the option cel.JSONFieldNames(true)")
+		}
+	}
+	// Configure the type provider, considering whether the AST indicates whether it supports JSON field names
 	if p.evalOpts&OptPartialEval == OptPartialEval {
 		attrFactory = interpreter.NewPartialAttributeFactory(e.Container, e.adapter, e.provider, attrFactorOpts...)
 	} else {
@@ -200,74 +279,79 @@ func newProgram(e *Env, a *ast.AST, opts []ProgramOption) (Program, error) {
 	p.interpreter = interp
 
 	// Translate the EvalOption flags into InterpretableDecorator instances.
-	decorators := make([]interpreter.InterpretableDecorator, len(p.decorators))
-	copy(decorators, p.decorators)
+	plannerOptions := make([]interpreter.PlannerOption, len(p.plannerOptions))
+	copy(plannerOptions, p.plannerOptions)
 
 	// Enable interrupt checking if there's a non-zero check frequency
 	if p.interruptCheckFrequency > 0 {
-		decorators = append(decorators, interpreter.InterruptableEval())
+		plannerOptions = append(plannerOptions, interpreter.InterruptableEval())
 	}
 	// Enable constant folding first.
 	if p.evalOpts&OptOptimize == OptOptimize {
-		decorators = append(decorators, interpreter.Optimize())
+		plannerOptions = append(plannerOptions, interpreter.Optimize())
 		p.regexOptimizations = append(p.regexOptimizations, interpreter.MatchesRegexOptimization)
 	}
 	// Enable regex compilation of constants immediately after folding constants.
 	if len(p.regexOptimizations) > 0 {
-		decorators = append(decorators, interpreter.CompileRegexConstants(p.regexOptimizations...))
+		plannerOptions = append(plannerOptions, interpreter.CompileRegexConstants(p.regexOptimizations...))
 	}
 
 	// Enable exhaustive eval, state tracking and cost tracking last since they require a factory.
 	if p.evalOpts&(OptExhaustiveEval|OptTrackState|OptTrackCost) != 0 {
-		factory := func(state interpreter.EvalState, costTracker *interpreter.CostTracker) (Program, error) {
-			costTracker.Estimator = p.callCostEstimator
-			costTracker.Limit = p.costLimit
-			for _, costOpt := range p.costOptions {
-				err := costOpt(costTracker)
-				if err != nil {
-					return nil, err
-				}
-			}
-			// Limit capacity to guarantee a reallocation when calling 'append(decs, ...)' below. This
-			// prevents the underlying memory from being shared between factory function calls causing
-			// undesired mutations.
-			decs := decorators[:len(decorators):len(decorators)]
-			var observers []interpreter.EvalObserver
-
-			if p.evalOpts&(OptExhaustiveEval|OptTrackState) != 0 {
-				// EvalStateObserver is required for OptExhaustiveEval.
-				observers = append(observers, interpreter.EvalStateObserver(state))
-			}
-			if p.evalOpts&OptTrackCost == OptTrackCost {
-				observers = append(observers, interpreter.CostObserver(costTracker))
-			}
-
-			// Enable exhaustive eval over a basic observer since it offers a superset of features.
-			if p.evalOpts&OptExhaustiveEval == OptExhaustiveEval {
-				decs = append(decs, interpreter.ExhaustiveEval(), interpreter.Observe(observers...))
-			} else if len(observers) > 0 {
-				decs = append(decs, interpreter.Observe(observers...))
-			}
-
-			return p.clone().initInterpretable(a, decs)
+		costOptCount := len(p.costOptions)
+		if p.costLimit != nil {
+			costOptCount++
 		}
-		return newProgGen(factory)
+		costOpts := make([]interpreter.CostTrackerOption, 0, costOptCount)
+		costOpts = append(costOpts, p.costOptions...)
+		if p.costLimit != nil {
+			costOpts = append(costOpts, interpreter.CostTrackerLimit(*p.costLimit))
+		}
+		// Creating a new cost tracker for each evaluation causes significant work that
+		// needs to be repeated for each evaluation even though the cost tracker is
+		// mostly read-only once constructed. Therefore it gets constructed
+		// once now and later a cheap clone is used for each evaluation.
+		tracker, err := interpreter.NewCostTracker(p.callCostEstimator, costOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("construct cost tracker: %w", err)
+		}
+		trackerFactory := func() (*interpreter.CostTracker, error) {
+			return tracker.Clone()
+		}
+		var observers []interpreter.PlannerOption
+		if p.evalOpts&(OptExhaustiveEval|OptTrackState) != 0 {
+			// EvalStateObserver is required for OptExhaustiveEval.
+			observers = append(observers, interpreter.EvalStateObserver())
+		}
+		if p.evalOpts&OptTrackCost == OptTrackCost {
+			observers = append(observers, interpreter.CostObserver(interpreter.CostTrackerFactory(trackerFactory)))
+		}
+		// Enable exhaustive eval over a basic observer since it offers a superset of features.
+		if p.evalOpts&OptExhaustiveEval == OptExhaustiveEval {
+			plannerOptions = append(plannerOptions,
+				append([]interpreter.PlannerOption{interpreter.ExhaustiveEval()}, observers...)...)
+		} else if len(observers) > 0 {
+			plannerOptions = append(plannerOptions, observers...)
+		}
 	}
-	return p.initInterpretable(a, decorators)
+	return p.initInterpretable(a, plannerOptions)
 }
 
-func (p *prog) initInterpretable(a *ast.AST, decs []interpreter.InterpretableDecorator) (*prog, error) {
+func (p *prog) initInterpretable(a *ast.AST, plannerOptions []interpreter.PlannerOption) (*prog, error) {
 	// When the AST has been exprAST it contains metadata that can be used to speed up program execution.
-	interpretable, err := p.interpreter.NewInterpretable(a, decs...)
+	interpretable, err := p.interpreter.NewInterpretable(a, plannerOptions...)
 	if err != nil {
 		return nil, err
 	}
 	p.interpretable = interpretable
+	if oi, ok := interpretable.(*interpreter.ObservableInterpretable); ok {
+		p.observable = oi
+	}
 	return p, nil
 }
 
 // Eval implements the Program interface method.
-func (p *prog) Eval(input any) (v ref.Val, det *EvalDetails, err error) {
+func (p *prog) Eval(input any) (out ref.Val, det *EvalDetails, err error) {
 	// Configure error recovery for unexpected panics during evaluation. Note, the use of named
 	// return values makes it possible to modify the error response during the recovery
 	// function.
@@ -281,26 +365,40 @@ func (p *prog) Eval(input any) (v ref.Val, det *EvalDetails, err error) {
 			}
 		}
 	}()
+	// Asynchronous calls cannot be resolved by a single-pass evaluation. Reject before doing any
+	// work (this also covers ContextEval, which delegates here); ConcurrentEval does not call Eval.
+	if p.hasAsync {
+		return nil, nil, errAsyncRequiresConcurrentEval
+	}
 	// Build a hierarchical activation if there are default vars set.
-	var vars interpreter.Activation
-	switch v := input.(type) {
-	case interpreter.Activation:
-		vars = v
-	case map[string]any:
-		vars = activationPool.Setup(v)
-		defer activationPool.Put(vars)
-	default:
-		return nil, nil, fmt.Errorf("invalid input, wanted Activation or map[string]any, got: (%T)%v", input, input)
+	var frame *interpreter.ExecutionFrame
+	if f, ok := input.(*interpreter.ExecutionFrame); ok {
+		frame = f
+	} else {
+		frame, err = p.newExecutionFrame(input)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer frame.Close()
 	}
-	if p.defaultVars != nil {
-		vars = interpreter.NewHierarchicalActivation(p.defaultVars, vars)
+	if p.observable != nil {
+		det = &EvalDetails{}
+		out = p.observable.ObserveExec(frame, func(observed any) {
+			switch o := observed.(type) {
+			case interpreter.EvalState:
+				det.state = o
+			case *interpreter.CostTracker:
+				det.costTracker = o
+			}
+		})
+	} else {
+		out = p.interpretable.Exec(frame)
 	}
-	v = p.interpretable.Eval(vars)
 	// The output of an internal Eval may have a value (`v`) that is a types.Err. This step
 	// translates the CEL value to a Go error response. This interface does not quite match the
 	// RPC signature which allows for multiple errors to be returned, but should be sufficient.
-	if types.IsError(v) {
-		err = v.(*types.Err)
+	if types.IsError(out) {
+		err = out.(*types.Err)
 	}
 	return
 }
@@ -310,237 +408,220 @@ func (p *prog) ContextEval(ctx context.Context, input any) (ref.Val, *EvalDetail
 	if ctx == nil {
 		return nil, nil, fmt.Errorf("context can not be nil")
 	}
-	// Configure the input, making sure to wrap Activation inputs in the special ctxActivation which
-	// exposes the #interrupted variable and manages rate-limited checks of the ctx.Done() state.
-	var vars interpreter.Activation
-	switch v := input.(type) {
-	case interpreter.Activation:
-		vars = ctxActivationPool.Setup(v, ctx.Done(), p.interruptCheckFrequency)
-		defer ctxActivationPool.Put(vars)
-	case map[string]any:
-		rawVars := activationPool.Setup(v)
-		defer activationPool.Put(rawVars)
-		vars = ctxActivationPool.Setup(rawVars, ctx.Done(), p.interruptCheckFrequency)
-		defer ctxActivationPool.Put(vars)
-	default:
-		return nil, nil, fmt.Errorf("invalid input, wanted Activation or map[string]any, got: (%T)%v", input, input)
-	}
-	return p.Eval(vars)
-}
-
-// progFactory is a helper alias for marking a program creation factory function.
-type progFactory func(interpreter.EvalState, *interpreter.CostTracker) (Program, error)
-
-// progGen holds a reference to a progFactory instance and implements the Program interface.
-type progGen struct {
-	factory progFactory
-}
-
-// newProgGen tests the factory object by calling it once and returns a factory-based Program if
-// the test is successful.
-func newProgGen(factory progFactory) (Program, error) {
-	// Test the factory to make sure that configuration errors are spotted at config
-	tracker, err := interpreter.NewCostTracker(nil)
-	if err != nil {
-		return nil, err
-	}
-	_, err = factory(interpreter.NewEvalState(), tracker)
-	if err != nil {
-		return nil, err
-	}
-	return &progGen{factory: factory}, nil
-}
-
-// Eval implements the Program interface method.
-func (gen *progGen) Eval(input any) (ref.Val, *EvalDetails, error) {
-	// The factory based Eval() differs from the standard evaluation model in that it generates a
-	// new EvalState instance for each call to ensure that unique evaluations yield unique stateful
-	// results.
-	state := interpreter.NewEvalState()
-	costTracker, err := interpreter.NewCostTracker(nil)
+	frame, err := p.newExecutionFrame(input)
 	if err != nil {
 		return nil, nil, err
 	}
-	det := &EvalDetails{state: state, costTracker: costTracker}
-
-	// Generate a new instance of the interpretable using the factory configured during the call to
-	// newProgram(). It is incredibly unlikely that the factory call will generate an error given
-	// the factory test performed within the Program() call.
-	p, err := gen.factory(state, costTracker)
-	if err != nil {
-		return nil, det, err
+	defer frame.Close()
+	frame.SetContext(ctx, p.interruptCheckFrequency)
+	out, det, errEval := p.Eval(frame)
+	if errEval != nil && errors.Is(errEval, interpreter.InterruptError{}) {
+		return out, det, fmt.Errorf("%w: %w", errEval, context.Cause(ctx))
 	}
-
-	// Evaluate the input, returning the result and the 'state' within EvalDetails.
-	v, _, err := p.Eval(input)
-	if err != nil {
-		return v, det, err
-	}
-	return v, det, nil
+	return out, det, errEval
 }
 
-// ContextEval implements the Program interface method.
-func (gen *progGen) ContextEval(ctx context.Context, input any) (ref.Val, *EvalDetails, error) {
+// newExecutionFrame creates an ExecutionFrame for the given input without a timeout context.
+func (p *prog) newExecutionFrame(input any) (*interpreter.ExecutionFrame, error) {
+	frame, err := interpreter.NewExecutionFrame(input)
+	if err != nil {
+		return nil, err
+	}
+	if p.defaultVars != nil {
+		// Update the frame's activation in place.
+		frame.Activation = interpreter.NewHierarchicalActivation(p.defaultVars, frame.Activation)
+	}
+
+	return frame, nil
+}
+
+// newAsyncFrame creates an ExecutionFrame configured for asynchronous evaluation under the
+// given context, wiring the observer and concurrency limit from the program options.
+func (p *prog) newAsyncFrame(ctx context.Context, input any) (*interpreter.ExecutionFrame, error) {
+	frame, err := p.newExecutionFrame(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := frame.SetContext(ctx, p.interruptCheckFrequency); err != nil {
+		frame.Close()
+		return nil, err
+	}
+	frame.SetAsyncObserver(p.asyncObserver)
+	frame.SetAsyncMaxConcurrency(resolveAsyncMaxConcurrency(p.asyncMaxConcurrency))
+	return frame, nil
+}
+
+// defaultAsyncMaxConcurrency bounds the number of concurrently launched async calls when the
+// program does not configure AsyncMaxConcurrency. It exists so that a wide fan-out (e.g. an async
+// call inside a comprehension over a large list) cannot spawn an unbounded number of goroutines.
+const defaultAsyncMaxConcurrency = 100
+
+// resolveAsyncMaxConcurrency maps the configured concurrency to the effective launch limit:
+//   - 0 (unset): apply defaultAsyncMaxConcurrency.
+//   - >0: use the configured value.
+//   - <0: unlimited (no launch limiter); use only if the caller bounds concurrency another way.
+func resolveAsyncMaxConcurrency(configured int) int {
+	if configured == 0 {
+		return defaultAsyncMaxConcurrency
+	}
+	return configured
+}
+
+// resolveCompletionBufferSize returns the size of the async completion channel. When unset, it
+// defaults to the effective launch concurrency so that all in-flight calls can report completion
+// without blocking. An unbuffered channel would make a completed call hold its launch slot until
+// the evaluator drained it, throttling effective concurrency to the drain rate.
+func (p *prog) resolveCompletionBufferSize() int {
+	if p.asyncCompletionBufferSize > 0 {
+		return p.asyncCompletionBufferSize
+	}
+	limit := resolveAsyncMaxConcurrency(p.asyncMaxConcurrency)
+	if limit < 0 {
+		// Unlimited launches: fall back to the default bound for the buffer so it stays finite.
+		return defaultAsyncMaxConcurrency
+	}
+	return limit
+}
+
+// ConcurrentEval implements the Program interface.
+func (p *prog) ConcurrentEval(ctx context.Context, input any) <-chan EvalResult {
+	resCh := make(chan EvalResult, 1)
 	if ctx == nil {
-		return nil, nil, fmt.Errorf("context can not be nil")
-	}
-	// The factory based Eval() differs from the standard evaluation model in that it generates a
-	// new EvalState instance for each call to ensure that unique evaluations yield unique stateful
-	// results.
-	state := interpreter.NewEvalState()
-	costTracker, err := interpreter.NewCostTracker(nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	det := &EvalDetails{state: state, costTracker: costTracker}
-
-	// Generate a new instance of the interpretable using the factory configured during the call to
-	// newProgram(). It is incredibly unlikely that the factory call will generate an error given
-	// the factory test performed within the Program() call.
-	p, err := gen.factory(state, costTracker)
-	if err != nil {
-		return nil, det, err
+		resCh <- EvalResult{Err: errors.New("context can not be nil")}
+		close(resCh)
+		return resCh
 	}
 
-	// Evaluate the input, returning the result and the 'state' within EvalDetails.
-	v, _, err := p.ContextEval(ctx, input)
-	if err != nil {
-		return v, det, err
-	}
-	return v, det, nil
-}
+	go func() {
+		defer close(resCh)
+		// Ensure concurrent eval handles panic / recovery properly
+		defer func() {
+			if r := recover(); r != nil {
+				switch t := r.(type) {
+				case interpreter.EvalCancelledError:
+					resCh <- EvalResult{Err: t}
+				default:
+					resCh <- EvalResult{Err: fmt.Errorf("internal error: %v", r)}
+				}
+			}
+		}()
 
-type ctxEvalActivation struct {
-	parent                  interpreter.Activation
-	interrupt               <-chan struct{}
-	interruptCheckCount     uint
-	interruptCheckFrequency uint
-}
+		frame, err := p.newAsyncFrame(ctx, input)
+		if err != nil {
+			resCh <- EvalResult{Err: err}
+			return
+		}
+		defer frame.Close()
 
-// ResolveName implements the Activation interface method, but adds a special #interrupted variable
-// which is capable of testing whether a 'done' signal is provided from a context.Context channel.
-func (a *ctxEvalActivation) ResolveName(name string) (any, bool) {
-	if name == "#interrupted" {
-		a.interruptCheckCount++
-		if a.interruptCheckCount%a.interruptCheckFrequency == 0 {
+		// Completions are signaled to this channel as async calls finish. The asyncCallState
+		// fan-in also selects on ctx.Done(), so the sender will not leak if this loop returns early.
+		completions := make(chan int64, p.resolveCompletionBufferSize())
+		frame.SetCompletions(completions)
+
+		for {
+			var out ref.Val
+			var det *EvalDetails
+
+			if p.observable != nil {
+				det = &EvalDetails{}
+				out = p.observable.ObserveExec(frame, func(observed any) {
+					switch o := observed.(type) {
+					case interpreter.EvalState:
+						det.state = o
+					case *interpreter.CostTracker:
+						det.costTracker = o
+					}
+				})
+			} else {
+				out = p.interpretable.Exec(frame)
+			}
+
+			// Communicate errors quickly.
+			if types.IsError(out) {
+				var err error = out.(*types.Err)
+				if errors.Is(err, interpreter.InterruptError{}) {
+					err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+				}
+				resCh <- EvalResult{Val: out, EvalDetails: det, Err: err}
+				return
+			}
+
+			// A concrete (non-unknown) result is final.
+			unk, isUnknown := out.(*types.Unknown)
+			if !isUnknown || !unk.HasUnknownFunction() {
+				resCh <- EvalResult{Val: out, EvalDetails: det, Err: nil}
+				return
+			}
+
+			// Post-execution dispatch: launch only the async calls required by the unknown result.
+			frame.DispatchPendingAsyncCalls(unk.IDs())
+
+			// The result depends on one or more unresolved async calls. Wait for completions and
+			// re-evaluate according to the configured drain strategy.
+			var batch []async.Call
+
+			// Wait for at least one completion (or cancellation).
 			select {
-			case <-a.interrupt:
-				return true, true
-			default:
-				return nil, false
+			case id := <-completions:
+				if call := frame.AsyncCall(id); call != nil {
+					batch = append(batch, call)
+				}
+			case <-ctx.Done():
+				resCh <- EvalResult{Val: out, EvalDetails: det, Err: ctx.Err()}
+				return
+			}
+
+			// Accumulate completions and consult the strategy.
+			var timer *time.Timer
+			reevaluate := false
+			for !reevaluate {
+				active := frame.ActiveAsyncCalls()
+				action := p.drainStrategy.NextAction(batch, active)
+				if action.Reevaluate {
+					break
+				}
+
+				var timeoutCh <-chan time.Time
+				if action.WaitDuration > 0 {
+					if timer == nil {
+						timer = time.NewTimer(action.WaitDuration)
+					} else {
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
+						timer.Reset(action.WaitDuration)
+					}
+					timeoutCh = timer.C
+				}
+
+				select {
+				case id := <-completions:
+					if call := frame.AsyncCall(id); call != nil {
+						batch = append(batch, call)
+					}
+				case <-timeoutCh:
+					reevaluate = true
+				case <-ctx.Done():
+					if timer != nil {
+						timer.Stop()
+					}
+					resCh <- EvalResult{Val: out, EvalDetails: det, Err: ctx.Err()}
+					return
+				}
+			}
+			if timer != nil {
+				timer.Stop()
 			}
 		}
-		return nil, false
-	}
-	return a.parent.ResolveName(name)
+	}()
+
+	return resCh
 }
 
-func (a *ctxEvalActivation) Parent() interpreter.Activation {
-	return a.parent
-}
-
-func newCtxEvalActivationPool() *ctxEvalActivationPool {
-	return &ctxEvalActivationPool{
-		Pool: sync.Pool{
-			New: func() any {
-				return &ctxEvalActivation{}
-			},
-		},
-	}
-}
-
-type ctxEvalActivationPool struct {
-	sync.Pool
-}
-
-// Setup initializes a pooled Activation with the ability check for context.Context cancellation
-func (p *ctxEvalActivationPool) Setup(vars interpreter.Activation, done <-chan struct{}, interruptCheckRate uint) *ctxEvalActivation {
-	a := p.Pool.Get().(*ctxEvalActivation)
-	a.parent = vars
-	a.interrupt = done
-	a.interruptCheckCount = 0
-	a.interruptCheckFrequency = interruptCheckRate
-	return a
-}
-
-type evalActivation struct {
-	vars     map[string]any
-	lazyVars map[string]any
-}
-
-// ResolveName looks up the value of the input variable name, if found.
-//
-// Lazy bindings may be supplied within the map-based input in either of the following forms:
-// - func() any
-// - func() ref.Val
-//
-// The lazy binding will only be invoked once per evaluation.
-//
-// Values which are not represented as ref.Val types on input may be adapted to a ref.Val using
-// the types.Adapter configured in the environment.
-func (a *evalActivation) ResolveName(name string) (any, bool) {
-	v, found := a.vars[name]
-	if !found {
-		return nil, false
-	}
-	switch obj := v.(type) {
-	case func() ref.Val:
-		if resolved, found := a.lazyVars[name]; found {
-			return resolved, true
-		}
-		lazy := obj()
-		a.lazyVars[name] = lazy
-		return lazy, true
-	case func() any:
-		if resolved, found := a.lazyVars[name]; found {
-			return resolved, true
-		}
-		lazy := obj()
-		a.lazyVars[name] = lazy
-		return lazy, true
-	default:
-		return obj, true
-	}
-}
-
-// Parent implements the interpreter.Activation interface
-func (a *evalActivation) Parent() interpreter.Activation {
-	return nil
-}
-
-func newEvalActivationPool() *evalActivationPool {
-	return &evalActivationPool{
-		Pool: sync.Pool{
-			New: func() any {
-				return &evalActivation{lazyVars: make(map[string]any)}
-			},
-		},
-	}
-}
-
-type evalActivationPool struct {
-	sync.Pool
-}
-
-// Setup initializes a pooled Activation object with the map input.
-func (p *evalActivationPool) Setup(vars map[string]any) *evalActivation {
-	a := p.Pool.Get().(*evalActivation)
-	a.vars = vars
-	return a
-}
-
-func (p *evalActivationPool) Put(value any) {
-	a := value.(*evalActivation)
-	for k := range a.lazyVars {
-		delete(a.lazyVars, k)
-	}
-	p.Pool.Put(a)
-}
-
-var (
-	// activationPool is an internally managed pool of Activation values that wrap map[string]any inputs
-	activationPool = newEvalActivationPool()
-
-	// ctxActivationPool is an internally managed pool of Activation values that expose a special #interrupted variable
-	ctxActivationPool = newCtxEvalActivationPool()
-)
+// errAsyncRequiresConcurrentEval is returned by the synchronous entry points (Eval, ContextEval)
+// when the expression contains asynchronous function calls, which only ConcurrentEval can resolve.
+var errAsyncRequiresConcurrentEval = errors.New(
+	"expression contains asynchronous function calls; use ConcurrentEval")
