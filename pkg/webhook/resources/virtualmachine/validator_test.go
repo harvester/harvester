@@ -2012,6 +2012,7 @@ func TestCheckDiskIOMode(t *testing.T) {
 	tests := []struct {
 		name     string
 		vm       *kubevirtv1.VirtualMachine
+		oldVM    *kubevirtv1.VirtualMachine
 		errorKey string
 	}{
 		{
@@ -2052,11 +2053,37 @@ func TestCheckDiskIOMode(t *testing.T) {
 			name: "vm without template passes",
 			vm:   &kubevirtv1.VirtualMachine{ObjectMeta: metav1.ObjectMeta{Name: "vm1", Namespace: "default"}},
 		},
+		{
+			name:  "update keeping an existing invalid disk passes",
+			vm:    newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+			oldVM: newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+		},
+		{
+			name:     "update changing the cache of a native disk to writeback rejected",
+			vm:       newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+			oldVM:    newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheNone}),
+			errorKey: "disk rootdisk:",
+		},
+		{
+			name:     "update switching a writeback disk to native io rejected",
+			vm:       newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+			oldVM:    newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IOThreads, Cache: kubevirtv1.CacheWriteBack}),
+			errorKey: "disk rootdisk:",
+		},
+		{
+			name: "update adding an invalid disk rejected",
+			vm: newVM(
+				kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack},
+				kubevirtv1.Disk{Name: "datadisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteThrough},
+			),
+			oldVM:    newVM(kubevirtv1.Disk{Name: "rootdisk", IO: kubevirtv1.IONative, Cache: kubevirtv1.CacheWriteBack}),
+			errorKey: "disk datadisk:",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkDiskIOMode(tc.vm)
+			err := checkDiskIOMode(tc.vm, tc.oldVM)
 
 			if tc.errorKey != "" {
 				assert.Error(t, err, tc.name)

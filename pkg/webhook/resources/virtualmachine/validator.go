@@ -239,6 +239,10 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return err
 	}
 
+	if err := checkDiskIOMode(vm, nil); err != nil {
+		return err
+	}
+
 	if err := v.checkAllVolumeClaimTemplateEntries(request, vm); err != nil {
 		return err
 	}
@@ -269,6 +273,10 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	}
 
 	if err := v.checkVMSpec(newVM); err != nil {
+		return err
+	}
+
+	if err := checkDiskIOMode(newVM, oldObj.(*kubevirtv1.VirtualMachine)); err != nil {
 		return err
 	}
 
@@ -340,9 +348,6 @@ func (v *vmValidator) checkVMSpec(vm *kubevirtv1.VirtualMachine) error {
 		return err
 	}
 	if err := v.checkShareableVolumes(vm); err != nil {
-		return err
-	}
-	if err := checkDiskIOMode(vm); err != nil {
 		return err
 	}
 	if err := v.checkTerminationGracePeriodSeconds(vm); err != nil {
@@ -469,15 +474,34 @@ func (v *vmValidator) checkShareableVolumes(vm *kubevirtv1.VirtualMachine) error
 // accepted, but virt-launcher fails to start it: libvirt requires cache mode
 // none (or directsync, which KubeVirt doesn't offer) for native I/O. An unset
 // cache mode is allowed, since KubeVirt picks it per storage at start.
-func checkDiskIOMode(vm *kubevirtv1.VirtualMachine) error {
+//
+// On update (oldVM not nil), a disk that keeps the io and cache modes it
+// already had is not rejected, so a VM created before this check can still be
+// stopped or edited to fix the disk.
+func checkDiskIOMode(vm, oldVM *kubevirtv1.VirtualMachine) error {
 	if vm.Spec.Template == nil {
 		return nil
+	}
+
+	type ioMode struct {
+		io    kubevirtv1.DriverIO
+		cache kubevirtv1.DriverCache
+	}
+	oldModes := map[string]ioMode{}
+	if oldVM != nil && oldVM.Spec.Template != nil {
+		for _, disk := range oldVM.Spec.Template.Spec.Domain.Devices.Disks {
+			oldModes[disk.Name] = ioMode{io: disk.IO, cache: disk.Cache}
+		}
 	}
 
 	for _, disk := range vm.Spec.Template.Spec.Domain.Devices.Disks {
 		if disk.IO != kubevirtv1.IONative ||
 			disk.Cache == "" ||
 			disk.Cache == kubevirtv1.CacheNone {
+			continue
+		}
+
+		if old, ok := oldModes[disk.Name]; ok && old == (ioMode{io: disk.IO, cache: disk.Cache}) {
 			continue
 		}
 
