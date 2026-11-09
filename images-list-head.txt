@@ -1,8 +1,8 @@
 # this image list is used by CNS image scanning workflow to determine CVE vulnerabilities in images used by Harvester
 # with longhorn, rancher and rke2 at main
 
-docker.io/kubeovn/kube-ovn:v1.16.2
-docker.io/kubeovn/vpc-nat-gateway:v1.16.2
+docker.io/kubeovn/kube-ovn:v1.17.0
+docker.io/kubeovn/vpc-nat-gateway:v1.17.0
 docker.io/longhornio/backing-image-manager:master-head
 docker.io/longhornio/csi-attacher:v4.13.0
 docker.io/longhornio/csi-node-driver-registrar:v2.18.0
