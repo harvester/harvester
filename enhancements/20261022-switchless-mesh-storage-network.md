@@ -180,6 +180,12 @@ between two nodes, say A and B, is gone until the cable is replaced.
 Changing the uplink mode later follows the existing storage network procedure: stop the VMs, clear
 `storage-network`, edit the network configuration, then set `storage-network` again.
 
+All VlanConfigs of a cluster network share one mode (see below), so when the cluster network has
+more than one VlanConfig (for example one per node group with different NIC names), editing one of
+them to the other mode is rejected. In that case, after clearing `storage-network`, delete all
+VlanConfigs of the cluster network but one, change the mode of the remaining one, and create the
+others again with the new mode, then set `storage-network` again.
+
 ### API changes
 
 Two new optional fields on the VlanConfig uplink: `mode` and `peerLinks`. With 2 NICs per node:
@@ -440,8 +446,12 @@ Integration (3 nodes with a direct-cabled mesh):
 - The CRD gains the optional `uplink.mode` enum and `uplink.peerLinks` list, shipped with the
   network controller chart.
 - The UI shows the option only on clusters with the new controller (feature flag for v1.10.0).
-- **Downgrade:** an older controller ignores `uplink.mode` and would build a bond. Remove isolated
-  VlanConfigs, or switch them to a broadcast bond, before downgrading. This will be documented.
+- **Downgrade:** an older controller ignores `uplink.mode` and `uplink.peerLinks`, and only reads
+  `uplink.nics`. Remove isolated VlanConfigs, or switch them to a broadcast bond, before
+  downgrading. Switching to a bond means moving every NIC of `uplink.peerLinks` into
+  `uplink.nics` (all four with 4 NICs per node), clearing `uplink.peerLinks`, setting
+  `uplink.mode` to `bond` (or removing it) and `uplink.bondOptions.mode` to `broadcast`. This will
+  be documented.
 - Users who run a broadcast bond on a mesh today can switch to isolated mode with the existing
   "change a storage network VlanConfig" procedure (VMs stopped).
 
