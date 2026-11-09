@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
-	"github.com/harvester/harvester/pkg/util"
+	vmstate "github.com/harvester/harvester/pkg/util/vmstate"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
@@ -41,8 +41,8 @@ func (v *vmiValidator) Create(_ *types.Request, newObj runtime.Object) error {
 }
 
 func (v *vmiValidator) validateVMStateStorageClass(vmi *kubevirtv1.VirtualMachineInstance) error {
-	if err := util.CheckVMStateStorageClass(vmi, v.scCache); err != nil {
-		if util.IsVMStateStorageClassMissing(err) {
+	if err := vmstate.CheckVMStateStorageClass(vmi, v.scCache); err != nil {
+		if vmstate.IsVMStateStorageClassMissing(err) {
 			return werror.NewInvalidError(err.Error(), "spec.domain")
 		}
 		return werror.NewInternalError(err.Error())

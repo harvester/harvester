@@ -2385,3 +2385,105 @@ func TestCheckVMStateStorageClass(t *testing.T) {
 		})
 	}
 }
+
+func TestVmValidator_Create_VMStateStorageClass(t *testing.T) {
+	persistentTrue := true
+	vmWithTPM := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset()
+	v := &vmValidator{
+		scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+	}
+
+	err := v.Create(fakeclients.NewFakeRequest("test-user"), vmWithTPM)
+	assert.Error(t, err, "Create with persistent TPM and missing vmstate-persistence SC should be rejected")
+}
+
+func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
+	persistentTrue := true
+
+	withTPM := func(vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
+		v := vm.DeepCopy()
+		v.Spec.Template.Spec.Domain.Devices.TPM = &kubevirtv1.TPMDevice{Persistent: &persistentTrue}
+		return v
+	}
+	base := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Memory: &kubevirtv1.Memory{
+							Guest: resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		oldVM       *kubevirtv1.VirtualMachine
+		newVM       *kubevirtv1.VirtualMachine
+		scExists    bool
+		expectError bool
+	}{
+		{
+			name:        "old without vTPM, new with persistent TPM, SC missing → rejected",
+			oldVM:       base.DeepCopy(),
+			newVM:       withTPM(base),
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name:        "old with persistent TPM, new with persistent TPM, SC missing → accepted",
+			oldVM:       withTPM(base),
+			newVM:       withTPM(base),
+			scExists:    false,
+			expectError: false,
+		},
+		{
+			name:        "old without vTPM, new without vTPM → accepted",
+			oldVM:       base.DeepCopy(),
+			newVM:       base.DeepCopy(),
+			scExists:    false,
+			expectError: false,
+		},
+	}
+
+	corefakeclientset := corefake.NewClientset()
+	assert.NoError(t, corefakeclientset.Tracker().Add(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}))
+	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.scExists {
+				assert.NoError(t, clientset.Tracker().Add(&storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
+				}))
+			}
+			fakeScCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
+			v := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+			err := v.Update(fakeclients.NewFakeRequest("test-user"), tc.oldVM, tc.newVM)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
