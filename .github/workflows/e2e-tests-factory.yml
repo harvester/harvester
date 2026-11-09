@@ -194,6 +194,8 @@ jobs:
     - name: Create testing cluster
       run: |
         cd $HOME/harvester-dev
+        # in case the runner is restarted, start admin first
+        task op:admin-poweron
         ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "$golden_target_branch"
       env:
         LIBVIRT_DEFAULT_URI: "qemu:///system"
@@ -217,6 +219,9 @@ jobs:
     - name: Patch Harvester images
       run: |
         cd $HOME/harvester-dev
+
+        # need egress on to reach the registry
+        task op:admin-enable-egress
 
         repo="rancher"
 
