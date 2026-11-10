@@ -20,6 +20,7 @@ import (
 	fake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	werror "github.com/harvester/harvester/pkg/webhook/error"
 	kubeovnapiv1 "github.com/kubeovn/kube-ovn/pkg/apis/kubeovn/v1"
 )
 
@@ -447,6 +448,88 @@ func Test_validateNewAddon(t *testing.T) {
 		} else {
 			assert.Nil(t, err, tc.name)
 		}
+	}
+}
+
+func Test_validateNewStorageBackedAddon(t *testing.T) {
+	testCases := []struct {
+		name                string
+		addonName           string
+		defaultSCAnnotation string
+		valuesContent       string
+		expectedError       bool
+	}{
+		{
+			name:          "reject enabled rancher-monitoring without default SC",
+			addonName:     util.RancherMonitoringName,
+			expectedError: true,
+		},
+		{
+			name:                "allow enabled rancher-monitoring with default SC",
+			addonName:           util.RancherMonitoringName,
+			defaultSCAnnotation: util.AnnotationIsDefaultStorageClassName,
+		},
+		{
+			name:                "allow enabled rancher-k3k with beta default SC",
+			addonName:           util.RancherK3KName,
+			defaultSCAnnotation: betaDefaultStorageClassAnnotation,
+		},
+		{
+			name:          "allow enabled rancher-k3k with explicit SC and no default SC",
+			addonName:     util.RancherK3KName,
+			valuesContent: "k3kCluster:\n  storageClassName: nfs-csi\n",
+		},
+		{
+			name:          "reject enabled rancher-k3k with empty SC and no default SC",
+			addonName:     util.RancherK3KName,
+			valuesContent: "k3kCluster:\n  storageClassName: \"\"\n",
+			expectedError: true,
+		},
+		{
+			name:          "allow enabled rancher-monitoring with nested explicit SC and no default SC",
+			addonName:     util.RancherMonitoringName,
+			valuesContent: "prometheus:\n  prometheusSpec:\n    storageSpec:\n      volumeClaimTemplate:\n        spec:\n          storageClassName: harvester-longhorn\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.defaultSCAnnotation != "" {
+				require.NoError(t, clientset.Tracker().Add(&storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							tc.defaultSCAnnotation: "true",
+						},
+					},
+				}))
+			}
+
+			validator := &addonValidator{
+				addons:            fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons),
+				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			addon := &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{Name: tc.addonName},
+				Spec: harvesterv1.AddonSpec{
+					Chart:         tc.addonName,
+					Enabled:       true,
+					ValuesContent: tc.valuesContent,
+				},
+			}
+
+			err := validator.Create(nil, addon)
+			if tc.expectedError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "set a default StorageClass")
+				var admitErr werror.AdmitError
+				require.ErrorAs(t, err, &admitErr)
+				assert.Equal(t, metav1.StatusReasonBadRequest, admitErr.AsResult().Reason)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -2429,37 +2512,57 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 	}
 }
 
+func Test_hasExplicitStorageClass(t *testing.T) {
+	cases := []struct {
+		name   string
+		values string
+		want   bool
+	}{
+		{"empty", "", false},
+		{"no storageClassName", "persistence:\n  size: 10Gi\n", false},
+		{"empty storageClassName", "persistence:\n  storageClassName: \"\"\n", false},
+		{"top-level storageClassName", "storageClassName: longhorn\n", true},
+		{"nested storageClassName", "alertmanager:\n  storage:\n    storageClassName: longhorn\n", true},
+		{"storageClassName in list", "volumes:\n  - storageClassName: local-path\n", true},
+		{"invalid yaml", "this: is: not: valid:", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, hasExplicitStorageClass(tc.values))
+		})
+	}
+}
+
 func Test_validateDefaultStorageClass(t *testing.T) {
 	testCases := []struct {
-		name          string
-		addonName     string
-		enabledBefore bool
-		enabledAfter  bool
-		hasDefaultSC  bool
-		expectedError bool
+		name                string
+		addonName           string
+		enabledBefore       bool
+		enabledAfter        bool
+		defaultSCAnnotation string
+		valuesContent       string
+		expectedError       bool
 	}{
 		{
 			name:          "enable rancher-monitoring without default SC",
 			addonName:     util.RancherMonitoringName,
 			enabledBefore: false,
 			enabledAfter:  true,
-			hasDefaultSC:  false,
 			expectedError: true,
 		},
 		{
-			name:          "enable rancher-monitoring with default SC",
-			addonName:     util.RancherMonitoringName,
-			enabledBefore: false,
-			enabledAfter:  true,
-			hasDefaultSC:  true,
-			expectedError: false,
+			name:                "enable rancher-monitoring with default SC",
+			addonName:           util.RancherMonitoringName,
+			enabledBefore:       false,
+			enabledAfter:        true,
+			defaultSCAnnotation: util.AnnotationIsDefaultStorageClassName,
+			expectedError:       false,
 		},
 		{
 			name:          "enable rancher-k3k without default SC",
-			addonName:     "rancher-k3k",
+			addonName:     util.RancherK3KName,
 			enabledBefore: false,
 			enabledAfter:  true,
-			hasDefaultSC:  false,
 			expectedError: true,
 		},
 		{
@@ -2467,7 +2570,6 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 			addonName:     util.RancherMonitoringName,
 			enabledBefore: true,
 			enabledAfter:  false,
-			hasDefaultSC:  false,
 			expectedError: false,
 		},
 		{
@@ -2475,7 +2577,6 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 			addonName:     "addon1",
 			enabledBefore: false,
 			enabledAfter:  true,
-			hasDefaultSC:  false,
 			expectedError: false,
 		},
 		{
@@ -2483,7 +2584,22 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 			addonName:     util.RancherMonitoringName,
 			enabledBefore: true,
 			enabledAfter:  true,
-			hasDefaultSC:  false,
+			expectedError: false,
+		},
+		{
+			name:                "enable rancher-k3k with beta default SC",
+			addonName:           util.RancherK3KName,
+			enabledBefore:       false,
+			enabledAfter:        true,
+			defaultSCAnnotation: betaDefaultStorageClassAnnotation,
+			expectedError:       false,
+		},
+		{
+			name:          "enable rancher-monitoring with explicit storageClassName in values skips default SC check",
+			addonName:     util.RancherMonitoringName,
+			enabledBefore: false,
+			enabledAfter:  true,
+			valuesContent: "prometheus:\n  prometheusSpec:\n    storageSpec:\n      volumeClaimTemplate:\n        spec:\n          storageClassName: longhorn\n",
 			expectedError: false,
 		},
 	}
@@ -2491,12 +2607,12 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
-			if tc.hasDefaultSC {
+			if tc.defaultSCAnnotation != "" {
 				sc := &storagev1.StorageClass{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "default-sc",
 						Annotations: map[string]string{
-							"storageclass.kubernetes.io/is-default-class": "true",
+							tc.defaultSCAnnotation: "true",
 						},
 					},
 				}
@@ -2509,7 +2625,7 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 			}
 			newAddon := &harvesterv1.Addon{
 				ObjectMeta: metav1.ObjectMeta{Name: tc.addonName},
-				Spec:       harvesterv1.AddonSpec{Chart: "chart1", Enabled: tc.enabledAfter},
+				Spec:       harvesterv1.AddonSpec{Chart: "chart1", Enabled: tc.enabledAfter, ValuesContent: tc.valuesContent},
 			}
 
 			validator := &addonValidator{
@@ -2519,9 +2635,13 @@ func Test_validateDefaultStorageClass(t *testing.T) {
 
 			err := validator.validateUpdatedAddon(newAddon, oldAddon)
 			if tc.expectedError {
-				assert.NotNil(t, err, tc.name)
+				require.Error(t, err, tc.name)
+				assert.Contains(t, err.Error(), "set a default StorageClass", tc.name)
+				var admitErr werror.AdmitError
+				require.ErrorAs(t, err, &admitErr, tc.name)
+				assert.Equal(t, metav1.StatusReasonBadRequest, admitErr.AsResult().Reason, tc.name)
 			} else {
-				assert.Nil(t, err, tc.name)
+				require.NoError(t, err, tc.name)
 			}
 		})
 	}
