@@ -313,7 +313,7 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 		return nil, h.vmro.UpdateType(vmr, h.vmbo.GetType(vmb))
 	}
 
-	if h.vmro.IsMissingVolumes(vmr) {
+	if !h.vmro.IsVolumesStatusInitialized(vmr) {
 		return nil, h.vmro.InitVolumesStatus(vmr, vmb)
 	}
 
