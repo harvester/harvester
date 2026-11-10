@@ -142,7 +142,7 @@ type VMRestoreReader interface {
 	IsRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsKeepMacAddress(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachineRestore) bool
-	IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool
+	IsVolumesStatusInitialized(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool
 	IsNewVMOrHasRetainPolicy(vmr *harvesterv1.VirtualMachineRestore) bool
 	HasStatus(vmr *harvesterv1.VirtualMachineRestore) bool
@@ -225,9 +225,13 @@ func (c *vmrestoreReader) IsKeepHaltedAfterRestore(vmr *harvesterv1.VirtualMachi
 	return vmr.Spec.HaltAfterRestore
 }
 
-func (c *vmrestoreReader) IsMissingVolumes(vmr *harvesterv1.VirtualMachineRestore) bool {
-	return len(vmr.Status.VolumeRestores) == 0 ||
-		(!isNewVMOrHasRetainPolicy(vmr) && len(vmr.Status.DeletedVolumes) == 0)
+func (c *vmrestoreReader) IsVolumesStatusInitialized(vmr *harvesterv1.VirtualMachineRestore) bool {
+	for _, cond := range vmr.Status.Conditions {
+		if cond.Type == harvesterv1.RestoreConditionVolumesStatusInitialized {
+			return cond.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 func (c *vmrestoreReader) IsDeleting(vmr *harvesterv1.VirtualMachineRestore) bool {
@@ -897,6 +901,16 @@ func (vmro *vmrestoreOperator) InitVolumesStatus(old *harvesterv1.VirtualMachine
 		}
 		vmrCpy.Status.DeletedVolumes = deletedVolumes
 	}
+
+	// Empty volume lists are valid; persist initialization independently of their contents.
+	now := currentTime().Format(time.RFC3339)
+	vmro.applyCondition(vmrCpy, harvesterv1.Condition{
+		Type:               harvesterv1.RestoreConditionVolumesStatusInitialized,
+		Status:             corev1.ConditionTrue,
+		Reason:             "InitializationComplete",
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
+	})
 
 	_, err := vmro.Update(old, vmrCpy)
 	return err
