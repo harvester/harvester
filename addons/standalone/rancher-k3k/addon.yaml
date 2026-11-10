@@ -14,7 +14,7 @@ metadata:
 spec:
   enabled: false
   repo: https://charts.harvesterhci.io
-  version: 1.9.1-rc6
+  version: 1.9.1
   chart: rancher-k3k
   valuesContent: |-
     certManagerVersion: "v1.20.2"
