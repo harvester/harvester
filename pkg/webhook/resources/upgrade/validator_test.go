@@ -980,10 +980,12 @@ func TestUpgradeValidator_checkVersionFlavor(t *testing.T) {
 	}
 }
 
-func TestUpgradeValidator_checkDefaultStorageClass(t *testing.T) {
+func TestUpgradeValidator_checkStorageClass(t *testing.T) {
 	cases := []struct {
 		name          string
 		hasDefaultSC  bool
+		annotationSC  string
+		addExtraSC    bool
 		expectedError bool
 	}{
 		{
@@ -995,6 +997,20 @@ func TestUpgradeValidator_checkDefaultStorageClass(t *testing.T) {
 			name:          "default StorageClass present allows upgrade",
 			hasDefaultSC:  true,
 			expectedError: false,
+		},
+		{
+			name:          "annotation SC set and exists allows upgrade without default",
+			hasDefaultSC:  false,
+			annotationSC:  "custom-sc",
+			addExtraSC:    true,
+			expectedError: false,
+		},
+		{
+			name:          "annotation SC set but missing blocks upgrade",
+			hasDefaultSC:  false,
+			annotationSC:  "missing-sc",
+			addExtraSC:    false,
+			expectedError: true,
 		},
 	}
 
@@ -1012,12 +1028,24 @@ func TestUpgradeValidator_checkDefaultStorageClass(t *testing.T) {
 				}
 				require.NoError(t, clientset.Tracker().Add(sc))
 			}
+			if tc.addExtraSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: "custom-sc"},
+				}
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
 
 			validator := &upgradeValidator{
 				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
 			}
+			upgrade := &harvesterv1.Upgrade{}
+			if tc.annotationSC != "" {
+				upgrade.Annotations = map[string]string{
+					util.AnnotationUpgradeStorageClass: tc.annotationSC,
+				}
+			}
 
-			err := validator.checkDefaultStorageClass()
+			err := validator.checkStorageClass(upgrade)
 			if tc.expectedError {
 				assert.NotNil(t, err)
 			} else {

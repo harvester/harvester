@@ -128,6 +128,12 @@ func (r *Repo) deleteStorageClass() error {
 	return nil
 }
 
+// repoStorageClassName returns the StorageClass for the upgrade repo PVC.
+// shortcut: annotation only, no spec field; revisit when UpgradePlan (v2) CRD is introduced
+func (r *Repo) repoStorageClassName() string {
+	return r.upgrade.Annotations[util.AnnotationUpgradeStorageClass]
+}
+
 func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.VirtualMachineImage, error) {
 	imageSpec := &harvesterv1.VirtualMachineImage{
 		ObjectMeta: metav1.ObjectMeta{
@@ -144,13 +150,13 @@ func (r *Repo) CreateImageFromISO(isoURL string, checksum string) (*harvesterv1.
 			},
 		},
 		Spec: harvesterv1.VirtualMachineImageSpec{
-			DisplayName: getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
-			SourceType:  harvesterv1.VirtualMachineImageSourceTypeDownload,
-			URL:         isoURL,
-			Checksum:    checksum,
-			Retry:       3,
-			// Use default storage class for the upgrade image PVC, allow user to provide their custom PVC
-			Backend: harvesterv1.VMIBackendCDI,
+			DisplayName:            getISODisplayNameImageName(r.upgrade.Name, r.upgrade.Spec.Version),
+			SourceType:             harvesterv1.VirtualMachineImageSourceTypeDownload,
+			URL:                    isoURL,
+			Checksum:               checksum,
+			Retry:                  3,
+			Backend:                harvesterv1.VMIBackendCDI,
+			TargetStorageClassName: r.repoStorageClassName(),
 		},
 	}
 

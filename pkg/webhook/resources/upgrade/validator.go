@@ -319,14 +319,21 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		}
 	}
 
-	if err := v.checkDefaultStorageClass(); err != nil {
+	if err := v.checkStorageClass(upgrade); err != nil {
 		return err
 	}
 
 	return v.checkCerts(upgrade)
 }
 
-func (v *upgradeValidator) checkDefaultStorageClass() error {
+func (v *upgradeValidator) checkStorageClass(upgrade *v1beta1.Upgrade) error {
+	if sc := upgrade.Annotations[util.AnnotationUpgradeStorageClass]; sc != "" {
+		_, err := v.storageClassCache.Get(sc)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("annotation %s: StorageClass %q not found", util.AnnotationUpgradeStorageClass, sc))
+		}
+		return nil
+	}
 	if util.GetDefaultSC(v.storageClassCache) == nil {
 		return werror.NewBadRequest("no default StorageClass found; configure one before upgrading")
 	}
