@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1009,7 +1010,7 @@ func TestUpgradeValidator_checkDefaultStorageClass(t *testing.T) {
 						},
 					},
 				}
-				_ = clientset.Tracker().Add(sc)
+				require.NoError(t, clientset.Tracker().Add(sc))
 			}
 
 			validator := &upgradeValidator{

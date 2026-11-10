@@ -328,8 +328,7 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 
 func (v *upgradeValidator) checkDefaultStorageClass() error {
 	if util.GetDefaultSC(v.storageClassCache) == nil {
-		return werror.NewBadRequest("a default StorageClass is required for upgrade; set one with: " +
-			"kubectl patch storageclass <name> -p '{\"metadata\":{\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'")
+		return werror.NewBadRequest("no default StorageClass found; configure one before upgrading")
 	}
 	return nil
 }
