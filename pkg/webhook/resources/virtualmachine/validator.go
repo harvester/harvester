@@ -27,6 +27,7 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
+	vmstate "github.com/harvester/harvester/pkg/util/vmstate"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	indexerwebhook "github.com/harvester/harvester/pkg/webhook/indexeres"
 	"github.com/harvester/harvester/pkg/webhook/types"
@@ -259,6 +260,10 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 		return err
 	}
 
+	if err := v.validateVMStateStorageClass(vm); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -279,6 +284,10 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 	oldVM := oldObj.(*kubevirtv1.VirtualMachine)
 	if oldVM == nil {
 		return nil
+	}
+
+	if err := v.validateVMStateStorageClass(newVM); err != nil {
+		return err
 	}
 
 	if err := v.checkChangedVolumeClaimTemplateEntries(request, oldVM, newVM); err != nil {
@@ -1043,5 +1052,15 @@ func (v *vmValidator) validateTargetVolumeEntry(entry util.VolumeClaimTemplateEn
 				entry.Name, sourceSize.String()), fieldPath)
 	}
 
+	return nil
+}
+
+func (v *vmValidator) validateVMStateStorageClass(vm *kubevirtv1.VirtualMachine) error {
+	if err := vmstate.CheckVMStateStorageClass(vm, v.scCache, v.pvcCache); err != nil {
+		if vmstate.IsVMStateStorageClassMissing(err) {
+			return werror.NewInvalidError(err.Error(), "spec.template.spec.domain")
+		}
+		return werror.NewInternalError(err.Error())
+	}
 	return nil
 }
