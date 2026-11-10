@@ -6,6 +6,7 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	"kubevirt.io/kubevirt/pkg/tpm"
@@ -60,7 +61,10 @@ func CheckVMStateStorageClass(obj interface{}, scCache ctlstoragev1.StorageClass
 		return nil
 	}
 	if _, err = scCache.Get(util.StorageClassVmstatePersistence); err != nil {
-		return ErrVMStateStorageClassMissing
+		if apierrors.IsNotFound(err) {
+			return ErrVMStateStorageClassMissing
+		}
+		return fmt.Errorf("looking up storage class %q: %w", util.StorageClassVmstatePersistence, err)
 	}
 	return nil
 }
