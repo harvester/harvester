@@ -286,10 +286,8 @@ func (v *vmValidator) Update(request *types.Request, oldObj runtime.Object, newO
 		return nil
 	}
 
-	if !vmstate.NeedsVMStateStorageClass(oldVM) && vmstate.NeedsVMStateStorageClass(newVM) {
-		if err := v.validateVMStateStorageClass(newVM); err != nil {
-			return err
-		}
+	if err := v.validateVMStateStorageClass(newVM); err != nil {
+		return err
 	}
 
 	if err := v.checkChangedVolumeClaimTemplateEntries(request, oldVM, newVM); err != nil {
@@ -1058,7 +1056,7 @@ func (v *vmValidator) validateTargetVolumeEntry(entry util.VolumeClaimTemplateEn
 }
 
 func (v *vmValidator) validateVMStateStorageClass(vm *kubevirtv1.VirtualMachine) error {
-	if err := vmstate.CheckVMStateStorageClass(vm, v.scCache); err != nil {
+	if err := vmstate.CheckVMStateStorageClass(vm, v.scCache, v.pvcCache); err != nil {
 		if vmstate.IsVMStateStorageClassMissing(err) {
 			return werror.NewInvalidError(err.Error(), "spec.template.spec.domain")
 		}

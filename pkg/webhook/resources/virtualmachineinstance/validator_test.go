@@ -4,9 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
@@ -16,16 +18,22 @@ import (
 
 func TestVMIValidatorCreate(t *testing.T) {
 	persistentTrue := true
+	const (
+		ns      = "default"
+		vmiName = "my-vm"
+	)
 
 	tests := []struct {
 		name        string
 		vmi         *kubevirtv1.VirtualMachineInstance
 		scExists    bool
+		pvcExists   bool
 		expectError bool
 	}{
 		{
 			name: "persistent TPM, SC missing → reject",
 			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
 						Devices: kubevirtv1.Devices{
@@ -40,6 +48,7 @@ func TestVMIValidatorCreate(t *testing.T) {
 		{
 			name: "persistent EFI, SC missing → reject",
 			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
 						Firmware: &kubevirtv1.Firmware{
@@ -56,6 +65,7 @@ func TestVMIValidatorCreate(t *testing.T) {
 		{
 			name: "persistent TPM, SC exists → accept",
 			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
 						Devices: kubevirtv1.Devices{
@@ -68,11 +78,26 @@ func TestVMIValidatorCreate(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "persistent TPM, SC missing but backend PVC exists → accept (VM restart after SC deletion)",
+			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			pvcExists:   true,
+			expectError: false,
+		},
+		{
 			name: "no TPM or EFI, SC missing → accept",
 			vmi: &kubevirtv1.VirtualMachineInstance{
-				Spec: kubevirtv1.VirtualMachineInstanceSpec{
-					Domain: kubevirtv1.DomainSpec{},
-				},
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
+				Spec:       kubevirtv1.VirtualMachineInstanceSpec{Domain: kubevirtv1.DomainSpec{}},
 			},
 			scExists:    false,
 			expectError: false,
@@ -80,6 +105,7 @@ func TestVMIValidatorCreate(t *testing.T) {
 		{
 			name: "non-persistent TPM, SC missing → accept",
 			vmi: &kubevirtv1.VirtualMachineInstance{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: vmiName},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
 						Devices: kubevirtv1.Devices{
@@ -101,7 +127,17 @@ func TestVMIValidatorCreate(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
 				}))
 			}
-			v := NewValidator(fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses))
+			if tc.pvcExists {
+				pvcName := backendstorage.PVCPrefix + "-" + tc.vmi.Name
+				assert.NoError(t, clientset.Tracker().Add(&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{Namespace: tc.vmi.Namespace, Name: pvcName},
+				}))
+			}
+
+			v := NewValidator(
+				fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+				fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+			)
 			err := v.Create(&types.Request{}, tc.vmi)
 			if tc.expectError {
 				assert.Error(t, err)

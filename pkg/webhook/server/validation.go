@@ -108,7 +108,9 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 				clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
-		virtualmachineinstance.NewValidator(clients.StorageFactory.Storage().V1().StorageClass().Cache()),
+		virtualmachineinstance.NewValidator(
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.Core.PersistentVolumeClaim().Cache()),
 		virtualmachine.NewValidator(
 			clients.Core.Namespace().Cache(),
 			clients.Core.Pod().Cache(),

@@ -14,6 +14,7 @@ import (
 	corefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
@@ -2404,7 +2405,8 @@ func TestVmValidator_Create_VMStateStorageClass(t *testing.T) {
 
 	clientset := fake.NewSimpleClientset()
 	v := &vmValidator{
-		scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+		scCache:  fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+		pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
 	}
 
 	err := v.Create(fakeclients.NewFakeRequest("test-user"), vmWithTPM)
@@ -2439,6 +2441,7 @@ func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
 		oldVM       *kubevirtv1.VirtualMachine
 		newVM       *kubevirtv1.VirtualMachine
 		scExists    bool
+		pvcExists   bool
 		expectError bool
 	}{
 		{
@@ -2449,10 +2452,11 @@ func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "old with persistent TPM, new with persistent TPM, SC missing → accepted",
+			name:        "old with persistent TPM, new with persistent TPM, SC missing but PVC exists → accepted",
 			oldVM:       withTPM(base),
 			newVM:       withTPM(base),
 			scExists:    false,
+			pvcExists:   true,
 			expectError: false,
 		},
 		{
@@ -2476,8 +2480,15 @@ func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
 				}))
 			}
+			if tc.pvcExists {
+				pvcName := backendstorage.PVCPrefix + "-" + base.Name
+				assert.NoError(t, clientset.Tracker().Add(&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{Namespace: base.Namespace, Name: pvcName},
+				}))
+			}
 			fakeScCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
-			v := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+			fakePVCCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
+			v := NewValidator(fakeNSCache, nil, fakePVCCache, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
 			err := v.Update(fakeclients.NewFakeRequest("test-user"), tc.oldVM, tc.newVM)
 			if tc.expectError {
 				assert.Error(t, err)

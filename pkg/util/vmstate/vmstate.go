@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	"kubevirt.io/kubevirt/pkg/tpm"
@@ -20,37 +20,49 @@ var ErrVMStateStorageClassMissing = fmt.Errorf(
 	util.StorageClassVmstatePersistence,
 )
 
-// NeedsVMStateStorageClass reports whether obj requires the vmstate-persistence StorageClass.
-// It checks only persistent vTPM/EFI set in the spec; CBT (set by the controller via status)
-// is intentionally excluded to avoid false positives in admission webhooks.
-func NeedsVMStateStorageClass(obj interface{}) bool {
-	switch obj := obj.(type) {
+func vmiSpecOf(obj interface{}) (ns, name string, spec *kubevirtv1.VirtualMachineInstanceSpec, err error) {
+	switch o := obj.(type) {
 	case *kubevirtv1.VirtualMachine:
-		if obj.Spec.Template == nil {
-			return false
+		if o.Spec.Template == nil {
+			return o.Namespace, o.Name, nil, nil
 		}
-		return tpm.HasPersistentDevice(&obj.Spec.Template.Spec) || backendstorage.HasPersistentEFI(&obj.Spec.Template.Spec)
+		return o.Namespace, o.Name, &o.Spec.Template.Spec, nil
 	case *kubevirtv1.VirtualMachineInstance:
-		return tpm.HasPersistentDevice(&obj.Spec) || backendstorage.HasPersistentEFI(&obj.Spec)
+		return o.Namespace, o.Name, &o.Spec, nil
 	default:
-		return false
+		return "", "", nil, fmt.Errorf("unsupported type %T: expected *VirtualMachine or *VirtualMachineInstance", obj)
 	}
+}
+
+func needsVMState(spec *kubevirtv1.VirtualMachineInstanceSpec) bool {
+	return spec != nil && (tpm.HasPersistentDevice(spec) || backendstorage.HasPersistentEFI(spec))
+}
+
+// BackendPVCExists returns true when the backend-storage PVC for the given name already exists
+// in the namespace. KubeVirt reuses an existing PVC without needing the StorageClass.
+func BackendPVCExists(pvcCache ctlcorev1.PersistentVolumeClaimCache, namespace, name string) bool {
+	pvc, err := pvcCache.Get(namespace, backendstorage.PVCPrefix+"-"+name)
+	return err == nil && pvc.DeletionTimestamp == nil
 }
 
 // CheckVMStateStorageClass returns ErrVMStateStorageClassMissing when the vmstate-persistence SC
 // is needed but absent, a wrapped error on lookup failure, or nil otherwise.
-func CheckVMStateStorageClass(obj interface{}, scCache ctlstoragev1.StorageClassCache) error {
-	if !NeedsVMStateStorageClass(obj) {
+// If pvcCache is non-nil and the backend PVC already exists, the check is skipped.
+func CheckVMStateStorageClass(obj interface{}, scCache ctlstoragev1.StorageClassCache, pvcCache ctlcorev1.PersistentVolumeClaimCache) error {
+	ns, name, spec, err := vmiSpecOf(obj)
+	if err != nil {
+		return err
+	}
+	if !needsVMState(spec) {
 		return nil
 	}
-	_, err := scCache.Get(util.StorageClassVmstatePersistence)
-	if err == nil {
+	if pvcCache != nil && BackendPVCExists(pvcCache, ns, name) {
 		return nil
 	}
-	if apierrors.IsNotFound(err) {
+	if _, err = scCache.Get(util.StorageClassVmstatePersistence); err != nil {
 		return ErrVMStateStorageClassMissing
 	}
-	return fmt.Errorf("failed to get storage class %s: %w", util.StorageClassVmstatePersistence, err)
+	return nil
 }
 
 // IsVMStateStorageClassMissing reports whether err is ErrVMStateStorageClassMissing.

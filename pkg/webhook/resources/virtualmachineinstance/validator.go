@@ -1,6 +1,7 @@
 package virtualmachineinstance
 
 import (
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,15 +12,17 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewValidator(scCache ctlstoragev1.StorageClassCache) types.Validator {
+func NewValidator(scCache ctlstoragev1.StorageClassCache, pvcCache ctlcorev1.PersistentVolumeClaimCache) types.Validator {
 	return &vmiValidator{
-		scCache: scCache,
+		scCache:  scCache,
+		pvcCache: pvcCache,
 	}
 }
 
 type vmiValidator struct {
 	types.DefaultValidator
-	scCache ctlstoragev1.StorageClassCache
+	scCache  ctlstoragev1.StorageClassCache
+	pvcCache ctlcorev1.PersistentVolumeClaimCache
 }
 
 func (v *vmiValidator) Resource() types.Resource {
@@ -41,7 +44,7 @@ func (v *vmiValidator) Create(_ *types.Request, newObj runtime.Object) error {
 }
 
 func (v *vmiValidator) validateVMStateStorageClass(vmi *kubevirtv1.VirtualMachineInstance) error {
-	if err := vmstate.CheckVMStateStorageClass(vmi, v.scCache); err != nil {
+	if err := vmstate.CheckVMStateStorageClass(vmi, v.scCache, v.pvcCache); err != nil {
 		if vmstate.IsVMStateStorageClassMissing(err) {
 			return werror.NewInvalidError(err.Error(), "spec.domain")
 		}
