@@ -216,6 +216,7 @@ pull_images() {
   if [ -z "$USE_LOCAL_IMAGES" ]; then
     echo "Pulling images..."
     for image in $(cat $image_list); do
+      echo "Pulling image ${image}..."
       docker image pull --quiet $image
     done
     return
