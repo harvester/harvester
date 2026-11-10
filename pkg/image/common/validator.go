@@ -8,7 +8,6 @@ import (
 
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -46,7 +45,6 @@ type VMIValidator interface {
 	SecurityParameterConsistency(oldVMI, newVMI *v1beta1.VirtualMachineImage) error
 
 	VMTemplateVersionOccupation(vmi *v1beta1.VirtualMachineImage) error
-	PVCOccupation(vmi *v1beta1.VirtualMachineImage) error
 	VMBackupOccupation(vmi *v1beta1.VirtualMachineImage) error
 	CheckSCExists(vmi *v1beta1.VirtualMachineImage) error
 }
@@ -354,21 +352,6 @@ func (v *vmiValidator) VMTemplateVersionOccupation(vmi *v1beta1.VirtualMachineIm
 				return werror.NewInternalError(err.Error())
 			}
 			message := fmt.Sprintf("Cannot delete image %s/%s: being used by VMTemplateVersion %s", vmi.Namespace, vmi.Spec.DisplayName, ownerRef.Name)
-			return werror.NewInvalidError(message, "")
-		}
-	}
-	return nil
-}
-
-func (v *vmiValidator) PVCOccupation(vmi *v1beta1.VirtualMachineImage) error {
-	pvcs, err := v.pvcCache.List(corev1.NamespaceAll, labels.Everything())
-	if err != nil {
-		return err
-	}
-
-	for _, pvc := range pvcs {
-		if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == vmi.Status.StorageClassName {
-			message := fmt.Sprintf("Cannot delete image %s/%s: being used by volume %s/%s", vmi.Namespace, vmi.Spec.DisplayName, pvc.Namespace, pvc.Name)
 			return werror.NewInvalidError(message, "")
 		}
 	}
