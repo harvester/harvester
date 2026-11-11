@@ -105,8 +105,9 @@ func (r *Repo) Cleanup() error {
 	}
 	// Cleanup legacy storage class from v1.7.0.
 	// In v1.7.0, a temporary storage class was created for upgrade VM image.
-	// From v1.7.1 onwards, we use the `longhorn-static` storage class directly.
-	// This can be removed in future releases once most users have migrated past v1.7.x.
+	// From v1.7.1 onwards, the upgrade-named storage class is no longer created.
+	// From v1.10 onwards, the upgrade repo PVC uses the cluster default StorageClass.
+	// This cleanup can be removed once most users have migrated past v1.7.x.
 	if err := r.deleteStorageClass(); err != nil {
 		logrus.Warnf("%s", err.Error())
 		return err
