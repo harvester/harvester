@@ -18,7 +18,7 @@ docker.io/longhornio/longhorn-share-manager:master-head
 docker.io/longhornio/longhorn-ui:master-head
 docker.io/longhornio/support-bundle-kit:v1.0.2
 docker.io/rancher/harvester-eventrouter:master-head
-docker.io/rancher/harvester-kubeovn-operator:v1.16.2
+docker.io/rancher/harvester-kubeovn-operator:v1.16.4-dev.2
 docker.io/rancher/harvester-load-balancer-webhook:master-head
 docker.io/rancher/harvester-load-balancer:master-head
 docker.io/rancher/harvester-network-controller:master-head
