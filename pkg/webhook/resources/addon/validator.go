@@ -699,12 +699,43 @@ func (v *addonValidator) validateKubeOVNAddonUpdate(newAddon, oldAddon *v1beta1.
 		return werror.NewInternalError(fmt.Sprintf("failed to retrieve subnets err=%v", err))
 	}
 
-	// V4UsingIPs and V6UsingIPs will be non-zero both when the VM is running and
-	// when it is stopped, as long as it is still attached to an overlay network.
+	// Note: Disabling the Kube-OVN operator is not a simple one-click action.
+	// Users must strictly follow the official documentation steps:
+	// https://docs.harvesterhci.io/v1.10/advanced/addons/kubeovn-operator#disabling-kubeovn-operator
+	// Attempting to disable the addon directly without prior cleanup will emit validation errors.
+
+	remainingInternalSubnets := make([]string, 0, 2)
+
+	// 1. VM usage guard: Check if any VMs are still attached to overlay subnets.
+	// V4UsingIPs and V6UsingIPs track active IP address allocations across both IPv4
+	// and IPv6 families. These counters remain non-zero regardless of the VM's power
+	// state (running or stopped) as long as the VM remains attached to the network.
 	for _, subnet := range subnets {
-		if subnet.Status.V4UsingIPs != 0 || subnet.Status.V6UsingIPs != 0 {
-			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, delete the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
+		// The join subnet is managed entirely by the system; skip its IP usage check.
+		if subnet.Name == util.KubeOVNInternalSubnetJoin {
+			remainingInternalSubnets = append(remainingInternalSubnets, util.KubeOVNInternalSubnetJoin)
+			continue
 		}
+
+		// Guard against active VM IP allocations (covering both IPv4 and IPv6 families) on the subnet.
+		// Note: ovn-default can be used directly by users as a default fallback subnet if they
+		// didn't create a custom one. If VMs are still attached, it will trigger this usage error first.
+		if subnet.Status.V4UsingIPs != 0 || subnet.Status.V6UsingIPs != 0 {
+			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, stop and detach the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
+		}
+
+		if subnet.Name == util.KubeOVNInternalSubnetOVNDefault {
+			remainingInternalSubnets = append(remainingInternalSubnets, util.KubeOVNInternalSubnetOVNDefault)
+		}
+	}
+
+	// 2. Internal resource cleanup guard: If ovn-default or join still exists,
+	// it means manual cleanup was not completed or failed.
+	if len(remainingInternalSubnets) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"kubeovn-operator addon cannot be disabled as internal subnet(s) [%s] still exist; please follow https://docs.harvesterhci.io/v1.10/advanced/addons/kubeovn-operator#disabling-kubeovn-operator to clean them up manually before disabling the addon",
+			strings.Join(remainingInternalSubnets, ", "),
+		))
 	}
 
 	return nil
