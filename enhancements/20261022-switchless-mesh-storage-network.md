@@ -181,7 +181,9 @@ Changing the uplink mode later follows the existing storage network procedure: s
 `storage-network`, edit the network configuration, then set `storage-network` again. If
 `rwx-network` or `vm-migration-network` uses the same cluster network, or `rwx-network` shares the
 storage network, stop the workloads that use it and clear it as well first, wait until its network
-attachment is removed, and set it again after `storage-network` is configured.
+attachment is removed, and set it again after `storage-network` is configured. When `rwx-network`
+shares the storage network, clear `rwx-network` before `storage-network`: the webhook rejects
+clearing `storage-network` while `rwx-network` still shares it.
 
 All VlanConfigs of a cluster network share one mode (see below), so when the cluster network has
 more than one VlanConfig (for example one per node group with different NIC names), editing one of
@@ -189,6 +191,19 @@ them to the other mode is rejected. In that case, after clearing the settings ab
 specifications of the VlanConfigs (node selector, NICs, MTU and bond options), delete all
 VlanConfigs of the cluster network but one, change the mode of the remaining one, and create the
 others again from the saved specifications with the new mode, then set the settings again.
+
+When the mode is changed through the API instead of the UI, changing only `uplink.mode` is
+rejected, because each mode uses its own NIC field (see [API changes](#api-changes)):
+
+- **bond to isolated:** group the NICs of `uplink.nics` by the neighbor they are cabled to, write
+  each group as one entry of `uplink.peerLinks`, and clear `uplink.nics`. With one NIC per peer,
+  remove `uplink.bondOptions`; with two NICs per peer, set `uplink.bondOptions.mode` to `802.3ad` or
+  `active-backup`, since `broadcast` and the balance modes are rejected in isolated mode.
+- **isolated to bond:** move the NICs of `uplink.peerLinks` into `uplink.nics`, clear
+  `uplink.peerLinks`, and set `uplink.bondOptions.mode` to `broadcast` if the NICs stay cabled as a
+  mesh.
+
+The same conversion applies to the VlanConfigs created again from the saved specifications.
 
 ### API changes
 
@@ -220,7 +235,7 @@ With 4 NICs per node, each peer link lists the two NICs cabled to the same neigh
     - nics: [ens2f0, ens3f0]   # both cables to the same neighbor
     - nics: [ens2f1, ens3f1]
     bondOptions:
-      mode: 802.3ad            # default for per-peer bonds; active-backup is also allowed
+      mode: 802.3ad            # recommended; written by the UI. active-backup is also allowed
       miimon: 100
     linkAttributes:
       mtu: 9000
@@ -230,6 +245,12 @@ With 4 NICs per node, each peer link lists the two NICs cabled to the same neigh
   must be empty. One field per mode keeps validation simple, and the UI writes the right one.
 - `bondOptions` is used only when the peer links have two NICs, and the UI does not save it
   otherwise.
+- `bondOptions.mode` keeps its existing schema default, `active-backup`, in both modes. The CRD
+  default is applied before admission, so the webhook cannot tell an omitted mode from an explicit
+  `active-backup`, and changing the default per uplink mode would change the stored value of
+  existing VlanConfigs. The UI therefore writes `802.3ad` explicitly for per-peer bonds, and the
+  docs recommend it for API users. An omitted mode gives a working `active-backup` bond without the
+  LACP checks described in [Multiple cables per node pair](#multiple-cables-per-node-pair-four-nics-per-node).
 - The manager labels the cluster network `network.harvesterhci.io/uplink-mode=isolated` while an
   isolated VlanConfig exists, so that the UI and other components can identify it. The label is
   informational: the webhooks enforce the rules from the VlanConfigs, so editing the label does
@@ -250,7 +271,8 @@ per peer link:
 - a peer link with one NIC uses the NIC itself as the port.
 - a peer link with two NICs gets a bond, `<cn>-p0` or `<cn>-p1` (the same length as `<cn>-bo`, so
   the existing cluster network name limit still fits), with the `bondOptions` and the two NICs as
-  slaves.
+  slaves. For `802.3ad`, the agent also sets `xmit_hash_policy` to `layer3+4` (see
+  [Multiple cables per node pair](#multiple-cables-per-node-pair-four-nics-per-node)).
 - each port is set down, attached to `<cn>-br`, marked isolated (`netlink.LinkSetIsolated`), gets its
   MTU, and is brought up. It is isolated before it comes up, so it never forwards, even during boot.
 - VLAN IDs are applied to every port instead of the single bond (`vlan.Vlan` now holds a list of
@@ -277,8 +299,8 @@ users need it (see [Non-goals](#non-goals)).
 - isolated mode needs **exactly two peer links**, each with one or two NICs, and both peer links
   with the same number of NICs. No NIC may appear twice, `nics` must be empty, and the mode is
   rejected on `mgmt`.
-- with two NICs per peer link, `bondOptions.mode` must be `802.3ad` (the default) or
-  `active-backup`. The balance modes and `broadcast` are rejected: per-peer bonds connect two hosts
+- with two NICs per peer link, `bondOptions.mode` must be `802.3ad` (recommended, preselected by
+  the UI) or `active-backup` (the schema default). The balance modes and `broadcast` are rejected: per-peer bonds connect two hosts
   directly, and those modes either need a switch to reorder frames correctly or bring back the
   duplicated traffic this feature removes.
 - **At most 3 data nodes.** The isolated VlanConfigs of a cluster network, together, may select at
@@ -290,6 +312,17 @@ users need it (see [Non-goals](#non-goals)).
   Mixed mode (some nodes bonded, some isolated) is not allowed. A bonded node on a mesh needs
   `broadcast` to be correct, and each isolated node would then receive both copies. It also makes
   the failure behavior depend on the node, which is hard to reason about and to support.
+
+  The webhook reads the other VlanConfigs from the informer cache, so two concurrent requests (for
+  example a mode change and the creation of a VlanConfig with the old mode) can both pass. The
+  manager therefore follows the MTU pattern and records the mode on the ClusterNetwork together
+  with its source VlanConfig (`uplink-mode` and `uplink-mode-source-vc`, like `uplink-mtu` and
+  `mtu-source-vc`). The record changes only when the source VlanConfig changes mode or is deleted
+  and no VlanConfig of the other mode remains. A VlanConfig whose mode differs from the recorded
+  one is not applied by the agents: the manager sets a `Ready=False` condition with the reason
+  `ModeMismatch` on it and emits an event, and the user deletes it or changes it to the recorded
+  mode. Mixed modes are therefore never configured on the nodes, even if both requests were
+  admitted.
 - an isolated cluster network only carries the storage, RWX and VM migration networks. Other NADs
   and HostNetworkConfigs are denied. A cluster network cannot become isolated while such objects
   use it.
@@ -360,15 +393,19 @@ This HEP uses **one bond per peer, with each bond as an isolated port** (`peerLi
 each). Each bond handles failover and hashing between its two links, and isolation still prevents
 relaying between peers.
 
-- **802.3ad is the default.** LACP works on a direct host-to-host cable, and no switch is needed.
+- **802.3ad is recommended**, and the UI preselects it. LACP works on a direct host-to-host cable, and no switch is needed.
   LACPDUs detect one-sided failures (one end of a cable down, the far end with carrier), which
   carrier-based `miimon` alone does not. LACP also catches a miswired peer link: if the two cables
   reach different nodes, the partners differ, only one link joins the aggregator, and the bond
   reports it.
 - **`active-backup`** is allowed for NICs or drivers without LACP support. It detects carrier loss
   only, because ARP monitoring needs an IP address on the bond, which the bridge port does not have.
-- **Hashing:** with `xmit_hash_policy: layer3+4`, the replica connections of different volumes
-  spread across both cables. A single TCP connection stays on one cable, so one volume's replica
+- **Hashing:** the kernel default `xmit_hash_policy` is `layer2`, which hashes only the MAC
+  addresses. Each node has few storage endpoints (one instance manager pod per data engine), so
+  `layer2` would put almost all traffic to a peer on one cable. The agent therefore sets
+  `xmit_hash_policy` to `layer3+4` on every per-peer `802.3ad` bond. This is not a new API field:
+  the value is fixed for per-peer bonds, and the broadcast and `active-backup` bonds do not hash.
+  With `layer3+4`, the replica connections of different volumes spread across both cables. A single TCP connection stays on one cable, so one volume's replica
   stream does not exceed one cable's bandwidth.
 
 The two peer links must have the same number of NICs, so a node cannot mix one bonded peer and one
@@ -452,14 +489,26 @@ Integration (3 nodes with a direct-cabled mesh):
 - The UI shows the option only on clusters with the new controller (feature flag for v1.10.0).
 - **Downgrade:** an older controller ignores `uplink.mode` and `uplink.peerLinks`, and only reads
   `uplink.nics`. Remove isolated VlanConfigs, or switch them to a broadcast bond, before
-  downgrading. Both need the storage network (and `rwx-network`, if it uses the cluster network)
-  cleared first, as in the mode change above, since a VlanConfig whose cluster network is still
-  used by such a network can't be removed. Switching to a bond means moving the NICs of
+  downgrading, while the new controller is still running. Both need the settings that use the
+  affected cluster network cleared first, as in the mode change above: `storage-network`,
+  `rwx-network` and `vm-migration-network`, but only those whose network is on this cluster network.
+  Settings on other cluster networks, and the workloads that use them, are not affected. A
+  VlanConfig whose cluster network is still used by such a network can't be removed. Switching to a bond means moving the NICs of
   `uplink.peerLinks` into `uplink.nics`, clearing `uplink.peerLinks`, setting `uplink.mode` to
   `bond` (or removing it) and `uplink.bondOptions.mode` to `broadcast`. With 4 NICs per node, move
   only one NIC per peer (two in total): a broadcast bond over both cables of a peer would deliver
   every frame twice. The second cable of each peer is then unused, so the cable redundancy is lost
-  until the upgrade. This will be documented.
+  until the upgrade. On each pair of neighbors, both nodes must keep the NICs at the two ends of the
+  same cable: if node A keeps the first cable to node B and node B keeps the second one, the two
+  broadcast bonds share no cable and A and B cannot reach each other. The docs will tell users to
+  record the cable-to-NIC mapping before the change, and to check that every kept NIC has carrier.
+- Before replacing the controller, wait until the new agent has applied the change on every
+  affected node: the per-peer bonds (`<cn>-p0`, `<cn>-p1`) are gone, every kept NIC is a slave of
+  `<cn>-bo`, and the VlanStatus of every node is ready. An older agent does not know the per-peer
+  bonds, so it cannot release a NIC that one of them still holds. Then downgrade, check that the
+  storage network range is reachable between every pair of nodes (for example with a test volume
+  with 3 replicas that becomes `healthy`), and set the cleared settings again. All of this will be
+  documented.
 - Users who run a broadcast bond on a mesh today can switch to isolated mode with the existing
   "change a storage network VlanConfig" procedure (VMs stopped).
 
