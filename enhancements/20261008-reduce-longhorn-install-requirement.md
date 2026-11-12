@@ -58,7 +58,7 @@ A user installs a new Harvester cluster on nodes with no room for a Longhorn dis
 | K3K | `harvester-longhorn` | `addons/standalone/rancher-k3k/addon.yaml` | Set StorageClass in the add-on before enabling it |
 | CDI | `harvester-longhorn` (scratch space) | `scratchSpaceStorageClass` in `deploy/charts/harvester/values.yaml` | Select from existing StorageClasses, written to `scratchSpaceStorageClass` |
 | KubeVirt VM state (vTPM / UEFI) | `vmstate-persistence` | `vmStateStorageClass` in `deploy/charts/harvester/values.yaml` | VM creation blocked if StorageClass does not exist; no admin configuration required (see [Webhook](#webhook)) |
-| Upgrade repository | `longhorn-static` (`Filesystem`, via the upgrade ISO image) | `pkg/controller/master/upgrade/upgrade_repo.go` | Administrator selects StorageClass at upgrade time (see [Upgrade](#upgrade)) |
+| Upgrade repository | `longhorn-static` (`Filesystem`, via the upgrade ISO image) | `pkg/controller/master/upgrade/upgrade_repo.go` | Administrator selects StorageClass at upgrade time (see [Upgrade](#upgrade)); stored as annotation `harvesterhci.io/upgrade-storage-class` on the Upgrade resource |
 
 ### User Experience
 
@@ -127,13 +127,21 @@ Failure handling, so the node never guesses a disk layout:
 
 ### Upgrade
 
-Today the upgrade repository is a two-replica nginx Deployment that mounts the upgrade ISO from a `ReadWriteMany` `longhorn-static` volume. This HEP changes it to `ReadWriteOnce`, so most StorageClasses work:
+Today the upgrade repository is a two-replica nginx Deployment that mounts the upgrade ISO from a `ReadWriteMany` `longhorn-static` volume. This HEP changes it to `ReadWriteOnce`, so most StorageClasses work.
 
-- The Deployment is reduced to **one replica** with the `Recreate` strategy. The ISO volume is `ReadWriteOnce`, `Filesystem`. When the node running the repository is drained, the pod moves and the volume reattaches on another node.
-- On Longhorn, the ISO **volume** keeps its default data replica count (2 or more) — this is independent of the Deployment replica count. Draining a node removes the pod, but Longhorn keeps the data on the remaining replicas, so the volume reattaches successfully.
-- On a third-party network-attached StorageClass (e.g., NFS), the volume is accessible from any node by design, so a single Deployment replica is always sufficient.
+#### Why RWO is safe
 
-Harvester does not create a replacement StorageClass. The administrator chooses the StorageClass before starting the upgrade, through the upgrade UI or API.
+`checkEligibleToDrain` in `pkg/controller/master/upgrade/secret_controller.go` enforces that only one node drains at a time. `upgrade_controller.go` sets both `ControlPlaneConcurrency` and `WorkerConcurrency` to `1`. Because of this invariant, the repo pod's PVC detach–reattach window overlaps only with the drain phase of the node being upgraded, not with the file-pull phase of any other node. By the time the upgrading node needs the repo again, the pod has already rescheduled and the volume has reattached on another node. No control of drain order is needed.
+
+#### Changes
+
+- The Deployment is reduced to **one replica** with the `Recreate` strategy with ISO volume is `ReadWriteOnce`.
+- Both **Filesystem** and **Block** `volumeMode` are supported.
+- On Longhorn, the ISO **volume** keeps its default data replica count (2 or more) — independent of the Deployment replica count.
+- The administrator's StorageClass choice is stored as the annotation `harvesterhci.io/upgrade-storage-class` on the `Upgrade` resource. When the annotation is absent the cluster default StorageClass is used.
+- The upgrade UI provides a StorageClass selector in both the online and air-gapped upgrade dialogs (pre-selecting the cluster default). For air-gapped upgrades that upload a new ISO, the selected class is passed as `targetStorageClassName` on the new `VirtualMachineImage`.
+
+Harvester does not create a replacement StorageClass. The upgrade validating webhook requires a resolvable StorageClass before the upgrade can start when Longhorn StorageClasses are absent.
 
 ## Delivery phases
 
@@ -143,7 +151,23 @@ Everything in Phase 1 ships in the same release. A fresh install without Longhor
 
 #### Webhook
 
-In the VM validator, if `spec.domain.devices.tpm` or `spec.domain.firmware.bootloader.efi` is set, verify that the `vmstate-persistence` StorageClass exists. If it does not, reject the VM.
+The `vmstate-persistence` check is shared via `pkg/util/vmstate/vmstate.go` and applied by two validators:
+
+- **VM validator** : on VM create/update, if persistent vTPM (`spec.template.spec.domain.devices.tpm`) or persistent EFI (`spec.template.spec.domain.firmware.bootloader.efi`) is enabled, verify that the `vmstate-persistence` StorageClass exists. Reject with the message *"storage class vmstate-persistence is missing; required for persistent vTPM or EFI. Add a Longhorn disk or create this storage class"* if absent.
+- **VMI validator** : same check on VMI (vmless) create.
+
+The VM form in the UI shows an inline **Banner** whenever `vmstate-persistence` is absent, explaining the prerequisite and the two remediation paths (add a Longhorn disk, or create the StorageClass with another CSI driver). While the Banner is visible both Persistent State checkboxes are **disabled**. When the StorageClass becomes available the Banner disappears and the checkboxes become selectable. The Banner is not shown in view-only mode.
+
+#### Addon webhook
+
+Storage-backed add-ons (`rancher-monitoring`, `rancher-k3k`) hard-code `harvester-longhorn` for all PVCs, which causes PVC provisioning to fail silently with `not found` when `harvester-longhorn` does not exist.
+
+The addon validator (`pkg/webhook/resources/addon/validator.go`) rejects enabling one of these add-ons unless **at least one** of the following is true:
+
+- A cluster default StorageClass exists (`storageclass.kubernetes.io/is-default-class` or `storageclass.beta.kubernetes.io/is-default-class` is `"true"` on any StorageClass).
+- The add-on's `valuesContent` already contains an explicit, non-empty `storageClassName` somewhere in the YAML tree.
+
+This guarantees that PVCs always land on a working StorageClass.
 
 #### Installer
 
@@ -161,8 +185,10 @@ In the VM validator, if `spec.domain.devices.tpm` or `spec.domain.firmware.bootl
 
 #### Upgrade repository
 
-1. Switch the upgrade repository Deployment to one replica, `Recreate`, and a `ReadWriteOnce`, `Filesystem` volume (see [Upgrade](#upgrade)).
-2. The administrator selects the StorageClass through the upgrade UI or API before the upgrade starts. When the Longhorn StorageClasses are absent, the upgrade validating webhook requires a non-empty StorageClass and verifies it exists.
+1. Switch the upgrade repository Deployment to one replica, `Recreate`, and a `ReadWriteOnce` volume supporting both `Filesystem` and `Block` `volumeMode` (see [Upgrade](#upgrade)).
+2. Store the administrator's StorageClass selection as annotation `harvesterhci.io/upgrade-storage-class` on the `Upgrade` resource; fall back to the cluster default when absent.
+3. Add a StorageClass selector to the upgrade UI (online and air-gapped dialogs); for air-gapped new-image uploads, pass the selection as `targetStorageClassName` on the `VirtualMachineImage`.
+4. When Longhorn StorageClasses are absent, the upgrade validating webhook requires a non-empty, existing StorageClass before the upgrade can start.
 
 ### Phase 2 — Remove Longhorn (future, not committed)
 
@@ -179,7 +205,12 @@ If Phase 2 is never done, Phase 1 is still complete: Longhorn stays deployed and
 
 - [ ] Default cluster (Longhorn SCs present): all existing validators are no-ops.
 - [ ] `skipLonghornDefaultDisk` install: `harvester-longhorn`, `longhorn-static`, `vmstate-persistence` are not created; any PVC referencing them fails with `not found`.
-- [ ] VM with vTPM or UEFI: rejected when `vmstate-persistence` is absent; accepted once it exists (any provisioner).
+- [ ] VM with vTPM or UEFI: rejected (VM and VMI validators) when `vmstate-persistence` is absent; accepted once it exists (any provisioner).
+- [ ] VM/VMI validator is skipped when the KubeVirt backend-storage PVC (`vm-state-<vm-name>`) already exists (live-migration path).
+- [ ] VM form shows inline Banner and disables both Persistent State checkboxes when `vmstate-persistence` is absent; Banner disappears and checkboxes become selectable once the StorageClass exists; Banner not shown in view-only mode.
+- [ ] Enabling `rancher-monitoring` or `rancher-k3k` without a cluster default SC and without explicit `storageClassName` in `valuesContent` is rejected.
+- [ ] Enabling those add-ons with a cluster default SC present is accepted.
+- [ ] Enabling those add-ons with explicit `storageClassName` in `valuesContent` is accepted even without a cluster default SC.
 
 ### Installer and node join
 
@@ -197,9 +228,12 @@ Run with an external StorageClass and **no cluster default**.
 
 ### Upgrade repository
 
-- [ ] Upgrade without Longhorn succeeds with an external `ReadWriteOnce` `Filesystem` StorageClass (NFS, LVM), including node drain.
+- [ ] Upgrade without Longhorn succeeds with an external `ReadWriteOnce` `Filesystem` StorageClass (e.g., NFS, LVM), including node drain.
+- [ ] Upgrade succeeds with a `Block`-mode StorageClass (e.g., Ceph RBD), including node drain.
 - [ ] On Longhorn: repository volume keeps default replica count; node drain does not block.
 - [ ] Missing or preflight-failing StorageClass: rejected with recorded reason, upgrade does not start.
+- [ ] Air-gapped upload: selected StorageClass appears on the `VirtualMachineImage` as `targetStorageClassName`.
+- [ ] Annotation `harvesterhci.io/upgrade-storage-class` on the Upgrade resource; PVC uses that class.
 - [ ] `skipLonghornDefaultDisk` preserved after upgrade.
 
 ### Regression
