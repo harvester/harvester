@@ -208,6 +208,44 @@ save_image_list()
   echo -n "$want" | sort | uniq > $out_file
 }
 
+# pull_image_with_retry IMAGE [DOCKER_PULL_ARGS...]
+# Pull IMAGE, retrying up to PULL_RETRIES times with PULL_RETRY_DELAY
+# seconds between attempts. Errors saying the image does not exist are
+# not retried. Returns non-zero if the pull ultimately fails.
+pull_image_with_retry() {
+  local image=$1
+  shift
+  local retries=${PULL_RETRIES:-5}
+  local delay=${PULL_RETRY_DELAY:-5}
+  local attempt err
+
+  for ((attempt = 1; attempt <= retries; attempt++)); do
+    # Capture docker's stderr in $err so it can be inspected below, while
+    # its stdout still streams to the caller. Redirects apply left to right:
+    #   { ...; } 3>&1  fd 3 = the real stdout (set up before $(...) runs,
+    #                  so it must stay outside the substitution)
+    #   2>&1           stderr -> the $(...) capture pipe, i.e. into $err
+    #   1>&3           stdout -> fd 3, the real stdout, so it isn't captured
+    #   3>&-           close fd 3 so docker doesn't inherit it
+    # The assignment's exit status is docker's, which is what `if` tests.
+    if { err=$(docker image pull "$@" "$image" 2>&1 1>&3 3>&-); } 3>&1; then
+      return 0
+    fi
+    echo "$err" >&2
+    if grep -qiE 'manifest unknown|not found|repository does not exist|name unknown|invalid reference format' <<<"$err"; then
+      echo "Image ${image} does not exist, not retrying" >&2
+      return 1
+    fi
+    if ((attempt < retries)); then
+      echo "Failed to pull image ${image} (attempt ${attempt}/${retries}), retrying in ${delay}s..." >&2
+      sleep "$delay"
+    fi
+  done
+
+  echo "Failed to pull image ${image} after ${retries} attempts" >&2
+  return 1
+}
+
 pull_images() {
   local image_list=$1
   local image_cache_db=${SCRIPTS_DIR}/images/cache.yaml
@@ -216,7 +254,8 @@ pull_images() {
   if [ -z "$USE_LOCAL_IMAGES" ]; then
     echo "Pulling images..."
     for image in $(cat $image_list); do
-      docker image pull --quiet $image
+      echo "Pulling image ${image}..."
+      pull_image_with_retry $image --quiet || return 1
     done
     return
   fi
@@ -253,7 +292,7 @@ pull_images() {
     fi
 
     echo "[ImageCache] $image: pulling..."
-    docker pull $image
+    pull_image_with_retry $image || return 1
   done
 }
 

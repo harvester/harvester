@@ -17,7 +17,7 @@ ARG WHARFIE_SHA256_arm64=18964c85ed93f8f6d85b7aacd25e1429659be9e6be681d600696c35
 SHELL ["/bin/bash", "-c"]
 RUN zypper rm -y container-suseconnect && \
   zypper --no-gpg-checks ref && \
-  zypper in -y curl e2fsprogs rsync awk zstd jq helm zip unzip nginx util-linux && zypper clean -a
+  zypper in -y curl e2fsprogs findutils rsync awk zstd jq helm zip unzip nginx util-linux && zypper clean -a
 
 ENV KUBECTL_VERSION ${KUBECTL_VERSION}
 RUN zypper ar -f https://rpm.rancher.io/pkgs/prime pkgs && \

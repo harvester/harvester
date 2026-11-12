@@ -1,5 +1,51 @@
 {
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>harvester/dependency-automation:renovate"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "KubeVirt image tag anchored as &kubevirtVersion in the harvester chart values",
+      "managerFilePatterns": [
+        "/^deploy/charts/harvester/values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "repository: (?<depName>registry\\.suse\\.com/suse/sles/16\\.0/virt-operator)\\s+tag: &kubevirtVersion (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:-(?<build>\\d+)\\.(?<revision>\\d+))?$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "KubeVirt image: enable lookups and split patch from minor",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "registry.suse.com/suse/sles/16.0/virt-operator"
+      ],
+      "enabled": true,
+      "separateMinorPatch": true,
+      "commitMessageTopic": "KubeVirt images",
+      "commitMessageExtra": "to {{newValue}}",
+      "matchBaseBranches": ["master", "v1.9", "v1.10"]
+    },
+    {
+      "description": "KubeVirt image: never cross the minor line, patch/rebuild only",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "registry.suse.com/suse/sles/16.0/virt-operator"
+      ],
+      "matchBaseBranches": ["master", "v1.9", "v1.10"],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
+    }
   ]
 }

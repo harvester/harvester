@@ -85,6 +85,7 @@ const (
 	skipVersionCheckAnnotation                 = "harvesterhci.io/skip-version-check"
 	reenableDeschedulerAddonAnnotation         = "harvesterhci.io/reenable-descheduler-addon"
 	kubevirtWorkloadUpdateMethodsAnnotation    = "harvesterhci.io/kubevirt-workload-update-methods"
+	shutdownVMOnMigrationFailureAnnotation     = "harvesterhci.io/shutdown-vm-on-migration-failure"
 
 	// allowSameVersionFlavorSwitchAnnotation on a Version lets a community
 	// cluster switch to Prime at its current version. Internal use only.
@@ -459,11 +460,15 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return nil, err
 			}
 
+			saveShutdownVMOnMigrationFailureToUpgradeAnnotation(toUpdate)
+
 			// Persist the in-memory annotations set above (replica-replenishment-wait-interval
 			// and reenable-descheduler-addon) before attempting upgradeKubernetes. Both are
 			// read later during cleanup; if upgradeKubernetes fails and we returned without
 			// persisting, the next reconcile would skip the save block (the live values are
 			// already mutated) and lose the original state we need to restore.
+			// shutdown-vm-on-migration-failure is persisted here too, as the pre-drain jobs
+			// created after upgradeKubernetes read it.
 			persisted, err := h.upgradeClient.Update(toUpdate)
 			if err != nil {
 				return nil, err
@@ -1040,6 +1045,30 @@ func (h *upgradeHandler) prepareNodesForUpgrade(upgrade *harvesterv1.Upgrade, re
 	upgrade.Status.RepoInfo = repoInfoStr
 	harvesterv1.NodesPrepared.CreateUnknownIfNotExists(upgrade)
 	return h.upgradeClient.Update(upgrade)
+}
+
+// saveShutdownVMOnMigrationFailureToUpgradeAnnotation fixes the value for all nodes of
+// this upgrade. It's saved here rather than when the upgrade starts because an upgrade
+// is started by the controller of the previous version, which doesn't know the setting.
+// It saves false if the upgrade-config setting can't be decoded, so that no VM is shut
+// down without the user asking for it.
+func saveShutdownVMOnMigrationFailureToUpgradeAnnotation(upgrade *harvesterv1.Upgrade) {
+	if _, exists := upgrade.Annotations[shutdownVMOnMigrationFailureAnnotation]; exists {
+		return
+	}
+
+	shutdown := false
+	upgradeConfig, err := settings.DecodeConfig[settings.UpgradeConfig](settings.UpgradeConfigSet.Get())
+	if err != nil {
+		logrus.WithError(err).Warn("Failed to decode setting upgrade-config, VMs won't be shut down on migration failure")
+	} else {
+		shutdown = upgradeConfig.ShutdownVMOnMigrationFailure
+	}
+
+	if upgrade.Annotations == nil {
+		upgrade.Annotations = make(map[string]string)
+	}
+	upgrade.Annotations[shutdownVMOnMigrationFailureAnnotation] = strconv.FormatBool(shutdown)
 }
 
 func (h *upgradeHandler) getReplicaReplenishmentValue() (int, error) {

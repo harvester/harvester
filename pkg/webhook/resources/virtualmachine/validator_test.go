@@ -14,6 +14,7 @@ import (
 	corefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
@@ -2218,6 +2219,278 @@ func TestVmValidator_Create(t *testing.T) {
 			}
 			err := validator.Create(fakeRequest, vm)
 			if test.expectedValidationError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckVMStateStorageClass(t *testing.T) {
+	persistentTrue := true
+
+	tests := []struct {
+		name        string
+		vm          *kubevirtv1.VirtualMachine
+		scExists    bool
+		expectError bool
+	}{
+		{
+			name: "persistent TPM, SC missing → reject",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name: "persistent EFI, SC missing → reject",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{Persistent: &persistentTrue},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name: "persistent TPM, SC exists → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    true,
+			expectError: false,
+		},
+		{
+			name: "persistent EFI, SC exists → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{Persistent: &persistentTrue},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    true,
+			expectError: false,
+		},
+		{
+			name: "non-persistent TPM, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Devices: kubevirtv1.Devices{
+									TPM: &kubevirtv1.TPMDevice{},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+		{
+			name: "EFI without persistent flag, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Firmware: &kubevirtv1.Firmware{
+									Bootloader: &kubevirtv1.Bootloader{
+										EFI: &kubevirtv1.EFI{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+		{
+			name: "no TPM or EFI, SC missing → accept",
+			vm: &kubevirtv1.VirtualMachine{
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{},
+						},
+					},
+				},
+			},
+			scExists:    false,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.scExists {
+				assert.NoError(t, clientset.Tracker().Add(&storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
+				}))
+			}
+			v := &vmValidator{
+				scCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			err := v.validateVMStateStorageClass(tc.vm)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestVmValidator_Create_VMStateStorageClass(t *testing.T) {
+	persistentTrue := true
+	vmWithTPM := &kubevirtv1.VirtualMachine{
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Devices: kubevirtv1.Devices{
+							TPM: &kubevirtv1.TPMDevice{Persistent: &persistentTrue},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewSimpleClientset()
+	v := &vmValidator{
+		scCache:  fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+		pvcCache: fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+	}
+
+	err := v.Create(fakeclients.NewFakeRequest("test-user"), vmWithTPM)
+	assert.Error(t, err, "Create with persistent TPM and missing vmstate-persistence SC should be rejected")
+}
+
+func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
+	persistentTrue := true
+
+	withTPM := func(vm *kubevirtv1.VirtualMachine) *kubevirtv1.VirtualMachine {
+		v := vm.DeepCopy()
+		v.Spec.Template.Spec.Domain.Devices.TPM = &kubevirtv1.TPMDevice{Persistent: &persistentTrue}
+		return v
+	}
+	base := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						Memory: &kubevirtv1.Memory{
+							Guest: resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		oldVM       *kubevirtv1.VirtualMachine
+		newVM       *kubevirtv1.VirtualMachine
+		scExists    bool
+		pvcExists   bool
+		expectError bool
+	}{
+		{
+			name:        "old without vTPM, new with persistent TPM, SC missing → rejected",
+			oldVM:       base.DeepCopy(),
+			newVM:       withTPM(base),
+			scExists:    false,
+			expectError: true,
+		},
+		{
+			name:        "old with persistent TPM, new with persistent TPM, SC missing but PVC exists → accepted",
+			oldVM:       withTPM(base),
+			newVM:       withTPM(base),
+			scExists:    false,
+			pvcExists:   true,
+			expectError: false,
+		},
+		{
+			name:        "old without vTPM, new without vTPM → accepted",
+			oldVM:       base.DeepCopy(),
+			newVM:       base.DeepCopy(),
+			scExists:    false,
+			expectError: false,
+		},
+	}
+
+	corefakeclientset := corefake.NewClientset()
+	assert.NoError(t, corefakeclientset.Tracker().Add(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}))
+	fakeNSCache := fakeclients.NamespaceCache(corefakeclientset.CoreV1().Namespaces)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.scExists {
+				assert.NoError(t, clientset.Tracker().Add(&storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: util.StorageClassVmstatePersistence},
+				}))
+			}
+			if tc.pvcExists {
+				pvcName := backendstorage.PVCPrefix + "-" + base.Name
+				assert.NoError(t, clientset.Tracker().Add(&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{Namespace: base.Namespace, Name: pvcName},
+				}))
+			}
+			fakeScCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
+			fakePVCCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
+			v := NewValidator(fakeNSCache, nil, fakePVCCache, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+			err := v.Update(fakeclients.NewFakeRequest("test-user"), tc.oldVM, tc.newVM)
+			if tc.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
