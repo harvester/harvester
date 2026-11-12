@@ -670,7 +670,15 @@ func (m *vmMutator) patchDeleteProtection(vm *kubevirtv1.VirtualMachine, patchOp
 	if s.Value != "" {
 		value = s.Value
 	}
-	if enabled, _ := strconv.ParseBool(value); !enabled {
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		// Fail closed: treating an invalid value as "false" would silently create
+		// unprotected VMs, for example while an older webhook is still running
+		// during an upgrade and accepted a value this version rejects.
+		return patchOps, fmt.Errorf("invalid value %q in setting %s, must be a boolean such as \"true\" or \"false\": %w",
+			value, settings.DefaultVMDeleteProtectionSettingName, err)
+	}
+	if !enabled {
 		return patchOps, nil
 	}
 

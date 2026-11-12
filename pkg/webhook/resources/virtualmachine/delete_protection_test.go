@@ -39,6 +39,7 @@ func TestPatchDeleteProtection(t *testing.T) {
 		settingValue string // "" = setting object absent
 		vm           *kubevirtv1.VirtualMachine
 		expectedOps  []string
+		expectErr    bool
 	}{
 		{
 			name:         "setting absent - no patch",
@@ -94,6 +95,12 @@ func TestPatchDeleteProtection(t *testing.T) {
 			vm:           newDeleteProtectionVM(util.HarvesterSystemNamespaceName, nil),
 			expectedOps:  nil,
 		},
+		{
+			name:         "invalid setting value - reject instead of skipping protection",
+			settingValue: "true ",
+			vm:           newDeleteProtectionVM("default", nil),
+			expectErr:    true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -110,6 +117,11 @@ func TestPatchDeleteProtection(t *testing.T) {
 
 			m := &vmMutator{setting: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings)}
 			ops, err := m.patchDeleteProtection(tc.vm, nil)
+			if tc.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), settings.DefaultVMDeleteProtectionSettingName)
+				return
+			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedOps, []string(ops))
 		})
