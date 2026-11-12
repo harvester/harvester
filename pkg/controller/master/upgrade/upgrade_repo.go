@@ -500,24 +500,6 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 					},
 				},
 				Spec: corev1.PodSpec{
-					Affinity: &corev1.Affinity{
-						PodAntiAffinity: &corev1.PodAntiAffinity{
-							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
-								{
-									Weight: 100,
-									PodAffinityTerm: corev1.PodAffinityTerm{
-										LabelSelector: &metav1.LabelSelector{
-											MatchLabels: map[string]string{
-												harvesterUpgradeLabel:          r.upgrade.Name,
-												harvesterUpgradeComponentLabel: upgradeComponentRepo,
-											},
-										},
-										TopologyKey: corev1.LabelHostname,
-									},
-								},
-							},
-						},
-					},
 					Containers: []corev1.Container{container},
 					DNSPolicy:  corev1.DNSClusterFirst,
 					Volumes: []corev1.Volume{

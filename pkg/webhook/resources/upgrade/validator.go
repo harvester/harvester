@@ -327,6 +327,10 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 }
 
 func (v *upgradeValidator) checkStorageClass(upgrade *v1beta1.Upgrade) error {
+	// When spec.image is set the PVC already exists; no SC selection is needed.
+	if upgrade.Spec.Image != "" {
+		return nil
+	}
 	if sc := upgrade.Annotations[util.AnnotationUpgradeStorageClass]; sc != "" {
 		_, err := v.storageClassCache.Get(sc)
 		if err != nil {

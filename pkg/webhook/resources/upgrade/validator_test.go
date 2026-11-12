@@ -1014,6 +1014,14 @@ func TestUpgradeValidator_checkStorageClass(t *testing.T) {
 		},
 	}
 
+	airgapCases := []struct {
+		name         string
+		hasDefaultSC bool
+	}{
+		{name: "airgap with no default SC allows upgrade", hasDefaultSC: false},
+		{name: "airgap with default SC allows upgrade", hasDefaultSC: true},
+	}
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
@@ -1051,6 +1059,30 @@ func TestUpgradeValidator_checkStorageClass(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+
+	for _, tc := range airgapCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.hasDefaultSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							"storageclass.kubernetes.io/is-default-class": "true",
+						},
+					},
+				}
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
+			validator := &upgradeValidator{
+				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			upgrade := &harvesterv1.Upgrade{
+				Spec: harvesterv1.UpgradeSpec{Image: "harvester-system/some-image"},
+			}
+			assert.NoError(t, validator.checkStorageClass(upgrade))
 		})
 	}
 }
