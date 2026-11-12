@@ -24,6 +24,7 @@ ARG VERSION=dev
 ARG SERVER_FLAVOR=community
 ARG RELEASE_DOWNLOAD_URL
 ARG HARVESTER_SYSTEM_DEFAULT_REGISTRY
+# Update the pinned download checksums below when changing these versions.
 ARG KOPIA_VERSION=0.23.1
 ARG RESTIC_VERSION=0.19.1
 ENV HARVESTER_SERVER_VERSION ${VERSION}
@@ -42,21 +43,31 @@ ENV TINI_URL_amd64=https://github.com/krallin/tini/releases/download/${TINI_VERS
 RUN curl -sLf ${!TINI_URL} > /usr/bin/tini && echo "${!TINI_URL_sha256}  /usr/bin/tini" | sha256sum -c - && chmod +x /usr/bin/tini
 
 RUN case "${ARCH}" in \
-      "amd64") RESTIC_ARCH="amd64" ;; \
-      "arm64") RESTIC_ARCH="arm64" ;; \
+      "amd64") \
+        RESTIC_ARCH="amd64"; \
+        RESTIC_SHA256="f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c" ;; \
+      "arm64") \
+        RESTIC_ARCH="arm64"; \
+        RESTIC_SHA256="a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465" ;; \
       *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;; \
     esac && \
     curl -sLf -o /tmp/restic.bz2 "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_${RESTIC_ARCH}.bz2" && \
+    echo "${RESTIC_SHA256}  /tmp/restic.bz2" | sha256sum -c - && \
     bzip2 -d /tmp/restic.bz2 && \
     chmod +x /tmp/restic && \
     mv /tmp/restic /usr/local/bin/restic
 
 RUN case "${ARCH}" in \
-      "amd64") KOPIA_ARCH="x64" ;; \
-      "arm64") KOPIA_ARCH="arm64" ;; \
+      "amd64") \
+        KOPIA_ARCH="x64"; \
+        KOPIA_SHA256="416d0f84a3dbb321a8b2d8f0997b1a0a6e915babe79ee76fa6e4d2bd1e1c5178" ;; \
+      "arm64") \
+        KOPIA_ARCH="arm64"; \
+        KOPIA_SHA256="a4ffbc019e0b0f932e2632054e73ec521dc1e80172a00095369c53ecf4e5a6cb" ;; \
       *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;; \
     esac && \
     curl -sLf -o /tmp/kopia.tar.gz "https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/kopia-${KOPIA_VERSION}-linux-${KOPIA_ARCH}.tar.gz" && \
+    echo "${KOPIA_SHA256}  /tmp/kopia.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/kopia.tar.gz -C /tmp --strip-components=1 "kopia-${KOPIA_VERSION}-linux-${KOPIA_ARCH}/kopia" && \
     chmod +x /tmp/kopia && \
     mv /tmp/kopia /usr/local/bin/kopia && \
