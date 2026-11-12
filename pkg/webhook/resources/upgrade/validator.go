@@ -330,7 +330,7 @@ func (v *upgradeValidator) checkStorageClass(upgrade *v1beta1.Upgrade) error {
 	if sc := upgrade.Annotations[util.AnnotationUpgradeStorageClass]; sc != "" {
 		_, err := v.storageClassCache.Get(sc)
 		if err != nil {
-			return werror.NewBadRequest(fmt.Sprintf("annotation %s: StorageClass %q not found", util.AnnotationUpgradeStorageClass, sc))
+			return werror.NewBadRequest(fmt.Sprintf("annotation %s: StorageClass %q: %v", util.AnnotationUpgradeStorageClass, sc, err))
 		}
 		return nil
 	}
