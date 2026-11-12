@@ -301,9 +301,8 @@ always run.
    `harvester-vm-dhcp-controller`, `rancher-k3k`, `rancher-vcluster`,
    `suse-observability-agent` — each with `metadata.yaml`
    (`stage: experimental`, `builtIn: false`).
-   - `k3k` is not imported: it lacks the experimental label and README and is
-     superseded by `rancher-k3k` (to be confirmed with the addon owner before the
-     migration lands).
+   - `k3k` was left out of the initial import and added afterwards with the
+     experimental label and a README: `rancher-k3k` depends on it.
    - Version references of the Harvester-owned experimental addons are re-aligned
      with the active dev cycle during import.
 3. Add the explicit `ga` labels in a separate commit on top of the migration
