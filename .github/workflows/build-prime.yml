@@ -112,9 +112,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
-    env:
-      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
-      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -230,8 +227,6 @@ jobs:
           SERVER_FLAVOR=prime
           RELEASE_DOWNLOAD_URL=${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
           HARVESTER_SYSTEM_DEFAULT_REGISTRY=${{ env.MK_HARVESTER_PRIME_REGISTRY }}
-          HARVESTER_UI_VERSION=${{ needs.configure.outputs.tag }}
-          HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${{ needs.configure.outputs.tag }}
 
     - name: Publish harvester-webhook
       uses: *publish-prime-image
@@ -311,9 +306,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
-    env:
-      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
-      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
