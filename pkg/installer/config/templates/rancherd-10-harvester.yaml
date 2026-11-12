@@ -204,6 +204,12 @@ resources:
         clusterPodCIDR: {{ or .ClusterPodCIDR "10.52.0.0/16" }}
         clusterServiceCIDR: {{ or .ClusterServiceCIDR "10.53.0.0/16" }}
         clusterDNS: {{ or .ClusterDNS "10.53.0.10" }}
+      {{- if .Harvester.StorageClass.SkipLonghornStorageClasses }}
+      cdi:
+        spec:
+          config:
+            scratchSpaceStorageClass: null
+      {{- end }}
       global:
         # ipFamilyPolicy drives Service.spec.ipFamilyPolicy for the harvester,
         # harvester-webhook, virt-api, virt-exportproxy, cdi-api, cdi-uploadproxy

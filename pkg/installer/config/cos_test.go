@@ -441,6 +441,16 @@ func TestSkipLonghornDefaultDiskDisablesLonghornStorageClass(t *testing.T) {
 	assert.Contains(t, content, "persistence:\n          createStorageClass: false")
 }
 
+func TestSkipLonghornDefaultDiskNullsCDIScratchStorageClass(t *testing.T) {
+	config := &HarvesterConfig{Install: Install{SkipLonghornDefaultDisk: true}}
+
+	setConfigDefaultValues(config)
+	content, err := render("rancherd-10-harvester.yaml", config)
+
+	assert.NoError(t, err)
+	assert.Contains(t, content, "scratchSpaceStorageClass: null")
+}
+
 func TestHarvesterChartEnablesLabeledDefaultLonghornDisks(t *testing.T) {
 	content, err := render("rancherd-10-harvester.yaml", &HarvesterConfig{})
 
