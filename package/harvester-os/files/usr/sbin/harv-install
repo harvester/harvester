@@ -14,28 +14,10 @@ declare -a CLEAR_FSLABELS=(
 
 clear_disk_label()
 {
-    # For internal automation environments we need to be able to wipe all disks on the node
-    # to ensure that host does not boot off partitions from another disk in the host
-    # lsblk produces the following json output, which we filter using jq to identify disks
-    # which we will be wiping
-    # lsblk -d -n -J -o NAME,TYPE
-    # {
-    #  "blockdevices": [
-    #  {
-    #     "name": "loop0",
-    #     "type": "loop"
-    #  },{
-    #     "name": "sr0",
-    #     "type": "rom"
-    #  },{
-    #     "name": "vda",
-    #     "type": "disk"
-    #     }
-    #   ]
-    # }
-    # Clear the label of partitions that has $CLEAR_FSLABELS to prevent misidentification
-    # Also, while yip is partitioning the disk, if it sees the LABEL to be used exists,
-    # it won't create the partition. So it's necessary to clear the label
+    if [ -z $HARVESTER_DATA_DISK ]; then
+        return
+    fi
+    # Clear the label of partitions on $HARVESTER_DATA_DISK that has $CLEAR_FSLABELS to prevent misidentification
     echo "Assessing labels on data disk $HARVESTER_DATA_DISK partitions."
     for part in $(lsblk $HARVESTER_DATA_DISK -npr -oname,type | grep part | cut -d' ' -f1); do
         partition_label=$(blkid -s LABEL -o value $part)
