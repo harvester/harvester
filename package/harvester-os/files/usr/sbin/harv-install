@@ -14,12 +14,9 @@ declare -a CLEAR_FSLABELS=(
 
 clear_disk_label()
 {
-    if [ -z $HARVESTER_DATA_DISK ]; then
-        return
-    fi
-    # Clear the label of partitions on $HARVESTER_DATA_DISK that has $CLEAR_FSLABELS to prevent misidentification
-    echo "Assessing labels on data disk $HARVESTER_DATA_DISK partitions."
-    for part in $(lsblk $HARVESTER_DATA_DISK -npr -oname,type | grep part | cut -d' ' -f1); do
+    # Clear the label of partitions on $HARVESTER_DEVICE and $HARVESTER_DATA_DISK that have $CLEAR_FSLABELS to prevent misidentification
+    echo "Assessing labels on data disk $HARVESTER_DEVICE $HARVESTER_DATA_DISK partitions."
+    for part in $(lsblk $HARVESTER_DEVICE $HARVESTER_DATA_DISK -npr -oname,type | grep part | cut -d' ' -f1); do
         partition_label=$(blkid -s LABEL -o value $part)
         for label in "${CLEAR_FSLABELS[@]}"; do
             if [ "$partition_label" == "$label" ] ; then
@@ -36,10 +33,20 @@ clear_disk_label()
 check_for_unexpected_data_disk()
 {
     local has_unexpected_disks=0
+    local install_device=$HARVESTER_DEVICE
+    if [ -L "$HARVESTER_DEVICE" ]; then
+        install_device=$(readlink -f "$HARVESTER_DEVICE")
+    fi
+    local data_disk_device=$HARVESTER_DATA_DISK
+    if [ -n "$data_disk_device" ] ; then
+        if [ -L "$HARVESTER_DATA_DISK" ]; then
+            data_disk_device=$(readlink -f "$HARVESTER_DATA_DISK")
+        fi
+    fi
     for dev in $(blkid -t LABEL="$DATA_DISK_FSLABEL" -o device); do
-        if [[ "$dev" == "$HARVESTER_DEVICE"* ]]; then
-            # The data disk label was found on a partition of the installation disk,
-            # this is fine, it will be wiped by `elemental install`
+        if [ "$dev" == "$install_device" ] || [ "$dev" == "$data_disk_device" ]; then
+            # The data disk label was found on either the install device or data
+            # disk device we're targeting. This is fine, they'll both be formatted later.
             continue
         fi
         echo "ERROR: found unexpected existing data disk ${dev} - this must be wiped/removed before install" >&2
