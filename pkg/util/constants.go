@@ -127,7 +127,8 @@ const (
 	ContainerdRegistryFileName   = "registries.yaml"
 
 	BackupTargetSecretName                = "harvester-backup-target-secret"
-	InternalTLSSecretName                 = "tls-rancher-internal"
+	InternalTLSSecretName                 = "harvester-tls"
+	InternalTLSCAName                     = "harvester-ca"
 	Rke2IngressNginxAppName               = "rke2-ingress-nginx"
 	Rke2TraefikAppName                    = "rke2-traefik"
 	RancherExposeIngressName              = "rancher-expose"

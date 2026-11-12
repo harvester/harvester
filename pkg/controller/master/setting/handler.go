@@ -38,7 +38,6 @@ var (
 	// bootstrapSettings are the setting that syncs on bootstrap
 	bootstrapSettings = []string{
 		settings.SSLCertificatesSettingName,
-		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 		// We need to sync overcommit config on bootstrap
 		// Now, storage overcommit was aligned with Longhorn setting,
 		settings.OvercommitConfigSettingName,
@@ -49,7 +48,6 @@ var (
 	skipHashCheckSettings = []string{
 		settings.AutoRotateRKE2CertsSettingName,
 		settings.LogLevelSettingName,
-		settings.KubeconfigDefaultTokenTTLMinutesSettingName,
 		settings.AdditionalGuestMemoryOverheadRatioName,
 		settings.ClusterPodSecurityStandardSettingName,
 	}

@@ -46,12 +46,12 @@ func (h *Handler) syncContainerdRegistry(setting *harvesterv1.Setting) error {
 		return err
 	}
 
-	secret, err := h.secretCache.Get(util.CattleSystemNamespaceName, util.ContainerdRegistrySecretName)
+	secret, err := h.secretCache.Get(util.HarvesterSystemNamespaceName, util.ContainerdRegistrySecretName)
 	if apierrors.IsNotFound(err) {
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      util.ContainerdRegistrySecretName,
-				Namespace: util.CattleSystemNamespaceName,
+				Namespace: util.HarvesterSystemNamespaceName,
 			},
 			Data: map[string][]byte{
 				util.ContainerdRegistryFileName: registryFromSettingYaml,
@@ -98,7 +98,7 @@ func (h *Handler) syncContainerdRegistry(setting *harvesterv1.Setting) error {
 }
 
 func (h *Handler) clearContainerdRegistrySecret() error {
-	secret, err := h.secretCache.Get(util.CattleSystemNamespaceName, util.ContainerdRegistrySecretName)
+	secret, err := h.secretCache.Get(util.HarvesterSystemNamespaceName, util.ContainerdRegistrySecretName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil

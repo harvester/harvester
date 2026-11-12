@@ -57,9 +57,8 @@ type Options struct {
 	HTTPListenPort  int
 	HTTPSListenPort int
 
-	RancherEmbedded bool
-	RancherURL      string
-	HCIMode         bool
+	RancherURL string
+	HCIMode    bool
 }
 
 type Scaled struct {
