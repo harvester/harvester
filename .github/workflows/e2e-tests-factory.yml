@@ -192,9 +192,10 @@ jobs:
           golden_target_branch="$REF_NAME"
         fi
 
-        # release-v1.10.0-rc1 or release-v1.10.0 -> v1.10
-        if [[ "$golden_target_branch" =~ ^release-(v[0-9]+\.[0-9]+)\.[0-9]+(-.+)?$ ]]; then
-          golden_target_branch="${BASH_REMATCH[1]}"
+        # release-v1.10.0-rc1, release-v1.10.0 or
+        # release-prime-v1.10.0-rc1 -> v1.10
+        if [[ "$golden_target_branch" =~ ^release-(prime-)?(v[0-9]+\.[0-9]+)\.[0-9]+(-.+)?$ ]]; then
+          golden_target_branch="${BASH_REMATCH[2]}"
         fi
         echo "golden_target_branch=${golden_target_branch}" >> "$GITHUB_ENV"
 
