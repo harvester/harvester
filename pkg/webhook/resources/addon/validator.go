@@ -214,11 +214,14 @@ func (v *addonValidator) validateDefaultStorageClass(addon *v1beta1.Addon) error
 	}
 
 	storageClasses, err := v.storageClassCache.List(labels.Everything())
-	if err == nil {
-		for _, storageClass := range storageClasses {
-			if storageClass.Annotations[util.AnnotationIsDefaultStorageClassName] == "true" || storageClass.Annotations[betaDefaultStorageClassAnnotation] == "true" {
-				return nil
-			}
+	if err != nil {
+		return fmt.Errorf("failed to list storage classes: %w", err)
+	}
+	for _, sc := range storageClasses {
+		isDefault := sc.Annotations[util.AnnotationIsDefaultStorageClassName] == "true"
+		isBetaDefault := sc.Annotations[betaDefaultStorageClassAnnotation] == "true"
+		if isDefault || isBetaDefault {
+			return nil
 		}
 	}
 
@@ -238,8 +241,8 @@ func hasExplicitStorageClass(valuesContent string) bool {
 	return containsStorageClassName(values)
 }
 
-func containsStorageClassName(node interface{}) bool {
-	switch n := node.(type) {
+func containsStorageClassName(value interface{}) bool {
+	switch n := value.(type) {
 	case map[string]interface{}:
 		for k, v := range n {
 			if k == "storageClassName" {
