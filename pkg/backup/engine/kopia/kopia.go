@@ -310,21 +310,41 @@ func (ke *KopiaEngine) retryForgetJob(job *batchv1.Job) error {
 	return fmt.Errorf("kopia forget job %s/%s failed or was interrupted; retrying cleanup", job.Namespace, job.Name)
 }
 
-func (ke *KopiaEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, clonePVCName string) error {
+func (ke *KopiaEngine) ensureClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+	clonePVCName string,
+) error {
 	namespace := ke.vmbo.GetNamespace(vmb)
 	pvc, err := ke.pvcCache.Get(namespace, clonePVCName)
-	if err == nil {
-		if ke.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound {
-			return engine.ErrRetryLater
-		}
-		return nil
+	if apierrors.IsNotFound(err) {
+		return ke.createClonePVC(vmb, vb, clonePVCName)
 	}
-	if !apierrors.IsNotFound(err) {
+	if err != nil {
 		return err
 	}
+	if err := common.ValidateClonePVC(
+		pvc, ke.vsHelper.BuildOwnerReference(vmb), ke.volumeSnapshotName(vb),
+	); err != nil {
+		return err
+	}
+	if pvc.DeletionTimestamp != nil {
+		return engine.ErrRetryLater
+	}
+	if ke.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound {
+		return engine.ErrRetryLater
+	}
+	return nil
+}
 
+func (ke *KopiaEngine) createClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+	clonePVCName string,
+) error {
+	namespace := ke.vmbo.GetNamespace(vmb)
 	sourceSpec := ke.vmbo.GetVolBackupPVCSpec(vb)
-	pvc = &corev1.PersistentVolumeClaim{
+	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            clonePVCName,
 			Namespace:       namespace,
@@ -339,7 +359,7 @@ func (ke *KopiaEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb 
 		Name:     ke.volumeSnapshotName(vb),
 	}
 	pvc.Spec.DataSourceRef = nil
-	_, err = ke.pvcClient.Create(pvc)
+	_, err := ke.pvcClient.Create(pvc)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
@@ -651,7 +671,7 @@ func (ke *KopiaEngine) cleanupTemporaryResources(
 	namespace := ke.vmbo.GetNamespace(vmb)
 	return errors.Join(
 		ke.deleteBackupJob(namespace, vb),
-		ke.deleteClonePVC(namespace, ke.clonePVCName(vmb, vb)),
+		ke.deleteClonePVC(vmb, vb),
 		ke.deleteSnapshot(namespace, ke.volumeSnapshotName(vb)),
 	)
 }
@@ -676,8 +696,16 @@ func (ke *KopiaEngine) deleteBackupJob(namespace string, vb *harvesterv1.VolumeB
 	)
 }
 
-func (ke *KopiaEngine) deleteClonePVC(namespace, name string) error {
-	err := ke.pvcClient.Delete(namespace, name, &metav1.DeleteOptions{})
+func (ke *KopiaEngine) deleteClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+) error {
+	namespace := ke.vmbo.GetNamespace(vmb)
+	name := ke.clonePVCName(vmb, vb)
+	err := common.DeleteClonePVC(
+		ke.pvcClient, namespace, name,
+		ke.vsHelper.BuildOwnerReference(vmb), ke.volumeSnapshotName(vb),
+	)
 	if err == nil || apierrors.IsNotFound(err) {
 		return nil
 	}

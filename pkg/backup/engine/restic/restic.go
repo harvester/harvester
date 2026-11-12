@@ -320,23 +320,43 @@ func (re *ResticEngine) retryForgetJob(job *batchv1.Job) error {
 	return fmt.Errorf("restic forget job %s/%s failed or was interrupted; retrying cleanup", job.Namespace, job.Name)
 }
 
-func (re *ResticEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, clonePVCName string) error {
+func (re *ResticEngine) ensureClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+	clonePVCName string,
+) error {
 	namespace := re.vmbo.GetNamespace(vmb)
 	pvc, err := re.pvcCache.Get(namespace, clonePVCName)
-	if err == nil {
-		// WaitForFirstConsumer storage classes only bind once a pod (the backup Job)
-		// mounts the PVC, so gating here would deadlock that path.
-		if re.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound {
-			return engine.ErrRetryLater
-		}
-		return nil
+	if apierrors.IsNotFound(err) {
+		return re.createClonePVC(vmb, vb, clonePVCName)
 	}
-	if !apierrors.IsNotFound(err) {
+	if err != nil {
 		return err
 	}
+	if err := common.ValidateClonePVC(
+		pvc, re.vsHelper.BuildOwnerReference(vmb), re.volumeSnapshotName(vb),
+	); err != nil {
+		return err
+	}
+	if pvc.DeletionTimestamp != nil {
+		return engine.ErrRetryLater
+	}
+	// WaitForFirstConsumer storage classes bind once a backup Job mounts the
+	// PVC, so waiting for ClaimBound here would deadlock that path.
+	if re.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound {
+		return engine.ErrRetryLater
+	}
+	return nil
+}
 
+func (re *ResticEngine) createClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+	clonePVCName string,
+) error {
+	namespace := re.vmbo.GetNamespace(vmb)
 	sourceSpec := re.vmbo.GetVolBackupPVCSpec(vb)
-	pvc = &corev1.PersistentVolumeClaim{
+	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            clonePVCName,
 			Namespace:       namespace,
@@ -351,7 +371,7 @@ func (re *ResticEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb
 		Name:     re.volumeSnapshotName(vb),
 	}
 	pvc.Spec.DataSourceRef = nil
-	_, err = re.pvcClient.Create(pvc)
+	_, err := re.pvcClient.Create(pvc)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
@@ -688,7 +708,7 @@ func (re *ResticEngine) cleanupTemporaryResources(
 	namespace := re.vmbo.GetNamespace(vmb)
 	return errors.Join(
 		re.deleteBackupJob(namespace, vb),
-		re.deleteClonePVC(namespace, re.clonePVCName(vmb, vb)),
+		re.deleteClonePVC(vmb, vb),
 		re.deleteSnapshot(namespace, re.volumeSnapshotName(vb)),
 	)
 }
@@ -713,8 +733,16 @@ func (re *ResticEngine) deleteBackupJob(namespace string, vb *harvesterv1.Volume
 	)
 }
 
-func (re *ResticEngine) deleteClonePVC(namespace, name string) error {
-	err := re.pvcClient.Delete(namespace, name, &metav1.DeleteOptions{})
+func (re *ResticEngine) deleteClonePVC(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vb *harvesterv1.VolumeBackup,
+) error {
+	namespace := re.vmbo.GetNamespace(vmb)
+	name := re.clonePVCName(vmb, vb)
+	err := common.DeleteClonePVC(
+		re.pvcClient, namespace, name,
+		re.vsHelper.BuildOwnerReference(vmb), re.volumeSnapshotName(vb),
+	)
 	if err == nil || apierrors.IsNotFound(err) {
 		return nil
 	}

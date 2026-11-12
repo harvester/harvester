@@ -111,7 +111,7 @@ func TestForgetJobDeletionFailureIsRetried(t *testing.T) {
 func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 	ready := true
 	vmb := &harvesterv1.VirtualMachineBackup{
-		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default", UID: "backup-uid"},
 		Status: harvesterv1.VirtualMachineBackupStatus{
 			VolumeBackups: []harvesterv1.VolumeBackup{{
 				Name:       ptr.To("volume"),
@@ -122,12 +122,22 @@ func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 			}},
 		},
 	}
+	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
+	vsHelper := backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil)
 	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
 		Name: "kopia-backup-volume", Namespace: vmb.Namespace,
 	}}
-	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
-		Name: "backup-source-kopia-clone", Namespace: vmb.Namespace,
-	}}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "backup-source-kopia-clone", Namespace: vmb.Namespace, UID: "clone-uid",
+			OwnerReferences: []metav1.OwnerReference{vsHelper.BuildOwnerReference(vmb)},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			DataSource: &corev1.TypedLocalObjectReference{
+				APIGroup: ptr.To(snapshotv1.GroupName), Kind: "VolumeSnapshot", Name: "volume",
+			},
+		},
+	}
 	vs := &snapshotv1.VolumeSnapshot{ObjectMeta: metav1.ObjectMeta{
 		Name: "volume", Namespace: vmb.Namespace,
 	}}
@@ -142,9 +152,9 @@ func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 		return true, nil, deleteErr
 	})
 
-	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
 	ke := &KopiaEngine{
 		vmbo:      vmbo,
+		vsHelper:  vsHelper,
 		jobClient: fakeclients.JobClient(clientset.BatchV1().Jobs),
 		pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
 		vsClient:  fakeclients.VolumeSnapshotClient(clientset.SnapshotV1().VolumeSnapshots),
