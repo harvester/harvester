@@ -6,7 +6,7 @@ on:
     - release-*
     - v*
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, labeled]
     paths:
       - '.github/workflows/e2e-tests.yml'
       - '.github/workflows/e2e-tests-factory.yml'
@@ -50,6 +50,16 @@ on:
 
 jobs:
   configure_input_vars:
+    # PRs labeled "allow-e2e" always run, including when the label is
+    # added after the PR is opened. Otherwise, PRs from renovate[bot] are
+    # skipped. Adding any other label does not trigger a run. Skipping
+    # this job also skips the E2E tests that depend on it.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'allow-e2e') ||
+      (github.event.action != 'labeled' &&
+        (contains(github.event.pull_request.labels.*.name, 'allow-e2e') ||
+          github.event.pull_request.user.login != 'renovate[bot]'))
     runs-on: ubuntu-latest
     outputs:
       sha_short: ${{ steps.set_vars.outputs.sha_short }}
