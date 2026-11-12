@@ -33,6 +33,23 @@ clear_disk_label()
     udevadm settle
 }
 
+check_for_unexpected_data_disk()
+{
+    local has_unexpected_disks=0
+    for dev in $(blkid -t LABEL="$DATA_DISK_FSLABEL" -o device); do
+        if [[ "$dev" == "$HARVESTER_DEVICE"* ]]; then
+            # The data disk label was found on a partition of the installation disk,
+            # this is fine, it will be wiped by `elemental install`
+            continue
+        fi
+        echo "ERROR: found unexpected existing data disk ${dev} - this must be wiped/removed before install" >&2
+        has_unexpected_disks=1
+    done
+    if [ $has_unexpected_disks -eq 1 ]; then
+        exit 1
+    fi
+}
+
 umount_target() {
     sync
     umount ${TARGET}/oem
@@ -580,6 +597,8 @@ lvmconfig | sed /global_filter/d > ${LVM_SYSTEM_DIR}/lvm.conf
 blkdeactivate --lvmoptions wholevg,retry --dmoptions force,retry --errors || true
 
 clear_disk_label
+
+check_for_unexpected_data_disk
 
 # Run elemental installer but do not let it fetch ISO and do not shutdown
 elemental install --config-dir ${ELEMENTAL_CONFIG_DIR} --debug

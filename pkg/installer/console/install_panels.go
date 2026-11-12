@@ -401,7 +401,7 @@ func addDiskPanel(c *Console) error {
 
 	// WipeDisksPanel
 	wipeDisksTitlePanelV := widgets.NewPanel(c.Gui, wipeDisksTitlePanel)
-	wipeDisksTitlePanelV.SetContent("Additional Harvester installations detected")
+	wipeDisksTitlePanelV.SetContent("Additional Harvester installations or data disks detected")
 	wipeDisksTitlePanelV.FgColor = gocui.ColorRed
 	setLocation(wipeDisksTitlePanelV, 3)
 	c.AddElement(wipeDisksTitlePanel, wipeDisksTitlePanelV)
