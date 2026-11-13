@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -40,6 +41,8 @@ const (
 	kubeOVNOperatorAddon = util.KubeOVNOperatorName
 
 	labelParentSRIOVGPUDevice = "harvesterhci.io/parentSRIOVGPUDevice"
+
+	betaDefaultStorageClassAnnotation = "storageclass.beta.kubernetes.io/is-default-class"
 )
 
 var vgpuDeviceGVR = schema.GroupVersionResource{
@@ -155,6 +158,10 @@ func (v *addonValidator) validateNewAddon(newAddon *v1beta1.Addon) error {
 		}
 	}
 
+	if newAddon.Spec.Enabled && isStorageBackedAddon(newAddon.Name) {
+		return v.validateDefaultStorageClass(newAddon)
+	}
+
 	return nil
 }
 
@@ -183,7 +190,78 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validateLVMAddonUpdate(newAddon, oldAddon)
 	}
 
+	if isStorageBackedAddon(newAddon.Name) && isAddonBeingEnabled(newAddon, oldAddon) {
+		return v.validateDefaultStorageClass(newAddon)
+	}
+
 	return nil
+}
+
+// storageBackedAddons require a default StorageClass for PVC provisioning.
+var storageBackedAddons = map[string]struct{}{
+	util.RancherMonitoringName: {},
+	util.RancherK3KName:        {},
+}
+
+func isStorageBackedAddon(name string) bool {
+	_, ok := storageBackedAddons[name]
+	return ok
+}
+
+func (v *addonValidator) validateDefaultStorageClass(addon *v1beta1.Addon) error {
+	if hasExplicitStorageClass(addon.Spec.ValuesContent) {
+		return nil
+	}
+
+	storageClasses, err := v.storageClassCache.List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list storage classes: %w", err)
+	}
+	for _, sc := range storageClasses {
+		isDefault := sc.Annotations[util.AnnotationIsDefaultStorageClassName] == "true"
+		isBetaDefault := sc.Annotations[betaDefaultStorageClassAnnotation] == "true"
+		if isDefault || isBetaDefault {
+			return nil
+		}
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf(
+		"set a default StorageClass before enabling addon %s",
+		addon.Name,
+	))
+}
+
+// hasExplicitStorageClass reports whether valuesContent sets a non-empty storageClassName anywhere, so no default SC is needed.
+// shortcut: any one explicit SC skips the check, a PVC without its own SC still needs the default; check per PVC path if that bites.
+func hasExplicitStorageClass(valuesContent string) bool {
+	var values interface{}
+	if err := yaml.Unmarshal([]byte(valuesContent), &values); err != nil {
+		return false
+	}
+	return containsStorageClassName(values)
+}
+
+func containsStorageClassName(value interface{}) bool {
+	switch n := value.(type) {
+	case map[string]interface{}:
+		for k, v := range n {
+			if k == "storageClassName" {
+				if s, ok := v.(string); ok && s != "" {
+					return true
+				}
+			}
+			if containsStorageClassName(v) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, v := range n {
+			if containsStorageClassName(v) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (v *addonValidator) validateRancherLoggingAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
@@ -272,6 +350,10 @@ func (v *addonValidator) validateLVMAddonUpdate(newAddon *v1beta1.Addon, oldAddo
 
 func isAddonBeingDisabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
 	return oldAddon.Spec.Enabled && !newAddon.Spec.Enabled
+}
+
+func isAddonBeingEnabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
+	return !oldAddon.Spec.Enabled && newAddon.Spec.Enabled
 }
 
 func (v *addonValidator) validateEnableRancherLoggingAddon(newAddon *v1beta1.Addon) error {

@@ -161,6 +161,7 @@ const (
 	HarvesterUpgradeImageRepository       = "rancher/harvester-upgrade"
 	GrafanaPVCName                        = "rancher-monitoring-grafana"
 	RancherMonitoringName                 = "rancher-monitoring"
+	RancherK3KName                        = "rancher-k3k"
 	CattleMonitoringSystemNamespaceName   = "cattle-monitoring-system"
 	HarvesterVMImportController           = "vm-import-controller-harvester-vm-import-controller"
 	KubeOVNOperatorName                   = "kubeovn-operator"
@@ -266,7 +267,7 @@ var (
 		MaintainModeStrategyShutdown,
 	}
 
-	DefaultHarvesterNamespaceWhiteList = []string{"calico-apiserver", "calico-system", "cattle-alerting", "cattle-csp-adapter-system", "cattle-elemental-system", "cattle-epinio-system", "cattle-externalip-system", "cattle-fleet-local-system", "cattle-fleet-system", "cattle-gatekeeper-system", "cattle-global-data", "cattle-global-nt", "cattle-impersonation-system", "cattle-istio", "cattle-istio-system", "cattle-logging", "cattle-logging-system", "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus", "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system", "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system", "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx", "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system", "rancher-alerting-drivers", "security-scan", "tigera-operator", "harvester-system", "rancher-vcluster", "cattle-dashboards", "fleet-local", "local", "forklift"}
+	DefaultHarvesterNamespaceWhiteList = []string{"calico-apiserver", "calico-system", "cattle-alerting", "cattle-csp-adapter-system", "cattle-elemental-system", "cattle-epinio-system", "cattle-externalip-system", "cattle-fleet-local-system", "cattle-fleet-system", "cattle-gatekeeper-system", "cattle-global-data", "cattle-global-nt", "cattle-impersonation-system", "cattle-istio", "cattle-istio-system", "cattle-logging", "cattle-logging-system", "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus", "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system", "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system", "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx", "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system", "rancher-alerting-drivers", "security-scan", "tigera-operator", "harvester-system", "cattle-dashboards", "fleet-local", "local", "forklift"}
 
 	StaticIPAnnotationKeyPrefix = fmt.Sprintf("static-ip.%s", prefix)
 	TraefikTLSStoreGVK          = schema.GroupVersionKind{Group: "traefik.io", Version: "v1alpha1", Kind: "TLSStore"}
@@ -287,9 +288,7 @@ const (
 	LabelCPUManagerUpdatePolicy      = prefix + "/cpu-manager-update-policy"
 	LabelCPUManagerExitCode          = prefix + "/cpu-manager-exit-code"
 
-	VClusterNamespace         = "rancher-vcluster"
-	LabelAppNameKey           = "app"
-	LabelVClusterAppNameValue = "vcluster"
+	LabelAppNameKey = "app"
 
 	StorageClassHarvesterLonghorn  = "harvester-longhorn"  // the initial & default storageclass
 	StorageClassLonghornStatic     = "longhorn-static"     // internal storageclass used for management of existing Longhorn volumes
