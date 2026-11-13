@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +35,13 @@ func (h *vmImageHandler) OnChanged(_ string, image *harvesterv1.VirtualMachineIm
 	}
 
 	toUpdate := upgrade.DeepCopy()
+
+	// The upgrade handler labels an existing image before its own status update lands,
+	// so the cached upgrade may not have the image ID yet. Without it, setting ImageReady
+	// here would leave the upgrade with no image for the repo.
+	if toUpdate.Status.ImageID == "" {
+		toUpdate.Status.ImageID = fmt.Sprintf("%s/%s", image.Namespace, image.Name)
+	}
 
 	switch {
 	case harvesterv1.ImageImported.IsTrue(image):
