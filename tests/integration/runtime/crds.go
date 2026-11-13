@@ -30,6 +30,7 @@ func createCRDs(ctx context.Context, restConfig *rest.Config) error {
 			createPlanCRD(),
 			createHelmChartCRD(),
 			createLonghornNodeCRD(),
+			createLonghornShareManagerCRD(),
 			createLonghornVolumeCRD(),
 			createLonghornReplicaCRD(),
 			createClusterRepoCRD(),
@@ -90,6 +91,10 @@ func createLonghornNodeCRD() wcrd.CRD {
 
 func createLonghornVolumeCRD() wcrd.CRD {
 	return crd.FromGV(lhv1beta2.SchemeGroupVersion, "Volume", lhv1beta2.Volume{})
+}
+
+func createLonghornShareManagerCRD() wcrd.CRD {
+	return crd.FromGV(lhv1beta2.SchemeGroupVersion, "ShareManager", lhv1beta2.ShareManager{})
 }
 
 func createLonghornReplicaCRD() wcrd.CRD {
