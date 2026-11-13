@@ -20,6 +20,7 @@ import (
 type VMIMutator interface {
 	PatchImageSCParams(vmi *harvesterv1.VirtualMachineImage) ([]string, error)
 	EnsureTargetSC(vmi *harvesterv1.VirtualMachineImage) ([]string, error)
+	EnsureTargetSCOnUpdate(vmi *harvesterv1.VirtualMachineImage) ([]string, error)
 }
 
 type vmiMutator struct {
@@ -112,6 +113,14 @@ func (m *vmiMutator) PatchImageSCParams(vmi *harvesterv1.VirtualMachineImage) ([
 }
 
 func (m *vmiMutator) EnsureTargetSC(vmi *harvesterv1.VirtualMachineImage) ([]string, error) {
+	return m.ensureTargetSC(vmi, false)
+}
+
+func (m *vmiMutator) EnsureTargetSCOnUpdate(vmi *harvesterv1.VirtualMachineImage) ([]string, error) {
+	return m.ensureTargetSC(vmi, true)
+}
+
+func (m *vmiMutator) ensureTargetSC(vmi *harvesterv1.VirtualMachineImage, allowMissingDefaultSC bool) ([]string, error) {
 	var patchOps types.PatchOps
 	targetSCName := ""
 	if v, find := vmi.Annotations[util.AnnotationStorageClassName]; find {
@@ -127,9 +136,15 @@ func (m *vmiMutator) EnsureTargetSC(vmi *harvesterv1.VirtualMachineImage) ([]str
 	// find the default storage class
 	if targetSCName == "" {
 		defaultSC := util.GetDefaultSC(m.scCache)
+		if defaultSC == nil && !allowMissingDefaultSC {
+			return patchOps, fmt.Errorf("missing default storage class")
+		}
 		if defaultSC == nil {
-			err := fmt.Errorf("missing default storage class")
-			return patchOps, err
+			logrus.Warnf(
+				"Skipping target StorageClass backfill for image %s/%s: missing default storage class",
+				vmi.Namespace, vmi.Name,
+			)
+			return patchOps, nil
 		}
 		targetSCName = defaultSC.Name
 	}
