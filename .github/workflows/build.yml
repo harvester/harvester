@@ -5,7 +5,13 @@ on:
     - master
     - release-*
     - v*
+    # Prime branches build with build-prime.yml instead.
+    - '!prime-*'
+    - '!release-prime-*'
   pull_request:
+    branches-ignore:
+    - 'prime-*'
+    - 'release-prime-*'
   schedule:
     - cron: "10 0,12 * * *"
   workflow_dispatch:
