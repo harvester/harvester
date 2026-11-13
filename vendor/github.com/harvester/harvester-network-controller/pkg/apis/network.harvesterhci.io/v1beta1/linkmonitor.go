@@ -2,12 +2,13 @@ package v1beta1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// +kubebuilder:validation:Enum=up;down
+// +kubebuilder:validation:Enum=up;down;unknown
 type LinkState string
 
 const (
-	LinkUp   LinkState = "up"
-	LinkDown LinkState = "down"
+	LinkUp      LinkState = "up"
+	LinkDown    LinkState = "down"
+	LinkUnknown LinkState = "unknown"
 )
 
 // +genclient
