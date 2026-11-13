@@ -270,10 +270,7 @@ func (c *Controller[T, TList]) GroupVersionKind() schema.GroupVersionKind {
 
 // Cache returns a cache for the objects T.
 func (c *Controller[T, TList]) Cache() CacheInterface[T] {
-	return &Cache[T]{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
+	return NewCache[T](c.Informer().GetIndexer(), c.groupResource)
 }
 
 // Create creates a new object and return the newly created Object or an error.
@@ -406,7 +403,5 @@ func (c *NonNamespacedController[T, TList]) WithImpersonation(impersonate rest.I
 
 // Cache calls ControllerInterface.Cache(...) and wraps the result in a new NonNamespacedCache.
 func (c *NonNamespacedController[T, TList]) Cache() NonNamespacedCacheInterface[T] {
-	return &NonNamespacedCache[T]{
-		CacheInterface: c.Controller.Cache(),
-	}
+	return NewNonNamespacedCache[T](c.Informer().GetIndexer(), c.groupResource)
 }

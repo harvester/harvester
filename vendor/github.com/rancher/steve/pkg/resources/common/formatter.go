@@ -243,6 +243,12 @@ func excludeFields(request *types.APIRequest, unstr *unstructured.Unstructured) 
 // This prevents cached durations (e.g. “2d” - 2 days) from becoming stale over time.
 func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.GroupVersionKind, unstr *unstructured.Unstructured, isCRD bool) {
 	if request.Schema != nil {
+		curValue, got, err := unstructured.NestedSlice(unstr.Object, "metadata", "fields")
+		if err != nil {
+			logrus.Warnf("failed to get metadata.fields slice from unstr.Object: %s", err.Error())
+			return
+		}
+		changedFields := false
 		cols := GetColumnDefinitions(request.Schema)
 		for _, col := range cols {
 			gvkDateFields, gvkFound := DateFieldsByGVK[gvk]
@@ -256,12 +262,6 @@ func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.Group
 					return
 				}
 
-				curValue, got, err := unstructured.NestedSlice(unstr.Object, "metadata", "fields")
-				if err != nil {
-					logrus.Warnf("failed to get metadata.fields slice from unstr.Object: %s", err.Error())
-					return
-				}
-
 				if !got {
 					logrus.Warnf("couldn't find metadata.fields at unstr.Object")
 					return
@@ -271,6 +271,20 @@ func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.Group
 				if !ok {
 					logrus.Warnf("time field isn't a string")
 					return
+				}
+
+				if col.Name == "Duration" {
+					humanDuration, ok := getHumanDurationFromActualStartEndTime(unstr)
+					if ok {
+						curValue[index] = humanDuration
+						changedFields = true
+						continue
+					}
+				}
+
+				if _, err := time.Parse(time.RFC3339, timeValue); err == nil {
+					// it's already a timestamp, so we don't need to do anything
+					continue
 				}
 
 				dur, ok := isDuration(timeValue)
@@ -292,13 +306,45 @@ func convertMetadataTimestampFields(request *types.APIRequest, gvk schema2.Group
 				}
 
 				curValue[index] = humanDuration
-				if err := unstructured.SetNestedSlice(unstr.Object, curValue, "metadata", "fields"); err != nil {
-					logrus.Errorf("failed to set value back to metadata.fields slice: %s", err.Error())
-					return
-				}
+				changedFields = true
+			}
+		}
+		if changedFields {
+			if err := unstructured.SetNestedSlice(unstr.Object, curValue, "metadata", "fields"); err != nil {
+				logrus.Errorf("failed to set value back to metadata.fields slice: %s", err.Error())
 			}
 		}
 	}
+}
+
+func getHumanDurationFromActualStartEndTime(unstr *unstructured.Unstructured) (string, bool) {
+	status, found, err := unstructured.NestedMap(unstr.Object, "status")
+	if !found || err != nil {
+		return "", false
+	}
+	startTime, found, err := unstructured.NestedString(status, "startTime")
+	if !found || err != nil {
+		return "", false
+	}
+	endTime, found, err := unstructured.NestedString(status, "completionTime")
+	if !found || err != nil {
+		return "", false
+	}
+	startTimeRFC, err := time.Parse(time.RFC3339, startTime)
+	if err != nil {
+		return "", false
+	}
+	endTimeRFC, err := time.Parse(time.RFC3339, endTime)
+	if err != nil {
+		return "", false
+	}
+	durationTime := endTimeRFC.Sub(startTimeRFC)
+	humanDuration := duration.HumanDuration(durationTime)
+	if humanDuration == "<invalid>" {
+		logrus.Warnf(`couldn't convert value %v into human duration for "Duration" column`, durationTime) //`')
+		return "", false
+	}
+	return humanDuration, true
 }
 
 func isDuration(value string) (time.Duration, bool) {

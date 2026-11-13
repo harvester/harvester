@@ -72,7 +72,7 @@ func (c Condition) Equals(other Condition) bool {
 func NormalizeConditions(runtimeObj runtime.Object) {
 	var (
 		obj           data.Object
-		newConditions []map[string]interface{}
+		newConditions []interface{}
 	)
 
 	unstr, ok := runtimeObj.(*unstructured.Unstructured)
@@ -92,11 +92,10 @@ func NormalizeConditions(runtimeObj runtime.Object) {
 		if condition.String("lastUpdateTime") == "" {
 			condition.Set("lastUpdateTime", condition.String("lastTransitionTime"))
 		}
-		newConditions = append(newConditions, condition)
+		newConditions = append(newConditions, map[string]interface{}(condition))
 	}
 
 	if len(newConditions) > 0 {
 		obj.SetNested(newConditions, "status", "conditions")
 	}
-
 }

@@ -238,11 +238,18 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 		return err
 	}
 
+	if options.SQLCache {
+		registerSQLCacheIndexedFields()
+	}
+
 	s.steve, err = steveserver.New(s.Context, s.RESTConfig, &steveserver.Options{
 		Controllers:     s.controllers,
 		AuthMiddleware:  steveauth.ExistingContext,
 		Router:          router.Routes,
 		AccessSetLookup: s.ASL,
+
+		SQLCache:               options.SQLCache,
+		SQLCacheFactoryOptions: sqlCacheFactoryOptions,
 	})
 	if err != nil {
 		return err

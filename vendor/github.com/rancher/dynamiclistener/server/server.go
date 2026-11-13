@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -40,7 +42,24 @@ type ListenOpts struct {
 	// Override legacy behavior where server logs written to the application's logrus object
 	// were dropped unless logrus was set to debug-level (such as by launching steve with '--debug').
 	// Setting this to true results in server logs appearing at an ERROR level.
-	DisplayServerLogs bool
+	DisplayServerLogs       bool
+	IgnoreTLSHandshakeError bool
+}
+
+var TLSHandshakeError = []byte("http: TLS handshake error")
+
+var _ io.Writer = &TLSErrorDebugger{}
+
+type TLSErrorDebugger struct{}
+
+func (t *TLSErrorDebugger) Write(p []byte) (n int, err error) {
+	p = bytes.TrimSpace(p)
+	if bytes.HasPrefix(p, TLSHandshakeError) {
+		logrus.Debug(string(p))
+	} else {
+		logrus.Error(string(p))
+	}
+	return len(p), err
 }
 
 func ListenAndServe(ctx context.Context, httpsPort, httpPort int, handler http.Handler, opts *ListenOpts) error {
@@ -52,9 +71,15 @@ func ListenAndServe(ctx context.Context, httpsPort, httpPort int, handler http.H
 	if opts.DisplayServerLogs {
 		writer = logger.WriterLevel(logrus.ErrorLevel)
 	}
-	// Otherwise preserve legacy behaviour of displaying server logs only in debug mode.
 
-	errorLog := log.New(writer, "", log.LstdFlags)
+	var errorLog *log.Logger
+	if opts.IgnoreTLSHandshakeError {
+		debugWriter := &TLSErrorDebugger{}
+		errorLog = log.New(debugWriter, "", 0)
+	} else {
+		// Otherwise preserve legacy behaviour of displaying server logs only in debug mode.
+		errorLog = log.New(writer, "", 0)
+	}
 
 	if opts.TLSListenerConfig.TLSConfig == nil {
 		opts.TLSListenerConfig.TLSConfig = &tls.Config{}
