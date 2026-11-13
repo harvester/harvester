@@ -4,16 +4,19 @@ package listprocessor
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/sqlcache/partition"
 	"github.com/rancher/steve/pkg/sqlcache/sqltypes"
 	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/queryparser"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/selection"
+	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -103,11 +106,17 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 	opts.Filters = filterOpts
 
 	sortKeys := q.Get(sortParam)
+	callsIPFunctionRegex := regexp.MustCompile(`^ip\(.+\)$`)
 	if sortKeys != "" {
 		sortList := *sqltypes.NewSortList()
 		sortParts := strings.Split(sortKeys, ",")
 		for _, sortPart := range sortParts {
 			field := sortPart
+			sortAsIP := false
+			if callsIPFunctionRegex.MatchString(sortPart) {
+				field = sortPart[3 : len(sortPart)-1]
+				sortAsIP = true
+			}
 			if len(field) > 0 {
 				sortOrder := sqltypes.ASC
 				if field[0] == '-' {
@@ -116,8 +125,9 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 				}
 				if len(field) > 0 {
 					sortDirective := sqltypes.Sort{
-						Fields: queryhelper.SafeSplit(field),
-						Order:  sortOrder,
+						Fields:   queryhelper.SafeSplit(field),
+						Order:    sortOrder,
+						SortAsIP: sortAsIP,
 					}
 					sortList.SortDirectives = append(sortList.SortDirectives, sortDirective)
 				}
@@ -164,6 +174,15 @@ func ParseQuery(apiOp *types.APIRequest, gvKind string) (sqltypes.ListOptions, e
 		} else {
 			opts.ProjectsOrNamespaces = parseNamespaceOrProjectFilters(projectsOrNamespaces, op)
 		}
+	}
+
+	revision := q.Get(revisionParam)
+	if revision != "" {
+		if _, err := strconv.ParseInt(revision, 10, 64); err != nil {
+			return opts, apierror.NewAPIError(validation.ErrorCode{Code: "invalid revision query param", Status: http.StatusBadRequest},
+				fmt.Sprintf("value %s for revision query param is not valid", revision))
+		}
+		opts.Revision = revision
 	}
 
 	return opts, nil
