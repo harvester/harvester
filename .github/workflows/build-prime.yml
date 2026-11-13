@@ -12,10 +12,14 @@ name: Build Prime
 #
 # Branch builds: push events use the workflow file from the pushed branch, so
 # each release line controls its own merge builds through `branches` below.
-# Keep at most one branch pattern, following the release line's lifecycle:
-#   1. master and newly created v1.x branches: no branch pattern (no merge builds).
+# 'release-prime-*' is always listed, so pushes to release branches build;
+# their names never collide with a release line's.
+# For the release line itself, list at most one more pattern, following its
+# lifecycle:
+#   1. master and newly created v1.x branches: no other pattern, so merges
+#      into them do not build.
 #   2. Enable Prime builds on community merges: add 'v1.*' on the v1.x branch.
-#   3. Move to the Prime branch: remove 'v1.*' from v1.x, and use only
+#   3. Move to the Prime branch: remove 'v1.*' from v1.x, and add
 #      'prime-v1.*' on prime-v1.x.
 # Never list both: v1.x and prime-v1.x publish the same image tag and ISO folder.
 on:
@@ -24,6 +28,7 @@ on:
   push:
     branches:
     - 'v1.*'
+    - 'release-prime-*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
