@@ -122,12 +122,10 @@ func generateDVTargetStorage(vmi *harvesterv1.VirtualMachineImage) (*cdiv1.Stora
 		return nil, fmt.Errorf("vm image size is zero")
 	}
 	targetDVStorage.Resources.Requests[corev1.ResourceStorage] = *minSize
-	// for upgrade repo deployment usage, we need to create RWX filesystem data volume
-	// so that it can be mounted to multiple pods.
+	// upgrade repo uses RWO + Recreate strategy (single replica); volume mode is left to the storage class
+	// so both Filesystem (loop-mount) and Block (iso9660 direct) are handled by CreateDeployment.
 	if vmi.Annotations != nil && vmi.Annotations[util.AnnotationUpgradeImage] == "True" {
-		targetDVStorage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
-		volumeMode := corev1.PersistentVolumeFilesystem
-		targetDVStorage.VolumeMode = &volumeMode
+		targetDVStorage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 	}
 	return targetDVStorage, nil
 }

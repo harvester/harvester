@@ -91,10 +91,13 @@ const (
 	AnnotationMinCertsExpirationInDay             = prefix + "/minCertsExpirationInDay"
 
 	// AnnotationUpgradeImage indicates the VM image used for Harvester upgrades.
-	// This annotation triggers the VM image controller to create a RWX filesystem data volume
-	// for the upgrade repository Deployment. The UI also uses this annotation during
-	// airgap upgrades when uploading images.
+	// The UI also uses this annotation during airgap upgrades when uploading images.
 	AnnotationUpgradeImage = prefix + "/os-upgrade-image"
+	// AnnotationUpgradeStorageClass overrides the StorageClass used for the upgrade repository PVC.
+	// When unset, the cluster default StorageClass is used as fallback.
+	// This annotation only takes effect when spec.image is empty (normal flow); airgap upgrades
+	// (spec.image set) use the SC of the pre-existing PVC and ignore this annotation.
+	AnnotationUpgradeStorageClass = prefix + "/upgrade-storage-class"
 
 	// AnnotationPreviousUpgradeImage records the harvester-upgrade image of the version an upgrade starts from.
 	AnnotationPreviousUpgradeImage = prefix + "/previous-upgrade-image"
