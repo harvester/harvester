@@ -30,7 +30,6 @@ import (
 
 func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	vmCache ctlkv1.VirtualMachineCache,
-	kubevirtCache ctlkv1.KubeVirtCache,
 	imageCache ctlharvesterv1.VirtualMachineImageCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
@@ -39,7 +38,6 @@ func NewValidator(pvcCache v1.PersistentVolumeClaimCache,
 	return &pvcValidator{
 		pvcCache:          pvcCache,
 		vmCache:           vmCache,
-		kubevirtCache:     kubevirtCache,
 		imageCache:        imageCache,
 		scCache:           scCache,
 		settingCache:      settingCache,
@@ -53,7 +51,6 @@ type pvcValidator struct {
 	pvcCache          v1.PersistentVolumeClaimCache
 	vmCache           ctlkv1.VirtualMachineCache
 	imageCache        ctlharvesterv1.VirtualMachineImageCache
-	kubevirtCache     ctlkv1.KubeVirtCache
 	scCache           ctlstoragev1.StorageClassCache
 	settingCache      ctlharvesterv1.SettingCache
 	backingImageCache ctllonghornv1.BackingImageCache
@@ -155,7 +152,7 @@ func (v *pvcValidator) Update(_ *types.Request, oldObj runtime.Object, newObj ru
 		return nil
 	}
 
-	return webhookutil.CheckExpand(newPVC, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
+	return webhookutil.CheckExpand(newPVC, v.vmCache, v.scCache, v.settingCache)
 }
 
 func (v *pvcValidator) Create(request *types.Request, newObj runtime.Object) error {

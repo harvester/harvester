@@ -2,12 +2,10 @@ package util
 
 import (
 	"fmt"
-	"slices"
 
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	corev1 "k8s.io/api/core/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
-	kvirtfeatures "kubevirt.io/kubevirt/pkg/virt-config/featuregate"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlkv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
@@ -68,14 +66,8 @@ func isHotpluggedFilesystemPVC(pvc *corev1.PersistentVolumeClaim, vmCache ctlkv1
 	return len(vms) > 0, nil
 }
 
-func isKubevirtExpandEnabled(kubevirt *kubevirtv1.KubeVirt) bool {
-	featureGates := kubevirt.Spec.Configuration.DeveloperConfiguration.FeatureGates
-	return slices.Contains(featureGates, kvirtfeatures.ExpandDisksGate)
-}
-
 func CheckExpand(pvc *corev1.PersistentVolumeClaim,
 	vmCache ctlkv1.VirtualMachineCache,
-	kubevirtCache ctlkv1.KubeVirtCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache) error {
 
@@ -88,14 +80,8 @@ func CheckExpand(pvc *corev1.PersistentVolumeClaim,
 		return nil
 	}
 
-	kubevirt, err := kubevirtCache.Get(util.HarvesterSystemNamespaceName, util.KubeVirtObjectName)
-	if err != nil {
-		return err
-	}
-	if !isKubevirtExpandEnabled(kubevirt) {
-		return werror.NewInvalidError(util.PVCExpandErrorPrefix+": kubevirt ExpandDisks not included in featureGate", "")
-	}
-
+	// ExpandDisks is GA since KubeVirt v1.8.0 (always enabled, no longer listed as a feature gate),
+	// so online expansion only depends on the volume and its provisioner.
 	hotpluggedFSPVC, err := isHotpluggedFilesystemPVC(pvc, vmCache)
 	if err != nil {
 		return err

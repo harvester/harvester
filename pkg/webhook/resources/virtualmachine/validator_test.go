@@ -244,7 +244,7 @@ func TestCheckMaintenanceModeStrategyIsValid(t *testing.T) {
 		},
 	}
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range testCases {
 		err := validator.checkMaintenanceModeStrategyIsValid(tc.newVM, tc.oldVM)
@@ -892,7 +892,7 @@ func Test_virtualMachineValidator_duplicateMacAddress(t *testing.T) {
 	fakeVMCache := fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines)
 	fakeNadCache := fakeclients.NetworkAttachmentDefinitionCache(clientset.K8sCniCncfIoV1().NetworkAttachmentDefinitions)
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, fakeVMCache, nil, fakeNadCache, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1237,7 +1237,7 @@ func TestVmValidator_Update(t *testing.T) {
 	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
 	fakeBICache := fakeclients.BackingImageCache(harvesterFakeClientset.LonghornV1beta2().BackingImages)
 
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1411,7 +1411,7 @@ func TestCheckCdRomVolumeIsValid(t *testing.T) {
 		},
 	}
 
-	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+	validator := NewValidator(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1838,7 +1838,7 @@ func TestCheckTargetVolumes(t *testing.T) {
 				assert.NoError(t, err, "Mock resource should add into fake controller tracker")
 			}
 			pvcCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
-			validator := NewValidator(nil, nil, pvcCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
+			validator := NewValidator(nil, nil, pvcCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*vmValidator)
 
 			err := validator.checkTargetVolumes(nil, tc.vm)
 			if tc.expectError {
@@ -2204,7 +2204,7 @@ func TestVmValidator_Create(t *testing.T) {
 	fakeScCache := fakeclients.StorageClassCache(harvesterFakeClientset.StorageV1().StorageClasses)
 	fakeBICache := fakeclients.BackingImageCache(harvesterFakeClientset.LonghornV1beta2().BackingImages)
 
-	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
+	validator := NewValidator(fakeNSCache, nil, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, fakeBICache, nil).(*vmValidator)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -2488,7 +2488,7 @@ func TestVmValidator_Update_VMStateStorageClass(t *testing.T) {
 			}
 			fakeScCache := fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses)
 			fakePVCCache := fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims)
-			v := NewValidator(fakeNSCache, nil, fakePVCCache, nil, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
+			v := NewValidator(fakeNSCache, nil, fakePVCCache, nil, nil, nil, nil, nil, nil, fakeScCache, nil, nil, nil).(*vmValidator)
 			err := v.Update(fakeclients.NewFakeRequest("test-user"), tc.oldVM, tc.newVM)
 			if tc.expectError {
 				assert.Error(t, err)

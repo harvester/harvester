@@ -44,7 +44,6 @@ func NewValidator(
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	nadCache ctlcniv1.NetworkAttachmentDefinitionCache,
-	kubevirtCache ctlkubevirtv1.KubeVirtCache,
 	scCache ctlstoragev1.StorageClassCache,
 	settingCache ctlharvesterv1.SettingCache,
 	backingImageCache ctllonghornv1.BackingImageCache,
@@ -56,7 +55,6 @@ func NewValidator(
 		vmCache:           vmCache,
 		vmiCache:          vmiCache,
 		nadCache:          nadCache,
-		kubevirtCache:     kubevirtCache,
 		scCache:           scCache,
 		settingCache:      settingCache,
 		backingImageCache: backingImageCache,
@@ -73,7 +71,6 @@ type vmValidator struct {
 	vmCache           ctlkubevirtv1.VirtualMachineCache
 	vmiCache          ctlkubevirtv1.VirtualMachineInstanceCache
 	nadCache          ctlcniv1.NetworkAttachmentDefinitionCache
-	kubevirtCache     ctlkubevirtv1.KubeVirtCache
 	scCache           ctlstoragev1.StorageClassCache
 	settingCache      ctlharvesterv1.SettingCache
 	backingImageCache ctllonghornv1.BackingImageCache
@@ -763,7 +760,7 @@ func (v *vmValidator) checkPVCStorageRequestChange(newPvc, oldPvc *corev1.Persis
 		return err
 	}
 
-	return webhookutil.CheckExpand(pvc, v.vmCache, v.kubevirtCache, v.scCache, v.settingCache)
+	return webhookutil.CheckExpand(pvc, v.vmCache, v.scCache, v.settingCache)
 }
 
 func (v *vmValidator) checkGoldenImage(vm *kubevirtv1.VirtualMachine) error {
