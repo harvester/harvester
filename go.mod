@@ -119,7 +119,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.42.0
