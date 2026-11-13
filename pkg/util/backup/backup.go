@@ -2,6 +2,9 @@ package backup
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,6 +37,10 @@ func ConstructEndpoint(target *settings.BackupTarget) string {
 	}
 }
 
+func CurrentTarget() (*settings.BackupTarget, error) {
+	return settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+}
+
 func GetBackupStoreDriver(secretCache ctlcorev1.SecretCache, target *settings.BackupTarget) (backupstore.BackupStoreDriver, error) {
 	if target.Type == settings.S3BackupType {
 		secret, err := secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
@@ -64,7 +71,119 @@ func IsBackupTargetSame(statusBackupTarget *harvesterv1.BackupTarget, target *se
 	if (statusBackupTarget == nil && target != nil) || (statusBackupTarget != nil && target == nil) {
 		return false
 	}
-	return statusBackupTarget.Endpoint == target.Endpoint && statusBackupTarget.BucketName == target.BucketName && statusBackupTarget.BucketRegion == target.BucketRegion
+	if statusBackupTarget == nil {
+		return true
+	}
+	if statusBackupTarget.RepositoryID != "" {
+		return statusBackupTarget.RepositoryID == RepositoryID(target)
+	}
+	return statusBackupTarget.Endpoint == target.Endpoint &&
+		statusBackupTarget.BucketName == target.BucketName &&
+		statusBackupTarget.BucketRegion == target.BucketRegion
+}
+
+// CheckTarget validates a data-mover backup before using the current target's credentials.
+func CheckTarget(status *harvesterv1.BackupTarget) error {
+	if _, err := TargetFromStatus(status); err != nil {
+		return err
+	}
+	target, err := CurrentTarget()
+	if err != nil {
+		return err
+	}
+	if !IsBackupTargetSame(status, target) {
+		return fmt.Errorf("VMBackup backup target does not match the configured backup target")
+	}
+	return nil
+}
+
+// RepositoryID returns a stable, non-secret identifier for a backup target.
+// Authentication and TLS material are intentionally excluded so IAM
+// credentials and certificates can be rotated without changing repository
+// identity.
+func RepositoryID(target *settings.BackupTarget) string {
+	if target == nil || target.IsDefaultBackupTarget() {
+		return ""
+	}
+
+	identity := strings.Join([]string{
+		string(target.Type),
+		strings.TrimRight(target.Endpoint, "/"),
+		target.BucketName,
+		target.BucketRegion,
+		fmt.Sprintf("%t", target.VirtualHostedStyle),
+	}, "\x00")
+	sum := sha256.Sum256([]byte(identity))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// RepositoryPassword derives an initial engine-specific password from the
+// repository ID and S3 credentials. Once initialized, the stored password is
+// preserved for that repository even when its S3 credentials change.
+func RepositoryPassword(
+	repositoryID string, backupType harvesterv1.BackupType, credentials map[string][]byte,
+) (string, error) {
+	if repositoryID == "" {
+		return "", fmt.Errorf("repository ID is empty")
+	}
+	if !backupType.IsDataMover() {
+		return "", fmt.Errorf("unsupported data-mover backup type %q", backupType)
+	}
+	accessKey, secretKey := credentials[util.AWSAccessKey], credentials[util.AWSSecretKey]
+	if len(accessKey) == 0 {
+		return "", fmt.Errorf("S3 access key ID is empty")
+	}
+	if len(secretKey) == 0 {
+		return "", fmt.Errorf("S3 secret access key is empty")
+	}
+
+	identity := strings.Join([]string{string(backupType), repositoryID, string(accessKey)}, "\x00")
+	mac := hmac.New(sha256.New, secretKey)
+	mac.Write([]byte(identity))
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+// BackupTargetStatus builds the non-secret target information persisted in a
+// VMBackup status and its remote metadata.
+func BackupTargetStatus(target *settings.BackupTarget) *harvesterv1.BackupTarget {
+	if target == nil {
+		return nil
+	}
+	return &harvesterv1.BackupTarget{
+		Type:               string(target.Type),
+		Endpoint:           target.Endpoint,
+		BucketName:         target.BucketName,
+		BucketRegion:       target.BucketRegion,
+		VirtualHostedStyle: target.VirtualHostedStyle,
+		RepositoryID:       RepositoryID(target),
+	}
+}
+
+// TargetFromStatus reconstructs the repository location recorded by a
+// data-mover VMBackup.
+func TargetFromStatus(status *harvesterv1.BackupTarget) (*settings.BackupTarget, error) {
+	if status == nil {
+		return nil, fmt.Errorf("VMBackup does not record a backup target")
+	}
+	if status.Type == "" {
+		return nil, fmt.Errorf("VMBackup does not record a backup target type")
+	}
+	if status.RepositoryID == "" {
+		return nil, fmt.Errorf("VMBackup does not record a repository ID")
+	}
+
+	targetType := settings.TargetType(status.Type)
+	target := &settings.BackupTarget{
+		Type:               targetType,
+		Endpoint:           status.Endpoint,
+		BucketName:         status.BucketName,
+		BucketRegion:       status.BucketRegion,
+		VirtualHostedStyle: status.VirtualHostedStyle,
+	}
+	if status.RepositoryID != RepositoryID(target) {
+		return nil, fmt.Errorf("VMBackup repository ID does not match its recorded backup target")
+	}
+	return target, nil
 }
 
 func GetVMImageMetadataFilePath(vmImageNamespace, vmImageName string) string {

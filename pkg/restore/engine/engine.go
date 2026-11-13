@@ -7,9 +7,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 )
 
-var (
-	ErrRetryLater = errors.New("retry later error")
-)
+var ErrRetryLater = errors.New("retry later error")
 
 // RestoreEngine defines the interface for restoring VM volumes
 type RestoreEngine interface {
@@ -17,11 +15,12 @@ type RestoreEngine interface {
 	// it creates the restored PVC if missing, otherwise checks status. Idempotent.
 	Reconcile(vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup, volIndex int) error
 
+	// Delete releases engine resources before the VMRestore finalizer is removed.
+	// Engines must tolerate untyped legacy restores and already absent resources.
+	Delete(vmr *harvesterv1.VirtualMachineRestore) error
+
 	// UpdateProgress updates the restore progress for a specific volume
 	UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error)
-
-	// Delete handles cleanup of restore resources for a specific volume
-	Delete(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error
 
 	// RegisterWatchers gives the engine an opportunity to register its own
 	// informer event handlers (e.g. on Jobs it creates) and call enqueue to

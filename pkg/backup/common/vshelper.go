@@ -103,7 +103,7 @@ func (h *VolumeSnapshotHelper) GetLogFields(vmb *harvesterv1.VirtualMachineBacku
 	return fields
 }
 
-// BuildOwnerReference creates an owner reference for a VM backup
+// BuildOwnerReference creates an owner reference for a VM backup.
 func (h *VolumeSnapshotHelper) BuildOwnerReference(vmb *harvesterv1.VirtualMachineBackup) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: harvesterv1.SchemeGroupVersion.String(),
@@ -158,6 +158,137 @@ func (h *VolumeSnapshotHelper) TryFreezeFS(ctx context.Context, vmb *harvesterv1
 		return err
 	}
 	return nil
+}
+
+// PrepareSnapshots creates all local snapshots before a data mover starts
+// uploading any volume. ReadyToUse on VolumeBackup remains reserved for the
+// remote backup, so local snapshot readiness is checked directly here.
+func (h *VolumeSnapshotHelper) PrepareSnapshots(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) (bool, error) {
+	missing, allReady, err := h.snapshotState(vmb)
+	if err != nil {
+		return false, err
+	}
+	if len(missing) == 0 {
+		return allReady, nil
+	}
+	if err := h.validateSnapshotClasses(missing, vsClassMap); err != nil {
+		return false, err
+	}
+	if err := h.TryFreezeFS(context.Background(), vmb); err != nil {
+		return false, err
+	}
+	if err := h.createSnapshots(vmb, missing, vsClassMap); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func (h *VolumeSnapshotHelper) snapshotState(
+	vmb *harvesterv1.VirtualMachineBackup,
+) ([]*harvesterv1.VolumeBackup, bool, error) {
+	missing := make([]*harvesterv1.VolumeBackup, 0)
+	allReady := true
+	volumeBackups := h.vmbo.GetVolBackups(vmb)
+
+	for i := range volumeBackups {
+		vb := &volumeBackups[i]
+		if h.vmbo.GetVolBackupReadyToUse(vb) {
+			continue
+		}
+
+		name := h.vmbo.GetVolBackupName(vb)
+		if name == nil {
+			return nil, false, ErrVolumeBackupNameNil
+		}
+		vs, err := h.GetVolumeSnapshot(h.vmbo.GetNamespace(vmb), *name)
+		if err != nil {
+			return nil, false, err
+		}
+		if err := h.CheckSnapshotDeletionStatus(vs, vmb, vb); err != nil {
+			return nil, false, err
+		}
+		if vs == nil {
+			missing = append(missing, vb)
+			allReady = false
+			continue
+		}
+
+		ready, err := localSnapshotReady(vs)
+		if err != nil {
+			return nil, false, err
+		}
+		allReady = allReady && ready
+	}
+
+	return missing, allReady, nil
+}
+
+func (h *VolumeSnapshotHelper) validateSnapshotClasses(
+	volumeBackups []*harvesterv1.VolumeBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	for _, vb := range volumeBackups {
+		driver := h.vmbo.GetVolBackupCSIDriver(vb)
+		if _, ok := vsClassMap[driver]; !ok {
+			return fmt.Errorf("VolumeSnapshotClass not found for CSI driver %s", driver)
+		}
+	}
+	return nil
+}
+
+func (h *VolumeSnapshotHelper) createSnapshots(
+	vmb *harvesterv1.VirtualMachineBackup,
+	volumeBackups []*harvesterv1.VolumeBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	created := make([]string, 0, len(volumeBackups))
+	ownerRef := h.BuildOwnerReference(vmb)
+
+	for _, vb := range volumeBackups {
+		driver := h.vmbo.GetVolBackupCSIDriver(vb)
+		vsClass := vsClassMap[driver]
+		vs, err := h.CreateVolumeSnapshotFromPVC(vmb, vb, &vsClass, ownerRef)
+		if apierrors.IsAlreadyExists(err) {
+			continue
+		}
+		if err != nil {
+			h.rollbackSnapshots(h.vmbo.GetNamespace(vmb), created)
+			return err
+		}
+		created = append(created, vs.Name)
+	}
+
+	return nil
+}
+
+func (h *VolumeSnapshotHelper) rollbackSnapshots(namespace string, names []string) {
+	for _, name := range names {
+		err := h.vsClient.Delete(namespace, name, metav1.NewDeleteOptions(0))
+		if err != nil && !apierrors.IsNotFound(err) {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": namespace,
+				"name":      name,
+			}).Warn("failed to roll back VolumeSnapshot")
+		}
+	}
+}
+
+func localSnapshotReady(vs *snapshotv1.VolumeSnapshot) (bool, error) {
+	if vs.Status == nil {
+		return false, nil
+	}
+	if vs.Status.Error != nil {
+		message := "unknown error"
+		if vs.Status.Error.Message != nil {
+			message = *vs.Status.Error.Message
+		}
+		return false, fmt.Errorf("VolumeSnapshot %s/%s is in error state: %s", vs.Namespace, vs.Name, message)
+	}
+	return ptr.Deref(vs.Status.ReadyToUse, false), nil
 }
 
 // clearFinalizersPatch is a JSON merge patch that empties metadata.finalizers

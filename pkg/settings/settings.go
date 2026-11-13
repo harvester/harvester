@@ -29,6 +29,7 @@ var (
 	UIPluginIndex                          = NewSetting(UIPluginIndexSettingName, DefaultUIPluginURL)
 	VolumeSnapshotClass                    = NewSetting(VolumeSnapshotClassSettingName, "longhorn")
 	BackupTargetSet                        = NewSetting(BackupTargetSettingName, "")
+	ThirdPartyBackupConfigSet              = NewSetting(ThirdPartyBackupConfigSettingName, InitThirdPartyBackupConfig())
 	UpgradableVersions                     = NewSetting(UpgradableVersionsSettingName, "")
 	UpgradeCheckerEnabled                  = NewSetting(UpgradeCheckerEnabledSettingName, "true")
 	UpgradeCheckerURL                      = NewSetting(UpgradeCheckerURLSettingName, "https://harvester-upgrade-responder.rancher.io/v1/checkupgrade")
@@ -78,6 +79,7 @@ var (
 const (
 	AdditionalCASettingName                           = "additional-ca"
 	BackupTargetSettingName                           = "backup-target"
+	ThirdPartyBackupConfigSettingName                 = "third-party-backup-config"
 	VMForceResetPolicySettingName                     = "vm-force-reset-policy"
 	SupportBundleTimeoutSettingName                   = "support-bundle-timeout"
 	HTTPProxySettingName                              = "http-proxy"

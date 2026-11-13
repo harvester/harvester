@@ -17,10 +17,12 @@ import (
 	networkv1 "github.com/harvester/harvester-network-controller/pkg/apis/network.harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester-network-controller/pkg/utils"
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	backupcommon "github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/controller/master/storagenetwork"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	networkutil "github.com/harvester/harvester/pkg/util/network"
 	whTypes "github.com/harvester/harvester/pkg/webhook/types"
@@ -38,6 +40,55 @@ const (
 	testKubeOVNNamespace = "default"
 	testKubeOVNNadConfig = "{\"cniVersion\":\"0.3.1\",\"name\":\"vswitch1\",\"type\":\"kube-ovn\",\"server_socket\":\"/run/openvswitch/kube-ovn-daemon.sock\", \"provider\": \"vswitch1.default.ovn\"}"
 )
+
+func TestValidateBackupTargetFieldsKopiaGC(t *testing.T) {
+	validator := &settingValidator{}
+
+	err := validator.validateBackupTargetFields(&settings.BackupTarget{
+		Type:           settings.NFSBackupType,
+		Endpoint:       "nfs.example.com:/backups",
+		KopiaGCEnabled: true,
+	})
+	assert.EqualError(t, err, "Kopia GC is supported only for S3 backup targets")
+
+	err = validator.validateBackupTargetFields(&settings.BackupTarget{
+		Type:            settings.S3BackupType,
+		AccessKeyID:     "access-key",
+		SecretAccessKey: "secret-key",
+		BucketName:      "backups",
+		BucketRegion:    "test-region",
+		KopiaGCEnabled:  true,
+	})
+	assert.NoError(t, err)
+}
+
+func TestValidateRepositoryTransition(t *testing.T) {
+	targetA := &settings.BackupTarget{
+		Type:         settings.S3BackupType,
+		Endpoint:     "https://s3.example.com",
+		BucketName:   "repository-a",
+		BucketRegion: "region-a",
+	}
+	vmBackup := &v1beta1.VirtualMachineBackup{
+		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
+		Spec:       v1beta1.VirtualMachineBackupSpec{Type: v1beta1.Restic},
+		Status: v1beta1.VirtualMachineBackupStatus{
+			BackupTarget: backuputil.BackupTargetStatus(targetA),
+		},
+	}
+	clientset := fake.NewSimpleClientset(vmBackup)
+	validator := &settingValidator{
+		vmBackupCache: fakeclients.VMBackupCache(
+			clientset.HarvesterhciV1beta1().VirtualMachineBackups,
+		),
+		vmbr: backupcommon.NewVMBackupReader(),
+	}
+
+	assert.NoError(t, validator.validateRepositoryTransition(targetA))
+	targetB := *targetA
+	targetB.BucketName = "repository-b"
+	assert.Error(t, validator.validateRepositoryTransition(&targetB))
+}
 
 func Test_validateOvercommitConfig(t *testing.T) {
 	tests := []struct {
@@ -3308,5 +3359,28 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 		// This confirms the OOM/DoS risk when the To4() guard is removed.
 		// The leaked goroutine exits with the test process.
 		t.Log("UNPROTECTED (guard absent): v.Update hung as expected - OOM/DoS risk confirmed")
+	}
+}
+
+func TestThirdPartyBackupConfigAdmission(t *testing.T) {
+	for _, value := range []string{
+		`not-json`, `{"restic":{"memoryRequest":"-1Gi"}}`,
+		`{"kopia":{"memoryLimit":"128Mi"}}`, `{"kopia":{"cacheSize":"4Mi"}}`,
+		`{"restic":{"maxConcurrentJobs":-1}}`,
+	} {
+		t.Run(value, func(t *testing.T) {
+			setting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
+			}
+			assert.Error(t, validateSetting(nil, setting))
+			assert.Error(t, validateUpdateSetting(nil, setting, setting))
+		})
+	}
+	for _, value := range []string{"", "{}", settings.InitThirdPartyBackupConfig(), `{"restic":{"noCache":true}}`} {
+		setting := &v1beta1.Setting{
+			ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
+		}
+		assert.NoError(t, validateSetting(nil, setting))
+		assert.NoError(t, validateUpdateSetting(nil, setting, setting))
 	}
 }

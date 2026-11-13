@@ -7,6 +7,7 @@ package backup
 // 2. restore a backup to a new VM or replacing it with the existing VM is supported.
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -34,9 +35,9 @@ import (
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
-
+	restorekopia "github.com/harvester/harvester/pkg/restore/engine/kopia"
 	"github.com/harvester/harvester/pkg/restore/engine/longhorn"
-
+	restorerestic "github.com/harvester/harvester/pkg/restore/engine/restic"
 	restoresnapshot "github.com/harvester/harvester/pkg/restore/engine/snapshot"
 	"github.com/harvester/harvester/pkg/util"
 )
@@ -91,7 +92,7 @@ func RegisterRestore(ctx context.Context, management *config.Management, _ confi
 	vmbo, vmro := newRestoreOperators(controllers, restClient)
 
 	// Initialize restore engines
-	engines := newRestoreEngines(controllers, vmbo, vmro)
+	engines := newRestoreEngines(controllers, management, vmbo, vmro)
 
 	// Let each engine wire up its own informer event handlers (e.g. Job
 	// watchers) so engine-owned resource changes feed back into VMRestore
@@ -187,6 +188,7 @@ func newRestoreOperators(
 // newRestoreEngines creates restore engines for different backup types
 func newRestoreEngines(
 	controllers *restoreControllerSet,
+	management *config.Management,
 	vmbo backupcommon.VMBackupOperator,
 	vmro restorecommon.VMRestoreOperator,
 ) map[harvesterv1.BackupType]engine.RestoreEngine {
@@ -216,6 +218,28 @@ func newRestoreEngines(
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.vss.Cache(),
+		),
+		harvesterv1.Restic: restorerestic.GetRestoreEngine(
+			vmbo,
+			vmro,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.scs.Cache(),
+			controllers.secrets,
+			controllers.jobs,
+			controllers.vmrs,
+			management.ClientSet,
+		),
+		harvesterv1.Kopia: restorekopia.GetRestoreEngine(
+			vmbo,
+			vmro,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.scs.Cache(),
+			controllers.secrets,
+			controllers.jobs,
+			controllers.vmrs,
+			management.ClientSet,
 		),
 	}
 }
@@ -247,8 +271,8 @@ func newRestoreHandler(
 
 // registerRestoreEventHandlers registers all event handlers for the restore controller
 func registerRestoreEventHandlers(ctx context.Context, controllers *restoreControllerSet, handler *RestoreHandler) {
-	controllers.vmrs.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
 	controllers.vmrs.OnRemove(ctx, restoreControllerName, handler.RestoreOnRemove)
+	controllers.vmrs.OnChange(ctx, restoreControllerName, handler.RestoreOnChanged)
 	controllers.pvcs.OnChange(ctx, restoreControllerName, handler.PersistentVolumeClaimOnChange)
 	controllers.vms.OnChange(ctx, restoreControllerName, handler.VMOnChange)
 }
@@ -268,7 +292,12 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 		return nil, nil
 	}
 
-	if !h.vmro.IsProgressing(vmr) {
+	// Independent engine resources require durable cleanup protection first.
+	if !h.vmro.HasFinalizer(vmr, "wrangler.cattle.io/"+restoreControllerName) {
+		return nil, nil
+	}
+
+	if !h.vmro.IsProgressing(vmr) || h.vmro.IsFailed(vmr) {
 		return nil, nil
 	}
 
@@ -279,6 +308,10 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 	vmb, err := h.vmro.ResolveVMBackup(vmr)
 	if err != nil {
 		return nil, h.vmro.UpdateError(vmr, err)
+	}
+
+	if h.vmro.GetType(vmr) != h.vmbo.GetType(vmb) {
+		return nil, h.vmro.UpdateType(vmr, h.vmbo.GetType(vmb))
 	}
 
 	if h.vmro.IsMissingVolumes(vmr) {
@@ -301,6 +334,9 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 			vmr.Namespace, vmr.Name, updErr)
 	}
 
+	if errors.Is(err, engine.ErrRetryLater) {
+		return nil, h.handleVolumesNotReady(vmr, vmrCpy)
+	}
 	if err != nil {
 		return nil, h.vmro.UpdateError(vmrCpy, err)
 	}
@@ -313,43 +349,37 @@ func (h *RestoreHandler) RestoreOnChanged(_ string, vmr *harvesterv1.VirtualMach
 	return nil, h.updateStatus(vmr, vmrCpy, vm, isVolumesReady)
 }
 
-// RestoreOnRemove delegates per-volume cleanup to the restore engine, mirroring
-// the (engine, iterate volumes) pattern in reconcileVolumeRestores.
-func (h *RestoreHandler) RestoreOnRemove(_ string, vmr *harvesterv1.VirtualMachineRestore) (*harvesterv1.VirtualMachineRestore, error) {
-	if vmr == nil || !h.vmro.HasStatus(vmr) {
+// RestoreOnRemove uses the persisted engine without looking up the source backup.
+// Untyped legacy restores only try snapshot and Longhorn cleanup.
+func (h *RestoreHandler) RestoreOnRemove(
+	_ string,
+	vmr *harvesterv1.VirtualMachineRestore,
+) (*harvesterv1.VirtualMachineRestore, error) {
+	if vmr == nil {
 		return nil, nil
 	}
-
-	re, err := h.resolveRestoreEngine(vmr)
-	if err != nil {
-		return nil, err
+	backupType := h.vmro.GetType(vmr)
+	if backupType == "" {
+		return vmr, h.cleanupLegacy(vmr)
 	}
-	if re == nil {
-		return nil, nil
+	restoreEngine := h.engines[backupType]
+	if restoreEngine == nil {
+		return vmr, fmt.Errorf("unsupported restore engine %q", backupType)
 	}
-
-	for i := range h.vmro.GetVolRestores(vmr) {
-		if err := re.Delete(vmr, i); err != nil {
-			return nil, err
-		}
-	}
-	return nil, nil
+	return vmr, restoreEngine.Delete(vmr)
 }
 
-// resolveRestoreEngine picks the restore engine for a VMRestore. When the
-// source VMBackup is gone (typically because the user deleted it ahead of the
-// restore) we fall back to the Longhorn engine — the only engine with
-// non-trivial cleanup (VolumeSnapshotContent is cluster-scoped, uses Retain
-// policy, so it can't be garbage-collected via owner references).
-func (h *RestoreHandler) resolveRestoreEngine(vmr *harvesterv1.VirtualMachineRestore) (engine.RestoreEngine, error) {
-	vmb, err := h.vmro.ResolveVMBackup(vmr)
-	if apierrors.IsNotFound(err) {
-		return h.engines[harvesterv1.Backup], nil
+func (h *RestoreHandler) cleanupLegacy(vmr *harvesterv1.VirtualMachineRestore) error {
+	for _, backupType := range []harvesterv1.BackupType{harvesterv1.Snapshot, harvesterv1.Backup} {
+		restoreEngine := h.engines[backupType]
+		if restoreEngine == nil {
+			continue
+		}
+		if err := restoreEngine.Delete(vmr); err != nil {
+			return err
+		}
 	}
-	if err != nil {
-		return nil, err
-	}
-	return h.getRestoreEngine(vmb), nil
+	return nil
 }
 
 // pv naming convention from externel-provisioner
@@ -497,17 +527,24 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 	volRestores := h.vmro.GetVolRestores(vmr)
 	for i := range volRestores {
 		err := re.Reconcile(vmr, vmb, i)
-		if err == nil {
+		switch {
+		case err == nil:
 			continue
-		}
-
-		if err == engine.ErrRetryLater {
+		case errors.Is(err, engine.ErrRetryLater):
 			isVolumesReady = false
 			continue
+		default:
+			return false, fmt.Errorf(
+				"failed to reconcile volume %q: %w",
+				volRestores[i].VolumeName,
+				err,
+			)
 		}
-		return false, err
 	}
 
+	if !isVolumesReady {
+		return false, engine.ErrRetryLater
+	}
 	return isVolumesReady, nil
 }
 
@@ -833,7 +870,7 @@ func (h *RestoreHandler) updateProgressMetrics(
 	return nil
 }
 
-// handleVolumesNotReady persists the "Creating new PVCs" progressing condition
+// handleVolumesNotReady persists the "Restoring volumes" progressing condition
 // and schedules a fixed-interval re-reconcile so progress is sampled regularly
 // instead of through the workqueue's exponential backoff (which quickly grows
 // to multi-minute intervals during a long restore and leaves status.progress
@@ -843,7 +880,7 @@ func (h *RestoreHandler) handleVolumesNotReady(
 	vmrCpy *harvesterv1.VirtualMachineRestore,
 ) error {
 	h.vmro.RectifyProgressBeforeVMStart(vmrCpy)
-	vmrCpy = h.vmro.SetProcessingCondition(vmrCpy, "Creating new PVCs")
+	vmrCpy = h.vmro.SetProcessingCondition(vmrCpy, "Restoring volumes")
 	if _, err := h.vmro.Update(vmr, vmrCpy); err != nil {
 		return err
 	}
@@ -868,9 +905,9 @@ func (h *RestoreHandler) ensureVMStartedAndReady(
 		return nil
 	}
 
-	// Start VM before checking status
-	if err := h.vmro.StartVM(h.context, vm); err != nil {
-		return h.vmro.UpdateError(vmr, fmt.Errorf("failed to start vm, err:%s", err.Error()))
+	startErr := h.vmro.StartVM(h.context, vm)
+	if startErr != nil && !errors.Is(startErr, restorecommon.ErrVMStartInProgress) {
+		return h.recordStartError(vmr, startErr)
 	}
 
 	// VM not ready yet: persist progressing condition and halt the pipeline so
@@ -881,7 +918,15 @@ func (h *RestoreHandler) ensureVMStartedAndReady(
 	if _, err := h.vmro.Update(vmr, vmrCpy); err != nil {
 		return err
 	}
-	return fmt.Errorf("vm %s/%s is not ready yet", vm.Namespace, vm.Name)
+	return fmt.Errorf("vm %s/%s is not ready yet: %w", vm.Namespace, vm.Name, engine.ErrRetryLater)
+}
+
+func (h *RestoreHandler) recordStartError(vmr *harvesterv1.VirtualMachineRestore, err error) error {
+	startErr := fmt.Errorf("failed to start vm: %w", err)
+	if updateErr := h.vmro.UpdateError(vmr, startErr); updateErr != nil {
+		return updateErr
+	}
+	return startErr
 }
 
 // finalizeRestore performs cleanup and marks the restore as complete

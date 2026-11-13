@@ -25,3 +25,16 @@ func GetOwnerReferenceFor(obj any) (*metav1.OwnerReference, error) {
 		UID:        m.GetUID(),
 	}, nil
 }
+
+// FindOwnerReference returns the first owner reference matching the provided
+// API version and kind.
+func FindOwnerReference(obj metav1.Object, apiVersion, kind string) *metav1.OwnerReference {
+	owners := obj.GetOwnerReferences()
+	for i := range owners {
+		owner := &owners[i]
+		if owner.APIVersion == apiVersion && owner.Kind == kind {
+			return owner
+		}
+	}
+	return nil
+}

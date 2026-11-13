@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harvester-repository-job-{{ .UID }}
+  namespace: longhorn-system
+  ownerReferences:
+    - apiVersion: v1
+      kind: Namespace
+      name: {{ printf "%q" .Name }}
+      uid: {{ printf "%q" .UID }}
+      controller: true
+      blockOwnerDeletion: true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: harvester-repository-job
+subjects:
+  - kind: ServiceAccount
+    name: harvester-repository-job
+    namespace: {{ printf "%q" .Name }}
