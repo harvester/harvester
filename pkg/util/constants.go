@@ -253,6 +253,9 @@ const (
 
 	HarvesterInstallCordonedLabel               = prefix + "/install-cordoned"
 	HarvesterInstallCordonedProcessedAnnotation = prefix + "/install-cordoned-processed"
+
+	KubeOVNInternalSubnetJoin       = "join"
+	KubeOVNInternalSubnetOVNDefault = "ovn-default"
 )
 
 var (

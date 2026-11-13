@@ -2253,6 +2253,7 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 		newAddon      *harvesterv1.Addon
 		oldAddon      *harvesterv1.Addon
 		expectedError bool
+		errorKey      string
 	}
 
 	testCases := []testCase{
@@ -2308,6 +2309,82 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 				},
 			},
 			expectedError: true,
+		},
+		{
+			name: "When ovn-default subnet has usage, addon cannot be disabled",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.KubeOVNInternalSubnetOVNDefault,
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 4, // hit VM check
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: true,
+			errorKey:      "as VMs attached to overlay network",
+		},
+		{
+			name: "When ovn join subnet exists, addon cannot be disabled",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.KubeOVNInternalSubnetJoin,
+				},
+				Status: kubeovnapiv1.SubnetStatus{
+					V4UsingIPs: 2, // even with usage, still hit internal subnet check
+					V6UsingIPs: 2,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: true,
+			errorKey:      "as internal subnet",
+		},
+		{
+			name: "When ovn-default subnet exists, addon cannot be disabled",
+			ovnsubnet: &kubeovnapiv1.Subnet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: util.KubeOVNInternalSubnetOVNDefault,
+				},
+			},
+			newAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+			},
+			oldAddon: &harvesterv1.Addon{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kubeOVNOperatorAddon,
+				},
+				Spec: harvesterv1.AddonSpec{
+					Enabled: true,
+				},
+			},
+			expectedError: true,
+			errorKey:      "as internal subnet", // no usage, hit internal subnet check
 		},
 		{
 			name: "when newAddon is enabled, no validation required, return success",
@@ -2422,6 +2499,9 @@ func Test_validateKubeOVNOperatorAddon(t *testing.T) {
 			err := validator.validateKubeOVNAddonUpdate(tc.newAddon, tc.oldAddon)
 			if tc.expectedError {
 				assert.NotNil(t, err, tc.name)
+				if tc.errorKey != "" {
+					assert.ErrorContains(t, err, tc.errorKey, tc.name)
+				}
 			} else {
 				assert.Nil(t, err, tc.name)
 			}
