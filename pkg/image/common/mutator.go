@@ -90,7 +90,13 @@ func (m *vmiMutator) getSC(scName string) (*storagev1.StorageClass, error) {
 func (m *vmiMutator) PatchImageSCParams(vmi *harvesterv1.VirtualMachineImage) ([]string, error) {
 	patchOps := make(types.PatchOps, 0, 1)
 
+	// The annotation and spec.targetStorageClassName are equivalent. Fall back
+	// to the spec when the annotation is not set, and to the default
+	// storageClass only when both are empty.
 	scName := vmi.Annotations[util.AnnotationStorageClassName]
+	if scName == "" {
+		scName = vmi.Spec.TargetStorageClassName
+	}
 	sc, err := m.getSC(scName)
 	if err != nil {
 		return patchOps, err
