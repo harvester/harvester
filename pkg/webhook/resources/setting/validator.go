@@ -107,6 +107,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.SSLParametersName:                                 validateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateDefaultVMTerminationGracePeriodSeconds,
+	settings.DefaultVMDeleteProtectionSettingName:              validateDefaultVMDeleteProtection,
 	settings.NTPServersSettingName:                             validateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateKubeConfigTTLSetting,
@@ -132,6 +133,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.SSLParametersName:                                 validateUpdateSSLParameters,
 	settings.ContainerdRegistrySettingName:                     validateUpdateContainerdRegistry,
 	settings.DefaultVMTerminationGracePeriodSecondsSettingName: validateUpdateDefaultVMTerminationGracePeriodSeconds,
+	settings.DefaultVMDeleteProtectionSettingName:              validateUpdateDefaultVMDeleteProtection,
 	settings.NTPServersSettingName:                             validateUpdateNTPServers,
 	settings.AutoRotateRKE2CertsSettingName:                    validateUpdateAutoRotateRKE2Certs,
 	settings.KubeconfigDefaultTokenTTLMinutesSettingName:       validateUpdateKubeConfigTTLSetting,
@@ -2330,6 +2332,35 @@ func validateDefaultVMTerminationGracePeriodSeconds(setting *v1beta1.Setting) er
 
 func validateUpdateDefaultVMTerminationGracePeriodSeconds(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateDefaultVMTerminationGracePeriodSeconds(newSetting)
+}
+
+// validateDefaultVMDeleteProtectionHelper accepts the values strconv.ParseBool accepts,
+// which is how the VM mutator reads this setting. An empty value is valid: a setting's
+// value stays empty until the user changes it (and is cleared again on reset), and the
+// mutator then falls back to the setting's default.
+func validateDefaultVMDeleteProtectionHelper(value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := strconv.ParseBool(value); err != nil {
+		return fmt.Errorf("invalid value %q, must be a boolean such as \"true\" or \"false\"", value)
+	}
+	return nil
+}
+
+func validateDefaultVMDeleteProtection(setting *v1beta1.Setting) error {
+	if err := validateDefaultVMDeleteProtectionHelper(setting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+
+	if err := validateDefaultVMDeleteProtectionHelper(setting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func validateUpdateDefaultVMDeleteProtection(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateDefaultVMDeleteProtection(newSetting)
 }
 
 func validateAutoRotateRKE2CertsHelper(value string) error {

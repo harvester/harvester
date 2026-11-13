@@ -36,7 +36,8 @@ const (
 	LabelVMCreator                      = prefix + "/creator"
 	LabelVMimported                     = "migration.harvesterhci.io/imported"
 	LabelNodeNameKey                    = "kubevirt.io/nodeName"
-	LabelKubeVirtPersistentState        = "persistent-state-for" // KubeVirt-managed label for persistent state PVCs
+	LabelVMDeleteProtection             = "kubevirt.io/vm-delete-protection" // Same label as KubeVirt SSP; "true"/"True" blocks VM deletion
+	LabelKubeVirtPersistentState        = "persistent-state-for"             // KubeVirt-managed label for persistent state PVCs
 	LabelHarvesterUpgrade               = prefix + "/upgrade"
 	LabelHarvesterUpgradeState          = prefix + "/upgradeState"
 	LabelHarvesterUpgradeComponent      = prefix + "/upgradeComponent"

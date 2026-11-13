@@ -3310,3 +3310,30 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 		t.Log("UNPROTECTED (guard absent): v.Update hung as expected - OOM/DoS risk confirmed")
 	}
 }
+
+func TestValidateDefaultVMDeleteProtection(t *testing.T) {
+	tests := []struct {
+		value       string
+		expectError bool
+	}{
+		{value: "", expectError: false},
+		{value: "true", expectError: false},
+		{value: "false", expectError: false},
+		{value: "True", expectError: false},
+		{value: "FALSE", expectError: false},
+		{value: "1", expectError: false},
+		{value: "0", expectError: false},
+		{value: "yes", expectError: true},
+		{value: " true", expectError: true},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("value %q", tc.value), func(t *testing.T) {
+			err := validateDefaultVMDeleteProtection(&v1beta1.Setting{Default: "false", Value: tc.value})
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

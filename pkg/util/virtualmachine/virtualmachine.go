@@ -304,3 +304,49 @@ func SupportEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) (bool, error) {
 	}
 	return hasEjectableCdRom, nil
 }
+
+// Creators whose VMs are lifecycle-managed by another controller and must stay deletable
+// by it, so they never receive delete protection from the default-vm-delete-protection setting.
+// The Rancher Harvester node driver and CAPHV set util.VirtualMachineCreatorNodeDriver.
+const (
+	// CreatorHarvester marks VMs Harvester creates for itself, e.g. the upgrade repo VM.
+	CreatorHarvester = "harvester"
+)
+
+// IsDeleteProtected reports whether the VM carries the kubevirt.io/vm-delete-protection
+// label set to "true" or "True". These are the only values the KubeVirt SSP
+// ValidatingAdmissionPolicy accepts, so a manifest behaves the same on Harvester and
+// on any other KubeVirt cluster.
+func IsDeleteProtected(vm *kubevirtv1.VirtualMachine) bool {
+	if vm == nil {
+		return false
+	}
+	switch vm.Labels[util.LabelVMDeleteProtection] {
+	case "true", "True":
+		return true
+	default:
+		return false
+	}
+}
+
+// DeleteProtectionError returns the message used when a protected VM delete is refused.
+func DeleteProtectionError(vm *kubevirtv1.VirtualMachine) error {
+	return fmt.Errorf("VirtualMachine %s has delete protection enabled; disable delete protection (set label %s to \"false\") before deleting it",
+		util.GetNamespacedName(vm), util.LabelVMDeleteProtection)
+}
+
+// IsDeleteProtectionDefaultExempt reports whether the default-vm-delete-protection setting
+// must not be applied to the VM: node-driver/CAPHV VMs and Harvester-internal VMs.
+func IsDeleteProtectionDefaultExempt(vm *kubevirtv1.VirtualMachine) bool {
+	if vm == nil {
+		return true
+	}
+	if vm.Namespace == util.HarvesterSystemNamespaceName {
+		return true
+	}
+	switch vm.Labels[util.LabelVMCreator] {
+	case util.VirtualMachineCreatorNodeDriver, CreatorHarvester:
+		return true
+	}
+	return false
+}
