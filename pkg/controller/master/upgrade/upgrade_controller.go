@@ -336,7 +336,7 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 	if harvesterv1.ImageReady.IsTrue(upgrade) && harvesterv1.RepoProvisioned.GetStatus(upgrade) == "" {
 		logrus.Info("Starting upgrade repo")
 		toUpdate := upgrade.DeepCopy()
-		if err := repo.Bootstrap(); err != nil && !apierrors.IsAlreadyExists(err) {
+		if err := repo.Bootstrap(); err != nil {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			return h.upgradeClient.Update(toUpdate)
 		}
