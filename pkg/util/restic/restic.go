@@ -13,8 +13,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/snapshotcheck"
 )
@@ -22,7 +22,7 @@ import (
 const (
 	ImageEnvVar = "HARVESTER_IMAGE"
 
-	PasswordKey = "RESTIC_PASSWORD"
+	PasswordKey = backuputil.ResticPasswordKey
 	RegionKey   = "RESTIC_S3_REGION"
 
 	CacheDirEnvVar    = "RESTIC_CACHE_DIR"
@@ -51,6 +51,7 @@ const (
 )
 
 type JobRuntime struct {
+	Entrypoint   []string
 	Image        string
 	Labels       map[string]string
 	Env          []corev1.EnvVar
@@ -117,31 +118,10 @@ func Repository(target *settings.BackupTarget) (*RepositoryConfig, error) {
 	}
 }
 
-func Env(secretName string, repository *RepositoryConfig) []corev1.EnvVar {
+func Env(repository *RepositoryConfig) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{Name: "TMPDIR", Value: "/tmp"},
-		{
-			Name: util.AWSAccessKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSAccessKey,
-			}},
-		},
-		{
-			Name: util.AWSSecretKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSSecretKey,
-			}},
-		},
 		{Name: "RESTIC_REPOSITORY", Value: repository.URL},
-		{
-			Name: "RESTIC_PASSWORD",
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  PasswordKey,
-			}},
-		},
 	}
 	if repository.Region != "" {
 		env = append(env, corev1.EnvVar{Name: RegionKey, Value: repository.Region})
@@ -185,7 +165,7 @@ func JobLabels(labels map[string]string) map[string]string {
 func NewJobRuntime(
 	ctx context.Context,
 	clientset kubernetes.Interface,
-	secretName string,
+	repositoryID string,
 	repository *RepositoryConfig,
 	labels map[string]string,
 ) (*JobRuntime, bool, error) {
@@ -213,11 +193,12 @@ func NewJobRuntime(
 	}
 
 	runtime := &JobRuntime{
-		Image:     image,
-		Labels:    labels,
-		Env:       Env(secretName, repository),
-		Resources: resources,
-		Command:   command(repository.Region),
+		Entrypoint: backuputil.JobCommand(repositoryID, string(harvesterv1.Restic)),
+		Image:      image,
+		Labels:     labels,
+		Env:        Env(repository),
+		Resources:  resources,
+		Command:    command(repository.Region),
 	}
 	if cacheVolume != nil {
 		runtime.Volumes = append(runtime.Volumes, *cacheVolume)
@@ -271,12 +252,14 @@ func NewSnapshotCheckJob(opts SnapshotCheckJobOptions) *batchv1.Job {
 					Labels: opts.Labels,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					ServiceAccountName:           backuputil.JobServiceAccount,
+					AutomountServiceAccountToken: ptr.To(true),
+					RestartPolicy:                corev1.RestartPolicyNever,
 					Containers: []corev1.Container{{
 						Name:         SnapshotCheckContainerName,
 						Image:        opts.Runtime.Image,
 						Env:          opts.Runtime.Env,
-						Command:      []string{"/bin/sh", "-c"},
+						Command:      opts.Runtime.Entrypoint,
 						Resources:    opts.Runtime.Resources,
 						VolumeMounts: opts.Runtime.VolumeMounts,
 						Args:         []string{SnapshotCheckCommand(opts.Runtime.Command, opts.Tags)},

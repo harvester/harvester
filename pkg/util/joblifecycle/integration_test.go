@@ -19,7 +19,6 @@ import (
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	"github.com/harvester/harvester/pkg/util/jobcredentials"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
@@ -76,21 +75,11 @@ func runCleanup(t *testing.T, client *versioned.Clientset, policy metav1.Deletio
 	vmb := createTestBackup(t, ctx, client, namespace.Name)
 	vmb = deleteTestBackup(t, ctx, client, vmb, policy)
 	names := []string{"forget-os", "forget-data"}
-	credentials := jobcredentials.Client{
-		Jobs:    fakeclients.JobClient(client.BatchV1().Jobs),
-		Secrets: fakeclients.SecretClient(client.CoreV1().Secrets),
-	}
 	for _, name := range names {
-		job, err := credentials.Create(testJob(vmb, name))
+		_, err := client.BatchV1().Jobs(namespace.Name).Create(ctx, testJob(vmb, name), metav1.CreateOptions{})
 		require.NoError(t, err)
-		ensureCredentials(t, ctx, credentials, job.Namespace, job.Name)
-		secret, err := client.CoreV1().Secrets(namespace.Name).Get(
-			ctx, jobcredentials.Name(name), metav1.GetOptions{},
-		)
-		require.NoError(t, err)
-		require.True(t, metav1.IsControlledBy(secret, job))
 	}
-	recoverTestJobs(t, ctx, client, vmb, names)
+	runTestJobs(t, ctx, client, vmb, names)
 	finishTestCleanup(t, ctx, client, vmb, names)
 	testTTL(t, ctx, client, namespace.Name)
 	testRestoreCancellation(t, ctx, client, namespace.Name, policy)
@@ -104,33 +93,23 @@ func testRestoreCancellation(
 	job := testJob(&harvesterv1.VirtualMachineBackup{ObjectMeta: metav1.ObjectMeta{Namespace: namespace}}, "restore")
 	joblifecycle.Track(&job.ObjectMeta, vmr, "VirtualMachineRestore")
 	job.Spec.TTLSecondsAfterFinished = ptr.To[int32](60)
-	credentials := jobcredentials.Client{
-		Jobs: fakeclients.JobClient(client.BatchV1().Jobs), Secrets: fakeclients.SecretClient(client.CoreV1().Secrets),
-	}
-	job, err := credentials.Create(job)
+	jobs := fakeclients.JobClient(client.BatchV1().Jobs)
+	job, err := jobs.Create(job)
 	require.NoError(t, err)
-	ensureCredentials(t, ctx, credentials, namespace, job.Name)
 	deleteTestRestore(t, ctx, client, vmr, policy)
-	job, err = credentials.Jobs.Get(namespace, job.Name, metav1.GetOptions{})
+	job, err = jobs.Get(namespace, job.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.NoError(t, joblifecycle.ValidateJob(vmr, "VirtualMachineRestore", job))
 	require.Nil(t, job.DeletionTimestamp, "deleting the parent must not cancel the Job through GC")
-	secret, err := credentials.Secrets.Get(namespace, jobcredentials.Name(job.Name), metav1.GetOptions{})
-	require.NoError(t, err)
-	require.True(t, metav1.IsControlledBy(secret, job))
 
 	// The persisted deletion request allows cancellation without a source VMBackup.
 	vmr, err = client.HarvesterhciV1beta1().VirtualMachineRestores(namespace).Get(ctx, vmr.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, vmr.DeletionTimestamp)
-	require.NoError(t, joblifecycle.DeleteJobs(credentials.Jobs, vmr, "VirtualMachineRestore"))
+	require.NoError(t, joblifecycle.DeleteJobs(jobs, vmr, "VirtualMachineRestore"))
 	finishTestRestore(t, ctx, client, vmr)
 	poll(t, ctx, func() (bool, error) {
-		_, err := credentials.Jobs.Get(namespace, job.Name, metav1.GetOptions{})
-		return apierrors.IsNotFound(err), nil
-	})
-	poll(t, ctx, func() (bool, error) {
-		_, err := credentials.Secrets.Get(namespace, secret.Name, metav1.GetOptions{})
+		_, err := jobs.Get(namespace, job.Name, metav1.GetOptions{})
 		return apierrors.IsNotFound(err), nil
 	})
 	poll(t, ctx, func() (bool, error) {
@@ -211,25 +190,6 @@ func finishTestRestore(
 	})
 }
 
-func ensureCredentials(t *testing.T, ctx context.Context, credentials jobcredentials.Client, namespace, name string) {
-	t.Helper()
-	poll(t, ctx, func() (bool, error) {
-		job, err := credentials.Jobs.Get(namespace, name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		err = credentials.Ensure(job, credentialData)
-		if apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err) {
-			return false, nil
-		}
-		return err == nil, err
-	})
-}
-
-func credentialData() (map[string][]byte, error) {
-	return map[string][]byte{"password": []byte("expected")}, nil
-}
-
 func createTestBackup(
 	t *testing.T, ctx context.Context, client *versioned.Clientset, namespace string,
 ) *harvesterv1.VirtualMachineBackup {
@@ -257,7 +217,7 @@ func deleteTestBackup(
 ) *harvesterv1.VirtualMachineBackup {
 	// An owned sibling demonstrates that a parent's custom finalizer does not
 	// protect dependents during foreground deletion.
-	owned := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "owned-credentials", Namespace: vmb.Namespace}}
+	owned := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "owned-sibling", Namespace: vmb.Namespace}}
 	owned.OwnerReferences = []metav1.OwnerReference{{
 		APIVersion: harvesterv1.SchemeGroupVersion.String(), Kind: "VirtualMachineBackup",
 		Name: vmb.Name, UID: vmb.UID, BlockOwnerDeletion: ptr.To(true),
@@ -285,40 +245,26 @@ func deleteTestBackup(
 	return vmb
 }
 
-func recoverTestJobs(
+func runTestJobs(
 	t *testing.T, ctx context.Context, client *versioned.Clientset,
 	vmb *harvesterv1.VirtualMachineBackup, names []string,
 ) {
-	// The init container waits for a gate, so no workload consumes credentials
-	// until both Secrets have been removed. Recover a pending Pod after the
-	// parent has entered deletion under either propagation policy.
-	secrets := client.CoreV1().Secrets(vmb.Namespace)
-	for _, name := range names {
-		require.NoError(t, secrets.Delete(ctx, jobcredentials.Name(name), metav1.DeleteOptions{}))
-	}
+	// Open the gates one volume at a time after the parent enters deletion.
+	// A completed Job must retain its result while the other volume waits.
 	_, err := client.CoreV1().ConfigMaps(vmb.Namespace).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "start", Namespace: vmb.Namespace},
-		Data:       map[string]string{names[0]: "true"},
+		Data:       map[string]string{},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
-	poll(t, ctx, func() (bool, error) {
-		pods, err := client.CoreV1().Pods(vmb.Namespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		return missingCredentials(pods), nil
-	})
-	credentials := jobcredentials.Client{
-		Jobs: fakeclients.JobClient(client.BatchV1().Jobs), Secrets: fakeclients.SecretClient(client.CoreV1().Secrets),
-	}
+	jobs := client.BatchV1().Jobs(vmb.Namespace)
 	for index, name := range names {
-		openTestGate(t, ctx, client, vmb.Namespace, name)
-		job, err := credentials.Jobs.Get(vmb.Namespace, name, metav1.GetOptions{})
+		job, err := jobs.Get(ctx, name, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.Nil(t, job.DeletionTimestamp)
-		ensureCredentials(t, ctx, credentials, job.Namespace, job.Name)
+		require.NoError(t, joblifecycle.ValidateJob(vmb, "VirtualMachineBackup", job))
+		openTestGate(t, ctx, client, vmb.Namespace, name)
 		poll(t, ctx, func() (bool, error) {
-			job, err := credentials.Jobs.Get(vmb.Namespace, name, metav1.GetOptions{})
+			job, err := jobs.Get(ctx, name, metav1.GetOptions{})
 			return err == nil && job.Status.Succeeded == 1, err
 		})
 		if index == 0 {
@@ -355,17 +301,6 @@ func retainCompletedJob(t *testing.T, ctx context.Context, client *versioned.Cli
 	})
 }
 
-func missingCredentials(pods *corev1.PodList) bool {
-	for _, pod := range pods.Items {
-		for _, status := range pod.Status.ContainerStatuses {
-			if status.State.Waiting != nil && status.State.Waiting.Reason == "CreateContainerConfigError" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func finishTestCleanup(
 	t *testing.T, ctx context.Context, client *versioned.Clientset,
 	vmb *harvesterv1.VirtualMachineBackup, names []string,
@@ -399,14 +334,11 @@ func finishTestCleanup(
 			_, err := jobs.Get(vmb.Namespace, name, metav1.GetOptions{})
 			return apierrors.IsNotFound(err), nil
 		})
-		poll(t, ctx, func() (bool, error) {
-			_, err := client.CoreV1().Secrets(vmb.Namespace).Get(ctx, jobcredentials.Name(name), metav1.GetOptions{})
-			return apierrors.IsNotFound(err), nil
-		})
 	}
-	pods, err := client.CoreV1().Pods(vmb.Namespace).List(ctx, metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Empty(t, pods.Items)
+	poll(t, ctx, func() (bool, error) {
+		pods, err := client.CoreV1().Pods(vmb.Namespace).List(ctx, metav1.ListOptions{})
+		return err == nil && len(pods.Items) == 0, err
+	})
 }
 
 func testJob(vmb *harvesterv1.VirtualMachineBackup, name string) *batchv1.Job {
@@ -416,7 +348,7 @@ func testJob(vmb *harvesterv1.VirtualMachineBackup, name string) *batchv1.Job {
 			Finalizers: []string{joblifecycle.CompletionFinalizer},
 		},
 		Spec: batchv1.JobSpec{
-			Suspend: ptr.To(true), BackoffLimit: ptr.To[int32](0),
+			BackoffLimit: ptr.To[int32](0),
 			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
 				RestartPolicy: corev1.RestartPolicyNever,
 				InitContainers: []corev1.Container{{
@@ -431,11 +363,7 @@ func testJob(vmb *harvesterv1.VirtualMachineBackup, name string) *batchv1.Job {
 				Containers: []corev1.Container{{
 					Name: "forget", Image: "busybox:1.37.0", ImagePullPolicy: corev1.PullIfNotPresent,
 					Command: []string{"sh", "-c", `test "$PASSWORD" = expected`},
-					Env: []corev1.EnvVar{{Name: "PASSWORD", ValueFrom: &corev1.EnvVarSource{
-						SecretKeyRef: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: jobcredentials.Name(name)}, Key: "password",
-						},
-					}}},
+					Env:     []corev1.EnvVar{{Name: "PASSWORD", Value: "expected"}},
 				}},
 			}},
 		},
@@ -444,11 +372,9 @@ func testJob(vmb *harvesterv1.VirtualMachineBackup, name string) *batchv1.Job {
 	return job
 }
 
-// TTL cleanup of ordinary completed Jobs must also collect their Secrets.
+// TTL collects completed Jobs, with restore results retained until released.
 func testTTL(t *testing.T, ctx context.Context, client *versioned.Clientset, namespace string) {
-	credentials := jobcredentials.Client{
-		Jobs: fakeclients.JobClient(client.BatchV1().Jobs), Secrets: fakeclients.SecretClient(client.CoreV1().Secrets),
-	}
+	jobs := fakeclients.JobClient(client.BatchV1().Jobs)
 	for _, name := range []string{"backup-ttl", "restore-ttl"} {
 		job := testJob(&harvesterv1.VirtualMachineBackup{ObjectMeta: metav1.ObjectMeta{Namespace: namespace}}, name)
 		job.Labels, job.Annotations = nil, nil
@@ -457,23 +383,22 @@ func testTTL(t *testing.T, ctx context.Context, client *versioned.Clientset, nam
 		}
 		job.Spec.Template.Spec.InitContainers = nil
 		job.Spec.TTLSecondsAfterFinished = ptr.To[int32](1)
-		job, err := credentials.Create(job)
+		job, err := jobs.Create(job)
 		require.NoError(t, err)
-		ensureCredentials(t, ctx, credentials, job.Namespace, job.Name)
 		if name == "restore-ttl" {
 			poll(t, ctx, func() (bool, error) {
-				job, err := credentials.Jobs.Get(namespace, name, metav1.GetOptions{})
+				job, err := jobs.Get(namespace, name, metav1.GetOptions{})
 				return err == nil && job.Status.Succeeded == 1 && job.DeletionTimestamp != nil, err
 			})
-			require.NoError(t, joblifecycle.Release(credentials.Jobs, job))
+			require.NoError(t, joblifecycle.Release(jobs, job))
 		}
 		poll(t, ctx, func() (bool, error) {
-			_, err := credentials.Jobs.Get(namespace, name, metav1.GetOptions{})
+			_, err := jobs.Get(namespace, name, metav1.GetOptions{})
 			return apierrors.IsNotFound(err), nil
 		})
 		poll(t, ctx, func() (bool, error) {
-			_, err := credentials.Secrets.Get(namespace, jobcredentials.Name(name), metav1.GetOptions{})
-			return apierrors.IsNotFound(err), nil
+			pods, err := client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+			return err == nil && len(pods.Items) == 0, err
 		})
 	}
 }

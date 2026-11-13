@@ -20,13 +20,14 @@ if [[ "${MODE}" != "run" && "${MODE}" != "cleanup" ]]; then
 fi
 
 NAMESPACE="${NAMESPACE:-longhorn-system}"
+# The Secret must contain S3 credentials and the derived repository password
+# for this target, including when overriding the target below.
 SECRET_NAME="${SECRET_NAME:-harvester-backup-target-secret}"
 BACKUP_TARGET_SETTING="${BACKUP_TARGET_SETTING:-backup-target}"
 IMAGE="${IMAGE:-10.115.54.34:5000/harvester:issue-10567-head}"
 KOPIA_BUCKET="${KOPIA_BUCKET:-}"
 KOPIA_ENDPOINT="${KOPIA_ENDPOINT:-}"
 KOPIA_REGION="${KOPIA_REGION:-}"
-KOPIA_VIRTUAL_HOSTED_STYLE="${KOPIA_VIRTUAL_HOSTED_STYLE:-}"
 KOPIA_PREFIX="${KOPIA_PREFIX:-kopia/}"
 KOPIA_DISABLE_TLS="${KOPIA_DISABLE_TLS:-auto}"
 KOPIA_CONTENT_CACHE_SIZE_MB="${KOPIA_CONTENT_CACHE_SIZE_MB:-256}"
@@ -57,18 +58,12 @@ SMOKE_TEST_VALUE="kopia-block-pvc"
 SMOKE_TEST_TAG="smoke:kopia-block-pvc"
 CLEANUP_JOB="${CLEANUP_JOB:-kopia-cleanup-${RUN_ID}}"
 
-for command in kubectl jq sha256sum; do
+for command in kubectl jq; do
 	if ! command -v "${command}" >/dev/null 2>&1; then
 		echo "required command not found: ${command}" >&2
 		exit 1
 	fi
 done
-
-sha256_hex() {
-	local output
-	output="$(sha256sum)"
-	printf '%s' "${output%% *}"
-}
 
 for cache_value in \
 	"${KOPIA_CONTENT_CACHE_SIZE_MB}" \
@@ -98,27 +93,9 @@ fi
 if [[ -z "${KOPIA_REGION}" ]]; then
 	KOPIA_REGION="$(jq -r '.bucketRegion // ""' <<<"${BACKUP_TARGET_VALUE}")"
 fi
-if [[ -z "${KOPIA_VIRTUAL_HOSTED_STYLE}" ]]; then
-	KOPIA_VIRTUAL_HOSTED_STYLE="$(jq -r '.virtualHostedStyle // false' <<<"${BACKUP_TARGET_VALUE}")"
-fi
-if [[ "${KOPIA_VIRTUAL_HOSTED_STYLE}" != "true" && "${KOPIA_VIRTUAL_HOSTED_STYLE}" != "false" ]]; then
-	echo "KOPIA_VIRTUAL_HOSTED_STYLE must be true or false" >&2
-	exit 1
-fi
 while [[ "${KOPIA_ENDPOINT}" == */ ]]; do
 	KOPIA_ENDPOINT="${KOPIA_ENDPOINT%/}"
 done
-REPOSITORY_ID="sha256:$(
-	printf '%s\0%s\0%s\0%s\0%s' \
-		"${BACKUP_TARGET_TYPE}" \
-		"${KOPIA_ENDPOINT}" \
-		"${KOPIA_BUCKET}" \
-		"${KOPIA_REGION}" \
-		"${KOPIA_VIRTUAL_HOSTED_STYLE}" | sha256_hex
-)"
-KOPIA_REPOSITORY_PASSWORD="$(
-	printf '%s\0%s' "kopia" "${REPOSITORY_ID}" | sha256_hex
-)"
 if [[ -z "${KOPIA_ENDPOINT}" ]]; then
 	KOPIA_ENDPOINT="s3.amazonaws.com"
 fi
@@ -277,7 +254,10 @@ spec:
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: KOPIA_PASSWORD
-          value: "${KOPIA_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: KOPIA_PASSWORD
         args:
         - |
           set -eo pipefail
@@ -440,7 +420,10 @@ ${JOB_TTL_LINE}
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: KOPIA_PASSWORD
-          value: "${KOPIA_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: KOPIA_PASSWORD
         args:
         - |
           set -eo pipefail
@@ -522,7 +505,10 @@ ${JOB_TTL_LINE}
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: KOPIA_PASSWORD
-          value: "${KOPIA_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: KOPIA_PASSWORD
         args:
         - |
           set -eo pipefail

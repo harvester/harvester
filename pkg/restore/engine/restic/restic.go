@@ -23,7 +23,6 @@ import (
 	"github.com/harvester/harvester/pkg/restore/engine"
 	"github.com/harvester/harvester/pkg/restore/pvchelper"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
-	"github.com/harvester/harvester/pkg/util/jobcredentials"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	"github.com/harvester/harvester/pkg/util/jobprogress"
 	resticutil "github.com/harvester/harvester/pkg/util/restic"
@@ -41,7 +40,6 @@ type ResticRestoreEngine struct {
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
-	secretCache   ctlcorev1.SecretCache
 	secretClient  ctlcorev1.SecretClient
 	jobController ctlbatchv1.JobController
 	jobClient     ctlbatchv1.JobClient
@@ -55,7 +53,6 @@ func GetRestoreEngine(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
 	scCache ctlstoragev1.StorageClassCache,
-	secretCache ctlcorev1.SecretCache,
 	secretClient ctlcorev1.SecretClient,
 	jobController ctlbatchv1.JobController,
 	vmrController ctlharvesterv1.VirtualMachineRestoreController,
@@ -67,7 +64,6 @@ func GetRestoreEngine(
 		pvcCache:      pvcCache,
 		pvcClient:     pvcClient,
 		scCache:       scCache,
-		secretCache:   secretCache,
 		secretClient:  secretClient,
 		jobController: jobController,
 		jobClient:     jobController,
@@ -124,9 +120,6 @@ func (re *ResticRestoreEngine) Reconcile(
 
 	job, err := re.ensureRestoreJob(vmr, vmb, vr, vb)
 	if err != nil {
-		return err
-	}
-	if err := re.ensureSecret(vmb, job); err != nil {
 		return err
 	}
 	return re.syncFromJob(vr, job)
@@ -239,11 +232,6 @@ func (re *ResticRestoreEngine) createRestoreJob(
 	vb *harvesterv1.VolumeBackup,
 	jobName string,
 ) error {
-	repository, err := re.repository(vmb)
-	if err != nil {
-		return err
-	}
-	secretName := jobcredentials.Name(jobName)
 	vbName := re.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
 		return fmt.Errorf("volume backup name is nil")
@@ -252,14 +240,11 @@ func (re *ResticRestoreEngine) createRestoreJob(
 	namespace := re.vmro.GetNamespace(vmr)
 	pvcName := re.vmro.GetVolRestorePVCName(vr)
 	pvName := re.vmbo.GetVolBackupPVName(vb)
-	labels := resticutil.JobLabels(nil)
-	runtime, hasCapacity, err := resticutil.NewJobRuntime(context.Background(), re.clientset, secretName, repository, labels)
+	runtime, err := re.jobRuntime(vmb, namespace)
 	if err != nil {
 		return err
 	}
-	if !hasCapacity {
-		return engine.ErrRetryLater
-	}
+	labels := runtime.Labels
 	volumes := runtime.VolumesWith(corev1.Volume{
 		Name: "volume",
 		VolumeSource: corev1.VolumeSource{
@@ -281,12 +266,14 @@ func (re *ResticRestoreEngine) createRestoreJob(
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					ServiceAccountName:           backuputil.JobServiceAccount,
+					AutomountServiceAccountToken: ptr.To(true),
+					RestartPolicy:                corev1.RestartPolicyNever,
 					Containers: []corev1.Container{{
 						Name:         "restore",
 						Image:        runtime.Image,
 						Env:          runtime.Env,
-						Command:      []string{"/bin/sh", "-c"},
+						Command:      runtime.Entrypoint,
 						Resources:    runtime.Resources,
 						VolumeMounts: runtime.VolumeMounts,
 						Args: []string{fmt.Sprintf(
@@ -315,15 +302,14 @@ func (re *ResticRestoreEngine) createRestoreJob(
 		},
 	}
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
-	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	job, err = client.Create(job)
+	_, err = re.jobClient.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
 	if err != nil {
 		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
 	}
-	return re.ensureSecret(vmb, job)
+	return nil
 }
 
 func (re *ResticRestoreEngine) checkRemoteSnapshot(
@@ -339,11 +325,7 @@ func (re *ResticRestoreEngine) checkRemoteSnapshot(
 		re.clientset,
 		checkName,
 		func(name string) (*batchv1.Job, error) {
-			job, err := re.getJob(vmr, name)
-			if err != nil {
-				return nil, err
-			}
-			return job, re.ensureSecret(vmb, job)
+			return re.getJob(vmr, name)
 		},
 		func(name string) error {
 			return re.createCheckJob(vmr, vmb, vb, name)
@@ -372,25 +354,17 @@ func (re *ResticRestoreEngine) createCheckJob(
 	vb *harvesterv1.VolumeBackup,
 	jobName string,
 ) error {
-	repository, err := re.repository(vmb)
-	if err != nil {
-		return err
-	}
-	secretName := jobcredentials.Name(jobName)
 	vbName := re.vmbo.GetVolBackupName(vb)
 	if vbName == nil {
 		return fmt.Errorf("volume backup name is nil")
 	}
 
 	namespace := re.vmro.GetNamespace(vmr)
-	labels := resticutil.JobLabels(nil)
-	runtime, hasCapacity, err := resticutil.NewJobRuntime(context.Background(), re.clientset, secretName, repository, labels)
+	runtime, err := re.jobRuntime(vmb, namespace)
 	if err != nil {
 		return err
 	}
-	if !hasCapacity {
-		return engine.ErrRetryLater
-	}
+	labels := runtime.Labels
 	job := resticutil.NewSnapshotCheckJob(resticutil.SnapshotCheckJobOptions{
 		Name:      jobName,
 		Namespace: namespace,
@@ -403,28 +377,43 @@ func (re *ResticRestoreEngine) createCheckJob(
 		},
 	})
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
-	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	job, err = client.Create(job)
+	_, err = re.jobClient.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
 	if err != nil {
 		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
 	}
-	return re.ensureSecret(vmb, job)
+	return nil
 }
 
-func (re *ResticRestoreEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
-	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	err := client.Ensure(job, func() (map[string][]byte, error) {
-		return backuputil.CredentialData(
-			re.secretCache, re.vmbo.GetBackupTarget(vmb), harvesterv1.Restic, resticutil.PasswordKey,
-		)
-	})
+func (re *ResticRestoreEngine) jobRuntime(
+	vmb *harvesterv1.VirtualMachineBackup, namespace string,
+) (*resticutil.JobRuntime, error) {
+	repository, err := re.repository(vmb)
 	if err != nil {
-		return fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
+		return nil, err
 	}
-	return nil
+	err = backuputil.CheckCredentials(
+		re.secretClient, re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
+	}
+	runtime, capacity, err := resticutil.NewJobRuntime(
+		context.Background(), re.clientset, re.vmbo.GetRepositoryID(vmb),
+		repository, resticutil.JobLabels(nil),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !capacity {
+		return nil, engine.ErrRetryLater
+	}
+	if err := backuputil.EnsureJobAccess(context.Background(), re.clientset, namespace); err != nil {
+		return nil, fmt.Errorf("preparing backup Job access: %w: %w", engine.ErrRetryLater, err)
+	}
+	return runtime, nil
 }
 
 func (re *ResticRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) (*resticutil.RepositoryConfig, error) {

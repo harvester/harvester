@@ -160,6 +160,7 @@ type VMBackupReader interface {
 	GetCSIDriverVSCNames(vmb *harvesterv1.VirtualMachineBackup) map[string]string
 	GetType(vmb *harvesterv1.VirtualMachineBackup) harvesterv1.BackupType
 	GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget
+	GetRepositoryID(vmb *harvesterv1.VirtualMachineBackup) string
 	GetFsFreezeDeadline(vmb *harvesterv1.VirtualMachineBackup) *metav1.Duration
 }
 
@@ -409,6 +410,13 @@ func (a *vmbackupReader) GetType(vmb *harvesterv1.VirtualMachineBackup) harveste
 
 func (a *vmbackupReader) GetBackupTarget(vmb *harvesterv1.VirtualMachineBackup) *harvesterv1.BackupTarget {
 	return vmb.Status.BackupTarget
+}
+
+func (a *vmbackupReader) GetRepositoryID(vmb *harvesterv1.VirtualMachineBackup) string {
+	if vmb == nil || vmb.Status.BackupTarget == nil {
+		return ""
+	}
+	return vmb.Status.BackupTarget.RepositoryID
 }
 
 func (a *vmbackupReader) GetFsFreezeDeadline(vmb *harvesterv1.VirtualMachineBackup) *metav1.Duration {

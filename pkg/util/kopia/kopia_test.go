@@ -65,8 +65,8 @@ func TestS3RepositoryNormalizesHTTPEndpoint(t *testing.T) {
 	require.Equal(t, "pcloud", repository.Region)
 	require.Equal(t, "kopia/", repository.Prefix)
 	require.True(t, repository.DisableTLS)
-	require.Contains(t, Env("credentials", repository), corev1.EnvVar{Name: RegionKey, Value: "pcloud"})
-	require.Contains(t, Env("credentials", repository), corev1.EnvVar{Name: PrefixKey, Value: "kopia/"})
+	require.Contains(t, Env(repository), corev1.EnvVar{Name: RegionKey, Value: "pcloud"})
+	require.Contains(t, Env(repository), corev1.EnvVar{Name: PrefixKey, Value: "kopia/"})
 	require.Contains(t, ConnectCommand(), `--region="$KOPIA_REGION"`)
 	require.Contains(t, ConnectCommand(), `--prefix="$KOPIA_PREFIX"`)
 	require.Contains(t, ConnectCommand(), `--content-cache-size-limit-mb="$KOPIA_CONTENT_CACHE_SIZE_LIMIT_MB"`)
@@ -216,7 +216,7 @@ func TestRuntimeStorageAndMemory(t *testing.T) {
 	resetKopiaSettings(t)
 	t.Setenv(ImageEnvVar, "harvester:test")
 	repository := &Repository{Bucket: "bucket"}
-	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "secret", repository, nil)
+	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "repository-id", repository, nil)
 	require.NoError(t, err)
 	require.True(t, capacity)
 	require.Contains(t, runtime.Env, corev1.EnvVar{Name: "TMPDIR", Value: "/tmp"})
@@ -235,7 +235,16 @@ func TestRuntimeStorageAndMemory(t *testing.T) {
 	require.Contains(t, runtime.Env, corev1.EnvVar{Name: LogSegmentSizeKey, Value: "8388608"})
 	cron, err := NewMaintenanceCronJob("test", "0 * * * *", true, "secret", repository)
 	require.NoError(t, err)
+	require.Equal(t, "longhorn-system", cron.Namespace)
 	container := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+	for _, key := range []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", PasswordKey} {
+		require.Contains(t, container.Env, corev1.EnvVar{
+			Name: key,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "secret"}, Key: key,
+			}},
+		})
+	}
 	require.Equal(t, runtime.Resources, container.Resources)
 	require.Equal(t, runtime.VolumeMounts, container.VolumeMounts)
 	require.NotContains(t, container.Args[0], "--disable-file-logging")

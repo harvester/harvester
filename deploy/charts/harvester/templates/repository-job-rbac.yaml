@@ -1,0 +1,18 @@
+# Restic/Kopia backup, restore, check, and forget Jobs share this Role.
+# Controllers render the embedded ServiceAccount and RoleBinding YAML for each
+# Job namespace. Bindings are owned by that Namespace.
+# No credential Secret is copied into the Job namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harvester-repository-job
+  namespace: longhorn-system
+  labels:
+{{ include "harvester.labels" . | indent 4 }}
+    app.kubernetes.io/name: harvester
+    app.kubernetes.io/component: repository-job
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["harvester-backup-target-secret"]
+    verbs: ["get"]

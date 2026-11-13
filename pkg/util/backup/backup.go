@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -81,6 +82,21 @@ func IsBackupTargetSame(statusBackupTarget *harvesterv1.BackupTarget, target *se
 		statusBackupTarget.BucketRegion == target.BucketRegion
 }
 
+// CheckTarget validates a data-mover backup before using the current target's credentials.
+func CheckTarget(status *harvesterv1.BackupTarget) error {
+	if _, err := TargetFromStatus(status); err != nil {
+		return err
+	}
+	target, err := CurrentTarget()
+	if err != nil {
+		return err
+	}
+	if !IsBackupTargetSame(status, target) {
+		return fmt.Errorf("VMBackup backup target does not match the configured backup target")
+	}
+	return nil
+}
+
 // RepositoryID returns a stable, non-secret identifier for a backup target.
 // Authentication and TLS material are intentionally excluded so IAM
 // credentials and certificates can be rotated without changing repository
@@ -101,19 +117,30 @@ func RepositoryID(target *settings.BackupTarget) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// RepositoryPassword returns the deterministic password for a data-mover
-// repository. It intentionally depends only on the recorded repository ID and
-// backup engine, so object-store credential rotation does not change it.
-func RepositoryPassword(repositoryID string, backupType harvesterv1.BackupType) (string, error) {
+// RepositoryPassword derives an initial engine-specific password from the
+// repository ID and S3 credentials. Once initialized, the stored password is
+// preserved for that repository even when its S3 credentials change.
+func RepositoryPassword(
+	repositoryID string, backupType harvesterv1.BackupType, credentials map[string][]byte,
+) (string, error) {
 	if repositoryID == "" {
 		return "", fmt.Errorf("repository ID is empty")
 	}
 	if !backupType.IsDataMover() {
 		return "", fmt.Errorf("unsupported data-mover backup type %q", backupType)
 	}
-	identity := strings.Join([]string{string(backupType), repositoryID}, "\x00")
-	sum := sha256.Sum256([]byte(identity))
-	return hex.EncodeToString(sum[:]), nil
+	accessKey, secretKey := credentials[util.AWSAccessKey], credentials[util.AWSSecretKey]
+	if len(accessKey) == 0 {
+		return "", fmt.Errorf("S3 access key ID is empty")
+	}
+	if len(secretKey) == 0 {
+		return "", fmt.Errorf("S3 secret access key is empty")
+	}
+
+	identity := strings.Join([]string{string(backupType), repositoryID, string(accessKey)}, "\x00")
+	mac := hmac.New(sha256.New, secretKey)
+	mac.Write([]byte(identity))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
 // BackupTargetStatus builds the non-secret target information persisted in a

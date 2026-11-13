@@ -17,7 +17,6 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
-	resticutil "github.com/harvester/harvester/pkg/util/restic"
 )
 
 func TestReconcileKopiaMaintenanceCreatesQuickAndFullCronJobs(t *testing.T) {
@@ -89,26 +88,6 @@ func TestDecodeBackupTargetKopiaGCEnabled(t *testing.T) {
 	target, err := settings.DecodeBackupTarget(`{"type":"s3","kopiaGCEnabled":true}`)
 	require.NoError(t, err)
 	require.True(t, target.KopiaGCEnabled)
-}
-
-func TestRepositoryPasswordsAreDeterministic(t *testing.T) {
-	target := kopiaMaintenanceTarget(false)
-	data := map[string][]byte{util.AWSSecretKey: []byte("original-secret")}
-	require.NoError(t, setRepositoryPasswords(data, target))
-	require.NotEqual(t, data[util.AWSSecretKey], data[resticutil.PasswordKey])
-	require.NotEqual(t, data[util.AWSSecretKey], data[kopiautil.PasswordKey])
-	resticPassword := append([]byte(nil), data[resticutil.PasswordKey]...)
-	kopiaPassword := append([]byte(nil), data[kopiautil.PasswordKey]...)
-
-	data[util.AWSSecretKey] = []byte("rotated-secret")
-	require.NoError(t, setRepositoryPasswords(data, target))
-	require.Equal(t, resticPassword, data[resticutil.PasswordKey])
-	require.Equal(t, kopiaPassword, data[kopiautil.PasswordKey])
-
-	target.BucketName = "other"
-	require.NoError(t, setRepositoryPasswords(data, target))
-	require.NotEqual(t, resticPassword, data[resticutil.PasswordKey])
-	require.NotEqual(t, kopiaPassword, data[kopiautil.PasswordKey])
 }
 
 func prepareKopiaMaintenanceTest(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 
+	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -23,7 +24,7 @@ import (
 const (
 	ImageEnvVar = "HARVESTER_IMAGE"
 
-	PasswordKey       = "KOPIA_PASSWORD"
+	PasswordKey       = backuputil.KopiaPasswordKey
 	BucketKey         = "KOPIA_BUCKET"
 	EndpointKey       = "KOPIA_ENDPOINT"
 	RegionKey         = "KOPIA_REGION"
@@ -76,6 +77,7 @@ const (
 )
 
 type JobRuntime struct {
+	Entrypoint   []string
 	Image        string
 	Labels       map[string]string
 	Env          []corev1.EnvVar
@@ -185,47 +187,33 @@ func RepositoryFromSetting() (*Repository, error) {
 	return S3Repository(target)
 }
 
-func Env(secretName string, repository *Repository) []corev1.EnvVar {
-	return EnvWithPasswordKey(secretName, PasswordKey, repository)
-}
-
-// EnvWithPasswordKey returns the common Kopia repository environment while
-// allowing callers to select the key containing the repository password. The
-// backup and restore engines use their per-operation KOPIA_PASSWORD key, while
-// maintenance uses the S3 secret-access-key directly, matching the password
-// derivation used by those engines.
-func EnvWithPasswordKey(secretName, passwordKey string, repository *Repository) []corev1.EnvVar {
-	return []corev1.EnvVar{
+func Env(repository *Repository) []corev1.EnvVar {
+	env := []corev1.EnvVar{
 		{Name: "TMPDIR", Value: "/tmp"},
 		{Name: CacheDirEnvVar, Value: CacheDir},
 		{Name: LogDirEnvVar, Value: CacheDir},
-		{
-			Name: util.AWSAccessKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSAccessKey,
-			}},
-		},
-		{
-			Name: util.AWSSecretKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSSecretKey,
-			}},
-		},
-		{
-			Name: PasswordKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  passwordKey,
-			}},
-		},
 		{Name: BucketKey, Value: repository.Bucket},
 		{Name: EndpointKey, Value: repository.Endpoint},
 		{Name: RegionKey, Value: repository.Region},
 		{Name: PrefixKey, Value: repository.Prefix},
 		{Name: DisableTLSKey, Value: fmt.Sprintf("%t", repository.DisableTLS)},
 	}
+	return env
+}
+
+// Maintenance runs alongside the shared Secret and can reference it directly.
+func maintenanceEnv(secretName string, repository *Repository) []corev1.EnvVar {
+	credentials := make([]corev1.EnvVar, 0, 3)
+	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey, PasswordKey} {
+		credentials = append(credentials, corev1.EnvVar{
+			Name: key,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+				Key:                  key,
+			}},
+		})
+	}
+	return append(Env(repository), credentials...)
 }
 
 // MaintenanceCommand connects to (or initializes) the repository, takes
@@ -275,7 +263,7 @@ func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, 
 		LabelKopiaMaintenance: LabelValueTrue,
 		LabelMaintenanceType:  maintenanceType,
 	})
-	env := append(EnvWithPasswordKey(secretName, PasswordKey, repository), cacheEnv...)
+	env := append(maintenanceEnv(secretName, repository), cacheEnv...)
 	env = append(env, corev1.EnvVar{Name: CheckForUpdatesEnvVar, Value: "false"})
 
 	cronJob := &batchv1.CronJob{
@@ -384,7 +372,7 @@ func JobLabels(labels map[string]string) map[string]string {
 func NewJobRuntime(
 	ctx context.Context,
 	clientset kubernetes.Interface,
-	secretName string,
+	repositoryID string,
 	repository *Repository,
 	labels map[string]string,
 ) (*JobRuntime, bool, error) {
@@ -413,11 +401,12 @@ func NewJobRuntime(
 	}
 
 	runtime := &JobRuntime{
-		Image:     image,
-		Labels:    labels,
-		Env:       append(Env(secretName, repository), cacheEnv...),
-		Resources: resources,
-		Command:   Command(),
+		Entrypoint: backuputil.JobCommand(repositoryID, string(harvesterv1.Kopia)),
+		Image:      image,
+		Labels:     labels,
+		Env:        append(Env(repository), cacheEnv...),
+		Resources:  resources,
+		Command:    Command(),
 	}
 	if cacheVolume != nil {
 		runtime.Volumes = append(runtime.Volumes, *cacheVolume)
@@ -607,12 +596,14 @@ func NewSnapshotCheckJob(opts SnapshotCheckJobOptions) *batchv1.Job {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: opts.Labels},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					ServiceAccountName:           backuputil.JobServiceAccount,
+					AutomountServiceAccountToken: ptr.To(true),
+					RestartPolicy:                corev1.RestartPolicyNever,
 					Containers: []corev1.Container{{
 						Name:         SnapshotCheckContainerName,
 						Image:        opts.Runtime.Image,
 						Env:          opts.Runtime.Env,
-						Command:      []string{"/bin/sh", "-c"},
+						Command:      opts.Runtime.Entrypoint,
 						Resources:    opts.Runtime.Resources,
 						VolumeMounts: opts.Runtime.VolumeMounts,
 						Args:         []string{SnapshotCheckCommand(opts.ConnectCommand, opts.Tags)},

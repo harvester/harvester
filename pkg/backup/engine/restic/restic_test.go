@@ -2,6 +2,7 @@ package restic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -25,7 +26,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
-	"github.com/harvester/harvester/pkg/util/jobcredentials"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	resticutil "github.com/harvester/harvester/pkg/util/restic"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -176,59 +176,32 @@ func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 	require.True(t, apierrors.IsNotFound(err))
 }
 
-func TestEnsureResticSecretUsesDeterministicPassword(t *testing.T) {
-	source := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
-		},
-		Data: map[string][]byte{
-			util.AWSAccessKey: []byte("access"),
-			util.AWSSecretKey: []byte("iam-secret"),
-		},
+func TestJobsRejectInvalidCredentials(t *testing.T) {
+	for _, field := range []string{util.AWSAccessKey, util.AWSSecretKey, resticutil.PasswordKey,
+		backuputil.RepositoryIDKey, "wrong-id", "changed-target"} {
+		t.Run(field, func(t *testing.T) {
+			re, vmb, client := forgetFixture(t)
+			secrets := client.CoreV1().Secrets(util.LonghornSystemNamespaceName)
+			source, err := secrets.Get(context.Background(), util.BackupTargetSecretName, metav1.GetOptions{})
+			require.NoError(t, err)
+			delete(source.Data, field)
+			if field == "wrong-id" {
+				source.Data[backuputil.RepositoryIDKey] = []byte("other")
+			}
+			if field == "changed-target" {
+				require.NoError(t, settings.BackupTargetSet.Set(`{"type":"s3","bucketName":"other"}`))
+			}
+			_, err = secrets.Update(context.Background(), source, metav1.UpdateOptions{})
+			require.NoError(t, err)
+			vb := &vmb.Status.VolumeBackups[0]
+			require.Error(t, re.createBackupJob(vmb, vb, "clone", "backup"))
+			require.Error(t, re.createCheckJob(vmb, vb, "check"))
+			require.Error(t, re.createForgetJob(vmb, vb, "forget"))
+			jobs, err := client.BatchV1().Jobs(vmb.Namespace).List(context.Background(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Empty(t, jobs.Items)
+		})
 	}
-	clientset := fake.NewSimpleClientset(source)
-	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
-	re := &ResticEngine{
-		vmbo:         vmbo,
-		vsHelper:     backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil),
-		secretCache:  fakeclients.SecretCache(clientset.CoreV1().Secrets),
-		secretClient: fakeclients.SecretClient(clientset.CoreV1().Secrets),
-	}
-	vmb := &harvesterv1.VirtualMachineBackup{
-		TypeMeta: metav1.TypeMeta{Kind: "VirtualMachineBackup"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.Repeat("backup", 20), Namespace: "default", UID: "backup-uid",
-		},
-		Status: harvesterv1.VirtualMachineBackupStatus{
-			BackupTarget: backuputil.BackupTargetStatus(&settings.BackupTarget{
-				Type: settings.S3BackupType, Endpoint: "https://s3.example.com", BucketName: "backups",
-			}),
-		},
-	}
-	password, err := backuputil.RepositoryPassword(
-		vmb.Status.BackupTarget.RepositoryID,
-		harvesterv1.Restic,
-	)
-	require.NoError(t, err)
-
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: vmb.Namespace, UID: "job-uid"}}
-	job.Spec.Template.Spec.Containers = []corev1.Container{{Env: []corev1.EnvVar{{
-		Name: resticutil.PasswordKey, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: jobcredentials.Name(job.Name)},
-			Key:                  resticutil.PasswordKey,
-		}},
-	}}}}
-	name := jobcredentials.Name(job.Name)
-	err = re.ensureSecret(vmb, job)
-	require.NoError(t, err)
-	require.LessOrEqual(t, len(name), 63)
-	credentials, err := clientset.CoreV1().Secrets(vmb.Namespace).Get(
-		context.Background(), name, metav1.GetOptions{},
-	)
-	require.NoError(t, err)
-	require.Equal(t, []byte("iam-secret"), credentials.Data[util.AWSSecretKey])
-	require.Equal(t, []byte(password), credentials.Data[resticutil.PasswordKey])
-
 }
 
 func TestGeneratedNamesAreBounded(t *testing.T) {
@@ -254,7 +227,6 @@ func TestGeneratedNamesAreBounded(t *testing.T) {
 	require.True(t, ok)
 
 	for _, generatedName := range []string{
-		jobcredentials.Name(longName),
 		re.clonePVCName(vmb, vb),
 		jobName,
 		forgetName,
@@ -302,10 +274,12 @@ func forgetFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBack
 			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
 		},
 		Data: map[string][]byte{
-			util.AWSAccessKey: []byte("access"),
-			util.AWSSecretKey: []byte("secret"),
+			util.AWSAccessKey:      []byte("access"),
+			util.AWSSecretKey:      []byte("secret"),
+			resticutil.PasswordKey: []byte("stored-restic-password"),
 		},
 	}
+	credentials.Data[backuputil.RepositoryIDKey] = []byte(vmb.Status.BackupTarget.RepositoryID)
 	clientset := fake.NewSimpleClientset(credentials)
 	clientset.PrependReactor("create", "jobs", func(action clienttesting.Action) (bool, runtime.Object, error) {
 		job := action.(clienttesting.CreateAction).GetObject().(*batchv1.Job)
@@ -316,11 +290,12 @@ func forgetFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBack
 	re := &ResticEngine{
 		vmbo:         vmbo,
 		vsHelper:     backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil),
-		secretCache:  fakeclients.SecretCache(clientset.CoreV1().Secrets),
 		secretClient: fakeclients.SecretClient(clientset.CoreV1().Secrets),
 		jobClient:    fakeclients.JobClient(clientset.BatchV1().Jobs),
 		jobCache:     fakeclients.JobCache(clientset.BatchV1().Jobs),
-		clientset:    kubefake.NewSimpleClientset(),
+		clientset: kubefake.NewSimpleClientset(&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "default", UID: "namespace-uid"},
+		}),
 	}
 	return re, vmb, clientset
 }
@@ -399,88 +374,86 @@ func TestForgetJobRetriesNextVolume(t *testing.T) {
 		context.Background(), dataName, metav1.GetOptions{},
 	)
 	require.True(t, apierrors.IsNotFound(err))
-	// Fake clients do not run garbage collection for the deleted Job.
-	require.NoError(t, clientset.CoreV1().Secrets(vmb.Namespace).Delete(
-		context.Background(), jobcredentials.Name(dataName), metav1.DeleteOptions{},
-	))
 	require.ErrorIs(t, re.forgetVolume(vmb, 1), engine.ErrRetryLater)
 	require.Zero(t, forgetJob(t, clientset, vmb.Namespace, dataName).Status.Failed)
 	require.NoError(t, re.forgetVolume(vmb, 0))
 }
 
-func TestForgetRepairsCredentials(t *testing.T) {
+func TestExistingForgetDoesNotReadCredentials(t *testing.T) {
 	re, vmb, client := forgetFixture(t)
 	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	secrets := client.CoreV1().Secrets(vmb.Namespace)
 	jobName, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
 	require.NoError(t, err)
-	name := jobcredentials.Name(jobName)
-	original, err := secrets.Get(context.Background(), name, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Len(t, original.OwnerReferences, 1)
-	require.Equal(t, "Job", original.OwnerReferences[0].Kind)
-	require.NoError(t, secrets.Delete(context.Background(), name, metav1.DeleteOptions{}))
-
-	// The existing pending Job must not bypass dependency repair.
+	require.NoError(t, client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Delete(
+		context.Background(), util.BackupTargetSecretName, metav1.DeleteOptions{},
+	))
+	// Running and completed Jobs no longer depend on the source Secret.
 	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	repaired, err := secrets.Get(context.Background(), name, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Equal(t, original.Data, repaired.Data)
-	require.Equal(t, original.OwnerReferences, repaired.OwnerReferences)
-
-	// Completion must remain usable even after source credentials disappear.
 	jobs := client.BatchV1().Jobs(vmb.Namespace)
 	job, err := jobs.Get(context.Background(), jobName, metav1.GetOptions{})
 	require.NoError(t, err)
 	job.Status.Succeeded = 1
 	_, err = jobs.UpdateStatus(context.Background(), job, metav1.UpdateOptions{})
 	require.NoError(t, err)
-	require.NoError(t, client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Delete(
-		context.Background(), util.BackupTargetSecretName, metav1.DeleteOptions{},
-	))
 	require.NoError(t, re.forgetVolume(vmb, 0))
 }
 
-func TestJobsOwnCredentials(t *testing.T) {
+func TestJobsHideCredentials(t *testing.T) {
 	re, vmb, client := forgetFixture(t)
 	vmb.DeletionTimestamp = nil
 	vb := &vmb.Status.VolumeBackups[0]
-	backupName, err := re.jobName(vb)
-	require.NoError(t, err)
-	checkName, err := re.checkJobName(vb)
-	require.NoError(t, err)
-	forgetName, err := re.forgetJobName(vb)
-	require.NoError(t, err)
-	require.NoError(t, re.createBackupJob(vmb, vb, "clone", backupName))
-	require.NoError(t, re.createCheckJob(vmb, vb, checkName))
-	require.NoError(t, re.createForgetJob(vmb, vb, forgetName))
-	secrets := client.CoreV1().Secrets(vmb.Namespace)
-	for _, name := range []string{backupName, checkName, forgetName} {
-		job, err := client.BatchV1().Jobs(vmb.Namespace).Get(context.Background(), name, metav1.GetOptions{})
-		require.NoError(t, err)
-		require.False(t, *job.Spec.Suspend)
-		secretName := jobcredentials.Name(name)
-		var refs []string
-		for _, env := range job.Spec.Template.Spec.Containers[0].Env {
-			if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
-				continue
-			}
-			refs = append(refs, env.ValueFrom.SecretKeyRef.Name)
+	for _, suffix := range []string{"", "-rotated"} {
+		if suffix != "" {
+			secrets := client.CoreV1().Secrets(util.LonghornSystemNamespaceName)
+			source, err := secrets.Get(context.Background(), util.BackupTargetSecretName, metav1.GetOptions{})
+			require.NoError(t, err)
+			source.Data[util.AWSAccessKey] = []byte("access-rotated")
+			source.Data[util.AWSSecretKey] = []byte("secret-rotated")
+			_, err = secrets.Update(context.Background(), source, metav1.UpdateOptions{})
+			require.NoError(t, err)
 		}
-		require.Equal(t, []string{secretName, secretName, secretName}, refs)
-		secret, err := secrets.Get(context.Background(), secretName, metav1.GetOptions{})
-		require.NoError(t, err)
-		require.True(t, metav1.IsControlledBy(secret, job))
-		require.NoError(t, secrets.Delete(context.Background(), secretName, metav1.DeleteOptions{}))
+		require.NoError(t, re.createBackupJob(vmb, vb, "clone", "backup"+suffix))
+		require.NoError(t, re.createCheckJob(vmb, vb, "check"+suffix))
+		require.NoError(t, re.createForgetJob(vmb, vb, "forget"+suffix))
 	}
-	// Repeated reconciliation repairs dependencies for every Job type.
-	require.ErrorIs(t, re.reconcileBackupJob(vmb, vb), engine.ErrRetryLater)
-	_, err = re.checkRemoteSnapshot(vmb, vb)
-	require.ErrorIs(t, err, engine.ErrRetryLater)
-	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	list, err := secrets.List(context.Background(), metav1.ListOptions{})
+	for _, suffix := range []string{"", "-rotated"} {
+		for _, name := range []string{"backup", "check", "forget"} {
+			job, err := client.BatchV1().Jobs(vmb.Namespace).Get(
+				context.Background(), name+suffix, metav1.GetOptions{},
+			)
+			require.NoError(t, err)
+			require.False(t, ptr.Deref(job.Spec.Suspend, false))
+			assertJobCredentials(t, job, vmb.Status.BackupTarget.RepositoryID)
+		}
+	}
+	secrets, err := client.CoreV1().Secrets(vmb.Namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Len(t, list.Items, 3)
+	require.Empty(t, secrets.Items)
+	for _, action := range client.Actions() {
+		require.False(t, action.Matches("create", "secrets"))
+	}
+}
+
+func assertJobCredentials(t *testing.T, job *batchv1.Job, repositoryID string) {
+	t.Helper()
+	pod := job.Spec.Template.Spec
+	require.Equal(t, backuputil.JobServiceAccount, pod.ServiceAccountName)
+	require.True(t, ptr.Deref(pod.AutomountServiceAccountToken, false))
+	container := pod.Containers[0]
+	require.Equal(t, []string{
+		"/usr/bin/harvester", "repository-exec", "--repository-id", repositoryID,
+		"--engine", "restic", "--", "/bin/sh", "-c",
+	}, container.Command)
+	for _, env := range container.Env {
+		require.NotContains(t, []string{
+			util.AWSAccessKey, util.AWSSecretKey, "RESTIC_PASSWORD", "KOPIA_PASSWORD",
+		}, env.Name)
+	}
+	manifest, err := json.Marshal(job)
+	require.NoError(t, err)
+	for _, value := range []string{`"access"`, `"secret"`, "access-rotated", "secret-rotated", "stored-restic-password"} {
+		require.NotContains(t, string(manifest), value)
+	}
 }
 
 func TestCleanupDecisionSurvivesRestart(t *testing.T) {

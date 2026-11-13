@@ -20,13 +20,14 @@ if [[ "${MODE}" != "run" && "${MODE}" != "cleanup" ]]; then
 fi
 
 NAMESPACE="${NAMESPACE:-longhorn-system}"
+# The Secret must contain S3 credentials and the derived repository password
+# for this target, including when overriding the target below.
 SECRET_NAME="${SECRET_NAME:-harvester-backup-target-secret}"
 BACKUP_TARGET_SETTING="${BACKUP_TARGET_SETTING:-backup-target}"
 IMAGE="${IMAGE:-10.115.54.34:5000/harvester:issue-10567-head}"
 RESTIC_BUCKET="${RESTIC_BUCKET:-}"
 RESTIC_ENDPOINT="${RESTIC_ENDPOINT:-}"
 RESTIC_REGION="${RESTIC_REGION:-}"
-RESTIC_VIRTUAL_HOSTED_STYLE="${RESTIC_VIRTUAL_HOSTED_STYLE:-}"
 PVC_SIZE="${PVC_SIZE:-1Gi}"
 PAYLOAD_MIB="${PAYLOAD_MIB:-64}"
 STORAGE_CLASS="${STORAGE_CLASS:-}"
@@ -46,18 +47,12 @@ SMOKE_TEST_VALUE="restic-block-pvc"
 SMOKE_TEST_TAG="smoke:restic-block-pvc"
 CLEANUP_JOB="${CLEANUP_JOB:-restic-cleanup-${RUN_ID}}"
 
-for command in kubectl jq sha256sum; do
+for command in kubectl jq; do
 	if ! command -v "${command}" >/dev/null 2>&1; then
 		echo "required command not found: ${command}" >&2
 		exit 1
 	fi
 done
-
-sha256_hex() {
-	local output
-	output="$(sha256sum)"
-	printf '%s' "${output%% *}"
-}
 
 BACKUP_TARGET_VALUE="$(kubectl get settings.harvesterhci.io "${BACKUP_TARGET_SETTING}" -o jsonpath='{.value}')"
 BACKUP_TARGET_TYPE="$(jq -er '.type' <<<"${BACKUP_TARGET_VALUE}")"
@@ -75,27 +70,9 @@ fi
 if [[ -z "${RESTIC_REGION}" ]]; then
 	RESTIC_REGION="$(jq -r '.bucketRegion // ""' <<<"${BACKUP_TARGET_VALUE}")"
 fi
-if [[ -z "${RESTIC_VIRTUAL_HOSTED_STYLE}" ]]; then
-	RESTIC_VIRTUAL_HOSTED_STYLE="$(jq -r '.virtualHostedStyle // false' <<<"${BACKUP_TARGET_VALUE}")"
-fi
-if [[ "${RESTIC_VIRTUAL_HOSTED_STYLE}" != "true" && "${RESTIC_VIRTUAL_HOSTED_STYLE}" != "false" ]]; then
-	echo "RESTIC_VIRTUAL_HOSTED_STYLE must be true or false" >&2
-	exit 1
-fi
 while [[ "${RESTIC_ENDPOINT}" == */ ]]; do
 	RESTIC_ENDPOINT="${RESTIC_ENDPOINT%/}"
 done
-REPOSITORY_ID="sha256:$(
-	printf '%s\0%s\0%s\0%s\0%s' \
-		"${BACKUP_TARGET_TYPE}" \
-		"${RESTIC_ENDPOINT}" \
-		"${RESTIC_BUCKET}" \
-		"${RESTIC_REGION}" \
-		"${RESTIC_VIRTUAL_HOSTED_STYLE}" | sha256_hex
-)"
-RESTIC_REPOSITORY_PASSWORD="$(
-	printf '%s\0%s' "restic" "${REPOSITORY_ID}" | sha256_hex
-)"
 if [[ -z "${RESTIC_ENDPOINT}" ]]; then
 	RESTIC_ENDPOINT="s3.amazonaws.com"
 fi
@@ -225,7 +202,10 @@ spec:
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: RESTIC_PASSWORD
-          value: "${RESTIC_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: RESTIC_PASSWORD
         args:
         - |
           set -eo pipefail
@@ -378,7 +358,10 @@ spec:
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: RESTIC_PASSWORD
-          value: "${RESTIC_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: RESTIC_PASSWORD
         args:
         - |
           set -eo pipefail
@@ -450,7 +433,10 @@ spec:
               name: ${SECRET_NAME}
               key: AWS_SECRET_ACCESS_KEY
         - name: RESTIC_PASSWORD
-          value: "${RESTIC_REPOSITORY_PASSWORD}"
+          valueFrom:
+            secretKeyRef:
+              name: ${SECRET_NAME}
+              key: RESTIC_PASSWORD
         args:
         - |
           set -eo pipefail

@@ -94,8 +94,8 @@ func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Sett
 	switch target.Type {
 	case settings.S3BackupType:
 		// S3 credentials are removed from setting.Value after being stored in the
-		// backup-target Secret. On the resulting reconciliation, only refresh the
-		// deterministic repository passwords.
+		// backup-target Secret. Initialize repository passwords for legacy Secrets,
+		// and preserve them on subsequent reconciliations.
 		if target.SecretAccessKey == "" && target.AccessKeyID == "" {
 			if err = h.syncRepositoryPasswords(target); err != nil {
 				return h.setConfiguredCondition(setting, "", err)
@@ -347,22 +347,29 @@ func getBackupSecretData(target *settings.BackupTarget) (map[string]string, erro
 }
 
 func (h *TargetHandler) syncBackupSecret(target *settings.BackupTarget) error {
+	secret, err := h.secrets.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if apierrors.IsNotFound(err) {
+		secret = nil
+	}
+	var stored map[string][]byte
+	if secret != nil {
+		stored = secret.Data
+	}
 	values, err := getBackupSecretData(target)
 	if err != nil {
 		return err
 	}
 	data := stringMapToBytes(values)
-	if err := setRepositoryPasswords(data, target); err != nil {
+	if err := setRepositoryPasswords(data, stored, target, true); err != nil {
 		return err
 	}
 
-	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-	switch {
-	case apierrors.IsNotFound(err):
+	if secret == nil {
 		err = h.createBackupSecret(data)
-	case err != nil:
-		return err
-	default:
+	} else {
 		err = h.updateBackupSecret(secret, data)
 	}
 	if err != nil {
@@ -429,7 +436,7 @@ func (h *TargetHandler) resetBackupTargetSecret() error {
 }
 
 func (h *TargetHandler) syncRepositoryPasswords(target *settings.BackupTarget) error {
-	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
+	secret, err := h.secrets.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get backup target secret: %w", err)
 	}
@@ -437,23 +444,92 @@ func (h *TargetHandler) syncRepositoryPasswords(target *settings.BackupTarget) e
 	if data == nil {
 		data = map[string][]byte{}
 	}
-	if err := setRepositoryPasswords(data, target); err != nil {
+	if err := setRepositoryPasswords(data, secret.Data, target, false); err != nil {
 		return err
 	}
 	return h.updateBackupSecret(secret, data)
 }
 
-func setRepositoryPasswords(data map[string][]byte, target *settings.BackupTarget) error {
+// setRepositoryPasswords handles passwords for a valid S3 backup target:
+//
+//  1. No stored repository ID: initialize the ID, RESTIC_PASSWORD, and
+//     KOPIA_PASSWORD. This covers upgrades and changing the Setting from empty
+//     to a valid S3 target.
+//  2. Same repository ID: preserve both passwords. This covers AWS credential
+//     rotation and reconciliation after credentials are stripped from the Setting.
+//  3. Different repository ID: an explicit change from one repository to another
+//     (allowChange=true) reaches the default case and replaces the ID and both
+//     passwords. Ordinary reconciliation (allowChange=false) rejects a mismatch.
+//  4. Clearing the backup target bypasses this helper; resetBackupTargetSecret
+//     clears all data in the shared Secret instead.
+//
+// Both AWS credentials must be present in data. Incomplete stored password state
+// returns an error without replacing passwords.
+func setRepositoryPasswords(
+	data, stored map[string][]byte,
+	target *settings.BackupTarget,
+	allowChange bool,
+) error {
+	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey} {
+		if len(data[key]) == 0 {
+			return fmt.Errorf("backup target Secret is missing %s", key)
+		}
+	}
 	repositoryID := backuputil.RepositoryID(target)
+	previousID := string(stored[backuputil.RepositoryIDKey])
+	switch {
+	case previousID == "":
+		return initUnsetPasswords(data, stored, target)
+	case previousID == repositoryID:
+		return keepRepositoryPasswords(data, stored, repositoryID)
+	case !allowChange:
+		return fmt.Errorf("backup target Secret repository ID does not match the configured backup target")
+	default:
+		return initRepositoryPasswords(data, target)
+	}
+}
+
+// initUnsetPasswords handles first-time setup and upgrades. Existing passwords
+// without a repository ID indicate incomplete state and must not be replaced.
+func initUnsetPasswords(data, stored map[string][]byte, target *settings.BackupTarget) error {
+	for _, key := range []string{resticutil.PasswordKey, kopiautil.PasswordKey} {
+		if len(stored[key]) != 0 {
+			return fmt.Errorf("backup target Secret has repository passwords without a repository ID")
+		}
+	}
+	return initRepositoryPasswords(data, target)
+}
+
+func keepRepositoryPasswords(data, stored map[string][]byte, repositoryID string) error {
+	keys := []string{resticutil.PasswordKey, kopiautil.PasswordKey}
+	for _, key := range keys {
+		if len(stored[key]) == 0 {
+			return fmt.Errorf("backup target Secret is missing %s", key)
+		}
+	}
+	for _, key := range keys {
+		data[key] = append([]byte(nil), stored[key]...)
+	}
+	data[backuputil.RepositoryIDKey] = []byte(repositoryID)
+	return nil
+}
+
+func initRepositoryPasswords(data map[string][]byte, target *settings.BackupTarget) error {
+	repositoryID := backuputil.RepositoryID(target)
+	passwords := make(map[string][]byte, 3)
 	for backupType, key := range map[harvesterv1.BackupType]string{
 		harvesterv1.Restic: resticutil.PasswordKey,
 		harvesterv1.Kopia:  kopiautil.PasswordKey,
 	} {
-		password, err := backuputil.RepositoryPassword(repositoryID, backupType)
+		password, err := backuputil.RepositoryPassword(repositoryID, backupType, data)
 		if err != nil {
 			return err
 		}
-		data[key] = []byte(password)
+		passwords[key] = []byte(password)
+	}
+	passwords[backuputil.RepositoryIDKey] = []byte(repositoryID)
+	for key, password := range passwords {
+		data[key] = password
 	}
 	return nil
 }

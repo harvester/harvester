@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/server"
 	"github.com/harvester/harvester/pkg/util/acceleratedio"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
 )
 
@@ -27,6 +28,13 @@ const (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == backuputil.ExecSubcommand {
+		if err := backuputil.RunCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "io-mode" {
 		if err := acceleratedio.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintln(os.Stderr, err)

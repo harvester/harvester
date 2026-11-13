@@ -60,7 +60,7 @@ func TestRepositoryAndRuntimeCommandHonorBucketRegion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "s3:http://10.115.54.34:9000/mybucket/restic", repository.URL)
 	require.Equal(t, "pcloud", repository.Region)
-	require.Contains(t, Env("credentials", repository), corev1.EnvVar{Name: RegionKey, Value: "pcloud"})
+	require.Contains(t, Env(repository), corev1.EnvVar{Name: RegionKey, Value: "pcloud"})
 	require.Equal(t, `restic -o s3.region="$RESTIC_S3_REGION"`, command(repository.Region))
 }
 
@@ -84,7 +84,7 @@ func TestRuntimeCommandOmitsEmptyBucketRegion(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, repository.Region)
-	require.NotContains(t, Env("credentials", repository), corev1.EnvVar{Name: RegionKey})
+	require.NotContains(t, Env(repository), corev1.EnvVar{Name: RegionKey})
 	require.Equal(t, "restic", command(repository.Region))
 }
 
@@ -238,7 +238,7 @@ func TestRuntimeStorageAndMemory(t *testing.T) {
 	t.Setenv(ImageEnvVar, "harvester:test")
 	require.NoError(t, settings.ThirdPartyBackupConfigSet.Set(`{"restic":{"noCache":true}}`))
 	repository := &RepositoryConfig{URL: "s3:example/bucket"}
-	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "secret", repository, nil)
+	runtime, capacity, err := NewJobRuntime(context.Background(), fake.NewSimpleClientset(), "repository-id", repository, nil)
 	require.NoError(t, err)
 	require.True(t, capacity)
 	require.Contains(t, runtime.Env, corev1.EnvVar{Name: "TMPDIR", Value: "/tmp"})
