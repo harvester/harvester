@@ -15,9 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stesting "k8s.io/client-go/testing"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -1580,4 +1583,58 @@ func TestDeleteUsedVersion(t *testing.T) {
 			assert.Equal(t, testCase.deleted, len(versions.Items) == 0)
 		})
 	}
+}
+
+// TestUpgradeHandler_ReuseImageCreatedByPreviousReconcile covers
+// https://github.com/harvester/harvester/issues/12305: when a previous
+// reconcile already created the upgrade image but the status update with the
+// image ID did not land, the handler must reuse the image. Creating it again is
+// rejected by the image webhook with a Conflict ("A resource with the same name
+// exists"), which used to fail the upgrade.
+func TestUpgradeHandler_ReuseImageCreatedByPreviousReconcile(t *testing.T) {
+	upgrade := newTestUpgradeBuilder().
+		InitStatus().
+		LogReadyCondition(v1.ConditionFalse, "Disabled", "Upgrade observability is administratively disabled").Build()
+	existingImage := &harvesterv1.VirtualMachineImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: harvesterSystemNamespace,
+			Name:      testUpgradeName,
+			Labels:    map[string]string{harvesterUpgradeLabel: testUpgradeName},
+		},
+		Spec: harvesterv1.VirtualMachineImageSpec{
+			DisplayName: getISODisplayNameImageName(testUpgradeName, testVersion),
+		},
+	}
+	clientset := fake.NewSimpleClientset(upgrade, newVersionBuilder(testVersion).Build(), existingImage,
+		newCluster(util.FleetLocalNamespaceName, util.LocalClusterName))
+	// Behave like the image validating webhook: a second image with the same
+	// display name is rejected with a Conflict, not AlreadyExists.
+	clientset.PrependReactor("create", "virtualmachineimages", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewConflict(schema.GroupResource{Group: "harvesterhci.io", Resource: "virtualmachineimages"},
+			testUpgradeName, fmt.Errorf("A resource with the same name exists"))
+	})
+
+	handler := &upgradeHandler{
+		namespace:          harvesterSystemNamespace,
+		nodeCache:          fakeclients.NodeCache(clientset.CoreV1().Nodes),
+		upgradeClient:      fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+		upgradeCache:       fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+		upgradeLogClient:   fakeclients.UpgradeLogClient(clientset.HarvesterhciV1beta1().UpgradeLogs),
+		versionClient:      fakeclients.VersionClient(clientset.HarvesterhciV1beta1().Versions),
+		versionCache:       fakeclients.VersionCache(clientset.HarvesterhciV1beta1().Versions),
+		vmImageClient:      fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		vmImageCache:       fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		managedChartCache:  fakeclients.ManagedChartCache(clientset.ManagementV3().ManagedCharts),
+		managedChartClient: fakeclients.ManagedChartClient(clientset.ManagementV3().ManagedCharts),
+		clusterClient:      fakeclients.ClusterClient(clientset.ProvisioningV1().Clusters),
+		clusterCache:       fakeclients.ClusterCache(clientset.ProvisioningV1().Clusters),
+		scClient:           fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
+		scCache:            fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+	}
+
+	actual, err := handler.OnChanged(testUpgradeName, upgrade)
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("%s/%s", harvesterSystemNamespace, testUpgradeName), actual.Status.ImageID)
+	assert.False(t, harvesterv1.UpgradeCompleted.IsFalse(actual), "upgrade must not be marked failed")
+	assert.True(t, harvesterv1.ImageReady.IsUnknown(actual))
 }
