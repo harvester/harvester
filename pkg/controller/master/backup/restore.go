@@ -926,10 +926,7 @@ func (h *RestoreHandler) ensureVMStartedAndReady(
 
 func (h *RestoreHandler) recordStartError(vmr *harvesterv1.VirtualMachineRestore, err error) error {
 	startErr := fmt.Errorf("failed to start vm: %w", err)
-	if updateErr := h.vmro.UpdateError(vmr, startErr); updateErr != nil {
-		return updateErr
-	}
-	return startErr
+	return errors.Join(startErr, h.vmro.UpdateError(vmr, startErr))
 }
 
 // finalizeRestore performs cleanup and marks the restore as complete
