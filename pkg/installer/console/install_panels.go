@@ -33,8 +33,10 @@ type UserInputData struct {
 	HasCheckedNTPServers bool
 }
 
-type IPMask = net.IPMask
-type ParseError = net.ParseError
+type (
+	IPMask     = net.IPMask
+	ParseError = net.ParseError
+)
 
 const (
 	NICStateNotFound = iota
@@ -282,7 +284,7 @@ func diskPageVisiblePanels(install config.Install, diskCount int, profile *insta
 	}
 
 	panels := make([]string, 0, 4)
-	if diskCount > 1 && profile == nil {
+	if profile == nil {
 		panels = append(panels, skipLonghornDefaultDiskPanel)
 	}
 	panels = append(panels, diskPanel)
@@ -490,7 +492,7 @@ func addDiskPanel(c *Console) error {
 		c.Cursor = true
 
 		device := c.config.Install.Device
-		//If the user has already set a persistent partition size, use that
+		// If the user has already set a persistent partition size, use that
 		if persistentSizeV.Value != "" {
 			if c.config.Install.PersistentPartitionSize != "" {
 				persistentSizeV.Value = c.config.Install.PersistentPartitionSize
@@ -2087,7 +2089,7 @@ func addNetworkPanel(c *Console) error {
 	setLocation(addressV.Panel, 3)
 	c.AddElement(addressPanel, addressV)
 
-	//AddressMaskV
+	// AddressMaskV
 	addrMaskV.PreShow = func() error {
 		c.Gui.Cursor = true
 		addrMaskV.Value = mgmtNetwork.SubnetMask
@@ -2552,7 +2554,7 @@ func getBondModeOptions() ([]widgets.Option, error) {
 }
 
 func getNetworkInterfaceOptions() ([]widgets.Option, error) {
-	var options = []widgets.Option{}
+	options := []widgets.Option{}
 	nics, err := getNICs()
 	if err != nil {
 		return nil, err

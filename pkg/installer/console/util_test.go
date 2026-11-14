@@ -1,21 +1,47 @@
 package console
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/sha512"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/harvester/harvester/pkg/installer/config"
 	"github.com/harvester/harvester/pkg/installer/util"
 	"github.com/harvester/harvester/pkg/installer/widgets"
 )
+
+func TestIsRetriable(t *testing.T) {
+	assert.True(t, isRetriable(errors.New("transient")))
+	assert.False(t, isRetriable(&permanentError{errors.New("fatal")}))
+	assert.False(t, isRetriable(fmt.Errorf("wrapped: %w", &permanentError{errors.New("fatal")})))
+}
+
+func TestRetryOnErrorStopsOnPermanentError(t *testing.T) {
+	calls := 0
+	err := retry.OnError(wait.Backoff{Duration: time.Millisecond, Factor: 1, Steps: 10}, isRetriable, func() error {
+		calls++
+		return &permanentError{errors.New("fatal")}
+	})
+	assert.EqualError(t, err, "fatal")
+	assert.Equal(t, 1, calls)
+}
 
 func TestRoleSetupLonghornDefaultDiskLabel(t *testing.T) {
 	testCases := []struct {
@@ -45,6 +71,11 @@ func TestRoleSetupLonghornDefaultDiskLabel(t *testing.T) {
 			install:   config.Install{Role: config.RoleWitness},
 			wantLabel: false,
 		},
+		{
+			name:      "empty role defaults to default, creates disk label",
+			install:   config.Install{Role: ""},
+			wantLabel: true,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -59,6 +90,38 @@ func TestRoleSetupLonghornDefaultDiskLabel(t *testing.T) {
 	}
 }
 
+// tlsServerWithCACerts starts a TLS server that serves the rancherd /cacerts
+// bootstrap protocol alongside the given install-profile handler.
+func tlsServerWithCACerts(t *testing.T, token string, profileHandler http.HandlerFunc) (*httptest.Server, []byte) {
+	t.Helper()
+	var certPEM []byte
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cacerts":
+			nonce := r.Header.Get("X-Cattle-Nonce")
+			tokenHash := sha256.Sum256([]byte(token))
+			authHeader := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if authHeader == base64.StdEncoding.EncodeToString(tokenHash[:]) && nonce != "" {
+				mac := hmac.New(sha512.New, []byte(token))
+				mac.Write([]byte(nonce))
+				mac.Write([]byte{0})
+				mac.Write(certPEM)
+				mac.Write([]byte{0})
+				w.Header().Set("X-Cattle-Hash", base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+			}
+			_, _ = w.Write(certPEM)
+		case "/v1/harvester/installProfile":
+			profileHandler(w, r)
+		}
+	}))
+	server.StartTLS()
+	// Extract the server's self-signed cert as PEM so /cacerts can return it.
+	x509cert, err := x509.ParseCertificate(server.TLS.Certificates[0].Certificate[0])
+	require.NoError(t, err)
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: x509cert.Raw})
+	return server, certPEM
+}
+
 func TestApplyInstallProfile(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -67,6 +130,7 @@ func TestApplyInstallProfile(t *testing.T) {
 		wantProfile  bool
 		wantSkip     bool
 		wantDataDisk string
+		wantCalls    int
 		wantErr      string
 	}{
 		{
@@ -76,28 +140,32 @@ func TestApplyInstallProfile(t *testing.T) {
 			wantProfile:  true,
 			wantSkip:     true,
 			wantDataDisk: "",
+			wantCalls:    1,
 		},
 		{
-			name:         "older cluster leaves disk selection unlocked",
+			name:         "older cluster without install profile proceeds",
 			statusCode:   http.StatusNotFound,
-			wantSkip:     false,
 			wantDataDisk: "/dev/sdb",
+			wantCalls:    3,
 		},
 		{
 			name:       "rejected join token stops installation",
 			statusCode: http.StatusUnauthorized,
-			wantErr:    "got 401 status code",
+			wantCalls:  1,
+			wantErr:    "unauthorized: verify join token",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			profileCalls := 0
+			server, _ := tlsServerWithCACerts(t, "join-token", func(w http.ResponseWriter, r *http.Request) {
+				profileCalls++
 				assert.Equal(t, "/v1/harvester/installProfile", r.URL.Path)
 				assert.Equal(t, "Bearer join-token", r.Header.Get("Authorization"))
 				w.WriteHeader(testCase.statusCode)
 				_, _ = w.Write([]byte(testCase.body))
-			}))
+			})
 			defer server.Close()
 
 			cfg := &config.HarvesterConfig{
@@ -112,6 +180,7 @@ func TestApplyInstallProfile(t *testing.T) {
 
 			profile, err := applyInstallProfile(cfg)
 
+			assert.Equal(t, testCase.wantCalls, profileCalls)
 			if testCase.wantErr != "" {
 				require.ErrorContains(t, err, testCase.wantErr)
 				return
@@ -124,10 +193,41 @@ func TestApplyInstallProfile(t *testing.T) {
 	}
 }
 
-func TestApplyInstallProfileAcceptsSelfSignedCertificate(t *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+func TestApplyInstallProfileRetriesInstallProfileNotFound(t *testing.T) {
+	profileCalls := 0
+	server, _ := tlsServerWithCACerts(t, "join-token", func(w http.ResponseWriter, r *http.Request) {
+		profileCalls++
+		if profileCalls == 1 {
+			http.NotFound(w, r)
+			return
+		}
+		assert.Equal(t, "Bearer join-token", r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(`{"skipLonghornDefaultDisk":true}`))
-	}))
+	})
+	defer server.Close()
+
+	cfg := &config.HarvesterConfig{
+		ServerURL: server.URL,
+		Token:     "join-token",
+		Install: config.Install{
+			Mode:     config.ModeJoin,
+			DataDisk: "/dev/sdb",
+		},
+	}
+
+	profile, err := applyInstallProfile(cfg)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, profileCalls)
+	require.NotNil(t, profile)
+	assert.True(t, cfg.Install.SkipLonghornDefaultDisk)
+	assert.Empty(t, cfg.Install.DataDisk)
+}
+
+func TestApplyInstallProfileAcceptsSelfSignedCertificate(t *testing.T) {
+	server, _ := tlsServerWithCACerts(t, "join-token", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"skipLonghornDefaultDisk":true}`))
+	})
 	defer server.Close()
 
 	cfg := &config.HarvesterConfig{

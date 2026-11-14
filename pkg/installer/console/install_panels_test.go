@@ -53,7 +53,7 @@ func TestDiskPageVisiblePanels(t *testing.T) {
 			name:      "single disk keeps the existing persistent size flow",
 			install:   config.Install{Role: config.RoleDefault, Device: "/dev/sda", DataDisk: "/dev/sda"},
 			diskCount: 1,
-			want:      []string{diskPanel, persistentSizePanel},
+			want:      []string{skipLonghornDefaultDiskPanel, diskPanel, persistentSizePanel},
 		},
 		{
 			name:      "witness does not display Longhorn disk options",

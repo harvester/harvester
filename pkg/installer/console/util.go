@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +32,8 @@ import (
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/harvester/harvester/pkg/installer/config"
 	"github.com/harvester/harvester/pkg/installer/util"
@@ -68,7 +72,7 @@ func newProxyClient() http.Client {
 
 func newInsecureProxyClient() http.Client {
 	client := newProxyClient()
-	client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 	return client
 }
 
@@ -99,55 +103,109 @@ type installProfile struct {
 	SkipLonghornDefaultDisk bool `json:"skipLonghornDefaultDisk"`
 }
 
+var errInstallProfileNotFound = stderrors.New("install profile endpoint not found")
+
+const installProfileNotFoundAttempts = 3
+
+// permanentError wraps errors that must not be retried.
+type permanentError struct{ err error }
+
+func (e *permanentError) Error() string { return e.err.Error() }
+func (e *permanentError) Unwrap() error { return e.err }
+
+// isRetriable is the retriable predicate for retry.OnError; permanentError stops retrying.
+func isRetriable(err error) bool {
+	_, ok := stderrors.AsType[*permanentError](err)
+	return !ok
+}
+
 func applyInstallProfile(hvstConfig *config.HarvesterConfig) (*installProfile, error) {
 	if hvstConfig.Install.Mode != config.ModeJoin {
 		return nil, nil
 	}
 
-	client := newInsecureProxyClient()
-	for attempt := 0; ; attempt++ {
-		profile, retry, err := getInstallProfile(client, hvstConfig.ServerURL, hvstConfig.Token)
-		if err == nil {
-			if profile != nil {
-				hvstConfig.Install.SkipLonghornDefaultDisk = profile.SkipLonghornDefaultDisk
-				if profile.SkipLonghornDefaultDisk {
-					hvstConfig.Install.DataDisk = ""
-				}
-			}
-			return profile, nil
-		}
-		if !retry || attempt == 3 {
-			return nil, fmt.Errorf("failed to fetch install profile: %w", err)
-		}
-		time.Sleep(2 * time.Second)
+	bo := wait.Backoff{Duration: 2 * time.Second, Factor: 1, Steps: 5}
+	if hvstConfig.Install.Automatic {
+		bo = wait.Backoff{Duration: 10 * time.Second, Factor: 1, Steps: 30}
 	}
+
+	var caPool *x509.CertPool
+	if err := retry.OnError(bo, isRetriable, func() error {
+		pool, err := fetchVerifiedCA(hvstConfig.ServerURL, hvstConfig.Token)
+		if err != nil {
+			return err
+		}
+		caPool = pool
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to verify server CA: %w", err)
+	}
+
+	secureClient := newSecureProxyClient(caPool)
+	var profile *installProfile
+	notFoundAttempts := 0
+	if err := retry.OnError(bo, func(err error) bool {
+		if stderrors.Is(err, errInstallProfileNotFound) {
+			notFoundAttempts++
+			return notFoundAttempts < installProfileNotFoundAttempts
+		}
+		return isRetriable(err)
+	}, func() error {
+		p, err := getInstallProfile(secureClient, hvstConfig.ServerURL, hvstConfig.Token)
+		if err != nil {
+			return err
+		}
+		profile = p
+		return nil
+	}); err != nil {
+		if stderrors.Is(err, errInstallProfileNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to fetch install profile: %w", err)
+	}
+
+	if profile != nil {
+		hvstConfig.Install.SkipLonghornDefaultDisk = profile.SkipLonghornDefaultDisk
+		if profile.SkipLonghornDefaultDisk {
+			hvstConfig.Install.DataDisk = ""
+		}
+	}
+	return profile, nil
 }
 
-func getInstallProfile(client http.Client, serverURL, token string) (*installProfile, bool, error) {
+func getInstallProfile(client http.Client, serverURL, token string) (*installProfile, error) {
 	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(serverURL, "/")+"/v1/harvester/installProfile", nil)
 	if err != nil {
-		return nil, false, err
+		return nil, &permanentError{err}
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, true, err
+		return nil, err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, false, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode >= http.StatusInternalServerError, fmt.Errorf("got %d status code", resp.StatusCode)
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return nil, errInstallProfileNotFound
+
+	case http.StatusUnauthorized:
+		return nil, &permanentError{errors.New("unauthorized: verify join token")}
+	default:
+		return nil, fmt.Errorf("got %d status code", resp.StatusCode)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	profile := &installProfile{}
-	if err := json.NewDecoder(resp.Body).Decode(profile); err != nil {
-		return nil, false, err
+	if err := json.Unmarshal(body, profile); err != nil {
+		return nil, &permanentError{err}
 	}
-	return profile, false, nil
+	return profile, nil
 }
 
 func validatePingServerURL(url string) error {
@@ -160,7 +218,7 @@ func validatePingServerURL(url string) error {
 		},
 	}
 	// After configure the network, network need a few seconds to be available.
-	return retryOnError(3, 2, func() error {
+	return retry.OnError(wait.Backoff{Duration: 2 * time.Second, Factor: 1, Steps: 3}, isRetriable, func() error {
 		_, err := getURL(client, url)
 		return err
 	})
@@ -318,22 +376,6 @@ func diskExceedsMBRLimit(blockDevPath string) (bool, error) {
 	return false, nil
 }
 
-func retryOnError(retryNum, retryInterval int64, process func() error) error {
-	for {
-		if err := process(); err != nil {
-			if retryNum == 0 {
-				return err
-			}
-			retryNum--
-			if retryInterval > 0 {
-				time.Sleep(time.Duration(retryInterval) * time.Second)
-			}
-			continue
-		}
-		return nil
-	}
-}
-
 func getRemoteSSHKeys(url string) ([]string, error) {
 	client := newProxyClient()
 	b, err := getURL(client, url)
@@ -354,7 +396,7 @@ func getRemoteSSHKeys(url string) ([]string, error) {
 		keys = append(keys, line)
 	}
 	if len(keys) == 0 {
-		return nil, errors.Errorf(("no key found"))
+		return nil, errors.Errorf("no key found")
 	}
 	return keys, nil
 }
@@ -525,7 +567,7 @@ func saveElementalConfig(obj interface{}) (string, string, error) {
 	}
 
 	elementalConfigFile := filepath.Join(ElementalConfigDir, ElementalConfigFile)
-	err = os.WriteFile(elementalConfigFile, bytes, 0600)
+	err = os.WriteFile(elementalConfigFile, bytes, 0o600)
 	if err != nil {
 		return "", "", err
 	}
@@ -557,7 +599,7 @@ func saveTemp(obj interface{}, prefix string) (string, error) {
 
 func roleSetup(c *config.HarvesterConfig) error {
 	if c.Role == "" {
-		return nil
+		c.Role = config.RoleDefault
 	}
 	if c.Labels == nil {
 		c.Labels = make(map[string]string)
@@ -692,7 +734,6 @@ func doInstall(g *gocui.Gui, hvstConfig *config.HarvesterConfig, webhooks Render
 			cancel()
 			return quit(g, v)
 		}); err != nil {
-
 		return err
 	}
 
@@ -736,7 +777,6 @@ func printToPanel(g *gocui.Gui, message string, panelName string) {
 	ch := make(chan struct{})
 
 	g.Update(func(g *gocui.Gui) error {
-
 		defer func() {
 			ch <- struct{}{}
 		}()
@@ -769,20 +809,21 @@ func retryRemoteConfig(configURL string, g *gocui.Gui) (*config.HarvesterConfig,
 	var confData []byte
 	client := newProxyClient()
 
-	retries := 30
-	interval := 10
-	err := retryOnError(int64(retries), int64(interval), func() error {
+	const interval = 10 * time.Second
+	remaining := 30
+	err := retry.OnError(wait.Backoff{Duration: interval, Factor: 1, Steps: remaining}, isRetriable, func() error {
 		var e error
 		confData, e = getURL(client, configURL)
 		if e != nil {
+			remaining--
 			logrus.Error(e)
 			printToPanel(g, e.Error(), installPanel)
-			printToPanel(g, fmt.Sprintf("Retry after %d seconds (Remaining: %d)...", interval, retries), installPanel)
-			retries--
+			if remaining > 0 {
+				printToPanel(g, fmt.Sprintf("Retry after %.0f seconds (Remaining: %d)...", interval.Seconds(), remaining), installPanel)
+			}
 		}
 		return e
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("fail to fetch config: %w", err)
 	}
@@ -905,6 +946,10 @@ func configureInstalledNode(g *gocui.Gui, hvstConfig *config.HarvesterConfig, we
 	ctx := context.TODO()
 	webhooks.Handle(EventInstallStarted)
 
+	if _, err := applyInstallProfile(hvstConfig); err != nil {
+		return err
+	}
+
 	// specific the node label for the specific node role
 	if err := roleSetup(hvstConfig); err != nil {
 		return err
@@ -982,7 +1027,6 @@ func restartCoreServices() error {
 }
 
 func applyRancherdConfig(ctx context.Context, g *gocui.Gui, hvstConfig *config.HarvesterConfig, cosConfig *yipSchema.YipConfig) error {
-
 	conf, err := config.GenerateRancherdConfig(hvstConfig)
 	if err != nil {
 		return err
@@ -1114,10 +1158,8 @@ const (
 	diskType = "disk"
 )
 
-var (
-	// So that we can fake this stuff up for unit tests
-	run = runCommand
-)
+// So that we can fake this stuff up for unit tests
+var run = runCommand
 
 type DiskOptionsCache struct {
 	diskOptions              []widgets.Option
@@ -1130,7 +1172,6 @@ func NewDiskOptionsCache() *DiskOptionsCache {
 
 func (d *DiskOptionsCache) refresh() error {
 	output, err := run(exec.Command("/bin/sh", "-c", `lsblk -J -o NAME,SIZE,TYPE,WWN,SERIAL,LABEL`))
-
 	if err != nil {
 		return err
 	}

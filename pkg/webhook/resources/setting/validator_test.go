@@ -858,6 +858,30 @@ func Test_validateKubeconfigTTLSetting(t *testing.T) {
 	}
 }
 
+func TestValidateSkipLonghornDefaultDisk(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "true", value: "true"},
+		{name: "false", value: "false"},
+		{name: "invalid", value: "not-a-bool", wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.SkipLonghornDefaultDiskSettingName},
+				Value:      test.value,
+			}
+
+			assert.Equal(t, test.wantErr, validateSetting(nil, setting) != nil)
+			assert.Equal(t, test.wantErr, validateUpdateSetting(nil, setting, setting.DeepCopy()) != nil)
+		})
+	}
+}
+
 func Test_validateNTPServers(t *testing.T) {
 	testCases := []struct {
 		name        string
