@@ -7,6 +7,7 @@ package backup
 // 2. restore a backup to a new VM or replacing it with the existing VM is supported.
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -870,7 +871,8 @@ func (h *RestoreHandler) ensureVMStartedAndReady(
 
 	// Start VM before checking status
 	if err := h.vmro.StartVM(h.context, vm); err != nil {
-		return h.vmro.UpdateError(vmr, fmt.Errorf("failed to start vm, err:%s", err.Error()))
+		err = fmt.Errorf("failed to start vm, err:%w", err)
+		return errors.Join(err, h.vmro.UpdateError(vmr, err))
 	}
 
 	// VM not ready yet: persist progressing condition and halt the pipeline so
@@ -891,7 +893,8 @@ func (h *RestoreHandler) finalizeRestore(
 	vm *kubevirtv1.VirtualMachine,
 ) error {
 	if err := h.vmro.DeleteOldPVCs(vmrCpy, vm); err != nil {
-		return h.vmro.UpdateError(vmr, fmt.Errorf("error cleaning up: %w", err))
+		err = fmt.Errorf("error cleaning up: %w", err)
+		return errors.Join(err, h.vmro.UpdateError(vmr, err))
 	}
 	vmrCpy = h.vmro.SetCompleteCondition(vmrCpy)
 	_, err := h.vmro.Update(vmr, vmrCpy)
