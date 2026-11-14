@@ -17,6 +17,7 @@ import (
 
 	"github.com/harvester/harvester/pkg/api/backuptarget"
 	"github.com/harvester/harvester/pkg/api/forkliftproxy"
+	"github.com/harvester/harvester/pkg/api/installprofile"
 	"github.com/harvester/harvester/pkg/api/kubeconfig"
 	"github.com/harvester/harvester/pkg/api/proxy"
 	"github.com/harvester/harvester/pkg/api/readyz"
@@ -91,6 +92,9 @@ func (r *Router) Routes(h router.Handlers) http.Handler {
 		r.scaled.CoreFactory.Core().V1().Pod().Cache(),
 		r.scaled.Management.RKEFactory.Rke().V1().RKEControlPlane().Cache()))
 	m.Path("/v1/harvester/readyz").Methods("GET").Handler(authMiddleware(r.scaled.CoreFactory.Core().V1().Secret().Cache(), readyzHandlerv1))
+
+	installProfileHandler := harvesterServer.NewHandler(installprofile.NewHandler(r.scaled, r.options))
+	m.Path("/v1/harvester/installProfile").Methods("GET").Handler(authMiddleware(r.scaled.CoreFactory.Core().V1().Secret().Cache(), installProfileHandler))
 
 	// --- END of preposition routes ---
 

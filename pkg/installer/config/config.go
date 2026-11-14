@@ -89,6 +89,7 @@ func GetSystemSettingsAllowList() []string {
 		"rancher-cluster",
 		"kubevirt-migration",
 		"cluster-pod-security-standard",
+		"skip-longhorn-default-disk",
 	}
 }
 
@@ -145,7 +146,8 @@ type LonghornChartValues struct {
 
 type StorageClass struct {
 	// 0 is invalid, will be omitted
-	ReplicaCount uint32 `json:"replicaCount,omitempty"`
+	ReplicaCount               uint32 `json:"replicaCount,omitempty"`
+	SkipLonghornStorageClasses bool   `json:"skipLonghornStorageClasses,omitempty"`
 }
 
 type HarvesterChartValues struct {
@@ -191,8 +193,9 @@ type Install struct {
 	Cordoned      bool     `json:"cordoned,omitempty"`
 
 	// Following options are not cOS installer flag
-	ForceMBR bool   `json:"forceMbr,omitempty"`
-	DataDisk string `json:"dataDisk,omitempty"`
+	ForceMBR                bool   `json:"forceMbr,omitempty"`
+	DataDisk                string `json:"dataDisk,omitempty"`
+	SkipLonghornDefaultDisk bool   `json:"skipLonghornDefaultDisk,omitempty"`
 
 	Webhooks                []Webhook            `json:"webhooks,omitempty"`
 	Addons                  map[string]Addon     `json:"addons,omitempty"`
@@ -416,7 +419,7 @@ func (c *HarvesterConfig) GetKubeletArgs() ([]string, error) {
 		labelStrs = append(labelStrs, fmt.Sprintf("%s=%s", labelName, labelValue))
 	}
 
-	var args = []string{
+	args := []string{
 		fmt.Sprintf("max-pods=%d", MaxPods),
 	}
 
@@ -448,8 +451,12 @@ func (c HarvesterConfig) ShouldCreateDataPartitionOnOsDisk() bool {
 	if c.Install.Role == RoleWitness {
 		return false
 	}
+
+	if c.SkipLonghornDefaultDisk {
+		return false
+	}
 	// DataDisk is empty means only using the OS disk, and most of the time we should create data
-	// partition on OS disk, unless when ForceMBR=true then we should not create data partition.
+	// partition on OS disk, unless when ForceMBR=true.
 	return c.DataDisk == "" && !c.ForceMBR
 }
 
@@ -460,7 +467,7 @@ func (c HarvesterConfig) ShouldMountDataPartition() bool {
 	}
 	// With ForceMBR=true and no DataDisk assigned (Using the OS disk), no data partition/disk will
 	// be created, so no need to mount the data disk/partition
-	if c.ForceMBR && c.DataDisk == "" {
+	if (c.ForceMBR && c.DataDisk == "") || c.SkipLonghornDefaultDisk {
 		return false
 	}
 

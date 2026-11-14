@@ -133,9 +133,14 @@ resources:
           ip: "{{ .Vip }}"
           hwAddress: "{{ .VipHwAddr }}"
       {{- end }}
-      {{- if .Harvester.StorageClass.ReplicaCount }}
+      {{- if or .Harvester.StorageClass.ReplicaCount .Harvester.StorageClass.SkipLonghornStorageClasses }}
       storageClass:
+        {{- if .Harvester.StorageClass.ReplicaCount }}
         replicaCount: {{ .Harvester.StorageClass.ReplicaCount }}
+        {{- end }}
+        {{- if .Harvester.StorageClass.SkipLonghornStorageClasses }}
+        skipLonghornStorageClasses: true
+        {{- end }}
       {{- end }}
       {{- if .Harvester.EnableGoCoverDir }}
       enableGoCoverDir: true
@@ -153,8 +158,13 @@ resources:
         enabled: false
       longhorn:
         enabled: true
+        {{- if .Harvester.StorageClass.SkipLonghornStorageClasses }}
+        persistence:
+          createStorageClass: false
+        {{- end }}
         defaultSettings:
           taintToleration: "kubevirt.io/drain:NoSchedule"
+          createDefaultDiskLabeledNodes: true
           defaultDataPath: "/var/lib/harvester/defaultdisk"
           {{- if .Harvester.Longhorn.DefaultSettings.GuaranteedInstanceManagerCPU }}
           guaranteedInstanceManagerCPU: {{ .Harvester.Longhorn.DefaultSettings.GuaranteedInstanceManagerCPU }}
@@ -194,6 +204,12 @@ resources:
         clusterPodCIDR: {{ or .ClusterPodCIDR "10.52.0.0/16" }}
         clusterServiceCIDR: {{ or .ClusterServiceCIDR "10.53.0.0/16" }}
         clusterDNS: {{ or .ClusterDNS "10.53.0.10" }}
+      {{- if .Harvester.StorageClass.SkipLonghornStorageClasses }}
+      cdi:
+        spec:
+          config:
+            scratchSpaceStorageClass: null
+      {{- end }}
       global:
         # ipFamilyPolicy drives Service.spec.ipFamilyPolicy for the harvester,
         # harvester-webhook, virt-api, virt-exportproxy, cdi-api, cdi-uploadproxy

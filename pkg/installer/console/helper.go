@@ -89,6 +89,9 @@ func (p *passwordWrapper) passwordConfirmVKeyEnter(_ *gocui.Gui, _ *gocui.View) 
 		return fmt.Errorf("%w: %s", err, out)
 	}
 	logrus.Infof("Default user password updated: %s", out)
+	if p.c.config.Install.Mode == config.ModeJoin {
+		return showNetworkPage(p.c)
+	}
 	return showDiskPage(p.c)
 }
 

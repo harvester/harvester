@@ -73,6 +73,7 @@ var (
 	ClusterPodSecurityStandardSetting = NewSetting(ClusterPodSecurityStandardSettingName, `{"enabled":false,"whitelistedNamespacesList":"", "privilegedNamespacesList":"", "restrictedNamespacesList":""}`)
 	TraefikDefaultTLSOptionSetting    = NewSetting(TraefikDefaultTLSOptionsSettingName, `{"minVersion":"VersionTLS12", "maxVersion":"VersionTLS13", "sniStrict":false,"cipherSuites":[],"clientAuth":{"secretNames":[],"clientAuthType":""}}`)
 	MaintenanceModeDrainTimeout       = NewSetting(MaintenanceModeDrainTimeoutSettingName, "15") // Unit is minute. 0 disables the overall timeout.
+	SkipLonghornDefaultDisk           = NewSetting(SkipLonghornDefaultDiskSettingName, "false")
 )
 
 const (
@@ -133,6 +134,7 @@ const (
 	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 	TraefikDefaultTLSOptionsSettingName               = "traefik-default-tls-options"
 	MaintenanceModeDrainTimeoutSettingName            = "maintenance-mode-drain-timeout"
+	SkipLonghornDefaultDiskSettingName                = "skip-longhorn-default-disk"
 	ServerFlavorCommunity                             = "community"
 	ServerFlavorPrime                                 = "prime"
 

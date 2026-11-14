@@ -115,6 +115,7 @@ var validateSettingFuncs = map[string]validateSettingFunc{
 	settings.LHIMResourcesSettingName:                          validateLHIMResources,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateLonghornV2DataEngineMemorySize,
 	settings.MaintenanceModeDrainTimeoutSettingName:            validateMaintenanceModeDrainTimeout,
+	settings.SkipLonghornDefaultDiskSettingName:                validateSkipLonghornDefaultDisk,
 }
 
 type validateSettingUpdateFunc func(request *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error
@@ -139,6 +140,7 @@ var validateSettingUpdateFuncs = map[string]validateSettingUpdateFunc{
 	settings.MaxHotplugRatioSettingName:                        validateUpdateMaxHotplugRatio,
 	settings.LonghornV2DataEngineMemorySizeSettingName:         validateUpdateLonghornV2DataEngineMemorySize,
 	settings.MaintenanceModeDrainTimeoutSettingName:            validateUpdateMaintenanceModeDrainTimeout,
+	settings.SkipLonghornDefaultDiskSettingName:                validateSkipLonghornDefaultDiskUpdate,
 }
 
 type validateSettingDeleteFunc func(setting *v1beta1.Setting) error
@@ -2807,4 +2809,13 @@ func validateTraefikDefaultTLSOptions(setting *v1beta1.Setting) error {
 
 func validateTraefikDefaultTLSOptionsUpdate(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return validateTraefikDefaultTLSOptions(newSetting)
+}
+
+func validateSkipLonghornDefaultDisk(setting *v1beta1.Setting) error {
+	_, err := strconv.ParseBool(setting.Value)
+	return err
+}
+
+func validateSkipLonghornDefaultDiskUpdate(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateSkipLonghornDefaultDisk(newSetting)
 }
