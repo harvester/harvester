@@ -197,7 +197,7 @@ func (sre *SnapshotRestoreEngine) checkPVCStatus(pvc *corev1.PersistentVolumeCla
 	return pvchelper.CheckPVCStatus(pvc)
 }
 
-func (sre *SnapshotRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error) {
+func (sre *SnapshotRestoreEngine) UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error) {
 	// For local snapshots, we don't have detailed progress tracking
 	// Return 100 if it's complete (handled by PVC status check in Create)
 	return 100, nil

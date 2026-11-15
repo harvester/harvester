@@ -510,7 +510,7 @@ func (lre *LonghornRestoreEngine) checkLonghornVolumeRestore(pvc *corev1.Persist
 	return nil
 }
 
-func (lre *LonghornRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error) {
+func (lre *LonghornRestoreEngine) UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error) {
 	lhEngineName := lre.vmro.GetVolRestoreLHEngineName(vr)
 	if lhEngineName == nil {
 		return 0, nil

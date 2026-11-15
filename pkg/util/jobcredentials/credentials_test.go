@@ -136,3 +136,20 @@ func TestFinishedJobsNeedNoCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestExistingSecretIsCapturedOnce(t *testing.T) {
+	job := testJob()
+	client := fake.NewSimpleClientset(job)
+	credentials := clientFor(client)
+	require.NoError(t, credentials.Ensure(job, testData))
+	active, err := credentials.Jobs.Get(job.Namespace, job.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NoError(t, credentials.Ensure(active, func() (map[string][]byte, error) {
+		t.Fatal("existing credentials must not depend on the source Secret")
+		return nil, nil
+	}))
+	secret, err := credentials.Secrets.Get(job.Namespace, Name(job.Name), metav1.GetOptions{})
+	require.NoError(t, err)
+	require.True(t, *secret.Immutable)
+	require.Equal(t, []byte("expected"), secret.Data["password"])
+}

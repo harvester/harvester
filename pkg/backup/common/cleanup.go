@@ -31,21 +31,21 @@ func GetCleanupTarget(
 	return target, nil
 }
 
-// Ready means remote cleanup has finished or was explicitly skipped while the
-// target was disconnected. Neither decision should be repeated on retries.
-func Ready(vmbr VMBackupReader, vmb *harvesterv1.VirtualMachineBackup) bool {
+// CleanupRecorded reports whether remote cleanup was recorded as finished or
+// explicitly skipped. Neither decision should be repeated on retries.
+func CleanupRecorded(vmbr VMBackupReader, vmb *harvesterv1.VirtualMachineBackup) bool {
 	annotations := vmbr.GetAnnotations(vmb)
 	return annotations[CompleteAnnotation] == "true" || annotations[SkipAnnotation] == "true"
 }
 
-// Commit records the remote deletion decision before local Job results are
+// RecordCleanup records the remote deletion decision before local Job results are
 // released. Retries resume local cleanup without repeating remote work.
-func Commit(
+func RecordCleanup(
 	vmbo VMBackupOperator,
 	vmb *harvesterv1.VirtualMachineBackup,
 	remoteDeleted bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
-	if Ready(vmbo, vmb) {
+	if CleanupRecorded(vmbo, vmb) {
 		return vmb, nil
 	}
 	annotation := SkipAnnotation

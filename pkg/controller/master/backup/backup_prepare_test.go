@@ -101,7 +101,7 @@ func (e *preparingEngine) Reconcile(
 	return engine.ErrRetryLater
 }
 
-func (e *preparingEngine) UpdateProgress(*harvesterv1.VolumeBackup) (int64, error) {
+func (e *preparingEngine) UpdateProgress(*harvesterv1.VirtualMachineBackup, *harvesterv1.VolumeBackup) (int64, error) {
 	return 0, nil
 }
 
