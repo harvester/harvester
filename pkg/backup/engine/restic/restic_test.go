@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	snapshotv6 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	kubefake "k8s.io/client-go/kubernetes/fake"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 
@@ -24,11 +25,11 @@ import (
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	resticutil "github.com/harvester/harvester/pkg/util/restic"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 )
 
 func TestSyncFromForgetJob(t *testing.T) {
@@ -107,128 +108,43 @@ func TestForgetJobDeletionFailureIsRetried(t *testing.T) {
 }
 
 func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
-	ready := true
-	vmb := &harvesterv1.VirtualMachineBackup{
-		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default", UID: "backup-uid"},
-		Status: harvesterv1.VirtualMachineBackupStatus{
-			VolumeBackups: []harvesterv1.VolumeBackup{{
-				Name:       ptr.To("volume"),
-				ReadyToUse: &ready,
-				PersistentVolumeClaim: harvesterv1.PersistentVolumeClaimSourceSpec{
-					ObjectMeta: metav1.ObjectMeta{Name: "source"},
-				},
-			}},
-		},
-	}
-	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
-	vsHelper := backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil)
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-		Name: "restic-backup-volume", Namespace: vmb.Namespace,
-	}}
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "backup-source-restic-clone", Namespace: vmb.Namespace, UID: "clone-uid",
-			OwnerReferences: []metav1.OwnerReference{vsHelper.BuildOwnerReference(vmb)},
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			DataSource: &corev1.TypedLocalObjectReference{
-				APIGroup: ptr.To(snapshotv1.GroupName), Kind: "VolumeSnapshot", Name: "volume",
-			},
-		},
-	}
-	vs := &snapshotv1.VolumeSnapshot{ObjectMeta: metav1.ObjectMeta{
-		Name: "volume", Namespace: vmb.Namespace,
-	}}
-	clientset := fake.NewSimpleClientset(job, pvc, vs)
-	deleteErr := errors.New("API unavailable")
-	failPVCDelete := true
-	clientset.PrependReactor("delete", "persistentvolumeclaims", func(clienttesting.Action) (bool, runtime.Object, error) {
-		if !failPVCDelete {
-			return false, nil, nil
+	re, vmb, pvc, client := cloneFixture()
+	vb := &vmb.Status.VolumeBackups[0]
+	vb.ReadyToUse = ptr.To(true)
+	failure := errors.New("API unavailable")
+	fail := true
+	client.PrependReactor("delete", "persistentvolumeclaims", func(clienttesting.Action) (bool, runtime.Object, error) {
+		if fail {
+			return true, nil, failure
 		}
-		failPVCDelete = false
-		return true, nil, deleteErr
+		return false, nil, nil
 	})
-
-	re := &ResticEngine{
-		vmbo:      vmbo,
-		vsHelper:  vsHelper,
-		jobClient: fakeclients.JobClient(clientset.BatchV1().Jobs),
-		pvcClient: fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
-		vsClient:  fakeclients.VolumeSnapshotClient(clientset.SnapshotV1().VolumeSnapshots),
+	require.ErrorIs(t, re.Reconcile(vmb, 0, nil), failure)
+	_, err := client.SnapshotV1().VolumeSnapshots(vmb.Namespace).Get(context.Background(), backupcommon.SnapshotName(vmb, vb), metav1.GetOptions{})
+	require.NoError(t, err, "source snapshot remains until clone cleanup succeeds")
+	fail = false
+	for i := 0; i < 8; i++ {
+		err = re.Reconcile(vmb, 0, nil)
+		if err == nil {
+			break
+		}
+		require.ErrorIs(t, err, engine.ErrRetryLater)
 	}
-
-	reconcileErr := re.Reconcile(vmb, 0, nil)
-	require.ErrorIs(t, reconcileErr, deleteErr)
-	_, err := clientset.BatchV1().Jobs(vmb.Namespace).Get(
-		context.Background(), job.Name, metav1.GetOptions{},
-	)
-	require.True(t, apierrors.IsNotFound(err))
-	_, err = clientset.SnapshotV1().VolumeSnapshots(vmb.Namespace).Get(
-		context.Background(), vs.Name, metav1.GetOptions{},
-	)
-	require.True(t, apierrors.IsNotFound(err))
-
-	require.NoError(t, re.Reconcile(vmb, 0, nil))
-	_, err = clientset.CoreV1().PersistentVolumeClaims(vmb.Namespace).Get(
-		context.Background(), pvc.Name, metav1.GetOptions{},
-	)
+	require.NoError(t, err)
+	_, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.Background(), pvc.Name, metav1.GetOptions{})
 	require.True(t, apierrors.IsNotFound(err))
 }
 
-func TestEnsureResticSecretUsesDeterministicPassword(t *testing.T) {
-	source := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
-		},
-		Data: map[string][]byte{
-			util.AWSAccessKey: []byte("access"),
-			util.AWSSecretKey: []byte("iam-secret"),
-		},
-	}
-	clientset := fake.NewSimpleClientset(source)
-	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
-	re := &ResticEngine{
-		vmbo:         vmbo,
-		vsHelper:     backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil),
-		secretCache:  fakeclients.SecretCache(clientset.CoreV1().Secrets),
-		secretClient: fakeclients.SecretClient(clientset.CoreV1().Secrets),
-	}
-	vmb := &harvesterv1.VirtualMachineBackup{
-		TypeMeta: metav1.TypeMeta{Kind: "VirtualMachineBackup"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.Repeat("backup", 20), Namespace: "default", UID: "backup-uid",
-		},
-		Status: harvesterv1.VirtualMachineBackupStatus{
-			BackupTarget: backuputil.BackupTargetStatus(&settings.BackupTarget{
-				Type: settings.S3BackupType, Endpoint: "https://s3.example.com", BucketName: "backups",
-			}),
-		},
-	}
-	password, err := backuputil.RepositoryPassword(
-		vmb.Status.BackupTarget.RepositoryID,
-		harvesterv1.Restic,
-	)
+func TestJobSecretUsesStoredPassword(t *testing.T) {
+	re, vmb, client := forgetFixture(t)
+	vb := &vmb.Status.VolumeBackups[0]
+	name, err := re.checkJobName(vmb, vb)
 	require.NoError(t, err)
-
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: vmb.Namespace, UID: "job-uid"}}
-	job.Spec.Template.Spec.Containers = []corev1.Container{{Env: []corev1.EnvVar{{
-		Name: resticutil.PasswordKey, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: jobcredentials.Name(job.Name)},
-			Key:                  resticutil.PasswordKey,
-		}},
-	}}}}
-	name := jobcredentials.Name(job.Name)
-	err = re.ensureSecret(vmb, job)
+	require.NoError(t, re.createCheckJob(vmb, vb, name))
+	secret, err := client.CoreV1().Secrets(joblifecycle.Namespace).Get(context.Background(), jobcredentials.Name(name), metav1.GetOptions{})
 	require.NoError(t, err)
-	require.LessOrEqual(t, len(name), 63)
-	credentials, err := clientset.CoreV1().Secrets(vmb.Namespace).Get(
-		context.Background(), name, metav1.GetOptions{},
-	)
-	require.NoError(t, err)
-	require.Equal(t, []byte("iam-secret"), credentials.Data[util.AWSSecretKey])
-	require.Equal(t, []byte(password), credentials.Data[resticutil.PasswordKey])
-
+	require.Equal(t, []byte("stored-password"), secret.Data[resticutil.PasswordKey])
+	require.Len(t, secret.Data, 3)
 }
 
 func TestGeneratedNamesAreBounded(t *testing.T) {
@@ -244,14 +160,12 @@ func TestGeneratedNamesAreBounded(t *testing.T) {
 	}
 	re := &ResticEngine{vmbo: backupcommon.NewVMBackupOperatorBuilder().Build()}
 
-	jobName, err := re.jobName(vb)
+	jobName, err := re.jobName(vmb, vb)
 	require.NoError(t, err)
-	forgetName, err := re.forgetJobName(vb)
+	forgetName, err := re.forgetJobName(vmb, vb)
 	require.NoError(t, err)
-	checkName, err := re.checkJobName(vb)
+	checkName, err := re.checkJobName(vmb, vb)
 	require.NoError(t, err)
-	locatorName, _, ok := re.jobLocator(vb)
-	require.True(t, ok)
 
 	for _, generatedName := range []string{
 		jobcredentials.Name(longName),
@@ -259,14 +173,13 @@ func TestGeneratedNamesAreBounded(t *testing.T) {
 		jobName,
 		forgetName,
 		checkName,
-		locatorName,
 	} {
 		require.LessOrEqual(t, len(generatedName), 63)
 	}
 
 	other := vb.DeepCopy()
 	other.Name = ptr.To(longName + "-volume-b")
-	otherJobName, err := re.jobName(other)
+	otherJobName, err := re.jobName(vmb, other)
 	require.NoError(t, err)
 	require.NotEqual(t, jobName, otherJobName)
 }
@@ -306,6 +219,8 @@ func forgetFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBack
 			util.AWSSecretKey: []byte("secret"),
 		},
 	}
+	credentials.Data[backuputil.RepositoryIDKey] = []byte(vmb.Status.BackupTarget.RepositoryID)
+	credentials.Data[resticutil.PasswordKey] = []byte("stored-password")
 	clientset := fake.NewSimpleClientset(credentials)
 	clientset.PrependReactor("create", "jobs", func(action clienttesting.Action) (bool, runtime.Object, error) {
 		job := action.(clienttesting.CreateAction).GetObject().(*batchv1.Job)
@@ -316,12 +231,15 @@ func forgetFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBack
 	re := &ResticEngine{
 		vmbo:         vmbo,
 		vsHelper:     backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil),
-		secretCache:  fakeclients.SecretCache(clientset.CoreV1().Secrets),
 		secretClient: fakeclients.SecretClient(clientset.CoreV1().Secrets),
 		jobClient:    fakeclients.JobClient(clientset.BatchV1().Jobs),
-		jobCache:     fakeclients.JobCache(clientset.BatchV1().Jobs),
-		clientset:    kubefake.NewSimpleClientset(),
+		clientset:    fakeclients.KubernetesClient(clientset),
 	}
+	scheme := runtime.NewScheme()
+	_ = snapshotv6.AddToScheme(scheme)
+	re.imports = datamover.Snapshots{Client: dynamicfake.NewSimpleDynamicClient(scheme)}
+	re.vsClient = fakeclients.VolumeSnapshotClient(clientset.SnapshotV1().VolumeSnapshots)
+
 	return re, vmb, clientset
 }
 
@@ -336,10 +254,10 @@ func forgetJob(t *testing.T, clientset *fake.Clientset, namespace, name string) 
 
 func TestForgetJobRetainsCompletion(t *testing.T) {
 	re, vmb, clientset := forgetFixture(t)
-	jobName, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
+	jobName, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[0])
 	require.NoError(t, err)
 	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	job := forgetJob(t, clientset, vmb.Namespace, jobName)
+	job := forgetJob(t, clientset, joblifecycle.Namespace, jobName)
 	require.Equal(t, int32(3), *job.Spec.BackoffLimit)
 	require.Nil(t, job.Spec.TTLSecondsAfterFinished)
 	require.Contains(t, job.Finalizers, joblifecycle.CompletionFinalizer)
@@ -353,7 +271,7 @@ func TestForgetJobRetainsCompletion(t *testing.T) {
 
 	job.Status.Succeeded = 1
 	job.Status.Failed = 1
-	_, err = clientset.BatchV1().Jobs(vmb.Namespace).UpdateStatus(context.Background(), job, metav1.UpdateOptions{})
+	_, err = clientset.BatchV1().Jobs(joblifecycle.Namespace).UpdateStatus(context.Background(), job, metav1.UpdateOptions{})
 	require.NoError(t, err)
 	clientset.ClearActions()
 	require.NoError(t, re.forgetVolume(vmb, 0))
@@ -369,50 +287,50 @@ func TestForgetJobRetriesNextVolume(t *testing.T) {
 	vmb.Status.VolumeBackups = append(vmb.Status.VolumeBackups, harvesterv1.VolumeBackup{
 		Name: ptr.To("data-volume"),
 	})
-	firstName, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
+	firstName, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[0])
 	require.NoError(t, err)
-	dataName, err := re.forgetJobName(&vmb.Status.VolumeBackups[1])
+	dataName, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[1])
 	require.NoError(t, err)
 	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	first := forgetJob(t, clientset, vmb.Namespace, firstName)
+	first := forgetJob(t, clientset, joblifecycle.Namespace, firstName)
 	first.Status.Succeeded = 1
-	_, err = clientset.BatchV1().Jobs(vmb.Namespace).UpdateStatus(
+	_, err = clientset.BatchV1().Jobs(joblifecycle.Namespace).UpdateStatus(
 		context.Background(), first, metav1.UpdateOptions{},
 	)
 	require.NoError(t, err)
 	require.ErrorIs(t, re.forgetVolume(vmb, 1), engine.ErrRetryLater)
-	data := forgetJob(t, clientset, vmb.Namespace, dataName)
+	data := forgetJob(t, clientset, joblifecycle.Namespace, dataName)
 	data.Status = batchv1.JobStatus{
 		Failed: 4,
 		Conditions: []batchv1.JobCondition{{
 			Type: batchv1.JobFailed, Status: corev1.ConditionTrue,
 		}},
 	}
-	_, err = clientset.BatchV1().Jobs(vmb.Namespace).UpdateStatus(
+	_, err = clientset.BatchV1().Jobs(joblifecycle.Namespace).UpdateStatus(
 		context.Background(), data, metav1.UpdateOptions{},
 	)
 	require.NoError(t, err)
 	err = re.forgetVolume(vmb, 1)
 	require.Error(t, err)
 	require.NotErrorIs(t, err, engine.ErrRetryLater)
-	_, err = clientset.BatchV1().Jobs(vmb.Namespace).Get(
+	_, err = clientset.BatchV1().Jobs(joblifecycle.Namespace).Get(
 		context.Background(), dataName, metav1.GetOptions{},
 	)
 	require.True(t, apierrors.IsNotFound(err))
 	// Fake clients do not run garbage collection for the deleted Job.
-	require.NoError(t, clientset.CoreV1().Secrets(vmb.Namespace).Delete(
+	require.NoError(t, clientset.CoreV1().Secrets(joblifecycle.Namespace).Delete(
 		context.Background(), jobcredentials.Name(dataName), metav1.DeleteOptions{},
 	))
 	require.ErrorIs(t, re.forgetVolume(vmb, 1), engine.ErrRetryLater)
-	require.Zero(t, forgetJob(t, clientset, vmb.Namespace, dataName).Status.Failed)
+	require.Zero(t, forgetJob(t, clientset, joblifecycle.Namespace, dataName).Status.Failed)
 	require.NoError(t, re.forgetVolume(vmb, 0))
 }
 
 func TestForgetRepairsCredentials(t *testing.T) {
 	re, vmb, client := forgetFixture(t)
 	require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-	secrets := client.CoreV1().Secrets(vmb.Namespace)
-	jobName, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
+	secrets := client.CoreV1().Secrets(joblifecycle.Namespace)
+	jobName, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[0])
 	require.NoError(t, err)
 	name := jobcredentials.Name(jobName)
 	original, err := secrets.Get(context.Background(), name, metav1.GetOptions{})
@@ -429,7 +347,7 @@ func TestForgetRepairsCredentials(t *testing.T) {
 	require.Equal(t, original.OwnerReferences, repaired.OwnerReferences)
 
 	// Completion must remain usable even after source credentials disappear.
-	jobs := client.BatchV1().Jobs(vmb.Namespace)
+	jobs := client.BatchV1().Jobs(joblifecycle.Namespace)
 	job, err := jobs.Get(context.Background(), jobName, metav1.GetOptions{})
 	require.NoError(t, err)
 	job.Status.Succeeded = 1
@@ -445,18 +363,18 @@ func TestJobsOwnCredentials(t *testing.T) {
 	re, vmb, client := forgetFixture(t)
 	vmb.DeletionTimestamp = nil
 	vb := &vmb.Status.VolumeBackups[0]
-	backupName, err := re.jobName(vb)
+	backupName, err := re.jobName(vmb, vb)
 	require.NoError(t, err)
-	checkName, err := re.checkJobName(vb)
+	checkName, err := re.checkJobName(vmb, vb)
 	require.NoError(t, err)
-	forgetName, err := re.forgetJobName(vb)
+	forgetName, err := re.forgetJobName(vmb, vb)
 	require.NoError(t, err)
 	require.NoError(t, re.createBackupJob(vmb, vb, "clone", backupName))
 	require.NoError(t, re.createCheckJob(vmb, vb, checkName))
 	require.NoError(t, re.createForgetJob(vmb, vb, forgetName))
-	secrets := client.CoreV1().Secrets(vmb.Namespace)
+	secrets := client.CoreV1().Secrets(joblifecycle.Namespace)
 	for _, name := range []string{backupName, checkName, forgetName} {
-		job, err := client.BatchV1().Jobs(vmb.Namespace).Get(context.Background(), name, metav1.GetOptions{})
+		job, err := client.BatchV1().Jobs(joblifecycle.Namespace).Get(context.Background(), name, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.False(t, *job.Spec.Suspend)
 		secretName := jobcredentials.Name(name)
@@ -499,8 +417,8 @@ func TestCleanupDecisionSurvivesRestart(t *testing.T) {
 			re.vmbo = backupcommon.NewVMBackupOperatorBuilder().
 				WithClient(fakeclients.VMBackupClient(client.HarvesterhciV1beta1().VirtualMachineBackups)).Build()
 			require.ErrorIs(t, re.forgetVolume(vmb, 0), engine.ErrRetryLater)
-			jobs := client.BatchV1().Jobs(vmb.Namespace)
-			jobName, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
+			jobs := client.BatchV1().Jobs(joblifecycle.Namespace)
+			jobName, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[0])
 			require.NoError(t, err)
 			job, err := jobs.Get(ctx, jobName, metav1.GetOptions{})
 			require.NoError(t, err)
@@ -528,7 +446,7 @@ func TestCleanupDecisionSurvivesRestart(t *testing.T) {
 					require.NotEqual(t, "update", action.GetVerb(), "retain completion protection until the checkpoint is durable")
 				}
 			}
-			require.False(t, backupcommon.Ready(re.vmbo, vmb), "leave the informer object unchanged")
+			require.False(t, backupcommon.CleanupRecorded(re.vmbo, vmb), "leave the informer object unchanged")
 
 			failUpdate = false
 			deleteErr := errors.New("Job deletion failed")
@@ -547,7 +465,7 @@ func TestCleanupDecisionSurvivesRestart(t *testing.T) {
 			require.Equal(t, "true", stored.Annotations[annotation])
 
 			// A restarted engine resumes local deletion without recreating remote work.
-			restarted := &ResticEngine{vmbo: re.vmbo, jobClient: re.jobClient}
+			restarted := *re
 			client.ClearActions()
 			failDelete = false
 			updated, err = restarted.Remove(stored, !remoteDeleted)
@@ -564,34 +482,24 @@ func TestCleanupDecisionSurvivesRestart(t *testing.T) {
 }
 
 func TestBackupJobFailurePrecedesRemoteCheck(t *testing.T) {
-	vmb := &harvesterv1.VirtualMachineBackup{
-		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default"},
-		Status: harvesterv1.VirtualMachineBackupStatus{
-			VolumeBackups: []harvesterv1.VolumeBackup{{Name: ptr.To("volume")}},
-		},
-	}
+	re, vmb, client := forgetFixture(t)
 	vb := &vmb.Status.VolumeBackups[0]
-	vmbo := backupcommon.NewVMBackupOperatorBuilder().Build()
-	re := &ResticEngine{vmbo: vmbo}
-	jobName, err := re.jobName(vb)
-	require.NoError(t, err)
-	checkName, err := re.checkJobName(vb)
-	require.NoError(t, err)
-	clientset := fake.NewSimpleClientset(
-		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: vmb.Namespace},
-			Status: batchv1.JobStatus{Failed: 1, Conditions: []batchv1.JobCondition{{
-				Type: batchv1.JobFailed, Status: corev1.ConditionTrue,
-			}}}},
-		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: checkName, Namespace: vmb.Namespace},
-			Status: batchv1.JobStatus{Succeeded: 1}},
-	)
-	re.jobCache = fakeclients.JobCache(clientset.BatchV1().Jobs)
-	err = re.reconcileBackupJob(vmb, vb)
-	require.ErrorContains(t, err, "failed")
-	require.False(t, vmbo.GetVolBackupReadyToUse(vb))
+	for _, prefix := range []string{jobNamePrefix, checkJobNamePrefix} {
+		job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: joblifecycle.Name(prefix, vmb, *vb.Name), Namespace: joblifecycle.Namespace}}
+		joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
+		job.Status.Succeeded = 1
+		if prefix == jobNamePrefix {
+			job.Status.Succeeded = 0
+			job.Status.Failed = 1
+			job.Status.Conditions = []batchv1.JobCondition{{Type: batchv1.JobFailed, Status: corev1.ConditionTrue}}
+		}
+		_, err := client.BatchV1().Jobs(job.Namespace).Create(context.Background(), job, metav1.CreateOptions{})
+		require.NoError(t, err)
+	}
+	require.ErrorContains(t, re.reconcileBackupJob(vmb, vb), "failed")
+	require.False(t, re.vmbo.GetVolBackupReadyToUse(vb))
 }
 
-// removeFixture holds two independent per-volume cleanup results.
 func removeFixture(t *testing.T) (*ResticEngine, *harvesterv1.VirtualMachineBackup, *fake.Clientset) {
 	t.Helper()
 	re, vmb, client := forgetFixture(t)
@@ -621,14 +529,14 @@ func completeForgetJob(t *testing.T, client *fake.Clientset, namespace, name str
 
 func TestRemoveWaitsForAllVolumes(t *testing.T) {
 	re, vmb, client := removeFixture(t)
-	first, err := re.forgetJobName(&vmb.Status.VolumeBackups[0])
+	first, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[0])
 	require.NoError(t, err)
-	second, err := re.forgetJobName(&vmb.Status.VolumeBackups[1])
+	second, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[1])
 	require.NoError(t, err)
-	job := completeForgetJob(t, client, vmb.Namespace, first)
+	job := completeForgetJob(t, client, joblifecycle.Namespace, first)
 	// An external deletion must not erase this volume's completed result.
 	job.DeletionTimestamp = ptr.To(metav1.Now())
-	_, err = client.BatchV1().Jobs(vmb.Namespace).Update(context.Background(), job, metav1.UpdateOptions{})
+	_, err = client.BatchV1().Jobs(joblifecycle.Namespace).Update(context.Background(), job, metav1.UpdateOptions{})
 	require.NoError(t, err)
 	client.ClearActions()
 	_, err = re.Remove(vmb, true)
@@ -637,11 +545,11 @@ func TestRemoveWaitsForAllVolumes(t *testing.T) {
 		require.NotEqual(t, "delete", action.GetVerb(), "retain the first result while another volume is pending")
 		require.NotEqual(t, "update", action.GetVerb(), "do not release the first result early")
 	}
-	completeForgetJob(t, client, vmb.Namespace, second)
+	completeForgetJob(t, client, joblifecycle.Namespace, second)
 	updated, err := re.Remove(vmb, true)
 	require.NoError(t, err)
 	require.Equal(t, "true", updated.Annotations[backupcommon.CompleteAnnotation])
-	jobs, err := client.BatchV1().Jobs(vmb.Namespace).List(context.Background(), metav1.ListOptions{})
+	jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Empty(t, jobs.Items)
 }
@@ -649,11 +557,11 @@ func TestRemoveWaitsForAllVolumes(t *testing.T) {
 func TestRemoveRetriesPartialDeletion(t *testing.T) {
 	re, vmb, client := removeFixture(t)
 	for i := range vmb.Status.VolumeBackups {
-		name, err := re.forgetJobName(&vmb.Status.VolumeBackups[i])
+		name, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[i])
 		require.NoError(t, err)
-		completeForgetJob(t, client, vmb.Namespace, name)
+		completeForgetJob(t, client, joblifecycle.Namespace, name)
 	}
-	second, err := re.forgetJobName(&vmb.Status.VolumeBackups[1])
+	second, err := re.forgetJobName(vmb, &vmb.Status.VolumeBackups[1])
 	require.NoError(t, err)
 	deleteErr := errors.New("second Job deletion failed")
 	failDelete := true
@@ -666,14 +574,14 @@ func TestRemoveRetriesPartialDeletion(t *testing.T) {
 	updated, err := re.Remove(vmb, true)
 	require.ErrorIs(t, err, deleteErr)
 	require.Equal(t, "true", updated.Annotations[backupcommon.CompleteAnnotation])
-	remaining, err := client.BatchV1().Jobs(vmb.Namespace).List(context.Background(), metav1.ListOptions{})
+	remaining, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, remaining.Items, 1)
 	stored, err := client.HarvesterhciV1beta1().VirtualMachineBackups(vmb.Namespace).Get(
 		context.Background(), vmb.Name, metav1.GetOptions{},
 	)
 	require.NoError(t, err)
-	restarted := &ResticEngine{vmbo: re.vmbo, jobClient: re.jobClient}
+	restarted := *re
 	failDelete = false
 	client.ClearActions()
 	_, err = restarted.Remove(stored, true)
@@ -688,7 +596,7 @@ func TestRemoveRetriesPartialDeletion(t *testing.T) {
 func TestRemoveCancelsPendingJobs(t *testing.T) {
 	re, vmb, client := removeFixture(t)
 	// Disconnected cleanup must not need remote credentials or start more work.
-	restarted := &ResticEngine{vmbo: re.vmbo, jobClient: re.jobClient}
+	restarted := *re
 	client.ClearActions()
 	updated, err := restarted.Remove(vmb, false)
 	require.NoError(t, err)
@@ -697,7 +605,67 @@ func TestRemoveCancelsPendingJobs(t *testing.T) {
 		require.NotEqual(t, "create", action.GetVerb())
 		require.NotEqual(t, "secrets", action.GetResource().Resource)
 	}
-	jobs, err := client.BatchV1().Jobs(vmb.Namespace).List(context.Background(), metav1.ListOptions{})
+	jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Empty(t, jobs.Items)
+}
+
+func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
+	for _, operation := range []string{"backup", "check", "forget"} {
+		for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey, resticutil.PasswordKey, backuputil.RepositoryIDKey} {
+			t.Run(operation+"/"+key, func(t *testing.T) {
+				re, vmb, client := forgetFixture(t)
+				source, err := client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Get(context.Background(), util.BackupTargetSecretName, metav1.GetOptions{})
+				require.NoError(t, err)
+				delete(source.Data, key)
+				_, err = client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
+				require.NoError(t, err)
+				vb := &vmb.Status.VolumeBackups[0]
+				switch operation {
+				case "backup":
+					err = re.createBackupJob(vmb, vb, "clone", "invalid")
+				case "check":
+					err = re.createCheckJob(vmb, vb, "invalid")
+				case "forget":
+					err = re.createForgetJob(vmb, vb, "invalid")
+				}
+				require.Error(t, err)
+				jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
+				require.NoError(t, err)
+				require.Empty(t, jobs.Items)
+			})
+		}
+	}
+}
+
+func TestJobsCaptureCredentialsAcrossRotation(t *testing.T) {
+	re, vmb, client := forgetFixture(t)
+	vb := &vmb.Status.VolumeBackups[0]
+	require.NoError(t, re.createCheckJob(vmb, vb, "before"))
+	old, err := client.CoreV1().Secrets(joblifecycle.Namespace).Get(context.Background(), jobcredentials.Name("before"), metav1.GetOptions{})
+	require.NoError(t, err)
+	source, err := client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Get(context.Background(), util.BackupTargetSecretName, metav1.GetOptions{})
+	require.NoError(t, err)
+	source.Data[util.AWSAccessKey] = []byte("rotated-access")
+	source.Data[util.AWSSecretKey] = []byte("rotated-secret")
+	_, err = client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	job, err := re.jobClient.Get(joblifecycle.Namespace, "before", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NoError(t, re.ensureSecret(vmb, job))
+	kept, err := client.CoreV1().Secrets(joblifecycle.Namespace).Get(context.Background(), old.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, old.Data, kept.Data)
+	require.NoError(t, re.createCheckJob(vmb, vb, "after"))
+	current, err := client.CoreV1().Secrets(joblifecycle.Namespace).Get(context.Background(), jobcredentials.Name("after"), metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []byte("rotated-access"), current.Data[util.AWSAccessKey])
+	require.Equal(t, old.Data[resticutil.PasswordKey], current.Data[resticutil.PasswordKey])
+	require.False(t, *job.Spec.Template.Spec.AutomountServiceAccountToken)
+	for _, env := range job.Spec.Template.Spec.Containers[0].Env {
+		if env.Name == util.AWSAccessKey || env.Name == util.AWSSecretKey || env.Name == resticutil.PasswordKey {
+			require.Empty(t, env.Value)
+			require.NotNil(t, env.ValueFrom.SecretKeyRef)
+		}
+	}
 }

@@ -19,22 +19,22 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
+	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
-func TestCompletionWaitsForPersistence(t *testing.T) {
-	re, _, vmr, client := credentialFixture(t)
-	current := vmr.DeepCopy()
-	vr := &current.Status.VolumeRestores[0]
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: re.jobName(vmr, vr), Namespace: vmr.Namespace},
-		Status:     batchv1.JobStatus{Succeeded: 1},
-	}
-	require.ErrorIs(t, re.syncFromJob(vr, job), engine.ErrRetryLater)
-	require.Equal(t, 100, vr.Progress)
-	require.Empty(t, client.Actions(), "the controller must persist progress before release")
-	require.Zero(t, vmr.Status.VolumeRestores[0].Progress, "the informer object remains unchanged")
+func TestCompletionWaitsForHandoff(t *testing.T) {
+	re, vmb, vmr, client := credentialFixture(t)
+	vr, vb := &vmr.Status.VolumeRestores[0], &vmb.Status.VolumeBackups[0]
+	job := completedTransfer(t, re, vmb, vmr, client)
+	require.ErrorIs(t, re.syncFromJob(vmr, vr, vb, job), engine.ErrRetryLater)
+	require.Zero(t, vr.Progress)
+	pv, err := client.CoreV1().PersistentVolumes().Get(context.Background(), "restore-pv", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, corev1.PersistentVolumeReclaimRetain, pv.Spec.PersistentVolumeReclaimPolicy)
+	require.Equal(t, "copied", pv.Annotations[datamover.TransferState])
 }
 
 func TestRunningJobWaitsWithoutChangingProgress(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRunningJobWaitsWithoutChangingProgress(t *testing.T) {
 	vr := &harvesterv1.VolumeRestore{Progress: 30}
 	job := &batchv1.Job{Status: batchv1.JobStatus{Active: 1}}
 
-	require.ErrorIs(t, re.syncFromJob(vr, job), engine.ErrRetryLater)
+	require.ErrorIs(t, re.syncFromJob(nil, vr, nil, job), engine.ErrRetryLater)
 	require.Equal(t, 30, vr.Progress)
 }
 
@@ -59,7 +59,7 @@ func TestPersistedCompletionReleasesJob(t *testing.T) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       re.jobName(vmr, &vmr.Status.VolumeRestores[0]),
-			Namespace:  vmr.Namespace,
+			Namespace:  joblifecycle.Namespace,
 			Finalizers: []string{joblifecycle.CompletionFinalizer},
 			UID:        "job-uid",
 		},
@@ -93,7 +93,7 @@ func TestCompletionRetriesAPIErrors(t *testing.T) {
 			job := &batchv1.Job{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       re.jobName(vmr, &vmr.Status.VolumeRestores[0]),
-					Namespace:  vmr.Namespace,
+					Namespace:  joblifecycle.Namespace,
 					Finalizers: []string{joblifecycle.CompletionFinalizer},
 					UID:        "job-uid",
 				},
@@ -121,7 +121,6 @@ func TestRestoredPVCHasNoOwnerReferences(t *testing.T) {
 	re := &ResticRestoreEngine{
 		vmbo:      backupcommon.NewVMBackupOperatorBuilder().Build(),
 		vmro:      restorecommon.NewVMRestoreOperatorBuilder().Build(),
-		pvcCache:  fakeclients.PersistentVolumeClaimCache(pvcs),
 		pvcClient: fakeclients.PersistentVolumeClaimClient(pvcs),
 	}
 	vmr := &harvesterv1.VirtualMachineRestore{
@@ -138,10 +137,10 @@ func TestRestoredPVCHasNoOwnerReferences(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, re.ensurePVC(vmr, vr, vb))
-	pvc, err := pvcs(vmr.Namespace).Get(
+	require.ErrorIs(t, re.ensurePVC(vmr, vr, vb), engine.ErrRetryLater)
+	pvc, err := pvcs(joblifecycle.Namespace).Get(
 		context.Background(),
-		vr.PersistentVolumeClaim.ObjectMeta.Name,
+		re.stagingName(vmr, vr),
 		metav1.GetOptions{},
 	)
 	require.NoError(t, err)
@@ -182,7 +181,7 @@ func TestFailedJobDoesNotCompleteRestore(t *testing.T) {
 	}
 	clientset := fake.NewSimpleClientset(job)
 	re.jobClient = fakeclients.JobClient(clientset.BatchV1().Jobs)
-	require.ErrorContains(t, re.syncFromJob(vr, job), "failed")
+	require.ErrorContains(t, re.syncFromJob(nil, vr, nil, job), "failed")
 	require.Equal(t, 30, vr.Progress)
 	require.Empty(t, clientset.Actions(), "failure must be persisted before releasing the Job")
 	require.Contains(t, job.Finalizers, joblifecycle.CompletionFinalizer)
@@ -200,7 +199,7 @@ func TestJobIdentity(t *testing.T) {
 				}
 				job := &batchv1.Job{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: name, Namespace: vmr.Namespace,
+						Name: name, Namespace: joblifecycle.Namespace,
 						Finalizers: []string{joblifecycle.CompletionFinalizer},
 					},
 					Status: batchv1.JobStatus{Succeeded: 1},
@@ -255,7 +254,7 @@ func TestDeleteJobs(t *testing.T) {
 			}
 			for _, name := range []string{"check", "running", "finished", "foreign"} {
 				job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-					Name: name, Namespace: vmr.Namespace, Finalizers: []string{joblifecycle.CompletionFinalizer},
+					Name: name, Namespace: joblifecycle.Namespace, Finalizers: []string{joblifecycle.CompletionFinalizer},
 				}}
 				joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 				if name == "foreign" {
@@ -268,7 +267,7 @@ func TestDeleteJobs(t *testing.T) {
 			vmr.Status = harvesterv1.VirtualMachineRestoreStatus{}
 			require.NoError(t, re.Delete(vmr))
 			require.NoError(t, re.Delete(vmr))
-			jobs, err := client.BatchV1().Jobs(vmr.Namespace).List(context.Background(), metav1.ListOptions{})
+			jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
 			require.NoError(t, err)
 			if !typed {
 				require.Len(t, jobs.Items, 4, "legacy restores must not invoke a new engine's cleanup")
@@ -281,44 +280,36 @@ func TestDeleteJobs(t *testing.T) {
 }
 
 func TestCompletionAfterRestart(t *testing.T) {
-	re, _, vmr, client := credentialFixture(t)
-	vr := &vmr.Status.VolumeRestores[0]
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: re.jobName(vmr, vr), Namespace: vmr.Namespace,
-			Finalizers: []string{joblifecycle.CompletionFinalizer},
-		},
-		Status: batchv1.JobStatus{Succeeded: 1},
+	re, vmb, vmr, client := credentialFixture(t)
+	vr, vb := &vmr.Status.VolumeRestores[0], &vmb.Status.VolumeBackups[0]
+	job := completedTransfer(t, re, vmb, vmr, client)
+	require.ErrorIs(t, re.syncFromJob(vmr, vr, vb, job), engine.ErrRetryLater)
+	// Each subsequent reconcile can reconstruct the handoff without Job results or credentials.
+	require.NoError(t, client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Delete(context.Background(), util.BackupTargetSecretName, metav1.DeleteOptions{}))
+	for i := 0; i < 10 && vr.Progress != 100; i++ {
+		err := re.Reconcile(vmr, vmb, 0)
+		if err != nil {
+			require.ErrorIs(t, err, engine.ErrRetryLater)
+		}
+		pv, err := client.CoreV1().PersistentVolumes().Get(context.Background(), "restore-pv", metav1.GetOptions{})
+		require.NoError(t, err)
+		if pv.Spec.ClaimRef.Namespace == vmr.Namespace {
+			pvc, err := client.CoreV1().PersistentVolumeClaims(vmr.Namespace).Get(context.Background(), vr.PersistentVolumeClaim.ObjectMeta.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			pvc.Status.Phase = corev1.ClaimBound
+			_, err = client.CoreV1().PersistentVolumeClaims(vmr.Namespace).UpdateStatus(context.Background(), pvc, metav1.UpdateOptions{})
+			require.NoError(t, err)
+		}
 	}
-	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
-	job, err := re.jobClient.Create(job)
-	require.NoError(t, err)
-	current := vmr.DeepCopy()
-	require.ErrorIs(t, re.syncFromJob(&current.Status.VolumeRestores[0], job), engine.ErrRetryLater)
-	// The controller persists completion before a later reconcile releases the Job.
-	stored, err := client.HarvesterhciV1beta1().VirtualMachineRestores(vmr.Namespace).Update(
-		context.Background(), current, metav1.UpdateOptions{},
-	)
-	require.NoError(t, err)
-	restarted := &ResticRestoreEngine{vmro: re.vmro, jobClient: re.jobClient}
-	require.NoError(t, restarted.Reconcile(stored, nil, 0))
-	released, err := re.jobClient.Get(job.Namespace, job.Name, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Empty(t, released.Finalizers)
-	// Simulate TTL collection: a subsequent retry must not recreate the Job.
-	require.NoError(t, re.jobClient.Delete(job.Namespace, job.Name, &metav1.DeleteOptions{}))
-	client.ClearActions()
-	require.NoError(t, restarted.Reconcile(stored, nil, 0))
-	for _, action := range client.Actions() {
-		require.Equal(t, "get", action.GetVerb())
-	}
+	require.Equal(t, 100, vr.Progress)
+	require.NoError(t, re.Reconcile(vmr, nil, 0))
 }
 
 func TestDeletionRetries(t *testing.T) {
 	re, _, vmr, client := credentialFixture(t)
 	vmr.Annotations = map[string]string{restorecommon.BackupTypeAnnotation: "restic"}
 	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-		Name: "running", Namespace: vmr.Namespace, Finalizers: []string{joblifecycle.CompletionFinalizer},
+		Name: "running", Namespace: joblifecycle.Namespace, Finalizers: []string{joblifecycle.CompletionFinalizer},
 	}}
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 	_, err := re.jobClient.Create(job)
@@ -333,11 +324,37 @@ func TestDeletionRetries(t *testing.T) {
 	})
 	client.ClearActions()
 	require.ErrorIs(t, re.Delete(vmr), deleteErr)
-	restarted := &ResticRestoreEngine{vmro: re.vmro, jobClient: re.jobClient}
+	restarted := &ResticRestoreEngine{vmro: re.vmro, jobClient: re.jobClient, clientset: re.clientset}
 	fail = false
 	require.NoError(t, restarted.Delete(vmr))
 	for _, action := range client.Actions() {
 		require.NotEqual(t, "virtualmachinerestores", action.GetResource().Resource)
 		require.NotEqual(t, "create", action.GetVerb())
 	}
+}
+
+func completedTransfer(t *testing.T, e *ResticRestoreEngine, vmb *harvesterv1.VirtualMachineBackup, vmr *harvesterv1.VirtualMachineRestore, client *fake.Clientset) *batchv1.Job {
+	t.Helper()
+	vr := &vmr.Status.VolumeRestores[0]
+	stage := e.destinationPVC(vmr, vr, &vmb.Status.VolumeBackups[0])
+	stage.Namespace, stage.Name, stage.UID = joblifecycle.Namespace, e.stagingName(vmr, vr), "stage-uid"
+	stage.Spec.VolumeName = "restore-pv"
+	stage.Status.Phase = corev1.ClaimBound
+	joblifecycle.Track(&stage.ObjectMeta, vmr, vmRestoreKind)
+	_, err := client.CoreV1().PersistentVolumeClaims(stage.Namespace).Create(context.Background(), stage, metav1.CreateOptions{})
+	require.NoError(t, err)
+	pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: "restore-pv", UID: "pv-uid"}, Spec: corev1.PersistentVolumeSpec{PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimDelete,
+		ClaimRef: &corev1.ObjectReference{Name: stage.Name, Namespace: stage.Namespace, UID: stage.UID},
+	}, Status: corev1.PersistentVolumeStatus{Phase: corev1.VolumeBound}}
+	_, err = client.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
+	require.NoError(t, err)
+	client.PrependReactor("create", "persistentvolumeclaims", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		action.(clienttesting.CreateAction).GetObject().(*corev1.PersistentVolumeClaim).UID = "destination-uid"
+		return false, nil, nil
+	})
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: e.jobName(vmr, vr), Namespace: joblifecycle.Namespace}, Status: batchv1.JobStatus{Succeeded: 1}}
+	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
+	job, err = e.jobClient.Create(job)
+	require.NoError(t, err)
+	return job
 }

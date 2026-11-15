@@ -164,21 +164,12 @@ spec:
                 | fromjson
                 | select(.type == "s3" and (.bucketName | length) > 0)
               ')
-          target_type=$(printf '%s' "${target}" | jq -r '.type')
           endpoint=$(printf '%s' "${target}" | jq -r '.endpoint // ""')
           bucket=$(printf '%s' "${target}" | jq -r '.bucketName')
           region=$(printf '%s' "${target}" | jq -r '.bucketRegion // ""')
-          virtual_hosted=$(printf '%s' "${target}" | jq -r '(.virtualHostedStyle // false) | tostring')
           while [ "${endpoint%/}" != "${endpoint}" ]; do
             endpoint=${endpoint%/}
           done
-          repository_hash=$(printf '%s\0%s\0%s\0%s\0%s' \
-            "${target_type}" "${endpoint}" "${bucket}" "${region}" "${virtual_hosted}" \
-            | sha256sum)
-          repository_hash=${repository_hash%% *}
-          repository_id="sha256:${repository_hash}"
-          password=$(printf '%s\0%s' kopia "${repository_id}" | sha256sum)
-          password=${password%% *}
           if [ -z "${endpoint}" ]; then
             endpoint=s3.amazonaws.com
           fi
@@ -190,7 +181,6 @@ spec:
             printf 'export KOPIA_ENDPOINT=%s\n' "$(shell_quote "${endpoint}")"
             printf 'export KOPIA_REGION=%s\n' "$(shell_quote "${region}")"
             printf 'export KOPIA_PREFIX=%s\n' "$(shell_quote 'kopia/')"
-            printf 'export KOPIA_PASSWORD=%s\n' "$(shell_quote "${password}")"
           } > /kopia-config/backup-target.env
           mkdir -p /kopia-config/bin
           cat > /kopia-config/bin/kopia <<'SCRIPT'
@@ -264,6 +254,11 @@ spec:
             secretKeyRef:
               name: harvester-backup-target-secret
               key: AWS_SECRET_ACCESS_KEY
+        - name: KOPIA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: harvester-backup-target-secret
+              key: KOPIA_PASSWORD
         volumeMounts:
         - name: kopia-cache
           mountPath: /kopia-cache
