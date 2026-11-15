@@ -14,7 +14,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/settings"
-	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/snapshotcheck"
 )
@@ -22,7 +21,7 @@ import (
 const (
 	ImageEnvVar = "HARVESTER_IMAGE"
 
-	PasswordKey = "RESTIC_PASSWORD"
+	PasswordKey = backuputil.ResticPasswordKey
 	RegionKey   = "RESTIC_S3_REGION"
 
 	CacheDirEnvVar    = "RESTIC_CACHE_DIR"
@@ -118,31 +117,11 @@ func Repository(target *settings.BackupTarget) (*RepositoryConfig, error) {
 }
 
 func Env(secretName string, repository *RepositoryConfig) []corev1.EnvVar {
-	env := []corev1.EnvVar{
-		{Name: "TMPDIR", Value: "/tmp"},
-		{
-			Name: util.AWSAccessKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSAccessKey,
-			}},
-		},
-		{
-			Name: util.AWSSecretKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSSecretKey,
-			}},
-		},
-		{Name: "RESTIC_REPOSITORY", Value: repository.URL},
-		{
-			Name: "RESTIC_PASSWORD",
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  PasswordKey,
-			}},
-		},
-	}
+	return append(repositoryEnv(repository), backuputil.SecretEnv(secretName, PasswordKey)...)
+}
+
+func repositoryEnv(repository *RepositoryConfig) []corev1.EnvVar {
+	env := []corev1.EnvVar{{Name: "TMPDIR", Value: "/tmp"}, {Name: "RESTIC_REPOSITORY", Value: repository.URL}}
 	if repository.Region != "" {
 		env = append(env, corev1.EnvVar{Name: RegionKey, Value: repository.Region})
 	}

@@ -38,7 +38,7 @@ type BackupEngine interface {
 	) error
 	// UpdateProgress returns the per-volume backup progress percentage, bounded
 	// between 0 and 100.
-	UpdateProgress(*harvesterv1.VolumeBackup) (int64, error)
+	UpdateProgress(*harvesterv1.VirtualMachineBackup, *harvesterv1.VolumeBackup) (int64, error)
 	// Remove completes or skips remote deletion, persists that decision, and
 	// releases local resources. Return the latest VMBackup for finalization.
 	Remove(vmb *harvesterv1.VirtualMachineBackup, removeRemote bool) (*harvesterv1.VirtualMachineBackup, error)

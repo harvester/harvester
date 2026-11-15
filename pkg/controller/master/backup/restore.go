@@ -40,6 +40,7 @@ import (
 	restorerestic "github.com/harvester/harvester/pkg/restore/engine/restic"
 	restoresnapshot "github.com/harvester/harvester/pkg/restore/engine/snapshot"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
 const (
@@ -222,10 +223,8 @@ func newRestoreEngines(
 		harvesterv1.Restic: restorerestic.GetRestoreEngine(
 			vmbo,
 			vmro,
-			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.scs.Cache(),
-			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.jobs,
 			controllers.vmrs,
@@ -234,10 +233,8 @@ func newRestoreEngines(
 		harvesterv1.Kopia: restorekopia.GetRestoreEngine(
 			vmbo,
 			vmro,
-			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.scs.Cache(),
-			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.jobs,
 			controllers.vmrs,
@@ -435,6 +432,10 @@ func (h *RestoreHandler) checkLHNotVolumeExist(pvc *corev1.PersistentVolumeClaim
 // PersistentVolumeClaimOnChange watching the PVCs on change and enqueue the vmRestore if it has the restore annotation
 func (h *RestoreHandler) PersistentVolumeClaimOnChange(_ string, pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {
 	if pvc == nil || pvc.DeletionTimestamp != nil {
+		return nil, nil
+	}
+	if name := joblifecycle.ParentName(pvc.ObjectMeta, "VirtualMachineRestore"); name != "" {
+		h.vmrController.Enqueue(pvc.Annotations[joblifecycle.AnnotationParentNamespace], name)
 		return nil, nil
 	}
 
@@ -854,7 +855,7 @@ func (h *RestoreHandler) updateProgressMetrics(
 	vrs := h.vmro.GetVolRestores(vmrCpy)
 	for i := range vrs {
 		vr := h.vmro.GetVolRestore(vmrCpy, i)
-		progress, err := re.UpdateProgress(vr)
+		progress, err := re.UpdateProgress(vmrCpy, vr)
 		if err != nil {
 			return err
 		}

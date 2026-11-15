@@ -425,7 +425,7 @@ func (le *LonghornEngine) updateVolumeBackupFromSnapshot(
 	return le.vsHelper.UpdateVolumeBackupStatus(vb, vs)
 }
 
-func (le *LonghornEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, error) {
+func (le *LonghornEngine) UpdateProgress(_ *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (int64, error) {
 	if vb == nil {
 		return 0, nil
 	}

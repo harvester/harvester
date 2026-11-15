@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -72,7 +73,11 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	vmbo := newBackupOperator(controllers, restClient)
 
 	// Initialize backup engines
-	engines := newBackupEngines(controllers, management, vmbo)
+	snapshotClient, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return err
+	}
+	engines := newBackupEngines(controllers, management, vmbo, snapshotClient)
 
 	// Let each engine wire up its own informer event handlers (e.g. Job
 	// watchers) so engine-owned resource changes feed back into VMBackup
@@ -86,6 +91,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 
 	// Register event handlers
 	registerBackupEventHandlers(ctx, controllers, handler)
+	registerRepositoryCleanup(ctx, management, controllers, snapshotClient)
 
 	return nil
 }
@@ -162,6 +168,7 @@ func newBackupEngines(
 	controllers *backupControllerSet,
 	management *config.Management,
 	vmbo common.VMBackupOperator,
+	snapshotClient dynamic.Interface,
 ) map[harvesterv1.BackupType]engine.BackupEngine {
 	return map[harvesterv1.BackupType]engine.BackupEngine{
 		harvesterv1.Snapshot: snapshot.GetBackupEngine(
@@ -187,9 +194,9 @@ func newBackupEngines(
 			vmbo,
 			controllers.vss.Cache(),
 			controllers.vss,
+			snapshotClient,
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
-			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.storageClasses.Cache(),
 			controllers.jobs,
@@ -199,9 +206,9 @@ func newBackupEngines(
 			vmbo,
 			controllers.vss.Cache(),
 			controllers.vss,
+			snapshotClient,
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
-			controllers.secrets.Cache(),
 			controllers.secrets,
 			controllers.storageClasses.Cache(),
 			controllers.jobs,

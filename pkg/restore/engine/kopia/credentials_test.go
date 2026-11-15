@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	kubefake "k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 
@@ -35,11 +35,12 @@ func TestJobsOwnCredentials(t *testing.T) {
 	checkName, restoreName := ke.checkJobName(vmr, vr), ke.jobName(vmr, vr)
 	require.NoError(t, ke.createCheckJob(vmr, vmb, vb, checkName))
 	require.NoError(t, ke.createRestoreJob(vmr, vmb, vr, vb, restoreName))
-	secrets, jobs := client.CoreV1().Secrets(vmr.Namespace), client.BatchV1().Jobs(vmr.Namespace)
+	secrets, jobs := client.CoreV1().Secrets(joblifecycle.Namespace), client.BatchV1().Jobs(joblifecycle.Namespace)
 	for _, name := range []string{checkName, restoreName} {
 		job, err := jobs.Get(context.Background(), name, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.False(t, *job.Spec.Suspend)
+		require.False(t, *job.Spec.Template.Spec.AutomountServiceAccountToken)
 		require.Empty(t, job.OwnerReferences)
 		require.NoError(t, joblifecycle.ValidateJob(vmr, vmRestoreKind, job))
 		require.Equal(t, int32(60), *job.Spec.TTLSecondsAfterFinished)
@@ -58,6 +59,7 @@ func TestJobsOwnCredentials(t *testing.T) {
 		secret, err := secrets.Get(context.Background(), secretName, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.True(t, metav1.IsControlledBy(secret, job))
+		require.Len(t, secret.Data, 3)
 		require.NoError(t, secrets.Delete(context.Background(), secretName, metav1.DeleteOptions{}))
 	}
 	require.ErrorIs(t, ke.checkRemoteSnapshot(vmr, vmb, vr, vb), engine.ErrRetryLater)
@@ -67,9 +69,9 @@ func TestJobsOwnCredentials(t *testing.T) {
 	check.Status.Succeeded = 1
 	_, err = jobs.UpdateStatus(context.Background(), check, metav1.UpdateOptions{})
 	require.NoError(t, err)
-	_, err = client.CoreV1().PersistentVolumeClaims(vmr.Namespace).Create(
+	_, err = client.CoreV1().PersistentVolumeClaims(joblifecycle.Namespace).Create(
 		context.Background(), &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{Name: "restored-volume", Namespace: vmr.Namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: "restored-volume", Namespace: joblifecycle.Namespace},
 			Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
 		}, metav1.CreateOptions{},
 	)
@@ -97,10 +99,8 @@ func credentialFixture(t *testing.T) (
 		vmbo:         backupcommon.NewVMBackupOperatorBuilder().Build(),
 		vmro:         restorecommon.NewVMRestoreOperatorBuilder().Build(),
 		jobClient:    fakeclients.JobClient(client.BatchV1().Jobs),
-		secretCache:  fakeclients.SecretCache(client.CoreV1().Secrets),
 		secretClient: fakeclients.SecretClient(client.CoreV1().Secrets),
-		pvcCache:     fakeclients.PersistentVolumeClaimCache(client.CoreV1().PersistentVolumeClaims),
-		clientset:    kubefake.NewSimpleClientset(),
+		clientset:    fakeclients.KubernetesClient(client),
 	}
 	vmb := &harvesterv1.VirtualMachineBackup{
 		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "default", UID: "backup-uid"},
@@ -122,6 +122,14 @@ func credentialFixture(t *testing.T) (
 			}},
 		},
 	}
+	old := settings.BackupTargetSet.Get()
+	t.Cleanup(func() { require.NoError(t, settings.BackupTargetSet.Set(old)) })
+	require.NoError(t, settings.BackupTargetSet.Set(`{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups"}`))
+	source.Data[backuputil.RepositoryIDKey] = []byte(vmb.Status.BackupTarget.RepositoryID)
+	source.Data["KOPIA_PASSWORD"] = []byte("stored-password")
+	_, updateErr := client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
+	require.NoError(t, updateErr)
+
 	_, err := client.HarvesterhciV1beta1().VirtualMachineRestores(vmr.Namespace).Create(
 		context.Background(), vmr, metav1.CreateOptions{},
 	)
@@ -146,13 +154,60 @@ func TestCredentialFailureRetriesRestore(t *testing.T) {
 	err := ke.createCheckJob(vmr, vmb, vb, name)
 	require.ErrorIs(t, err, engine.ErrRetryLater)
 	require.ErrorIs(t, err, apiErr)
-	job, err := ke.jobClient.Get(vmr.Namespace, name, metav1.GetOptions{})
+	job, err := ke.jobClient.Get(joblifecycle.Namespace, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.True(t, *job.Spec.Suspend)
 	fail = false
 	// Existing suspended Jobs must recover instead of permanently failing the restore.
 	require.ErrorIs(t, ke.checkRemoteSnapshot(vmr, vmb, vr, vb), engine.ErrRetryLater)
-	job, err = ke.jobClient.Get(vmr.Namespace, name, metav1.GetOptions{})
+	job, err = ke.jobClient.Get(joblifecycle.Namespace, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.False(t, *job.Spec.Suspend)
+}
+
+func TestDeferredBindingAllowsJobCreation(t *testing.T) {
+	for _, mode := range []storagev1.VolumeBindingMode{storagev1.VolumeBindingImmediate, storagev1.VolumeBindingWaitForFirstConsumer} {
+		t.Run(string(mode), func(t *testing.T) {
+			ke, vmb, vmr, client := credentialFixture(t)
+			vb, vr := &vmb.Status.VolumeBackups[0], &vmr.Status.VolumeRestores[0]
+			ke.pvcClient = fakeclients.PersistentVolumeClaimClient(client.CoreV1().PersistentVolumeClaims)
+			require.ErrorIs(t, ke.ensurePVC(vmr, vr, vb), engine.ErrRetryLater)
+			pvc, err := client.CoreV1().PersistentVolumeClaims(joblifecycle.Namespace).Get(context.Background(), ke.stagingName(vmr, vr), metav1.GetOptions{})
+			require.NoError(t, err)
+			sc := &storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{Name: "test-sc"}, VolumeBindingMode: &mode}
+			_, createErr := client.StorageV1().StorageClasses().Create(context.Background(), sc, metav1.CreateOptions{})
+			require.NoError(t, createErr)
+			ke.scCache = fakeclients.StorageClassCache(client.StorageV1().StorageClasses)
+			pvc.Spec.StorageClassName = &sc.Name
+			pvc.Status.Phase = corev1.ClaimPending
+			vb.PersistentVolumeClaim.Spec.StorageClassName = &sc.Name
+			_, updateErr := client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.Background(), pvc, metav1.UpdateOptions{})
+			require.NoError(t, updateErr)
+			checkErr := ke.ensurePVC(vmr, vr, vb)
+			if mode == storagev1.VolumeBindingWaitForFirstConsumer {
+				require.NoError(t, checkErr)
+			} else {
+				require.ErrorIs(t, checkErr, engine.ErrRetryLater)
+			}
+		})
+	}
+}
+
+func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
+	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey, backuputil.RepositoryIDKey, "KOPIA_PASSWORD"} {
+		t.Run(key, func(t *testing.T) {
+			ke, vmb, vmr, client := credentialFixture(t)
+			source, err := client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Get(context.Background(), util.BackupTargetSecretName, metav1.GetOptions{})
+			require.NoError(t, err)
+			delete(source.Data, key)
+			_, err = client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
+			require.NoError(t, err)
+			vb, vr := &vmb.Status.VolumeBackups[0], &vmr.Status.VolumeRestores[0]
+			require.ErrorIs(t, ke.createCheckJob(vmr, vmb, vb, ke.checkJobName(vmr, vr)), engine.ErrRetryLater)
+			require.ErrorIs(t, ke.createRestoreJob(vmr, vmb, vr, vb, ke.jobName(vmr, vr)), engine.ErrRetryLater)
+			jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Empty(t, jobs.Items)
+		})
+	}
 }
