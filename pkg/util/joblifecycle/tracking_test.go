@@ -26,7 +26,7 @@ func testParent() *harvesterv1.VirtualMachineBackup {
 
 func trackedJob(parent *harvesterv1.VirtualMachineBackup, name string) *batchv1.Job {
 	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-		Name: name, Namespace: parent.Namespace, UID: "job-uid",
+		Name: name, Namespace: joblifecycle.Namespace, UID: "job-uid",
 		Finalizers: []string{joblifecycle.CompletionFinalizer},
 	}}
 	joblifecycle.Track(&job.ObjectMeta, parent, "VirtualMachineBackup")
@@ -130,4 +130,14 @@ func TestDeleteParentRetries(t *testing.T) {
 			require.Empty(t, remaining.Items)
 		})
 	}
+}
+
+func TestNamesSeparateNamespacesAndParentInstances(t *testing.T) {
+	first := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "tenant-a", UID: "uid-a"}}
+	second := first.DeepCopy()
+	second.Namespace = "tenant-b"
+	require.NotEqual(t, joblifecycle.Name("backup", first, "volume"), joblifecycle.Name("backup", second, "volume"))
+	second.Namespace = first.Namespace
+	second.UID = "uid-b"
+	require.NotEqual(t, joblifecycle.Name("backup", first, "volume"), joblifecycle.Name("backup", second, "volume"))
 }

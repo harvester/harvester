@@ -23,7 +23,7 @@ import (
 const (
 	ImageEnvVar = "HARVESTER_IMAGE"
 
-	PasswordKey       = "KOPIA_PASSWORD"
+	PasswordKey       = backuputil.KopiaPasswordKey
 	BucketKey         = "KOPIA_BUCKET"
 	EndpointKey       = "KOPIA_ENDPOINT"
 	RegionKey         = "KOPIA_REGION"
@@ -186,44 +186,14 @@ func RepositoryFromSetting() (*Repository, error) {
 }
 
 func Env(secretName string, repository *Repository) []corev1.EnvVar {
-	return EnvWithPasswordKey(secretName, PasswordKey, repository)
+	return append(repositoryEnv(repository), backuputil.SecretEnv(secretName, PasswordKey)...)
 }
 
-// EnvWithPasswordKey returns the common Kopia repository environment while
-// allowing callers to select the key containing the repository password. The
-// backup and restore engines use their per-operation KOPIA_PASSWORD key, while
-// maintenance uses the S3 secret-access-key directly, matching the password
-// derivation used by those engines.
-func EnvWithPasswordKey(secretName, passwordKey string, repository *Repository) []corev1.EnvVar {
+func repositoryEnv(repository *Repository) []corev1.EnvVar {
 	return []corev1.EnvVar{
-		{Name: "TMPDIR", Value: "/tmp"},
-		{Name: CacheDirEnvVar, Value: CacheDir},
-		{Name: LogDirEnvVar, Value: CacheDir},
-		{
-			Name: util.AWSAccessKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSAccessKey,
-			}},
-		},
-		{
-			Name: util.AWSSecretKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  util.AWSSecretKey,
-			}},
-		},
-		{
-			Name: PasswordKey,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
-				Key:                  passwordKey,
-			}},
-		},
-		{Name: BucketKey, Value: repository.Bucket},
-		{Name: EndpointKey, Value: repository.Endpoint},
-		{Name: RegionKey, Value: repository.Region},
-		{Name: PrefixKey, Value: repository.Prefix},
+		{Name: "TMPDIR", Value: "/tmp"}, {Name: CacheDirEnvVar, Value: CacheDir}, {Name: LogDirEnvVar, Value: CacheDir},
+		{Name: BucketKey, Value: repository.Bucket}, {Name: EndpointKey, Value: repository.Endpoint},
+		{Name: RegionKey, Value: repository.Region}, {Name: PrefixKey, Value: repository.Prefix},
 		{Name: DisableTLSKey, Value: fmt.Sprintf("%t", repository.DisableTLS)},
 	}
 }
@@ -275,7 +245,7 @@ func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, 
 		LabelKopiaMaintenance: LabelValueTrue,
 		LabelMaintenanceType:  maintenanceType,
 	})
-	env := append(EnvWithPasswordKey(secretName, PasswordKey, repository), cacheEnv...)
+	env := append(Env(secretName, repository), cacheEnv...)
 	env = append(env, corev1.EnvVar{Name: CheckForUpdatesEnvVar, Value: "false"})
 
 	cronJob := &batchv1.CronJob{

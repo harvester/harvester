@@ -20,7 +20,7 @@ type RestoreEngine interface {
 	Delete(vmr *harvesterv1.VirtualMachineRestore) error
 
 	// UpdateProgress updates the restore progress for a specific volume
-	UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error)
+	UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error)
 
 	// RegisterWatchers gives the engine an opportunity to register its own
 	// informer event handlers (e.g. on Jobs it creates) and call enqueue to

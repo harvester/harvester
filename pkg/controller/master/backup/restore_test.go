@@ -115,7 +115,7 @@ func (f *fakeRestoreEngine) Delete(*harvesterv1.VirtualMachineRestore) error {
 	return f.deleteErr
 }
 
-func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VolumeRestore) (int64, error) {
+func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VirtualMachineRestore, *harvesterv1.VolumeRestore) (int64, error) {
 	return 0, nil
 }
 

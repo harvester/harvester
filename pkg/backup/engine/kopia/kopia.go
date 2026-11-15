@@ -2,20 +2,19 @@ package kopia
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
-	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 
@@ -23,8 +22,8 @@ import (
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
-	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 	"github.com/harvester/harvester/pkg/util/jobprogress"
@@ -39,16 +38,15 @@ const (
 )
 
 type KopiaEngine struct {
+	imports       datamover.Snapshots
 	vmbo          common.VMBackupOperator
 	vsHelper      *common.VolumeSnapshotHelper
 	vsClient      ctlsnapshotv1.VolumeSnapshotClient
 	pvcCache      ctlcorev1.PersistentVolumeClaimCache
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
-	secretCache   ctlcorev1.SecretCache
 	secretClient  ctlcorev1.SecretClient
 	jobController ctlbatchv1.JobController
-	jobCache      ctlbatchv1.JobCache
 	jobClient     ctlbatchv1.JobClient
 	clientset     kubernetes.Interface
 }
@@ -57,25 +55,24 @@ func GetBackupEngine(
 	vmbo common.VMBackupOperator,
 	vsCache ctlsnapshotv1.VolumeSnapshotCache,
 	vsClient ctlsnapshotv1.VolumeSnapshotClient,
+	snapshotClient dynamic.Interface,
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
-	secretCache ctlcorev1.SecretCache,
 	secretClient ctlcorev1.SecretClient,
 	scCache ctlstoragev1.StorageClassCache,
 	jobController ctlbatchv1.JobController,
 	clientset kubernetes.Interface,
 ) engine.BackupEngine {
 	return &KopiaEngine{
+		imports:       datamover.Snapshots{Client: snapshotClient},
 		vmbo:          vmbo,
 		vsHelper:      common.NewVolumeSnapshotHelper(vsCache, vsClient, nil, nil, vmbo, pvcCache, scCache),
 		vsClient:      vsClient,
 		pvcCache:      pvcCache,
 		pvcClient:     pvcClient,
 		scCache:       scCache,
-		secretCache:   secretCache,
 		secretClient:  secretClient,
 		jobController: jobController,
-		jobCache:      jobController.Cache(),
 		jobClient:     jobController,
 		clientset:     clientset,
 	}
@@ -93,17 +90,10 @@ func (ke *KopiaEngine) RegisterWatchers(ctx context.Context, enqueue func(namesp
 			return job, nil
 		}
 		if name := joblifecycle.ParentName(job.ObjectMeta, vmBackupKind); name != "" {
-			enqueue(job.Namespace, name)
+			enqueue(job.Annotations[joblifecycle.AnnotationParentNamespace], name)
 			return job, nil
 		}
-		owner := util.FindOwnerReference(
-			job,
-			harvesterv1.SchemeGroupVersion.String(),
-			vmBackupKind,
-		)
-		if owner != nil {
-			enqueue(job.Namespace, owner.Name)
-		}
+
 		return job, nil
 	})
 }
@@ -144,13 +134,13 @@ func (ke *KopiaEngine) reconcileBackupJob(
 	vmb *harvesterv1.VirtualMachineBackup,
 	vb *harvesterv1.VolumeBackup,
 ) error {
-	jobName, err := ke.jobName(vb)
+	jobName, err := ke.jobName(vmb, vb)
 	if err != nil {
 		return err
 	}
 	// Prefer the existing Job result. A failed or running Job must not be
 	// overridden by a previously cached remote snapshot check.
-	job, err := ke.jobCache.Get(ke.vmbo.GetNamespace(vmb), jobName)
+	job, err := joblifecycle.GetJob(ke.jobClient, vmb, vmBackupKind, jobName)
 	if apierrors.IsNotFound(err) {
 		return ke.startBackupJob(vmb, vb, jobName)
 	}
@@ -182,15 +172,28 @@ func (ke *KopiaEngine) startBackupJob(
 	return engine.ErrRetryLater
 }
 
-func (ke *KopiaEngine) UpdateProgress(vb *harvesterv1.VolumeBackup) (int64, error) {
+// refreshProgress reads Pod logs without failing reconciliation on progress errors.
+func (ke *KopiaEngine) refreshProgress(vb *harvesterv1.VolumeBackup, namespace, jobName string) int {
+	current := ke.vmbo.GetVolBackupProgress(vb)
+	pct, err := jobprogress.FetchProgressPercent(context.Background(), ke.clientset, namespace, jobName)
+	if err != nil {
+		return current
+	}
+	if err := ke.vmbo.SetVolBackupProgress(vb, pct); err != nil {
+		return current
+	}
+	return pct
+}
+
+func (ke *KopiaEngine) UpdateProgress(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (int64, error) {
 	if ke.vmbo.GetVolBackupReadyToUse(vb) {
 		return 100, nil
 	}
-	jobName, jobNamespace, ok := ke.jobLocator(vb)
-	if !ok {
+	jobName, nameErr := ke.jobName(vmb, vb)
+	if nameErr != nil {
 		return int64(ke.vmbo.GetVolBackupProgress(vb)), nil
 	}
-	pct, err := jobprogress.FetchProgressPercent(context.Background(), ke.clientset, jobNamespace, jobName)
+	pct, err := jobprogress.FetchProgressPercent(context.Background(), ke.clientset, joblifecycle.Namespace, jobName)
 	if err != nil {
 		return int64(ke.vmbo.GetVolBackupProgress(vb)), nil
 	}
@@ -205,10 +208,19 @@ func (ke *KopiaEngine) Remove(
 	vmb *harvesterv1.VirtualMachineBackup,
 	removeRemote bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
+	for _, vb := range ke.vmbo.GetVolBackups(vmb) {
+		if ke.vmbo.GetVolBackupName(&vb) == nil {
+			continue
+		}
+		if err := ke.cleanupTemporaryResources(vmb, &vb); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := ke.forgetVolumes(vmb, removeRemote); err != nil {
 		return nil, err
 	}
-	updated, err := common.Commit(ke.vmbo, vmb, removeRemote)
+	updated, err := common.RecordCleanup(ke.vmbo, vmb, removeRemote)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +228,7 @@ func (ke *KopiaEngine) Remove(
 }
 
 func (ke *KopiaEngine) forgetVolumes(vmb *harvesterv1.VirtualMachineBackup, removeRemote bool) error {
-	if !removeRemote || common.Ready(ke.vmbo, vmb) {
+	if !removeRemote || common.CleanupRecorded(ke.vmbo, vmb) {
 		return nil
 	}
 	for i, vb := range ke.vmbo.GetVolBackups(vmb) {
@@ -253,7 +265,7 @@ func (ke *KopiaEngine) deleteJobs(vmb *harvesterv1.VirtualMachineBackup) error {
 		if ke.vmbo.GetVolBackupName(&vb) == nil {
 			continue
 		}
-		name, err := ke.forgetJobName(&vb)
+		name, err := ke.forgetJobName(vmb, &vb)
 		if err != nil {
 			return err
 		}
@@ -272,11 +284,11 @@ func (ke *KopiaEngine) ensureForgetJob(
 	vmb *harvesterv1.VirtualMachineBackup,
 	vb *harvesterv1.VolumeBackup,
 ) (*batchv1.Job, error) {
-	forgetName, err := ke.forgetJobName(vb)
+	forgetName, err := ke.forgetJobName(vmb, vb)
 	if err != nil {
 		return nil, err
 	}
-	namespace := ke.vmbo.GetNamespace(vmb)
+	namespace := joblifecycle.Namespace
 	job, err := ke.jobClient.Get(namespace, forgetName, metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		return job, err
@@ -310,28 +322,24 @@ func (ke *KopiaEngine) retryForgetJob(job *batchv1.Job) error {
 	return fmt.Errorf("kopia forget job %s/%s failed or was interrupted; retrying cleanup", job.Namespace, job.Name)
 }
 
-func (ke *KopiaEngine) ensureClonePVC(
-	vmb *harvesterv1.VirtualMachineBackup,
-	vb *harvesterv1.VolumeBackup,
-	clonePVCName string,
-) error {
-	namespace := ke.vmbo.GetNamespace(vmb)
-	pvc, err := ke.pvcCache.Get(namespace, clonePVCName)
+func (ke *KopiaEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, name string) error {
+	if err := ke.imports.Import(vmb, common.SnapshotName(vmb, vb), ke.importedSnapshot(vmb, vb)); err != nil {
+		return pending(err)
+	}
+	pvc, err := ke.pvcCache.Get(joblifecycle.Namespace, name)
 	if apierrors.IsNotFound(err) {
-		return ke.createClonePVC(vmb, vb, clonePVCName)
+		return ke.createClonePVC(vmb, vb, name)
 	}
 	if err != nil {
 		return err
 	}
-	if err := common.ValidateClonePVC(
-		pvc, ke.vsHelper.BuildOwnerReference(vmb), ke.volumeSnapshotName(vb),
-	); err != nil {
+	if err := joblifecycle.Validate(vmb, vmBackupKind, pvc.ObjectMeta); err != nil {
 		return err
 	}
-	if pvc.DeletionTimestamp != nil {
-		return engine.ErrRetryLater
+	if err := datamover.SnapshotSource(pvc, ke.importedSnapshot(vmb, vb)); err != nil {
+		return err
 	}
-	if ke.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound {
+	if pvc.DeletionTimestamp != nil || (ke.waitsForImmediateBinding(pvc) && pvc.Status.Phase != corev1.ClaimBound) {
 		return engine.ErrRetryLater
 	}
 	return nil
@@ -342,13 +350,12 @@ func (ke *KopiaEngine) createClonePVC(
 	vb *harvesterv1.VolumeBackup,
 	clonePVCName string,
 ) error {
-	namespace := ke.vmbo.GetNamespace(vmb)
+	namespace := joblifecycle.Namespace
 	sourceSpec := ke.vmbo.GetVolBackupPVCSpec(vb)
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            clonePVCName,
-			Namespace:       namespace,
-			OwnerReferences: []metav1.OwnerReference{ke.vsHelper.BuildOwnerReference(vmb)},
+			Name:      clonePVCName,
+			Namespace: namespace,
 		},
 		Spec: sourceSpec,
 	}
@@ -356,9 +363,10 @@ func (ke *KopiaEngine) createClonePVC(
 	pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
 		APIGroup: ptr.To("snapshot.storage.k8s.io"),
 		Kind:     "VolumeSnapshot",
-		Name:     ke.volumeSnapshotName(vb),
+		Name:     ke.importedSnapshot(vmb, vb),
 	}
 	pvc.Spec.DataSourceRef = nil
+	joblifecycle.Track(&pvc.ObjectMeta, vmb, vmBackupKind)
 	_, err := ke.pvcClient.Create(pvc)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
@@ -378,47 +386,38 @@ func (ke *KopiaEngine) waitsForImmediateBinding(pvc *corev1.PersistentVolumeClai
 	return *sc.VolumeBindingMode != storagev1.VolumeBindingWaitForFirstConsumer
 }
 
-func (ke *KopiaEngine) createBackupJob(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, clonePVCName, jobName string) error {
-	repository, err := ke.repository(vmb)
+func (ke *KopiaEngine) createBackupJob(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
+	clonePVCName, jobName string,
+) error {
+	runtime, err := ke.jobRuntime(vmb, jobName)
 	if err != nil {
 		return err
 	}
-	secretName := jobcredentials.Name(jobName)
-	vbName := ke.vmbo.GetVolBackupName(vb)
-	if vbName == nil {
+	if ke.vmbo.GetVolBackupName(vb) == nil {
 		return fmt.Errorf("volume backup name is nil")
 	}
-
-	namespace := ke.vmbo.GetNamespace(vmb)
-	pvName := ke.vmbo.GetVolBackupPVName(vb)
-	labels := kopiautil.JobLabels(nil)
-	runtime, hasCapacity, err := kopiautil.NewJobRuntime(context.Background(), ke.clientset, secretName, repository, labels)
-	if err != nil {
-		return err
-	}
-	if !hasCapacity {
-		return engine.ErrRetryLater
-	}
-	tags := ke.snapshotTags(vmb, vb)
 	command := kopiautil.BackupCommand(
-		runtime.Command,
-		kopiautil.ConnectOrCreateCommand(),
+		runtime.Command, kopiautil.ConnectOrCreateCommand(),
 		fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=read", clonePVCName),
-		pvName,
-		tags,
+		ke.vmbo.GetVolBackupPVName(vb), ke.snapshotTags(vmb, vb),
 	)
+	return ke.startJob(vmb, newBackupJob(runtime, command, clonePVCName, jobName))
+}
+
+func newBackupJob(runtime *kopiautil.JobRuntime, command, pvcName, name string) *batchv1.Job {
+	labels := runtime.Labels
 	volumes := runtime.VolumesWith(corev1.Volume{
 		Name: "volume",
 		VolumeSource: corev1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: clonePVCName},
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
 		},
 	})
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            jobName,
-			Namespace:       namespace,
-			Labels:          labels,
-			OwnerReferences: []metav1.OwnerReference{ke.vsHelper.BuildOwnerReference(vmb)},
+			Name:      name,
+			Namespace: joblifecycle.Namespace,
+			Labels:    labels,
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:            ptr.To[int32](0),
@@ -439,7 +438,7 @@ func (ke *KopiaEngine) createBackupJob(vmb *harvesterv1.VirtualMachineBackup, vb
 						Args:         []string{command},
 						VolumeDevices: []corev1.VolumeDevice{{
 							Name:       "volume",
-							DevicePath: "/dev/" + clonePVCName,
+							DevicePath: "/dev/" + pvcName,
 						}},
 					}},
 					Volumes: volumes,
@@ -447,33 +446,21 @@ func (ke *KopiaEngine) createBackupJob(vmb *harvesterv1.VirtualMachineBackup, vb
 			},
 		},
 	}
-	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
-	if err != nil {
-		return err
-	}
-	return ke.ensureSecret(vmb, job)
+	job.Finalizers = []string{joblifecycle.CompletionFinalizer}
+	return job
 }
 
-func (ke *KopiaEngine) checkRemoteSnapshot(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (bool, error) {
-	checkName, err := ke.checkJobName(vb)
+func (ke *KopiaEngine) checkRemoteSnapshot(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
+) (bool, error) {
+	name, err := ke.checkJobName(vmb, vb)
 	if err != nil {
 		return false, err
 	}
-	namespace := ke.vmbo.GetNamespace(vmb)
 	result, err := kopiautil.CheckSnapshotJob(
-		context.Background(),
-		ke.clientset,
-		checkName,
+		context.Background(), ke.clientset, name,
 		func(name string) (*batchv1.Job, error) {
-			job, err := ke.jobCache.Get(namespace, name)
-			if err != nil {
-				return nil, err
-			}
-			return job, ke.ensureSecret(vmb, job)
+			return ke.getCheckJob(vmb, name)
 		},
 		func(name string) error {
 			return ke.createCheckJob(vmb, vb, name)
@@ -482,20 +469,34 @@ func (ke *KopiaEngine) checkRemoteSnapshot(vmb *harvesterv1.VirtualMachineBackup
 	if err != nil {
 		return false, err
 	}
-	discoveredBackup := ke.isDiscoveredBackup(vmb)
+	return ke.checkResult(vmb, vb, name, result)
+}
+
+func (ke *KopiaEngine) getCheckJob(vmb *harvesterv1.VirtualMachineBackup, name string) (*batchv1.Job, error) {
+	job, err := joblifecycle.GetJob(ke.jobClient, vmb, vmBackupKind, name)
+	if err != nil {
+		return nil, err
+	}
+	return job, ke.ensureSecret(vmb, job)
+}
+
+func (ke *KopiaEngine) checkResult(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
+	name string, result kopiautil.SnapshotCheckResult,
+) (bool, error) {
+	// New backups can proceed to upload when the remote snapshot is absent or
+	// its check failed. Discovered backups have no local source to upload.
+	if !ke.isDiscoveredBackup(vmb) &&
+		(result == kopiautil.SnapshotCheckMissing || result == kopiautil.SnapshotCheckFailed) {
+		return false, nil
+	}
 	switch result {
 	case kopiautil.SnapshotCheckPending:
 		return false, engine.ErrRetryLater
 	case kopiautil.SnapshotCheckMissing:
-		if discoveredBackup {
-			return false, fmt.Errorf("kopia snapshot for discovered backup %s/%s not found", namespace, checkName)
-		}
-		return false, nil
+		return false, fmt.Errorf("kopia snapshot for discovered backup %s/%s not found", joblifecycle.Namespace, name)
 	case kopiautil.SnapshotCheckFailed:
-		if discoveredBackup {
-			return false, fmt.Errorf("kopia snapshot check job %s/%s failed", namespace, checkName)
-		}
-		return false, nil
+		return false, fmt.Errorf("kopia snapshot check job %s/%s failed", joblifecycle.Namespace, name)
 	case kopiautil.SnapshotCheckFound:
 		return ke.markReady(vb)
 	default:
@@ -522,63 +523,41 @@ func (ke *KopiaEngine) markReady(vb *harvesterv1.VolumeBackup) (bool, error) {
 	return true, nil
 }
 
-func (ke *KopiaEngine) createCheckJob(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, jobName string) error {
-	repository, err := ke.repository(vmb)
+func (ke *KopiaEngine) createCheckJob(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, jobName string,
+) error {
+	runtime, err := ke.jobRuntime(vmb, jobName)
 	if err != nil {
 		return err
-	}
-	secretName := jobcredentials.Name(jobName)
-
-	namespace := ke.vmbo.GetNamespace(vmb)
-	labels := kopiautil.JobLabels(nil)
-	runtime, hasCapacity, err := kopiautil.NewJobRuntime(context.Background(), ke.clientset, secretName, repository, labels)
-	if err != nil {
-		return err
-	}
-	if !hasCapacity {
-		return engine.ErrRetryLater
 	}
 	job := kopiautil.NewSnapshotCheckJob(kopiautil.SnapshotCheckJobOptions{
-		Name:            jobName,
-		Namespace:       namespace,
-		Labels:          labels,
-		OwnerReferences: []metav1.OwnerReference{ke.vsHelper.BuildOwnerReference(vmb)},
-		Runtime:         runtime,
-		Tags:            ke.snapshotTags(vmb, vb),
-		ConnectCommand:  kopiautil.ConnectCommand(),
+		Name:           jobName,
+		Namespace:      joblifecycle.Namespace,
+		Labels:         runtime.Labels,
+		Runtime:        runtime,
+		Tags:           ke.snapshotTags(vmb, vb),
+		ConnectCommand: kopiautil.ConnectCommand(),
 	})
-	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
-	if err != nil {
-		return err
-	}
-	return ke.ensureSecret(vmb, job)
+	return ke.startJob(vmb, job)
 }
 
-func (ke *KopiaEngine) createForgetJob(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, jobName string) error {
-	repository, err := ke.repository(vmb)
+func (ke *KopiaEngine) createForgetJob(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, jobName string,
+) error {
+	runtime, err := ke.jobRuntime(vmb, jobName)
 	if err != nil {
 		return err
-	}
-	secretName := jobcredentials.Name(jobName)
-
-	namespace := ke.vmbo.GetNamespace(vmb)
-	labels := kopiautil.JobLabels(nil)
-	runtime, hasCapacity, err := kopiautil.NewJobRuntime(context.Background(), ke.clientset, secretName, repository, labels)
-	if err != nil {
-		return err
-	}
-	if !hasCapacity {
-		return engine.ErrRetryLater
 	}
 	command := kopiautil.SnapshotDeleteCommand(kopiautil.ConnectCommand(), ke.snapshotTags(vmb, vb))
+	return ke.startJob(vmb, newForgetJob(runtime, command, jobName))
+}
+
+func newForgetJob(runtime *kopiautil.JobRuntime, command, name string) *batchv1.Job {
+	labels := runtime.Labels
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       jobName,
-			Namespace:  namespace,
+			Name:       name,
+			Namespace:  joblifecycle.Namespace,
 			Labels:     labels,
 			Finalizers: []string{joblifecycle.CompletionFinalizer},
 		},
@@ -603,9 +582,38 @@ func (ke *KopiaEngine) createForgetJob(vmb *harvesterv1.VirtualMachineBackup, vb
 			},
 		},
 	}
+	return job
+}
+
+// jobRuntime validates shared credentials before a Job can be created.
+func (ke *KopiaEngine) jobRuntime(
+	vmb *harvesterv1.VirtualMachineBackup, name string,
+) (*kopiautil.JobRuntime, error) {
+	if _, err := backuputil.CredentialData(
+		ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
+	); err != nil {
+		return nil, err
+	}
+	repository, err := ke.repository(vmb)
+	if err != nil {
+		return nil, err
+	}
+	runtime, hasCapacity, err := kopiautil.NewJobRuntime(
+		context.Background(), ke.clientset, jobcredentials.Name(name), repository, kopiautil.JobLabels(nil),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !hasCapacity {
+		return nil, engine.ErrRetryLater
+	}
+	return runtime, nil
+}
+
+func (ke *KopiaEngine) startJob(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
 	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	job, err = client.Create(job)
+	job, err := client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
@@ -619,7 +627,7 @@ func (ke *KopiaEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
 	return client.Ensure(job, func() (map[string][]byte, error) {
 		return backuputil.CredentialData(
-			ke.secretCache, ke.vmbo.GetBackupTarget(vmb), harvesterv1.Kopia, kopiautil.PasswordKey,
+			ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
 		)
 	})
 }
@@ -637,21 +645,10 @@ func (ke *KopiaEngine) syncFromJob(vb *harvesterv1.VolumeBackup, job *batchv1.Jo
 		return fmt.Errorf("kopia backup job %s/%s failed", job.Namespace, job.Name)
 	}
 	if job.Status.Succeeded == 0 {
-		// Job still running — update progress from io-mode pod logs (best effort).
-		if pct, err := jobprogress.FetchProgressPercent(context.Background(), ke.clientset, job.Namespace, job.Name); err == nil {
-			_ = ke.vmbo.SetVolBackupProgress(vb, pct)
-		}
+		ke.refreshProgress(vb, job.Namespace, job.Name)
 		return engine.ErrRetryLater
 	}
-	now := metav1.Now()
-	ready := true
-	if err := ke.vmbo.SetVolBackupReadyToUse(vb, &ready); err != nil {
-		return err
-	}
-	if err := ke.vmbo.SetVolBackupCreationTime(vb, &now); err != nil {
-		return err
-	}
-	if err := ke.vmbo.SetVolBackupProgress(vb, 100); err != nil {
+	if _, err := ke.markReady(vb); err != nil {
 		return err
 	}
 	// Cleanup is deferred to the next reconcile (when ReadyToUse is persisted)
@@ -660,73 +657,53 @@ func (ke *KopiaEngine) syncFromJob(vb *harvesterv1.VolumeBackup, job *batchv1.Jo
 	return nil
 }
 
-// cleanupTemporaryResources removes the backup Job, cloned PVC, and
-// VolumeSnapshot created for this backup. Called after ReadyToUse is
-// persisted, so failure of any step is safe to retry on the next reconcile.
-// Delete the Job first so its Pod releases the cloned PVC before PVC cleanup.
-func (ke *KopiaEngine) cleanupTemporaryResources(
-	vmb *harvesterv1.VirtualMachineBackup,
-	vb *harvesterv1.VolumeBackup,
-) error {
-	namespace := ke.vmbo.GetNamespace(vmb)
-	return errors.Join(
-		ke.deleteBackupJob(namespace, vb),
-		ke.deleteClonePVC(vmb, vb),
-		ke.deleteSnapshot(namespace, ke.volumeSnapshotName(vb)),
-	)
-}
-
-func (ke *KopiaEngine) deleteBackupJob(namespace string, vb *harvesterv1.VolumeBackup) error {
-	jobName, err := ke.jobName(vb)
-	if err != nil {
+// cleanupTemporaryResources stops consumers before removing the clone and
+// imported snapshot. The original snapshot is deleted last, with its CSI
+// protection finalizers intact. The same order applies on cancellation.
+func (ke *KopiaEngine) cleanupTemporaryResources(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) error {
+	if err := ke.stopVolumeJobs(vmb, vb); err != nil {
 		return err
 	}
-
-	err = ke.jobClient.Delete(namespace, jobName, &metav1.DeleteOptions{
-		PropagationPolicy: ptr.To(metav1.DeletePropagationBackground),
-	})
-
-	if err == nil || apierrors.IsNotFound(err) {
-		return nil
+	if err := ke.deleteClonePVC(vmb, vb); err != nil {
+		return pending(err)
 	}
-
-	return fmt.Errorf(
-		"failed to delete kopia backup job %s/%s: %w",
-		namespace, jobName, err,
-	)
+	if err := ke.imports.Delete(vmb, ke.importedSnapshot(vmb, vb)); err != nil {
+		return pending(err)
+	}
+	return ke.deleteSnapshot(vmb, common.SnapshotName(vmb, vb))
 }
 
-func (ke *KopiaEngine) deleteClonePVC(
-	vmb *harvesterv1.VirtualMachineBackup,
-	vb *harvesterv1.VolumeBackup,
+func (ke *KopiaEngine) stopVolumeJobs(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
 ) error {
-	namespace := ke.vmbo.GetNamespace(vmb)
-	name := ke.clonePVCName(vmb, vb)
-	err := common.DeleteClonePVC(
-		ke.pvcClient, namespace, name,
-		ke.vsHelper.BuildOwnerReference(vmb), ke.volumeSnapshotName(vb),
-	)
-	if err == nil || apierrors.IsNotFound(err) {
-		return nil
+	for _, prefix := range []string{jobNamePrefix, checkJobNamePrefix} {
+		name := joblifecycle.Name(prefix, vmb, ke.volumeSnapshotName(vb))
+		if err := datamover.StopJob(ke.clientset, vmb, vmBackupKind, name); err != nil {
+			return pending(err)
+		}
 	}
-	return fmt.Errorf(
-		"failed to delete kopia temporary PVC %s/%s: %w",
-		namespace, name, err,
-	)
+	return nil
 }
 
-func (ke *KopiaEngine) deleteSnapshot(namespace, name string) error {
+func (ke *KopiaEngine) deleteSnapshot(vmb *harvesterv1.VirtualMachineBackup, name string) error {
 	if name == "" {
 		return nil
 	}
-	err := ke.vsClient.Delete(namespace, name, &metav1.DeleteOptions{})
-	if err == nil || apierrors.IsNotFound(err) {
+	snapshot, err := ke.vsClient.Get(vmb.Namespace, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
 		return nil
 	}
-	return fmt.Errorf(
-		"failed to delete kopia temporary VolumeSnapshot %s/%s: %w",
-		namespace, name, err,
-	)
+	if err != nil {
+		return err
+	}
+	if err := joblifecycle.Validate(vmb, vmBackupKind, snapshot.ObjectMeta); err != nil {
+		return err
+	}
+	err = ke.vsClient.Delete(vmb.Namespace, name, &metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &snapshot.UID}})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return engine.ErrRetryLater
 }
 
 func (ke *KopiaEngine) volumeSnapshotName(vb *harvesterv1.VolumeBackup) string {
@@ -737,35 +714,35 @@ func (ke *KopiaEngine) volumeSnapshotName(vb *harvesterv1.VolumeBackup) string {
 }
 
 func (ke *KopiaEngine) clonePVCName(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) string {
-	return wranglername.SafeConcatName(
-		ke.vmbo.GetName(vmb),
-		ke.vmbo.GetVolBackupPVCName(vb),
-		"kopia-clone",
-	)
+	return joblifecycle.Name("kopia-clone", vmb, ke.volumeSnapshotName(vb))
 }
 
-func (ke *KopiaEngine) jobName(vb *harvesterv1.VolumeBackup) (string, error) {
+func (ke *KopiaEngine) importedSnapshot(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) string {
+	return joblifecycle.Name("kopia-snapshot", vmb, ke.volumeSnapshotName(vb))
+}
+
+func (ke *KopiaEngine) jobName(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (string, error) {
 	name := ke.vmbo.GetVolBackupName(vb)
 	if name == nil {
 		return "", fmt.Errorf("volume backup name is nil")
 	}
-	return wranglername.SafeConcatName(jobNamePrefix, *name), nil
+	return joblifecycle.Name(jobNamePrefix, vmb, *name), nil
 }
 
-func (ke *KopiaEngine) forgetJobName(vb *harvesterv1.VolumeBackup) (string, error) {
+func (ke *KopiaEngine) forgetJobName(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (string, error) {
 	name := ke.vmbo.GetVolBackupName(vb)
 	if name == nil {
 		return "", fmt.Errorf("volume backup name is nil")
 	}
-	return wranglername.SafeConcatName(forgetJobNamePrefix, *name), nil
+	return joblifecycle.Name(forgetJobNamePrefix, vmb, *name), nil
 }
 
-func (ke *KopiaEngine) checkJobName(vb *harvesterv1.VolumeBackup) (string, error) {
+func (ke *KopiaEngine) checkJobName(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) (string, error) {
 	name := ke.vmbo.GetVolBackupName(vb)
 	if name == nil {
 		return "", fmt.Errorf("volume backup name is nil")
 	}
-	return wranglername.SafeConcatName(checkJobNamePrefix, *name), nil
+	return joblifecycle.Name(checkJobNamePrefix, vmb, *name), nil
 }
 
 func (ke *KopiaEngine) snapshotTags(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) []string {
@@ -780,16 +757,27 @@ func (ke *KopiaEngine) snapshotTags(vmb *harvesterv1.VirtualMachineBackup, vb *h
 	}
 }
 
-// jobLocator returns the name/namespace to look up the backup Job for vb,
-// or false if the volume backup name isn't set yet. See restic.jobLocator.
-func (ke *KopiaEngine) jobLocator(vb *harvesterv1.VolumeBackup) (name, namespace string, ok bool) {
-	vbName := ke.vmbo.GetVolBackupName(vb)
-	if vbName == nil {
-		return "", "", false
+func pending(err error) error {
+	if datamover.Retryable(err) {
+		return engine.ErrRetryLater
 	}
-	ns := ke.vmbo.GetVolBackupPVCNameSpace(vb)
-	if ns == "" {
-		return "", "", false
+	return err
+}
+
+func (ke *KopiaEngine) deleteClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) error {
+	name := ke.clonePVCName(vmb, vb)
+	pvc, err := ke.clientset.CoreV1().PersistentVolumeClaims(joblifecycle.Namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
 	}
-	return wranglername.SafeConcatName(jobNamePrefix, *vbName), ns, true
+	if err != nil {
+		return err
+	}
+	if err := joblifecycle.Validate(vmb, vmBackupKind, pvc.ObjectMeta); err != nil {
+		return err
+	}
+	if err := datamover.SnapshotSource(pvc, ke.importedSnapshot(vmb, vb)); err != nil {
+		return err
+	}
+	return datamover.DeleteClaim(ke.clientset, vmb, vmBackupKind, name)
 }

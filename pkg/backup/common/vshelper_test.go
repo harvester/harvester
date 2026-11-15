@@ -20,6 +20,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
 const (
@@ -44,17 +45,21 @@ func TestPrepareSnapshotsWaitsForAllSnapshots(t *testing.T) {
 	require.False(t, ready)
 	snapshots := listSnapshots(t, fixture.clientset, snapshotNamespace)
 	require.Len(t, snapshots, 2)
+	for _, snapshot := range snapshots {
+		require.Empty(t, snapshot.OwnerReferences)
+		require.NoError(t, joblifecycle.Validate(fixture.vmb, "VirtualMachineBackup", snapshot.ObjectMeta))
+	}
 	require.Equal(t, "snapshot-class", *snapshots[0].Spec.VolumeSnapshotClassName)
 	require.False(t, ptr.Deref(fixture.vmb.Status.VolumeBackups[0].ReadyToUse, false))
 	require.False(t, ptr.Deref(fixture.vmb.Status.VolumeBackups[1].ReadyToUse, false))
 	require.Equal(t, 1, actionCount(fixture.clientset.Actions(), "update", "virtualmachinebackups"))
 
-	markSnapshotReady(t, fixture.clientset, snapshotNamespace, "backup-volume-disk-1")
+	markSnapshotReady(t, fixture.clientset, snapshotNamespace, backupcommon.SnapshotName(fixture.vmb, &fixture.vmb.Status.VolumeBackups[0]))
 	ready, err = fixture.helper.PrepareSnapshots(fixture.vmb, fixture.classes)
 	require.NoError(t, err)
 	require.False(t, ready)
 
-	markSnapshotReady(t, fixture.clientset, snapshotNamespace, "backup-volume-disk-2")
+	markSnapshotReady(t, fixture.clientset, snapshotNamespace, backupcommon.SnapshotName(fixture.vmb, &fixture.vmb.Status.VolumeBackups[1]))
 	ready, err = fixture.helper.PrepareSnapshots(fixture.vmb, fixture.classes)
 	require.NoError(t, err)
 	require.True(t, ready)
@@ -199,4 +204,25 @@ func actionCount(actions []clienttesting.Action, verb, resource string) int {
 		}
 	}
 	return count
+}
+
+func TestSnapshotOwnershipByEngine(t *testing.T) {
+	for _, kind := range []harvesterv1.BackupType{harvesterv1.Snapshot, harvesterv1.Backup, harvesterv1.Restic, harvesterv1.Kopia} {
+		t.Run(string(kind), func(t *testing.T) {
+			fixture := newSnapshotFixture()
+			fixture.vmb.Spec.Type = kind
+			_, err := fixture.helper.PrepareSnapshots(fixture.vmb, fixture.classes)
+			require.NoError(t, err)
+			for _, snapshot := range listSnapshots(t, fixture.clientset, snapshotNamespace) {
+				if kind == harvesterv1.Snapshot || kind == harvesterv1.Backup {
+					require.True(t, metav1.IsControlledBy(&snapshot, fixture.vmb))
+					require.Contains(t, []string{"backup-volume-disk-1", "backup-volume-disk-2"}, snapshot.Name)
+					continue
+				}
+				require.Empty(t, snapshot.OwnerReferences)
+				require.NoError(t, joblifecycle.Validate(fixture.vmb, "VirtualMachineBackup", snapshot.ObjectMeta))
+				require.Contains(t, snapshot.Name, string(kind)+"-source-snapshot-")
+			}
+		})
+	}
 }
