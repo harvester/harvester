@@ -103,6 +103,9 @@ const (
 	NodePause                     = "pause"
 	NodeUnpause                   = "unpause"
 
+	// AnnotationVMDisplayName holds the name that the UI shows instead of the VM name.
+	AnnotationVMDisplayName = "harvesterhci.io/vmDisplayName"
+
 	// Annotation for backend storage clone.
 	AnnotationBSCloneStatus       = prefix + "/clone-backend-storage-status"
 	AnnotationBSCloneSourceVM     = prefix + "/clone-backend-storage-source-vm"

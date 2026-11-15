@@ -1,9 +1,10 @@
 package converter
 
 import (
+	"fmt"
+
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/attributes"
-	"github.com/rancher/steve/pkg/schema/table"
 	apiextv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -51,16 +52,6 @@ func addCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map
 }
 
 func forVersion(group, kind string, version v1.CustomResourceDefinitionVersion, schemasMap map[string]*types.APISchema) {
-	var versionColumns []table.Column
-	for _, col := range version.AdditionalPrinterColumns {
-		versionColumns = append(versionColumns, table.Column{
-			Name:   col.Name,
-			Field:  col.JSONPath,
-			Type:   col.Type,
-			Format: col.Format,
-		})
-	}
-
 	id := GVKToVersionedSchemaID(schema.GroupVersionKind{
 		Group:   group,
 		Version: version.Name,
@@ -72,9 +63,6 @@ func forVersion(group, kind string, version v1.CustomResourceDefinitionVersion, 
 		return
 	}
 	attributes.MarkCRD(schema)
-	if len(versionColumns) > 0 {
-		attributes.SetColumns(schema, versionColumns)
-	}
 	if version.Schema != nil && version.Schema.OpenAPIV3Schema != nil {
 		schema.Description = version.Schema.OpenAPIV3Schema.Description
 
@@ -82,6 +70,17 @@ func forVersion(group, kind string, version v1.CustomResourceDefinitionVersion, 
 			schemas.SetHasObservedGeneration(schema.Schema, true)
 		}
 	}
+
+	cols := map[string]string{}
+	cols["Name"] = "{.metadata.name}"
+
+	for _, col := range version.AdditionalPrinterColumns {
+		cols[col.Name] = fmt.Sprintf("{%s}", col.JSONPath)
+	}
+	if len(version.AdditionalPrinterColumns) == 0 {
+		cols["Age"] = "{.metadata.creationTimestamp}"
+	}
+	attributes.SetCRDJSONPathParsers(schema, cols)
 }
 
 func hasObservedGeneration(schema *v1.JSONSchemaProps) bool {

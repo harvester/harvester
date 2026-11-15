@@ -36,6 +36,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachine"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineimage"
+	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachineinstance"
 	"github.com/harvester/harvester/pkg/webhook/resources/virtualmachinerestore"
 	"github.com/harvester/harvester/pkg/webhook/resources/volumeremotebackup"
 	"github.com/harvester/harvester/pkg/webhook/resources/volumesnapshot"
@@ -107,6 +108,9 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 				clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()),
 		),
 		keypair.NewValidator(clients.HarvesterFactory.Harvesterhci().V1beta1().KeyPair().Cache()),
+		virtualmachineinstance.NewValidator(
+			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
+			clients.Core.PersistentVolumeClaim().Cache()),
 		virtualmachine.NewValidator(
 			clients.Core.Namespace().Cache(),
 			clients.Core.Pod().Cache(),

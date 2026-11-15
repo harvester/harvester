@@ -174,6 +174,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
     - name: Configure envs
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        REF_NAME: ${{ github.ref_name }}
       run: |
         if [ "${{ matrix.arch }}" == "x64" ]; then
           echo "arch=amd64" >> "$GITHUB_ENV"
@@ -181,21 +184,29 @@ jobs:
           echo "arch=arm64" >> "$GITHUB_ENV"
         fi
 
-        if [ -n "${{ github.base_ref }}" ]; then
+        if [ -n "$BASE_REF" ]; then
           # pull request
-          echo "target_branch=${{ github.base_ref }}" >> "$GITHUB_ENV"
+          golden_target_branch="$BASE_REF"
         else
           # direct push
-          echo "target_branch=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          golden_target_branch="$REF_NAME"
         fi
+
+        # release-v1.10.0-rc1, release-v1.10.0 or
+        # release-prime-v1.10.0-rc1 -> v1.10
+        if [[ "$golden_target_branch" =~ ^release-(prime-)?(v[0-9]+\.[0-9]+)\.[0-9]+(-.+)?$ ]]; then
+          golden_target_branch="${BASH_REMATCH[2]}"
+        fi
+        echo "golden_target_branch=${golden_target_branch}" >> "$GITHUB_ENV"
 
         echo "test_results_dir=$(pwd)/e2e-results-${{ github.run_number }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
 
     - name: Create testing cluster
       run: |
         cd $HOME/harvester-dev
-        # ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "${{ env.target_branch }}"
-        ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" master
+        # in case the runner is restarted, start admin first
+        task op:admin-poweron
+        ./scripts/golden-prepare.sh "${{ inputs.artifact_server_url }}/isos/golden" "$golden_target_branch"
       env:
         LIBVIRT_DEFAULT_URI: "qemu:///system"
 
@@ -218,6 +229,9 @@ jobs:
     - name: Patch Harvester images
       run: |
         cd $HOME/harvester-dev
+
+        # need egress on to reach the registry
+        task op:admin-enable-egress
 
         repo="rancher"
 

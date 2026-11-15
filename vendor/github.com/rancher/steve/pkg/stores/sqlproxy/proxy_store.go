@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/rancher/steve/pkg/stores/queryhelper"
 	"github.com/rancher/wrangler/v3/pkg/data"
 	"github.com/rancher/wrangler/v3/pkg/kv"
-	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
 	"github.com/rancher/wrangler/v3/pkg/summary"
 	"github.com/sirupsen/logrus"
@@ -52,6 +52,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/jsonpath"
 )
 
 const (
@@ -64,7 +65,7 @@ var (
 	paramScheme = runtime.NewScheme()
 	paramCodec  = runtime.NewParameterCodec(paramScheme)
 	// Please keep the gvkKey entries in alphabetical order, on a field-by-field basis
-	typeSpecificIndexedFields = map[string][][]string{
+	TypeSpecificIndexedFields = map[string][][]string{
 		gvkKey("", "v1", "Event"): {
 			{"_type"},
 			{"involvedObject", "kind"},
@@ -86,11 +87,15 @@ var (
 			{"spec", "volumeName"}},
 		gvkKey("", "v1", "Pod"): {
 			{"spec", "containers", "image"},
-			{"spec", "nodeName"}},
+			{"spec", "nodeName"},
+			{"status", "podIP"},
+		},
 		gvkKey("", "v1", "ReplicationController"): {
 			{"spec", "template", "spec", "containers", "image"}},
 		gvkKey("", "v1", "Secret"): {
 			{"metadata", "annotations", "management.cattle.io/project-scoped-secret-copy"},
+			{"spec", "clusterName"},
+			{"spec", "displayName"},
 		},
 		gvkKey("", "v1", "Service"): {
 			{"spec", "clusterIP"},
@@ -147,6 +152,16 @@ var (
 		gvkKey("management.cattle.io", "v3", "Cluster"): {
 			{"spec", "internal"},
 			{"spec", "displayName"},
+			{"status", "allocatable", "cpu"},
+			{"status", "allocatable", "cpuRaw"},
+			{"status", "allocatable", "memory"},
+			{"status", "allocatable", "memoryRaw"},
+			{"status", "allocatable", "pods"},
+			{"status", "requested", "cpu"},
+			{"status", "requested", "cpuRaw"},
+			{"status", "requested", "memory"},
+			{"status", "requested", "memoryRaw"},
+			{"status", "requested", "pods"},
 			{"status", "connected"},
 			{"status", "provider"},
 		},
@@ -182,8 +197,18 @@ var (
 		},
 		gvkKey("provisioning.cattle.io", "v1", "Cluster"): {
 			{"metadata", "annotations", "provisioning.cattle.io/management-cluster-display-name"},
+			{"status", "allocatable", "cpu"},
+			{"status", "allocatable", "cpuRaw"},
+			{"status", "allocatable", "memory"},
+			{"status", "allocatable", "memoryRaw"},
+			{"status", "allocatable", "pods"},
 			{"status", "clusterName"},
 			{"status", "provider"},
+			{"status", "requested", "cpu"},
+			{"status", "requested", "cpuRaw"},
+			{"status", "requested", "memory"},
+			{"status", "requested", "memoryRaw"},
+			{"status", "requested", "pods"},
 		},
 		gvkKey("rke.cattle.io", "v1", "ETCDSnapshot"): {
 			{"snapshotFile", "createdAt"},
@@ -198,35 +223,93 @@ var (
 		{`id`},
 		{`metadata`, `state`, `name`},
 	}
-	baseNSSchema = types.APISchema{
-		Schema: &schemas.Schema{
-			Attributes: map[string]interface{}{
-				"group":    "",
-				"version":  "v1",
-				"kind":     "Namespace",
-				"resource": "namespaces",
-			},
-		},
-	}
 	namespaceGVK             = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"}
 	mcioProjectGvk           = schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "Project"}
-	namespaceProjectLabelDep = sqltypes.ExternalLabelDependency{
-		SourceGVK:            gvkKey("", "v1", "Namespace"),
-		SourceLabelName:      "field.cattle.io/projectId",
-		TargetGVK:            gvkKey("management.cattle.io", "v3", "Project"),
-		TargetKeyFieldName:   "metadata.name",
+	pcioClusterGvk           = schema.GroupVersionKind{Group: "provisioning.cattle.io", Version: "v1", Kind: "Cluster"}
+	namespaceProjectLabelDep = sqltypes.MustNewExternalLabelDependency(sqltypes.ExternalLabelDependency{
+		SourceGVK: gvkKey("", "v1", "Namespace"),
+		TargetGVK: gvkKey("management.cattle.io", "v3", "Project"),
+		SourceLabelTargetField: map[string]string{
+			"field.cattle.io/projectId": "metadata.name",
+		},
 		TargetFinalFieldName: "spec.displayName",
-	}
+	})
 	namespaceUpdates = sqltypes.ExternalGVKUpdates{
 		AffectedGVK:               namespaceGVK,
 		ExternalDependencies:      nil,
 		ExternalLabelDependencies: []sqltypes.ExternalLabelDependency{namespaceProjectLabelDep},
 	}
+
+	secretGVK                    = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}
+	secretProjectLabelDisplayDep = sqltypes.MustNewExternalLabelDependency(sqltypes.ExternalLabelDependency{
+		SourceGVK: gvkKey("", "v1", "Secret"),
+		TargetGVK: gvkKey("management.cattle.io", "v3", "Project"),
+		SourceLabelTargetField: map[string]string{
+			"management.cattle.io/project-scoped-secret":         "metadata.name",
+			"management.cattle.io/project-scoped-secret-cluster": "spec.clusterName",
+		},
+		TargetFinalFieldName: "spec.displayName",
+	})
+	secretProjectLabelClusterDep = sqltypes.MustNewExternalLabelDependency(sqltypes.ExternalLabelDependency{
+		SourceGVK: gvkKey("", "v1", "Secret"),
+		TargetGVK: gvkKey("management.cattle.io", "v3", "Project"),
+		SourceLabelTargetField: map[string]string{
+			"management.cattle.io/project-scoped-secret":         "metadata.name",
+			"management.cattle.io/project-scoped-secret-cluster": "spec.clusterName",
+		},
+		TargetFinalFieldName: "spec.clusterName",
+	})
+	secretUpdates = sqltypes.ExternalGVKUpdates{
+		AffectedGVK:               secretGVK,
+		ExternalDependencies:      nil,
+		ExternalLabelDependencies: []sqltypes.ExternalLabelDependency{secretProjectLabelDisplayDep, secretProjectLabelClusterDep},
+	}
+
+	// Now sort provisioned.cattle.io.clusters based on their associated mgmt.cattle.io spec values
+	// We might need to pull in the `memoryRaw` fields as well
+	// Remember to index these fields in the database.
+	provisionedClusterDependencies = func() []sqltypes.ExternalDependency {
+		fields := []string{
+			"status.allocatable.cpu",
+			"status.allocatable.cpuRaw",
+			"status.allocatable.memory",
+			"status.allocatable.memoryRaw",
+			"status.allocatable.pods",
+			"status.requested.cpu",
+			"status.requested.cpuRaw",
+			"status.requested.memory",
+			"status.requested.memoryRaw",
+			"status.requested.pods",
+		}
+		x := make([]sqltypes.ExternalDependency, len(fields))
+		for i, field := range fields {
+			x[i] = sqltypes.ExternalDependency{
+				SourceGVK:            gvkKey("provisioning.cattle.io", "v1", "Cluster"),
+				SourceFieldName:      "status.clusterName",
+				TargetGVK:            gvkKey("management.cattle.io", "v3", "Cluster"),
+				TargetKeyFieldName:   "id",
+				TargetFinalFieldName: field,
+			}
+		}
+		return x
+	}()
+	pcioClusterUpdates = sqltypes.ExternalGVKUpdates{
+		AffectedGVK:               pcioClusterGvk,
+		ExternalDependencies:      provisionedClusterDependencies,
+		ExternalLabelDependencies: nil,
+	}
+
 	externalGVKDependencies = sqltypes.ExternalGVKDependency{
 		mcioProjectGvk: &namespaceUpdates,
+		pcioClusterGvk: &pcioClusterUpdates,
+		secretGVK:      &secretUpdates,
 	}
+
 	selfGVKDependencies = sqltypes.ExternalGVKDependency{
-		namespaceGVK: &namespaceUpdates,
+		// When a namespace is updated, we need to pull in changes from mcio into the namespaces table
+		namespaceGVK:   &namespaceUpdates,
+		pcioClusterGvk: &pcioClusterUpdates,
+		secretGVK:      &secretUpdates,
 	}
 )
 
@@ -250,6 +333,11 @@ type ClientGetter interface {
 
 type SchemaColumnSetter interface {
 	SetColumns(ctx context.Context, schema *types.APISchema) error
+}
+
+type SchemaCollection interface {
+	Schema(id string) *types.APISchema
+	ByGVK(gvk schema.GroupVersionKind) string
 }
 
 type Cache interface {
@@ -280,7 +368,7 @@ type RelationshipNotifier interface {
 }
 
 type TransformBuilder interface {
-	GetTransformFunc(gvk schema.GroupVersionKind, colDefs []common.ColumnDefinition, isCRD bool) cache.TransformFunc
+	GetTransformFunc(gvk schema.GroupVersionKind, colDefs []common.ColumnDefinition, isCRD bool, jsonPaths map[string]*jsonpath.JSONPath) cache.TransformFunc
 }
 
 type Store struct {
@@ -293,6 +381,7 @@ type Store struct {
 	lock             sync.Mutex
 	columnSetter     SchemaColumnSetter
 	transformBuilder TransformBuilder
+	schemas          SchemaCollection
 
 	watchers *Watchers
 }
@@ -300,19 +389,20 @@ type Store struct {
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (*factory.Cache, error)
+	CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, typeGuidance map[string]string, namespaced bool, watchable bool) (*factory.Cache, error)
 	DoneWithCache(*factory.Cache)
 	Stop(gvk schema.GroupVersionKind) error
 }
 
 // NewProxyStore returns a Store implemented directly on top of kubernetes.
-func NewProxyStore(ctx context.Context, c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, factory CacheFactory, needToInitNamespaceCache bool) (*Store, error) {
+func NewProxyStore(ctx context.Context, c SchemaColumnSetter, clientGetter ClientGetter, notifier RelationshipNotifier, scache virtualCommon.SummaryCache, schemas SchemaCollection, factory CacheFactory, needToInitNamespaceCache bool) (*Store, error) {
 	store := &Store{
 		ctx:              ctx,
 		clientGetter:     clientGetter,
 		notifier:         notifier,
 		columnSetter:     c,
 		transformBuilder: virtual.NewTransformBuilder(scache),
+		schemas:          schemas,
 		watchers:         newWatchers(),
 	}
 
@@ -364,33 +454,47 @@ func defaultInitializeCacheFactory() (CacheFactory, error) {
 // namespaces and projects.
 func (s *Store) initializeNamespaceCache() error {
 	buffer := WarningBuffer{}
-	nsSchema := baseNSSchema
+	var nsSchema *types.APISchema
+
+	if id := s.schemas.ByGVK(namespaceGVK); id != "" {
+		nsSchema = s.schemas.Schema(id)
+	}
+
+	if nsSchema == nil {
+		return fmt.Errorf("namespace schema not found")
+	}
 
 	// make sure any relevant columns are set to the ns schema
-	if err := s.columnSetter.SetColumns(s.ctx, &nsSchema); err != nil {
+	if err := s.columnSetter.SetColumns(s.ctx, nsSchema); err != nil {
 		return fmt.Errorf("failed to set columns for proxy stores namespace informer: %w", err)
 	}
 
 	// build table client
-	client, err := s.clientGetter.TableAdminClient(nil, &nsSchema, "", &buffer)
+	client, err := s.clientGetter.TableAdminClient(nil, nsSchema, "", &buffer)
 	if err != nil {
 		return err
 	}
 
-	gvk := attributes.GVK(&nsSchema)
-	// get fields from schema's columns
-	fields := GetFieldsFromSchema(&nsSchema)
-
+	gvk := attributes.GVK(nsSchema)
+	fields, cols, typeGuidance := getFieldAndColInfo(nsSchema, gvk)
 	// get any type-specific fields that steve is interested in
 	fields = append(fields, getFieldForGVK(gvk)...)
-	cols := common.GetColumnDefinitions(&nsSchema)
 
 	// get the type-specific transform func
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(&nsSchema))
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(nsSchema), attributes.CRDJSONPathParsers(nsSchema))
 
 	// get the ns informer
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	nsInformer, err := s.cacheFactory.CacheFor(s.ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, false, true)
+	nsInformer, err := s.cacheFactory.CacheFor(s.ctx,
+		fields,
+		externalGVKDependencies[gvk],
+		selfGVKDependencies[gvk],
+		transformFunc,
+		tableClient,
+		gvk,
+		typeGuidance,
+		false,
+		true)
 	if err != nil {
 		return err
 	}
@@ -402,7 +506,7 @@ func (s *Store) initializeNamespaceCache() error {
 func getFieldForGVK(gvk schema.GroupVersionKind) [][]string {
 	fields := [][]string{}
 	fields = append(fields, commonIndexFields...)
-	typeFields := typeSpecificIndexedFields[gvkKey(gvk.Group, gvk.Version, gvk.Kind)]
+	typeFields := TypeSpecificIndexedFields[gvkKey(gvk.Group, gvk.Version, gvk.Kind)]
 	if typeFields != nil {
 		fields = append(fields, typeFields...)
 	}
@@ -413,23 +517,22 @@ func gvkKey(group, version, kind string) string {
 	return group + "_" + version + "_" + kind
 }
 
-// GetFieldsFromSchema converts object field names from types.APISchema's format into steve's
+// getFieldAndColInfo converts object field names from types.APISchema's format into steve's
 // cache.sql.informer's slice format (e.g. "metadata.resourceVersion" is ["metadata", "resourceVersion"])
-func GetFieldsFromSchema(schema *types.APISchema) [][]string {
+// It also returns type info for each field
+func getFieldAndColInfo(schema *types.APISchema, gvk schema.GroupVersionKind) ([][]string, []common.ColumnDefinition, map[string]string) {
 	var fields [][]string
-	columns := attributes.Columns(schema)
-	if columns == nil {
-		return nil
+	colDefs := common.GetColumnDefinitions(schema)
+	if colDefs != nil {
+		for _, colDef := range colDefs {
+			field := strings.TrimPrefix(colDef.Field, "$")
+			field = strings.TrimPrefix(field, ".")
+			fields = append(fields, queryhelper.SafeSplit(field))
+		}
 	}
-	colDefs, ok := columns.([]common.ColumnDefinition)
-	if !ok {
-		return nil
-	}
-	for _, colDef := range colDefs {
-		field := strings.TrimPrefix(colDef.Field, "$.")
-		fields = append(fields, queryhelper.SafeSplit(field))
-	}
-	return fields
+	typeGuidance := getTypeGuidance(colDefs, gvk)
+
+	return fields, colDefs, typeGuidance
 }
 
 // ByID looks up a single object by its ID.
@@ -589,22 +692,21 @@ func newWatchers() *Watchers {
 }
 
 func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, client dynamic.ResourceInterface) (chan watch.Event, error) {
-	// warnings from inside the informer are discarded
-	gvk := attributes.GVK(schema)
-	fields := GetFieldsFromSchema(schema)
-	fields = append(fields, getFieldForGVK(gvk)...)
-	cols := common.GetColumnDefinitions(schema)
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(schema))
-	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	ns := attributes.Namespaced(schema)
-	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, ns, controllerschema.IsListWatchable(schema))
+	ctx := apiOp.Context()
+	inf, doneFn, err := s.cacheForWithDeps(ctx, apiOp, schema)
 	if err != nil {
 		return nil, err
 	}
-	// FIXME: This needs to be called when the watch ends, not at the end of
-	// this func. However, there's currently a bug where we don't correctly
-	// shutdown watches, so for now, we do this.
-	defer s.cacheFactory.DoneWithCache(inf)
+
+	// Cancel watch if the informer is shutdown
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		select {
+		case <-inf.Context().Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	var selector labels.Selector
 	if w.Selector != "" {
@@ -616,9 +718,10 @@ func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 
 	result := make(chan watch.Event)
 	go func() {
+		defer cancel()
+		defer doneFn()
 		defer close(result)
 
-		ctx := apiOp.Context()
 		idNamespace, _ := kv.RSplit(w.ID, "/")
 		if idNamespace == "" {
 			idNamespace = apiOp.Namespace
@@ -675,7 +778,7 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 	input["apiVersion"], input["kind"] = gvk.ToAPIVersionAndKind()
 
 	buffer := WarningBuffer{}
-	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, namespace, &buffer))
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.Client(apiOp, schema, namespace, &buffer))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -699,7 +802,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 
 	ns := types.Namespace(input)
 	buffer := WarningBuffer{}
-	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, ns, &buffer))
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.Client(apiOp, schema, ns, &buffer))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -770,7 +873,7 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 	}
 
 	buffer := WarningBuffer{}
-	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, apiOp.Namespace, &buffer))
+	k8sClient, err := metricsStore.Wrap(s.clientGetter.Client(apiOp, schema, apiOp.Namespace, &buffer))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -789,32 +892,83 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 	return obj, buffer, nil
 }
 
+var TypeGuidanceTable = map[schema.GroupVersionKind]map[string]string{
+	schema.GroupVersionKind{Group: "management.cattle.io", Version: "v3", Kind: "Cluster"}: {
+		"status.allocatable.cpuRaw":    "REAL",
+		"status.allocatable.memoryRaw": "REAL",
+		"status.allocatable.pods":      "INT",
+		"status.requested.cpuRaw":      "REAL",
+		"status.requested.memoryRaw":   "REAL",
+		"status.requested.pods":        "INT",
+	},
+	schema.GroupVersionKind{Group: "provisioning.cattle.io", Version: "v1", Kind: "Cluster"}: {
+		"status.allocatable.cpuRaw":    "REAL",
+		"status.allocatable.memoryRaw": "REAL",
+		"status.allocatable.pods":      "INT",
+		"status.requested.cpuRaw":      "REAL",
+		"status.requested.memoryRaw":   "REAL",
+		"status.requested.pods":        "INT",
+	},
+	schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}: {
+		"metadata.fields[3]": "INT", // name: Restarts
+	},
+	schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}: {
+		"metadata.fields[2]": "INT", // name: Data
+	},
+	schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"}: {
+		"metadata.fields[1]": "INT", // name: Secrets
+	},
+	schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}: {
+		"metadata.fields[1]": "INT", // name: Data
+	},
+}
+
+func getTypeGuidance(cols []common.ColumnDefinition, gvk schema.GroupVersionKind) map[string]string {
+	guidance := make(map[string]string)
+	ptn := regexp.MustCompile(`(?i)\bnumber of\b`)
+	for _, col := range cols {
+		td := col.TableColumnDefinition
+		// These come from k8s.io/kubernetes/pkg/printers/internalversion
+		// Some 'number of' fields are declared to be string, but we want to
+		// sort those numbers numerically (like the POD # of a pod)
+		colType := td.Type
+		// Strip the parts off separately in case there's no '$' at the start
+		trimmedField := strings.TrimPrefix(col.Field, "$")
+		trimmedField = strings.TrimPrefix(trimmedField, ".")
+		if colType == "integer" || colType == "boolean" || ptn.MatchString(td.Description) {
+			//TODO: What do "REAL" (float) types look like?
+			colType = "INT"
+		}
+		if colType != "string" {
+			// Strip the parts off separately in case t
+			guidance[trimmedField] = colType
+		}
+	}
+	tg, ok := TypeGuidanceTable[gvk]
+	if ok {
+		for k, v := range tg {
+			guidance[k] = v
+		}
+	}
+	return guidance
+}
+
 // ListByPartitions returns:
 //   - an unstructured list of resources belonging to any of the specified partitions
 //   - the total number of resources (returned list might be a subset depending on pagination options in apiOp)
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
 func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISchema, partitions []partition.Partition) (*unstructured.UnstructuredList, int, string, error) {
-	// warnings from inside the informer are discarded
-	buffer := WarningBuffer{}
-	client, err := s.clientGetter.TableAdminClient(apiOp, apiSchema, "", &buffer)
+	ctx, cancel := context.WithCancel(apiOp.Context())
+	defer cancel()
+
+	inf, doneFn, err := s.cacheForWithDeps(ctx, apiOp, apiSchema)
 	if err != nil {
 		return nil, 0, "", err
 	}
+	defer doneFn()
+
 	gvk := attributes.GVK(apiSchema)
-	fields := GetFieldsFromSchema(apiSchema)
-	fields = append(fields, getFieldForGVK(gvk)...)
-	cols := common.GetColumnDefinitions(apiSchema)
-
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(apiSchema))
-	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	ns := attributes.Namespaced(apiSchema)
-	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, ns, controllerschema.IsListWatchable(apiSchema))
-	if err != nil {
-		return nil, 0, "", fmt.Errorf("cachefor %v: %w", gvk, err)
-	}
-	defer s.cacheFactory.DoneWithCache(inf)
-
 	opts, err := listprocessor.ParseQuery(apiOp, gvk.Kind)
 	if err != nil {
 		var apiError *apierror.APIError
@@ -858,6 +1012,9 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISc
 	if err != nil {
 		if errors.Is(err, informer.ErrInvalidColumn) {
 			return nil, 0, "", apierror.NewAPIError(validation.InvalidBodyContent, err.Error())
+		}
+		if errors.Is(err, informer.ErrUnknownRevision) {
+			return nil, 0, "", apierror.NewAPIError(validation.ErrorCode{Code: err.Error(), Status: http.StatusBadRequest}, err.Error())
 		}
 		return nil, 0, "", fmt.Errorf("listbyoptions %v: %w", gvk, err)
 	}
@@ -911,4 +1068,89 @@ func (s *Store) watchByPartition(partition partition.Partition, apiOp *types.API
 		return s.Watch(apiOp, schema, wr)
 	}
 	return s.WatchNames(apiOp, schema, wr, partition.Names)
+}
+
+func (s *Store) cacheForWithDeps(ctx context.Context, apiOp *types.APIRequest, apiSchema *types.APISchema) (*factory.Cache, func(), error) {
+	var doneCacheFns []func()
+	doneCache := func() {
+		length := len(doneCacheFns)
+		for i := range length {
+			fn := doneCacheFns[length-1-i]
+			fn()
+		}
+	}
+
+	gvk := attributes.GVK(apiSchema)
+	// provisioning.cattle.io.clusters depends on information from management.cattle.io.clusters
+	// so we must initialize this one as well
+	if gvk == pcioClusterGvk {
+		var mgmtSchema *types.APISchema
+		if id := s.schemas.ByGVK(schema.GroupVersionKind{
+			Group:   "management.cattle.io",
+			Version: "v3",
+			Kind:    "Cluster",
+		}); id != "" {
+			mgmtSchema = s.schemas.Schema(id)
+		}
+
+		if mgmtSchema == nil {
+			return nil, nil, fmt.Errorf("management cluster schema not found")
+		}
+
+		mgmtClusterInf, err := s.cacheFor(ctx, nil, mgmtSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+		doneCacheFns = append(doneCacheFns, func() {
+			s.cacheFactory.DoneWithCache(mgmtClusterInf)
+		})
+	}
+
+	inf, err := s.cacheFor(ctx, apiOp, apiSchema)
+	if err != nil {
+		doneCache()
+		return nil, nil, err
+	}
+	doneCacheFns = append(doneCacheFns, func() {
+		s.cacheFactory.DoneWithCache(inf)
+	})
+
+	return inf, doneCache, nil
+}
+
+func (s *Store) cacheFor(ctx context.Context, apiOp *types.APIRequest, apiSchema *types.APISchema) (*factory.Cache, error) {
+	if !canList(apiSchema) {
+		return nil, apierror.NewAPIError(validation.MethodNotAllowed, fmt.Sprintf("resource %s is not a listable resource", apiSchema.ID))
+	}
+	// warnings from inside the informer are discarded
+	buffer := WarningBuffer{}
+	client, err := s.clientGetter.TableAdminClient(apiOp, apiSchema, "", &buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	gvk := attributes.GVK(apiSchema)
+	//TODO: All this field information is only needed when `s.cf.CacheFor` needs to build the tables.
+	// We should instead pass in a function to return the needed field info, rather than calculate it every time.
+	fields, cols, typeGuidance := getFieldAndColInfo(apiSchema, gvk)
+	fields = append(fields, getFieldForGVK(gvk)...)
+
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(apiSchema), attributes.CRDJSONPathParsers(apiSchema))
+	tableClient := &tablelistconvert.Client{ResourceInterface: client}
+	ns := attributes.Namespaced(apiSchema)
+	inf, err := s.cacheFactory.CacheFor(ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, typeGuidance, ns, controllerschema.IsListWatchable(apiSchema))
+	if err != nil {
+		return nil, fmt.Errorf("cachefor %v: %w", gvk, err)
+	}
+	return inf, nil
+}
+
+func canList(schema *types.APISchema) bool {
+	for _, verb := range attributes.Verbs(schema) {
+		if verb == "list" {
+			return true
+		}
+	}
+
+	return false
 }

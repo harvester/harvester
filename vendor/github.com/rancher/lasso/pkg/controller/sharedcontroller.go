@@ -7,6 +7,7 @@ import (
 
 	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/metrics"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	cachetools "k8s.io/client-go/tools/cache"
@@ -93,6 +94,7 @@ func (s *sharedController) Start(ctx context.Context, workers int) error {
 		return nil
 	}
 
+	s.handler.CtxID = metrics.ContextID(ctx)
 	if err := s.controller.Start(ctx, workers); err != nil {
 		return err
 	}

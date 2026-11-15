@@ -47,6 +47,9 @@ func (m *memory) Update(secret *v1.Secret) error {
 }
 
 func isChanged(old, new *v1.Secret) bool {
+	if new == nil {
+		return false
+	}
 	if old == nil {
 		return true
 	}
