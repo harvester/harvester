@@ -307,7 +307,7 @@ func (h *VMController) removeVMBackupSnapshot(vm *kubevirtv1.VirtualMachine) err
 		// VolumeSnapshot to its PVC; remote-target types (currently Backup)
 		// manage their own external state and create only transient
 		// VolumeSnapshots that are cleaned up by the engine.
-		if vmBackup.Spec.Type.UsesRemoteBackupTarget() {
+		if vmBackup.Namespace != vm.Namespace || vmBackup.Spec.Type.UsesRemoteBackupTarget() {
 			continue
 		}
 
