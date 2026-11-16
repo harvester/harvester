@@ -188,3 +188,33 @@ func TestDeferredBindingAllowsJobCreation(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanupTemporaryResources(t *testing.T) {
+	re, vmb, pvc, client := cloneFixture()
+	vb := &vmb.Status.VolumeBackups[0]
+	require.Nil(t, vb.ReadyToUse)
+	sourceName := backupcommon.SnapshotName(vmb, vb)
+	importedName := re.importedSnapshot(vmb, vb)
+	var err error
+	for pass := 0; pass < 8; pass++ {
+		err = re.Cleanup(vmb)
+		if err == nil {
+			break
+		}
+		require.ErrorIs(t, err, engine.ErrRetryLater)
+	}
+	require.NoError(t, err)
+	_, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).
+		Get(context.Background(), pvc.Name, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+	_, err = client.SnapshotV1().VolumeSnapshots(vmb.Namespace).
+		Get(context.Background(), sourceName, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+	_, err = re.imports.Client.Resource(snapshotv6.SchemeGroupVersion.WithResource("volumesnapshots")).
+		Namespace(joblifecycle.Namespace).Get(context.Background(), importedName, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+	_, err = re.imports.Client.Resource(snapshotv6.SchemeGroupVersion.WithResource("volumesnapshotcontents")).
+		Get(context.Background(), importedName, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err))
+	require.NoError(t, re.Cleanup(vmb), "cleanup must be idempotent")
+}
