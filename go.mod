@@ -83,6 +83,7 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
 	github.com/kubeovn/kube-ovn v1.14.10
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
+	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 	github.com/longhorn/backupstore v0.0.0-20250804022317-794abf817297
 	github.com/longhorn/longhorn-manager v1.10.0
 	github.com/mattn/go-isatty v0.0.22
@@ -267,7 +268,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kube-logging/logging-operator v0.0.0-20250424202944-7e1f9aad6e21 // indirect
 	github.com/kubereboot/kured v1.13.1 // indirect
-	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
