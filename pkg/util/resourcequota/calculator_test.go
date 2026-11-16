@@ -451,6 +451,51 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "VM without resource limits",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm-nolimits",
+					Namespace: testNS,
+				},
+				Spec: kubevirtv1.VirtualMachineSpec{
+					Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+						Spec: kubevirtv1.VirtualMachineInstanceSpec{
+							Domain: kubevirtv1.DomainSpec{
+								Memory: &kubevirtv1.Memory{Guest: resource.NewQuantity(memory1Gi, resource.BinarySI)},
+							},
+						},
+					},
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "VM without template",
+			vm: &kubevirtv1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vm-notemplate",
+					Namespace: testNS,
+				},
+			},
+			nsrq: &nsrq,
+			rq: &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNS,
+					Name:      "rq1",
+					Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -663,6 +708,197 @@ func Test_vmValidator_containsEnoughResourceQuotaToStartVM_WithChangedOverheadRa
 				settingCache)
 			err := c.containsEnoughResourceQuotaToStartVM(tt.vm, tt.nsrq, tt.rq)
 			assert.Equalf(t, tt.wantErr, err != nil, "case %s Test_vmValidator_containsEnoughResourceQuotaToStartVM_WithChangedOverheadRatio(%v) failed", tt.name, tt.vm.Name)
+		})
+	}
+}
+
+func Test_vmValidator_checkIfVMCanStartByResourceQuota_SkipsDeletingVM(t *testing.T) {
+	now := metav1.Now()
+	runStrategy := kubevirtv1.RunStrategyRerunOnFailure
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "vm-deleting",
+			Namespace:         namespaceBothExist,
+			DeletionTimestamp: &now,
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			RunStrategy: &runStrategy,
+		},
+		Status: kubevirtv1.VirtualMachineStatus{
+			PrintableStatus: kubevirtv1.VirtualMachineStatusStopped,
+		},
+	}
+
+	// All caches are nil; the deletion guard must return before accessing them.
+	c := NewCalculator(nil, nil, nil, nil, nil)
+	assert.NoError(t, c.CheckIfVMCanStartByResourceQuota(vm))
+}
+
+// noPodCache returns no pods for index lookups.
+type noPodCache struct {
+	fakeclients.PodCache
+}
+
+func (noPodCache) GetByIndex(_, _ string) ([]*corev1.Pod, error) {
+	return nil, nil
+}
+
+// VM with only domain.memory.guest configured, a non-empty printableStatus, a non-Halted runStrategy, and no
+// virt-launcher pod in a namespace with a Rancher resource quota.
+func Test_vmValidator_checkIfVMCanStartByResourceQuota_VMWithoutLimits(t *testing.T) {
+	const ns = "repro-quota"
+
+	coreclientset := corefake.NewSimpleClientset(
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+				Annotations: map[string]string{
+					util.CattleAnnotationResourceQuota: `{"limit":{"limitsCpu":"5000m","limitsMemory":"10240Mi"}}`,
+				},
+			},
+		},
+		&corev1.ResourceQuota{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-repro",
+				Namespace: ns,
+				Labels:    map[string]string{util.LabelManagementDefaultResourceQuota: "true"},
+			},
+			Spec: corev1.ResourceQuotaSpec{
+				Hard: corev1.ResourceList{
+					corev1.ResourceLimitsCPU:    resource.MustParse("5"),
+					corev1.ResourceLimitsMemory: resource.MustParse("10Gi"),
+				},
+			},
+		},
+	)
+
+	runStrategy := kubevirtv1.RunStrategyManual
+	guestMemory := resource.MustParse("1Gi")
+	vm := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "repro-nolimits",
+			Namespace: ns,
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			RunStrategy: &runStrategy,
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Domain: kubevirtv1.DomainSpec{
+						CPU:    &kubevirtv1.CPU{Cores: 1},
+						Memory: &kubevirtv1.Memory{Guest: &guestMemory},
+					},
+				},
+			},
+		},
+		Status: kubevirtv1.VirtualMachineStatus{
+			PrintableStatus: kubevirtv1.VirtualMachineStatusStopped,
+		},
+	}
+
+	c := NewCalculator(
+		fakeclients.NamespaceCache(coreclientset.CoreV1().Namespaces),
+		noPodCache{},
+		fakeclients.ResourceQuotaCache(coreclientset.CoreV1().ResourceQuotas),
+		nil,
+		nil)
+
+	assert.NotPanics(t, func() {
+		assert.NoError(t, c.CheckIfVMCanStartByResourceQuota(vm))
+	})
+}
+
+// Only resources with an explicit limit are checked, an absent limit must not
+// be treated as a zero-valued requirement, and must not be counted as overhead.
+func Test_vmValidator_containsEnoughResourceQuotaToStartVM_PartialLimits(t *testing.T) {
+	newVM := func(limits corev1.ResourceList) *kubevirtv1.VirtualMachine {
+		guestMemory := resource.MustParse("1Gi")
+		return &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: "vm-partial", Namespace: testNS},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Domain: kubevirtv1.DomainSpec{
+							CPU:       &kubevirtv1.CPU{Cores: 1},
+							Memory:    &kubevirtv1.Memory{Guest: &guestMemory},
+							Resources: kubevirtv1.ResourceRequirements{Limits: limits},
+						},
+					},
+				},
+			},
+		}
+	}
+	nsrq := &v3.NamespaceResourceQuota{
+		Limit: v3.ResourceQuotaLimit{LimitsCPU: "5000m", LimitsMemory: "10240Mi"},
+	}
+	newRQ := func(usedCPU, usedMem string) *corev1.ResourceQuota {
+		return &corev1.ResourceQuota{
+			ObjectMeta: metav1.ObjectMeta{Namespace: testNS, Name: "rq1"},
+			Status: corev1.ResourceQuotaStatus{
+				Used: corev1.ResourceList{
+					corev1.ResourceLimitsCPU:    resource.MustParse(usedCPU),
+					corev1.ResourceLimitsMemory: resource.MustParse(usedMem),
+				},
+			},
+		}
+	}
+	cpuOnly := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
+	memOnly := corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}
+	exhausted := newRQ("6", "11Gi") // both dimensions already over the quota
+
+	tests := []struct {
+		name    string
+		limits  corev1.ResourceList
+		rq      *corev1.ResourceQuota
+		wantErr bool
+	}{
+		{
+			name:    "no limits, quota exceeded: skip check",
+			limits:  nil,
+			rq:      exhausted,
+			wantErr: false,
+		},
+		{
+			name:    "empty limits, quota exceeded: skip check",
+			limits:  corev1.ResourceList{},
+			rq:      exhausted,
+			wantErr: false,
+		},
+		{
+			name:    "unrelated resource limit: skip check",
+			limits:  corev1.ResourceList{"example.com/gpu": resource.MustParse("1")},
+			rq:      exhausted,
+			wantErr: false,
+		},
+		{
+			name:    "CPU limit only, memory quota exceeded",
+			limits:  cpuOnly,
+			rq:      newRQ("0", "11Gi"),
+			wantErr: false,
+		},
+		{
+			name:    "CPU limit only, CPU quota exceeded",
+			limits:  cpuOnly,
+			rq:      newRQ("5", "0"),
+			wantErr: true,
+		},
+		{
+			name:    "memory limit only, CPU quota exceeded",
+			limits:  memOnly,
+			rq:      newRQ("6", "0"),
+			wantErr: false,
+		},
+		{
+			name:    "memory limit only, memory quota exceeded",
+			limits:  memOnly,
+			rq:      newRQ("0", "10Gi"),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewCalculator(nil, nil, nil, nil, nil)
+			err := c.containsEnoughResourceQuotaToStartVM(newVM(tt.limits), nsrq, tt.rq)
+			assert.Equalf(t, tt.wantErr, err != nil, "unexpected result: %v", err)
 		})
 	}
 }
