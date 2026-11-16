@@ -217,9 +217,9 @@ func (a *vmbackupReader) GetVolBackup(vmb *harvesterv1.VirtualMachineBackup, ind
 }
 
 func (a *vmbackupReader) GetSanitizeVolBackups(vmb *harvesterv1.VirtualMachineBackup) []harvesterv1.VolumeBackup {
-	// Intentionally reuse and mutate the status slice so backup metadata omits
-	// transient runtime fields that should not be restored from backup storage.
-	sanitizeVolBackups := vmb.Status.VolumeBackups
+	// Strip runtime fields only from the exported copy. The live status keeps
+	// the upload checkpoint used to resume cleanup safely.
+	sanitizeVolBackups := vmb.Status.DeepCopy().VolumeBackups
 	for i := range sanitizeVolBackups {
 		sanitizeVolBackups[i].ReadyToUse = nil
 		sanitizeVolBackups[i].CreationTime = nil

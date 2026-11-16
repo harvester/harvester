@@ -37,6 +37,11 @@ func GetBackupEngine(
 	}
 }
 
+// Cleanup retains the snapshots that represent the backup itself.
+func (se *SnapshotEngine) Cleanup(_ *harvesterv1.VirtualMachineBackup) error {
+	return nil
+}
+
 func (se *SnapshotEngine) Prepare(
 	_ *harvesterv1.VirtualMachineBackup,
 	_ map[string]snapshotv1.VolumeSnapshotClass,

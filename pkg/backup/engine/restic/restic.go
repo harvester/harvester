@@ -201,13 +201,8 @@ func (re *ResticEngine) Remove(
 	vmb *harvesterv1.VirtualMachineBackup,
 	removeRemote bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
-	for _, vb := range re.vmbo.GetVolBackups(vmb) {
-		if re.vmbo.GetVolBackupName(&vb) == nil {
-			continue
-		}
-		if err := re.cleanupTemporaryResources(vmb, &vb); err != nil {
-			return nil, err
-		}
+	if err := re.Cleanup(vmb); err != nil {
+		return nil, err
 	}
 
 	if err := re.forgetVolumes(vmb, removeRemote); err != nil {
@@ -673,6 +668,19 @@ func (re *ResticEngine) syncFromJob(vb *harvesterv1.VolumeBackup, job *batchv1.J
 	// Cleanup is deferred to the next reconcile (when ReadyToUse is persisted)
 	// to avoid a race where Update fails after we've deleted the VS/clone PVC.
 	logrus.Debugf("restic backup job %s/%s completed", job.Namespace, job.Name)
+	return nil
+}
+
+// Cleanup removes temporary resources after upload or before backup deletion.
+func (re *ResticEngine) Cleanup(vmb *harvesterv1.VirtualMachineBackup) error {
+	for _, vb := range re.vmbo.GetVolBackups(vmb) {
+		if re.vmbo.GetVolBackupName(&vb) == nil {
+			continue
+		}
+		if err := re.cleanupTemporaryResources(vmb, &vb); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
