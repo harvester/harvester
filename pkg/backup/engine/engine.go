@@ -39,6 +39,10 @@ type BackupEngine interface {
 	// UpdateProgress returns the per-volume backup progress percentage, bounded
 	// between 0 and 100.
 	UpdateProgress(*harvesterv1.VirtualMachineBackup, *harvesterv1.VolumeBackup) (int64, error)
+	// Cleanup releases temporary upload resources without deleting remote
+	// backups. It must work when per-volume readiness is absent. Engines
+	// without temporary resources return nil.
+	Cleanup(vmb *harvesterv1.VirtualMachineBackup) error
 	// Remove completes or skips remote deletion, persists that decision, and
 	// releases local resources. Return the latest VMBackup for finalization.
 	Remove(vmb *harvesterv1.VirtualMachineBackup, removeRemote bool) (*harvesterv1.VirtualMachineBackup, error)

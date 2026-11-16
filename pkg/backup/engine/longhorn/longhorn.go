@@ -341,6 +341,11 @@ func (le *LonghornEngine) shouldSkipVSUpdate(vmb *harvesterv1.VirtualMachineBack
 	return false, nil
 }
 
+// Cleanup retains the CSI snapshots that represent the native backup.
+func (le *LonghornEngine) Cleanup(_ *harvesterv1.VirtualMachineBackup) error {
+	return nil
+}
+
 func (le *LonghornEngine) Prepare(
 	_ *harvesterv1.VirtualMachineBackup,
 	_ map[string]snapshotv1.VolumeSnapshotClass,

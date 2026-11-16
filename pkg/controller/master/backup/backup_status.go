@@ -10,13 +10,13 @@ import (
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
-func (h *Handler) updateConditions(vmb *harvesterv1.VirtualMachineBackup) error {
-	var vmbCpy = vmb.DeepCopy()
+func (h *Handler) updateConditions(
+	vmb, vmbCpy *harvesterv1.VirtualMachineBackup, ready bool,
+) error {
 	if h.vmbo.IsProcessing(vmbCpy) {
 		vmbCpy = h.vmbo.SetProcessingCondition(vmbCpy)
 	}
 
-	ready := true
 	var volBackupErr error
 	var volumeSizeSum int64
 	var progressWeightSum int64

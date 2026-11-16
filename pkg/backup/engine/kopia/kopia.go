@@ -208,13 +208,8 @@ func (ke *KopiaEngine) Remove(
 	vmb *harvesterv1.VirtualMachineBackup,
 	removeRemote bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
-	for _, vb := range ke.vmbo.GetVolBackups(vmb) {
-		if ke.vmbo.GetVolBackupName(&vb) == nil {
-			continue
-		}
-		if err := ke.cleanupTemporaryResources(vmb, &vb); err != nil {
-			return nil, err
-		}
+	if err := ke.Cleanup(vmb); err != nil {
+		return nil, err
 	}
 
 	if err := ke.forgetVolumes(vmb, removeRemote); err != nil {
@@ -654,6 +649,19 @@ func (ke *KopiaEngine) syncFromJob(vb *harvesterv1.VolumeBackup, job *batchv1.Jo
 	// Cleanup is deferred to the next reconcile (when ReadyToUse is persisted)
 	// to avoid a race where Update fails after we've deleted the VS/clone PVC.
 	logrus.Debugf("kopia backup job %s/%s completed", job.Namespace, job.Name)
+	return nil
+}
+
+// Cleanup removes temporary resources after upload or before backup deletion.
+func (ke *KopiaEngine) Cleanup(vmb *harvesterv1.VirtualMachineBackup) error {
+	for _, vb := range ke.vmbo.GetVolBackups(vmb) {
+		if ke.vmbo.GetVolBackupName(&vb) == nil {
+			continue
+		}
+		if err := ke.cleanupTemporaryResources(vmb, &vb); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

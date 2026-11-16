@@ -63,16 +63,14 @@ func TestCreateVolumeBackupsWaitsForPreparation(t *testing.T) {
 				vmb,
 				map[string]snapshotv1.VolumeSnapshotClass{},
 			)
+			require.Empty(t, controller.enqueues, "only OnBackupChange schedules retries")
 			require.Equal(t, 1, backupEngine.prepareCalls)
 			require.Equal(t, tt.wantReconciles, backupEngine.reconcileCalls)
 			if tt.prepareErr != nil && tt.prepareErr != engine.ErrRetryLater {
 				require.ErrorIs(t, err, tt.prepareErr)
-				require.Empty(t, controller.enqueues)
 				return
 			}
-			require.NoError(t, err)
-			require.Len(t, controller.enqueues, 1)
-			require.Equal(t, engineRetryDelay, controller.enqueues[0].after)
+			require.ErrorIs(t, err, engine.ErrRetryLater)
 		})
 	}
 }
@@ -111,6 +109,8 @@ func (e *preparingEngine) Remove(
 ) (*harvesterv1.VirtualMachineBackup, error) {
 	return vmb, nil
 }
+
+func (e *preparingEngine) Cleanup(*harvesterv1.VirtualMachineBackup) error { return nil }
 
 func (e *preparingEngine) RegisterWatchers(context.Context, func(string, string)) {}
 

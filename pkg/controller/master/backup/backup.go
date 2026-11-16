@@ -291,17 +291,15 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 		return nil, h.vmbo.UpdateError(vmb, err)
 	}
 
-	// create volume snapshots if not exist
-	if err := h.CreateVolumeBackups(vmb, csiVSClassMap); err != nil {
+	updated := vmb.DeepCopy()
+	err = h.CreateVolumeBackups(updated, csiVSClassMap)
+	if err != nil && err != engine.ErrRetryLater {
 		return nil, h.vmbo.UpdateError(vmb, err)
 	}
-
-	// reconcile backup status of volume backups, validate if those volumeSnapshots are ready to use
-	if err := h.updateConditions(vmb); err != nil {
-		return nil, err
+	if err == engine.ErrRetryLater {
+		h.enqueueBackup(vmb)
 	}
-
-	return nil, nil
+	return nil, h.updateConditions(vmb, updated, err == nil)
 }
 
 // OnBackupRemove removes remote backup state and releases cleanup resources.
@@ -337,55 +335,47 @@ func (h *Handler) removeBackup(
 	return backupEngine.Remove(vmb, removeRemote)
 }
 
-// CreateVolumeBackups creates volume snapshots for all volumes that need backup.
-// For VM backups from an existing VM, we create volume snapshots from PVCs.
-// For VM backups from syncing metadata, we create volume snapshots from volume snapshot content.
+// CreateVolumeBackups reconciles volumes on a copy owned by the caller. Status
+// changes, including completed uploads, must be persisted even while retrying.
 func (h *Handler) CreateVolumeBackups(
 	vmb *harvesterv1.VirtualMachineBackup,
 	csiVSClassMap map[string]snapshotv1.VolumeSnapshotClass,
 ) error {
-	// Create a copy to track status changes during the loop
-	vmbCpy := vmb.DeepCopy()
-	backupEngine := h.getBackupEngine(vmbCpy)
+	backupEngine := h.getBackupEngine(vmb)
 	if backupEngine == nil {
-		return fmt.Errorf("unsupported backup type %q", h.vmbo.GetType(vmbCpy))
+		return fmt.Errorf("unsupported backup type %q", h.vmbo.GetType(vmb))
 	}
-	ready, err := backupEngine.Prepare(vmbCpy, csiVSClassMap)
-	if err == engine.ErrRetryLater {
-		h.enqueueBackup(vmbCpy)
-		return nil
-	}
+	ready, err := backupEngine.Prepare(vmb, csiVSClassMap)
 	if err != nil {
 		return err
 	}
 	if !ready {
-		h.enqueueBackup(vmbCpy)
-		return nil
+		return engine.ErrRetryLater
 	}
+	return h.reconcileVolumes(vmb, backupEngine, csiVSClassMap)
+}
 
-	vbs := h.vmbo.GetVolBackups(vmbCpy)
-	for index, vb := range vbs {
-		// Skip volumes that don't have a name assigned yet
+func (h *Handler) reconcileVolumes(
+	vmb *harvesterv1.VirtualMachineBackup,
+	backupEngine engine.BackupEngine,
+	csiVSClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	var retryErr error
+	for index, vb := range h.vmbo.GetVolBackups(vmb) {
 		if h.vmbo.GetVolBackupName(&vb) == nil {
 			continue
 		}
-
-		err := backupEngine.Reconcile(vmbCpy, index, csiVSClassMap)
-
-		// Handle retry case - engine needs more time to complete the operation
-		if err == engine.ErrRetryLater {
-			h.enqueueBackup(vmbCpy)
-			return nil
-		}
-
-		if err != nil {
+		wasReady := h.vmbo.GetVolBackupReadyToUse(&vb)
+		if err := backupEngine.Reconcile(vmb, index, csiVSClassMap); err != nil {
 			return err
 		}
+		// Persist the upload checkpoint before the next reconcile removes its
+		// temporary resources. The parent cannot become ready in this pass.
+		if !wasReady {
+			retryErr = engine.ErrRetryLater
+		}
 	}
-
-	// Update the VM backup status if any changes were made
-	_, err = h.vmbo.UpdateByStatus(vmb, vmbCpy)
-	return err
+	return retryErr
 }
 
 func (h *Handler) enqueueBackup(vmb *harvesterv1.VirtualMachineBackup) {
