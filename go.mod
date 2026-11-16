@@ -64,7 +64,6 @@ require (
 	github.com/dell/goiscsi v1.9.0
 	github.com/ehazlett/simplelog v0.0.0-20200226020431-d374894e92a4
 	github.com/emicklei/go-restful/v3 v3.13.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-errors/errors v1.4.2
 	github.com/gobuffalo/flect v1.0.3
 	github.com/gorilla/mux v1.8.1
@@ -118,6 +117,7 @@ require (
 	github.com/urfave/cli/v3 v3.4.1
 	github.com/vishvananda/netlink v1.3.1
 	go.uber.org/multierr v1.11.0
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
 	golang.org/x/net v0.60.0
@@ -210,6 +210,7 @@ require (
 	github.com/gammazero/deque v1.0.0 // indirect
 	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -365,7 +366,6 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.46.0 // indirect

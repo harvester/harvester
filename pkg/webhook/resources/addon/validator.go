@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
+	"go.yaml.in/yaml/v3"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
