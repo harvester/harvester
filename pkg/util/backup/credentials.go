@@ -18,6 +18,55 @@ const (
 	KopiaPasswordKey  = "KOPIA_PASSWORD"
 )
 
+func CheckRepositoryPasswords(data map[string][]byte) error {
+	for _, key := range []string{ResticPasswordKey, KopiaPasswordKey} {
+		if strings.TrimSpace(string(data[key])) == "" || strings.ContainsRune(string(data[key]), 0) {
+			return fmt.Errorf("backup target Secret is missing a valid %s", key)
+		}
+	}
+	if string(data[ResticPasswordKey]) != string(data[KopiaPasswordKey]) {
+		return fmt.Errorf("backup target Secret has inconsistent repository passwords")
+	}
+	return nil
+}
+
+// CheckPasswordInput validates the password submitted for an enabled target.
+// Masked reconciliation and disabling third-party backups do not use this check.
+func CheckPasswordInput(password string) error {
+	switch {
+	case strings.TrimSpace(password) == "":
+		return fmt.Errorf("thirdPartyRepositoryPassword is required when third-party backups are enabled")
+	case strings.ContainsRune(password, 0):
+		return fmt.Errorf("thirdPartyRepositoryPassword must not contain a NUL character")
+	default:
+		return nil
+	}
+}
+
+// CheckPasswordChange compares a validated password input with the stored repository:
+//   - No stored ID or a different ID: allow a new password.
+//   - Same ID, both passwords absent: allow initialization, including re-enabling.
+//   - Same ID, either password present: require both valid, equal and matching input.
+//     Reject a replacement, a missing password or inconsistent stored passwords.
+//
+// Updating the Secret does not change the password protecting the remote repository.
+func CheckPasswordChange(data map[string][]byte, repositoryID, password string) error {
+	if string(data[RepositoryIDKey]) != repositoryID {
+		return nil
+	}
+	if len(data[ResticPasswordKey]) == 0 && len(data[KopiaPasswordKey]) == 0 {
+		return nil
+	}
+	if err := CheckRepositoryPasswords(data); err != nil {
+		return err
+	}
+	if string(data[ResticPasswordKey]) != password {
+		return fmt.Errorf("thirdPartyRepositoryPassword must match the password of the configured repository; " +
+			"changing the Secret does not change the repository password")
+	}
+	return nil
+}
+
 // CredentialData copies only the credentials needed by one engine. The shared
 // Secret is read live when creating or repairing a per-Job Secret.
 func CredentialData(

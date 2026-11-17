@@ -10,6 +10,7 @@ import (
 )
 
 func TestThirdPartyBackupConfigDefaults(t *testing.T) {
+	require.NotContains(t, InitThirdPartyBackupConfig(), "password")
 	for _, value := range []string{"", "{}", InitThirdPartyBackupConfig()} {
 		config, err := DecodeThirdPartyBackupConfig(value)
 		require.NoError(t, err)
@@ -41,6 +42,7 @@ func TestThirdPartyBackupConfigOverrides(t *testing.T) {
 func TestThirdPartyBackupConfigValidation(t *testing.T) {
 	for _, value := range []string{
 		`null`, `[]`, `true`, `{"restic":`, `{} {}`,
+		`{"restic":{"password":"unused"}}`, `{"kopia":{"password":"unused"}}`,
 		`{"restic":{"memoryRequest":1}}`,
 		`{"restic":{"noCache":"true"}}`,
 		`{"kopia":{"maxConcurrentJobs":1.5}}`,
