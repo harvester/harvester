@@ -2763,17 +2763,28 @@ func (v *settingValidator) validateUpdateKubeVirtMigration(_ *types.Request, _ *
 }
 
 func (v *settingValidator) validateKubeVirtFeatureGates(newSetting *v1beta1.Setting) error {
-	if _, err := settings.ParseKubeVirtFeatureGates(newSetting.Default); err != nil {
+	return validateKubeVirtFeatureGatesChange(nil, newSetting)
+}
+
+func (v *settingValidator) validateUpdateKubeVirtFeatureGates(_ *types.Request, oldSetting *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return validateKubeVirtFeatureGatesChange(oldSetting, newSetting)
+}
+
+// validateKubeVirtFeatureGatesChange only checks gates added by this change,
+// so a gate that became GA or discontinued after an upgrade does not block
+// later edits of the setting.
+func validateKubeVirtFeatureGatesChange(oldSetting, newSetting *v1beta1.Setting) error {
+	var oldDefault, oldValue string
+	if oldSetting != nil {
+		oldDefault, oldValue = oldSetting.Default, oldSetting.Value
+	}
+	if err := settings.ValidateKubeVirtFeatureGates(oldDefault, newSetting.Default); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
 	}
-	if _, err := settings.ParseKubeVirtFeatureGates(newSetting.Value); err != nil {
+	if err := settings.ValidateKubeVirtFeatureGates(oldValue, newSetting.Value); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
-}
-
-func (v *settingValidator) validateUpdateKubeVirtFeatureGates(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return v.validateKubeVirtFeatureGates(newSetting)
 }
 
 func (v *settingValidator) validateDeleteClusterPodSecurityStandard(_ *v1beta1.Setting) error {

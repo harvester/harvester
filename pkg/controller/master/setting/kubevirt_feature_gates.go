@@ -22,9 +22,12 @@ const (
 // and the value is carried over by the upgrade, which keeps the ManagedChart
 // values and only bumps the chart version.
 func (h *Handler) syncKubeVirtFeatureGates(setting *harvesterv1.Setting) error {
-	gates, err := settings.ParseKubeVirtFeatureGates(setting.Value)
-	if err != nil {
-		return err
+	// Gates that cannot be enabled any more, because the KubeVirt version of
+	// this release made them GA, discontinued, or removed them, are skipped so a
+	// value set on an older release never blocks the sync after an upgrade.
+	gates, ignored := settings.KubeVirtFeatureGatesToApply(setting.Value)
+	for name, reason := range ignored {
+		logrus.Warnf("Skip KubeVirt feature gate %s from setting %s: %v", name, setting.Name, reason)
 	}
 
 	mChart, err := h.managedChartCache.Get(ManagedChartNamespace, HarvesterManagedChartName)

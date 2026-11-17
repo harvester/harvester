@@ -87,10 +87,29 @@ func TestSyncKubeVirtFeatureGates(t *testing.T) {
 			expectErr: "is paused",
 		},
 		{
-			name:      "invalid gate is rejected",
-			value:     "ExpandDisks",
-			chart:     newHarvesterManagedChart(false, map[string]interface{}{"spec": monitorSpec}),
-			expectErr: "generally available",
+			name:          "gate that went GA after an upgrade is skipped",
+			value:         "ExpandDisks,VSOCK",
+			chart:         newHarvesterManagedChart(false, map[string]interface{}{"spec": monitorSpec}),
+			expectGates:   []interface{}{"VSOCK"},
+			expectUpdated: true,
+		},
+		{
+			name:  "stale GA gate already in the ManagedChart is removed",
+			value: "Snapshot,ExpandDisks",
+			chart: newHarvesterManagedChart(false, map[string]interface{}{
+				"spec": monitorSpec, kubeVirtAdditionalFeatureGatesKey: []interface{}{"Snapshot", "ExpandDisks"},
+			}),
+			expectGates:   []interface{}{"Snapshot"},
+			expectUpdated: true,
+		},
+		{
+			name:  "value with only skipped gates removes the key",
+			value: "ExpandDisks",
+			chart: newHarvesterManagedChart(false, map[string]interface{}{
+				"spec": monitorSpec, kubeVirtAdditionalFeatureGatesKey: []interface{}{"ExpandDisks"},
+			}),
+			expectNoKey:   true,
+			expectUpdated: true,
 		},
 	}
 
