@@ -20,7 +20,7 @@ dependencies:
       - kubevirt
       - operator
   - name: kubevirt
-    version: 0.1.1
+    version: 0.1.2
     repository: file://dependency_charts/kubevirt
     condition: kubevirt.enabled
     tags:
