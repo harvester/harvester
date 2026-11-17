@@ -939,9 +939,21 @@ func (h *RestoreHandler) finalizeRestore(
 	vm *kubevirtv1.VirtualMachine,
 ) error {
 	if err := h.vmro.DeleteOldPVCs(vmrCpy, vm); err != nil {
-		return h.vmro.UpdateError(vmr, fmt.Errorf("error cleaning up: %w", err))
+		return h.retryCleanup(vmr, vmrCpy, err)
 	}
 	vmrCpy = h.vmro.SetCompleteCondition(vmrCpy)
 	_, err := h.vmro.Update(vmr, vmrCpy)
 	return err
+}
+
+func (h *RestoreHandler) retryCleanup(
+	vmr *harvesterv1.VirtualMachineRestore,
+	vmrCpy *harvesterv1.VirtualMachineRestore,
+	err error,
+) error {
+	cleanupErr := fmt.Errorf("error cleaning up: %w", err)
+	// Keep cleanup retryable: UpdateError would make IsFailed skip the next reconcile.
+	vmrCpy = h.vmro.SetProcessingCondition(vmrCpy, cleanupErr.Error())
+	_, updateErr := h.vmro.Update(vmr, vmrCpy)
+	return errors.Join(cleanupErr, updateErr)
 }
