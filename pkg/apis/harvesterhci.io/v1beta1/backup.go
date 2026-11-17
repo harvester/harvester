@@ -67,15 +67,6 @@ func (b BackupType) UsesBackupSnapshotClass() bool {
 	return b == Backup
 }
 
-// OwnsExternalState reports whether this backup type holds remote state that
-// no other controller will garbage-collect. Restic/Kopia push to S3 outside
-// of any K8s resource lifecycle, so the engine's ForceDelete must run on
-// every VMBackup removal to forget the remote snapshots. Native Backup is
-// excluded because Longhorn manages its own backup CRs and S3 data.
-func (b BackupType) OwnsExternalState() bool {
-	return b.IsDataMover()
-}
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:shortName=vmbackup;vmbackups,scope=Namespaced

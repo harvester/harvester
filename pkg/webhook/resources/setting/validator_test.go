@@ -90,6 +90,31 @@ func TestValidateRepositoryTransition(t *testing.T) {
 	assert.Error(t, validator.validateRepositoryTransition(&targetB))
 }
 
+func TestToggleThirdPartyBackup(t *testing.T) {
+	const target = `{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups",` +
+		`"bucketRegion":"test-region","thirdPartyBackupEnabled":%t}`
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			oldSetting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.BackupTargetSettingName},
+				Value:      fmt.Sprintf(target, !enabled),
+			}
+			clientset := fake.NewSimpleClientset(oldSetting)
+			validator := &settingValidator{
+				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				vmBackupCache: fakeclients.VMBackupCache(
+					clientset.HarvesterhciV1beta1().VirtualMachineBackups,
+				),
+				vmbr: backupcommon.NewVMBackupReader(),
+			}
+			newSetting := oldSetting.DeepCopy()
+			newSetting.Value = fmt.Sprintf(target, enabled)
+			// Toggling the gate must not require re-entering stripped S3 credentials.
+			assert.NoError(t, validator.validateUpdateBackupTarget(nil, oldSetting, newSetting))
+		})
+	}
+}
+
 func Test_validateOvercommitConfig(t *testing.T) {
 	tests := []struct {
 		name   string

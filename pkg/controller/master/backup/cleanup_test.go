@@ -12,21 +12,22 @@ import (
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
 	"github.com/harvester/harvester/pkg/settings"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 )
 
 type cleaningEngine struct {
 	preparingEngine
-	removeCalls  int
-	removeRemote bool
-	removeErr    error
+	removeCalls int
+	cleanup     bool
+	removeErr   error
 }
 
 func (e *cleaningEngine) Remove(
 	vmb *harvesterv1.VirtualMachineBackup,
-	removeRemote bool,
+	cleanup bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
 	e.removeCalls++
-	e.removeRemote = removeRemote
+	e.cleanup = cleanup
 	updated := vmb.DeepCopy()
 	updated.ResourceVersion = "updated"
 	return updated, e.removeErr
@@ -52,6 +53,11 @@ func cleanupFixture(
 			BackupTarget:  &harvesterv1.BackupTarget{Type: "s3", BucketName: "old"},
 		},
 	}
+	if backupType.IsDataMover() {
+		vmb.Status.BackupTarget = backuputil.BackupTargetStatus(&settings.BackupTarget{
+			Type: settings.S3BackupType, BucketName: "old",
+		})
+	}
 	cleaner := &cleaningEngine{}
 	handler := &Handler{
 		vmbo:    common.NewVMBackupOperatorBuilder().Build(),
@@ -61,18 +67,27 @@ func cleanupFixture(
 }
 
 func TestRemoveDelegatesToEngine(t *testing.T) {
-	for _, backupType := range []harvesterv1.BackupType{
-		harvesterv1.Snapshot, harvesterv1.Backup, harvesterv1.Restic, harvesterv1.Kopia,
+	for _, tt := range []struct {
+		backupType  harvesterv1.BackupType
+		wantCleanup bool
+	}{
+		{backupType: harvesterv1.Snapshot},
+		{backupType: harvesterv1.Backup, wantCleanup: true},
+		{backupType: harvesterv1.Restic},
+		{backupType: harvesterv1.Kopia},
 	} {
-		t.Run(string(backupType), func(t *testing.T) {
-			handler, remover, vmb := cleanupFixture(t, backupType)
+		t.Run(string(tt.backupType), func(t *testing.T) {
+			handler, remover, vmb := cleanupFixture(t, tt.backupType)
 			remover.removeErr = errors.New("removal failed")
 			updated, err := handler.OnBackupRemove("", vmb)
 			require.ErrorIs(t, err, remover.removeErr)
 			require.Equal(t, 1, remover.removeCalls)
-			require.True(t, remover.removeRemote, "the backup target changed")
+			require.Equal(t, tt.wantCleanup, remover.cleanup, "only Longhorn needs forced cleanup after a target change")
 			require.Equal(t, "updated", updated.ResourceVersion)
 			require.NotEmpty(t, updated.Finalizers)
+			remover.removeErr = nil
+			_, err = handler.OnBackupRemove("", vmb)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -87,14 +102,14 @@ func TestRemoveWithoutTarget(t *testing.T) {
 			remover.removeErr = engine.ErrRetryLater
 			_, err := handler.OnBackupRemove("", vmb)
 			require.ErrorIs(t, err, engine.ErrRetryLater)
-			require.False(t, remover.removeRemote)
+			require.False(t, remover.cleanup)
 			remover.removeErr = nil
 			vmb.Status.BackupTarget = nil
 			updated, err := handler.OnBackupRemove("", vmb)
 			require.NoError(t, err)
 			require.Equal(t, "updated", updated.ResourceVersion)
 			require.Equal(t, 2, remover.removeCalls)
-			require.False(t, remover.removeRemote)
+			require.False(t, remover.cleanup)
 		})
 	}
 }
