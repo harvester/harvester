@@ -966,7 +966,14 @@ func disableLonghornMultipathing(stage *yipSchema.Stage) {
   }
 }`)
 	directives := base64.StdEncoding.EncodeToString(ignoreLonghorn)
+	// Set /etc/multipath explicitly: yip gives missing parent directories the mode of
+	// the child, and files in it (prkeys) must stay readable for qemu-pr-helper.
 	stage.Directories = append(stage.Directories, yipSchema.Directory{
+		Path:        "/etc/multipath",
+		Permissions: 0755,
+		Owner:       0,
+		Group:       0,
+	}, yipSchema.Directory{
 		Path:        "/etc/multipath/conf.d",
 		Permissions: 0755,
 		Owner:       0,
