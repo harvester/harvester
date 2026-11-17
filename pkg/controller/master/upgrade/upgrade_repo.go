@@ -35,18 +35,16 @@ const (
 	isoMountPath  = "/srv/www/htdocs/harvester-iso"
 )
 
-var (
-	// Images in the list will be retained during the image pruning process at
-	// the end of an upgrade.
-	imageRetainList = []string{
-		// Matches both rancher/harvester-upgrade and <registry>/harvester/harvester-upgrade.
-		"/harvester-upgrade:",
-		"longhornio/longhorn-engine",
-		"longhornio/longhorn-instance-manager",
-		"rancher/mirrored-banzaicloud-fluentd",
-		"rancher/mirrored-fluent-fluent-bit",
-	}
-)
+// Images in the list will be retained during the image pruning process at
+// the end of an upgrade.
+var imageRetainList = []string{
+	// Matches both rancher/harvester-upgrade and <registry>/harvester/harvester-upgrade.
+	"/harvester-upgrade:",
+	"longhornio/longhorn-engine",
+	"longhornio/longhorn-instance-manager",
+	"rancher/mirrored-banzaicloud-fluentd",
+	"rancher/mirrored-fluent-fluent-bit",
+}
 
 type Repo struct {
 	ctx     context.Context
@@ -122,9 +120,20 @@ func getISODisplayNameImageName(upgradeName string, version string) string {
 // Deprecated: deleteStorageClass deletes the temporary storage class created in v1.7.0 for upgrade VM image.
 func (r *Repo) deleteStorageClass() error {
 	scName := r.upgrade.Name
-	err := r.h.scClient.Delete(scName, &metav1.DeleteOptions{})
+	sc, err := r.h.scClient.Get(scName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get storage class %s: %w", scName, err)
+	}
+	// Only delete if this SC was created by the v1.7.0 upgrade flow (identified by its upgrade label).
+	if sc.Labels[harvesterUpgradeLabel] != r.upgrade.Name {
+		return nil
+	}
+	err = r.h.scClient.Delete(scName, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete storage class %s error %w", scName, err)
+		return fmt.Errorf("failed to delete storage class %s: %w", scName, err)
 	}
 	return nil
 }
@@ -430,19 +439,20 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upgrade repo PVC %s: %w", vmImage.Name, err)
 	}
-
 	// VolumeMode defaults to Filesystem when nil, matching the Kubernetes API server default.
-	// The storage class decides the actual mode; we read it here so applyISOMount can adapt.
 	volumeMode := corev1.PersistentVolumeFilesystem
 	if pvc.Spec.VolumeMode != nil {
 		volumeMode = *pvc.Spec.VolumeMode
 	}
+	return r.h.deploymentClient.Create(r.repoDeployment(vmImage.Name, volumeMode))
+}
 
-	// The newer harvester-upgrade image hasn’t been imported yet, so we’re still using the old one.
-	// what we need is just the nginx server to serve the ISO, so it’s fine to use the previous version here.
-	container := corev1.Container{
+// repoContainer builds the nginx-iso-server container for the upgrade repo deployment.
+// The source-version upgrade image is used because the target image hasn't been imported yet.
+func repoContainer(image string, mode corev1.PersistentVolumeMode) corev1.Container {
+	c := corev1.Container{
 		Name:            "nginx-iso-server",
-		Image:           util.GetPreviousUpgradeImage(r.upgrade),
+		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: 80, Protocol: corev1.ProtocolTCP},
@@ -469,56 +479,43 @@ func (r *Repo) CreateDeployment(vmImage *harvesterv1.VirtualMachineImage) (*apps
 		TerminationMessagePath:   "/dev/termination-log",
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
-	applyISOMount(&container, volumeMode)
+	applyISOMount(&c, mode)
+	return c
+}
 
-	deployment := &appsv1.Deployment{
+func (r *Repo) repoDeployment(pvcName string, mode corev1.PersistentVolumeMode) *appsv1.Deployment {
+	labels := map[string]string{
+		harvesterUpgradeLabel:          r.upgrade.Name,
+		harvesterUpgradeComponentLabel: upgradeComponentRepo,
+	}
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.GetDeploymentName(),
-			Namespace: upgradeNamespace,
-			Labels: map[string]string{
-				harvesterUpgradeLabel:          r.upgrade.Name,
-				harvesterUpgradeComponentLabel: upgradeComponentRepo,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				upgradeReference(r.upgrade),
-			},
+			Name:            r.GetDeploymentName(),
+			Namespace:       upgradeNamespace,
+			Labels:          labels,
+			OwnerReferences: []metav1.OwnerReference{upgradeReference(r.upgrade)},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: ptr.To(int32(1)),
 			Strategy: appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					harvesterUpgradeLabel:          r.upgrade.Name,
-					harvesterUpgradeComponentLabel: upgradeComponentRepo,
-				},
-			},
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						harvesterUpgradeLabel:          r.upgrade.Name,
-						harvesterUpgradeComponentLabel: upgradeComponentRepo,
-					},
-				},
+				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{container},
+					Containers: []corev1.Container{repoContainer(util.GetPreviousUpgradeImage(r.upgrade), mode)},
 					DNSPolicy:  corev1.DNSClusterFirst,
-					Volumes: []corev1.Volume{
-						{
-							Name: isoVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									// the pvc name is the same as the vm image name
-									ClaimName: vmImage.Name,
-								},
+					Volumes: []corev1.Volume{{
+						Name: isoVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: pvcName,
 							},
 						},
-					},
+					}},
 				},
 			},
 		},
 	}
-
-	return r.h.deploymentClient.Create(deployment)
 }
 
 func (r *Repo) deleteDeployment() error {
