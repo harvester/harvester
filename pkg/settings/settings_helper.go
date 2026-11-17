@@ -32,6 +32,8 @@ type BackupTarget struct {
 	// ThirdPartyBackupEnabled allows creating Restic and Kopia VM backups.
 	// It is disabled by default; snapshot and Longhorn backups are unaffected.
 	ThirdPartyBackupEnabled bool `json:"thirdPartyBackupEnabled"`
+	// RepoPassword is shared by Restic and Kopia and cleared after Secret synchronization.
+	RepoPassword string `json:"thirdPartyRepositoryPassword,omitempty"`
 	// KopiaGCEnabled enables the controller-managed quick and full Kopia
 	// repository maintenance CronJobs for an S3 backup target.
 	KopiaGCEnabled           bool  `json:"kopiaGCEnabled"`
@@ -60,7 +62,7 @@ func DecodeBackupTarget(value string) (*BackupTarget, error) {
 
 	if value != "" {
 		if err := json.Unmarshal([]byte(value), target); err != nil {
-			return nil, fmt.Errorf("unmarshal failed, error: %w, value: %s", err, value)
+			return nil, fmt.Errorf("invalid backup target: %w", err)
 		}
 	}
 

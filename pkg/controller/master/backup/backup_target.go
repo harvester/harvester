@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -27,7 +28,6 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
-	resticutil "github.com/harvester/harvester/pkg/util/restic"
 )
 
 const (
@@ -43,7 +43,6 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 	backupTargetController := &TargetHandler{
 		ctx:                 ctx,
 		secrets:             secrets,
-		secretCache:         secrets.Cache(),
 		settings:            settings,
 		lhBackupTargets:     lhBackupTargets,
 		lhBackupTargetCache: lhBackupTargets.Cache(),
@@ -57,119 +56,140 @@ func RegisterBackupTarget(ctx context.Context, management *config.Management, _ 
 type TargetHandler struct {
 	ctx                 context.Context
 	secrets             ctlcorev1.SecretClient
-	secretCache         ctlcorev1.SecretCache
 	settings            ctlharvesterv1.SettingClient
 	lhBackupTargets     ctllonghornv1.BackupTargetClient
 	lhBackupTargetCache ctllonghornv1.BackupTargetCache
 	clientset           kubernetes.Interface
 }
 
-// OnBackupTargetChange handles backupTarget setting object on change
+// OnBackupTargetChange dispatches backup-related Setting changes.
 func (h *TargetHandler) OnBackupTargetChange(_ string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting == nil {
 		return setting, nil
 	}
 	switch setting.Name {
 	case settings.ThirdPartyBackupConfigSettingName:
-		target, err := backuputil.CurrentTarget()
-		if err != nil {
-			return setting, err
-		}
-		return setting, h.reconcileKopiaMaintenance(target)
+		return h.reconcileThirdPartyConfig(setting)
 	case settings.BackupTargetSettingName:
+		return h.reconcileTarget(setting)
 	default:
 		return setting, nil
 	}
+}
+
+func (h *TargetHandler) reconcileTarget(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
 	if setting.DeletionTimestamp != nil {
 		return setting, h.reconcileKopiaMaintenance(nil)
 	}
-
 	target, err := settings.DecodeBackupTarget(setting.Value)
 	if err != nil {
 		return h.setConfiguredCondition(setting, "", err)
 	}
-
 	logrus.Debugf("backup target change:%s:%s", target.Type, target.Endpoint)
 
-	switch target.Type {
-	case settings.S3BackupType:
-		// S3 credentials are removed from setting.Value after being stored in the
-		// backup-target Secret. Initialize repository passwords for legacy Secrets,
-		// and preserve them on subsequent reconciliations.
-		if target.SecretAccessKey == "" && target.AccessKeyID == "" {
-			if err = h.syncRepositoryPasswords(target); err != nil {
-				return h.setConfiguredCondition(setting, "", err)
-			}
-			break
-		}
-		// A submitted target with credentials represents a newly configured or
-		// changed S3 target. Stop the old repository maintenance schedules before
-		// replacing the shared credentials and repository parameters.
-		if err = h.reconcileKopiaMaintenance(nil); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-		if err = h.updateLonghornTarget(target); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-		if err = h.syncBackupSecret(target); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-		if setting, err = h.stripBackupTargetCredentials(setting, target); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-	case settings.NFSBackupType:
-		if err = h.updateLonghornTarget(target); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-		// reset previous secret of S3
-		if err = h.resetBackupTargetSecret(); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-
-	default:
-		// reset backup target to default, then delete/update related settings
-		if target.IsDefaultBackupTarget() {
-			if err = h.reconcileKopiaMaintenance(nil); err != nil {
-				return h.setConfiguredCondition(setting, "", err)
-			}
-			if err = h.updateLonghornTarget(target); err != nil {
-				return h.setConfiguredCondition(setting, "", err)
-			}
-
-			// reset previous secret of S3
-			if err = h.resetBackupTargetSecret(); err != nil {
-				return h.setConfiguredCondition(setting, "", err)
-			}
-
-			settingCpy := setting.DeepCopy()
-			harvesterv1.SettingConfigured.False(settingCpy)
-			harvesterv1.SettingConfigured.Message(settingCpy, "")
-			harvesterv1.SettingConfigured.Reason(settingCpy, "")
-			return h.settings.Update(settingCpy)
-		}
-
-		return h.setConfiguredCondition(setting, "", fmt.Errorf("invalid backup target type:%s or parameter", target.Type))
-	}
-
-	if target.RefreshIntervalInSeconds > 0 {
-		if err = h.updateLHBackupTargetPollInterval(target); err != nil {
-			return h.setConfiguredCondition(setting, "", err)
-		}
-	}
-
-	if err = h.reconcileKopiaMaintenance(target); err != nil {
+	setting, err = h.syncTarget(setting, target)
+	if err != nil {
 		return h.setConfiguredCondition(setting, "", err)
 	}
+	return h.updateTargetStatus(setting, target)
+}
 
+func (h *TargetHandler) updateTargetStatus(
+	setting *harvesterv1.Setting, target *settings.BackupTarget,
+) (*harvesterv1.Setting, error) {
+	if target.IsDefaultBackupTarget() {
+		updated := setting.DeepCopy()
+		harvesterv1.SettingConfigured.False(updated)
+		harvesterv1.SettingConfigured.Message(updated, "")
+		harvesterv1.SettingConfigured.Reason(updated, "")
+		return h.settings.Update(updated)
+	}
 	if len(setting.Status.Conditions) == 0 || harvesterv1.SettingConfigured.IsFalse(setting) {
 		return h.setConfiguredCondition(setting, "", nil)
 	}
 	return setting, nil
+}
+
+func (h *TargetHandler) syncTarget(
+	setting *harvesterv1.Setting, target *settings.BackupTarget,
+) (*harvesterv1.Setting, error) {
+	if target.IsDefaultBackupTarget() {
+		return setting, h.resetTarget(target)
+	}
+
+	var err error
+	switch target.Type {
+	case settings.S3BackupType:
+		setting, err = h.syncS3Target(setting, target)
+	case settings.NFSBackupType:
+		err = h.syncNFSTarget(target)
+	default:
+		return setting, fmt.Errorf("invalid backup target type:%s or parameter", target.Type)
+	}
+	if err != nil {
+		return setting, err
+	}
+	if err := h.updateLHBackupTargetPollInterval(target); err != nil {
+		return setting, err
+	}
+	return setting, h.reconcileKopiaMaintenance(target)
+}
+
+func (h *TargetHandler) syncS3Target(
+	setting *harvesterv1.Setting, target *settings.BackupTarget,
+) (*harvesterv1.Setting, error) {
+	if err := h.syncS3Secret(target); err != nil {
+		return setting, err
+	}
+	return h.stripCredentials(setting, target)
+}
+
+func (h *TargetHandler) syncNFSTarget(target *settings.BackupTarget) error {
+	if err := h.updateLonghornTarget(target); err != nil {
+		return err
+	}
+	return h.resetBackupTargetSecret()
+}
+
+func (h *TargetHandler) syncS3Secret(target *settings.BackupTarget) error {
+	// After masking, reconcile using the credentials already stored in the Secret.
+	masked := target.AccessKeyID == "" && target.SecretAccessKey == "" && target.RepoPassword == ""
+	if masked {
+		return h.syncMaskedSecret(target)
+	}
+
+	// User submissions update AWS credentials and either clear or save passwords.
+	if !target.ThirdPartyBackupEnabled {
+		return h.disableThirdParty(target)
+	}
+	return h.saveS3Credentials(target)
+}
+
+// syncMaskedSecret validates saved AWS credentials for every S3 target.
+// Enabled third-party backups also require matching repository credentials.
+func (h *TargetHandler) syncMaskedSecret(target *settings.BackupTarget) error {
+	secret, err := h.getBackupSecret()
+	if err != nil {
+		return err
+	}
+	data := secretData(secret)
+	if err := checkS3Credentials(data); err != nil {
+		return err
+	}
+	if !target.ThirdPartyBackupEnabled {
+		return nil
+	}
+	return checkRepoCredentials(data, backuputil.RepositoryID(target))
+}
+
+func (h *TargetHandler) resetTarget(target *settings.BackupTarget) error {
+	if err := h.reconcileKopiaMaintenance(nil); err != nil {
+		return err
+	}
+	if err := h.updateLonghornTarget(target); err != nil {
+		return err
+	}
+	return h.resetBackupTargetSecret()
 }
 
 type kopiaMaintenanceSchedule struct {
@@ -192,6 +212,9 @@ func (h *TargetHandler) reconcileKopiaMaintenance(target *settings.BackupTarget)
 	}
 
 	if target == nil || target.IsDefaultBackupTarget() || target.Type != settings.S3BackupType || !target.KopiaGCEnabled {
+		return h.deleteKopiaMaintenance()
+	}
+	if !target.ThirdPartyBackupEnabled {
 		return h.deleteKopiaMaintenance()
 	}
 
@@ -276,29 +299,30 @@ func maintenanceMatches(current, desired *batchv1.CronJob) bool {
 		apiequality.Semantic.DeepDerivative(desired.Spec, current.Spec)
 }
 
-func (h *TargetHandler) stripBackupTargetCredentials(
+func (h *TargetHandler) stripCredentials(
 	setting *harvesterv1.Setting,
 	target *settings.BackupTarget,
 ) (*harvesterv1.Setting, error) {
-	// only do a second update when s3 with credentials
-	if target.Type != settings.S3BackupType {
-		return nil, nil
+	if target.AccessKeyID == "" && target.SecretAccessKey == "" && target.RepoPassword == "" {
+		return setting, nil
 	}
 
-	// Remove S3 credentials from setting.Value after they have been stored in
-	// the backup-target Secret. The resulting reconciliation skips credential
-	// synchronization because both credentials are empty.
+	// Clear submitted credentials only after they have been saved to the Secret.
 	target.SecretAccessKey = ""
 	target.AccessKeyID = ""
+	target.RepoPassword = ""
 	targetBytes, err := json.Marshal(target)
 	if err != nil {
-		return nil, err
+		return setting, err
 	}
 
 	settingCpy := setting.DeepCopy()
 	settingCpy.Value = string(targetBytes)
-
-	return h.settings.Update(settingCpy)
+	updated, err := h.settings.Update(settingCpy)
+	if err != nil {
+		return setting, err
+	}
+	return updated, nil
 }
 
 func (h *TargetHandler) updateLonghornTarget(backupTarget *settings.BackupTarget) error {
@@ -346,29 +370,86 @@ func getBackupSecretData(target *settings.BackupTarget) (map[string]string, erro
 	return data, nil
 }
 
-func (h *TargetHandler) syncBackupSecret(target *settings.BackupTarget) error {
-	secret, err := h.getBackupSecret()
+// saveS3Credentials stores submitted AWS credentials and both repository passwords
+// when third-party backups are enabled.
+func (h *TargetHandler) saveS3Credentials(target *settings.BackupTarget) error {
+	if err := backuputil.CheckPasswordInput(target.RepoPassword); err != nil {
+		return err
+	}
+	secret, data, err := h.prepareS3Secret(target)
 	if err != nil {
 		return err
 	}
-	var stored map[string][]byte
-	if secret != nil {
-		stored = secret.Data
+	if err := backuputil.CheckPasswordChange(data, backuputil.RepositoryID(target), target.RepoPassword); err != nil {
+		return err
+	}
+	data[backuputil.ResticPasswordKey] = []byte(target.RepoPassword)
+	data[backuputil.KopiaPasswordKey] = []byte(target.RepoPassword)
+	return h.saveS3Secret(secret, data, target)
+}
+
+// disableThirdParty accepts submitted AWS credentials and clears both passwords.
+func (h *TargetHandler) disableThirdParty(target *settings.BackupTarget) error {
+	if target.RepoPassword != "" {
+		return fmt.Errorf("thirdPartyRepositoryPassword requires third-party backups to be enabled")
+	}
+	secret, data, err := h.prepareS3Secret(target)
+	if err != nil {
+		return err
+	}
+	delete(data, backuputil.ResticPasswordKey)
+	delete(data, backuputil.KopiaPasswordKey)
+	return h.saveS3Secret(secret, data, target)
+}
+
+func checkRepoCredentials(data map[string][]byte, repositoryID string) error {
+	if string(data[backuputil.RepositoryIDKey]) != repositoryID {
+		return fmt.Errorf("backup target Secret repository ID does not match the configured backup target")
+	}
+	return backuputil.CheckRepositoryPasswords(data)
+}
+
+// prepareS3Secret copies submitted S3 fields without changing repository fields
+// or writing any resources. Both user-submission paths use this preparation.
+func (h *TargetHandler) prepareS3Secret(
+	target *settings.BackupTarget,
+) (*corev1.Secret, map[string][]byte, error) {
+	if target.AccessKeyID == "" || target.SecretAccessKey == "" {
+		return nil, nil, fmt.Errorf("S3 backup target requires both AWS access key and secret key")
+	}
+	secret, err := h.getBackupSecret()
+	if err != nil {
+		return nil, nil, err
 	}
 	values, err := getBackupSecretData(target)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	data := stringMapToBytes(values)
-	if err := setRepositoryPasswords(data, stored, target, true); err != nil {
-		return err
+	data := secretData(secret)
+	maps.Copy(data, stringMapToBytes(values))
+	if err := checkS3Credentials(data); err != nil {
+		return nil, nil, err
 	}
+	return secret, data, nil
+}
 
+// saveS3Secret applies a validated user submission. The caller has already set
+// or cleared repository passwords; this function does not choose that policy.
+func (h *TargetHandler) saveS3Secret(
+	secret *corev1.Secret, data map[string][]byte, target *settings.BackupTarget,
+) error {
+	// Stop old maintenance before replacing shared credentials and target parameters.
+	if err := h.reconcileKopiaMaintenance(nil); err != nil {
+		return err
+	}
+	if err := h.updateLonghornTarget(target); err != nil {
+		return err
+	}
+	data[backuputil.RepositoryIDKey] = []byte(backuputil.RepositoryID(target))
 	if err := h.saveBackupSecret(secret, data); err != nil {
 		return err
 	}
-
-	return h.updateLonghornBackupTargetSecretSetting()
+	return h.setLonghornSecret(util.BackupTargetSecretName)
 }
 
 func (h *TargetHandler) getBackupSecret() (*corev1.Secret, error) {
@@ -377,6 +458,13 @@ func (h *TargetHandler) getBackupSecret() (*corev1.Secret, error) {
 		return nil, nil
 	}
 	return secret, err
+}
+
+func secretData(secret *corev1.Secret) map[string][]byte {
+	if secret == nil || secret.Data == nil {
+		return map[string][]byte{}
+	}
+	return secret.DeepCopy().Data
 }
 
 func (h *TargetHandler) saveBackupSecret(secret *corev1.Secret, data map[string][]byte) error {
@@ -410,133 +498,35 @@ func (h *TargetHandler) updateBackupSecret(secret *corev1.Secret, data map[strin
 }
 
 func (h *TargetHandler) resetBackupTargetSecret() error {
-	secret, err := h.secretCache.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err := h.clearS3Credentials(); err != nil {
 		return err
 	}
-	if secret != nil && len(secret.Data) != 0 {
-		secretCpy := secret.DeepCopy()
-		secretCpy.Data = map[string][]byte{}
-		secretCpy.StringData = nil
-		if !reflect.DeepEqual(secret.Data, secretCpy.Data) {
-			_, err = h.secrets.Update(secretCpy)
-		}
-		if err != nil {
-			return err
-		}
-	}
-
-	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
-	if err != nil {
-		return err
-	}
-
-	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
-	lhBackupTargetCpy.Spec.CredentialSecret = ""
-
-	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
-		return nil
-	}
-
-	_, err = h.lhBackupTargets.Update(lhBackupTargetCpy)
-	return err
+	return h.setLonghornSecret("")
 }
 
-func (h *TargetHandler) syncRepositoryPasswords(target *settings.BackupTarget) error {
-	secret, err := h.secrets.Get(util.LonghornSystemNamespaceName, util.BackupTargetSecretName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get backup target secret: %w", err)
-	}
-	data := secret.DeepCopy().Data
-	if data == nil {
-		data = map[string][]byte{}
-	}
-	if err := setRepositoryPasswords(data, secret.Data, target, false); err != nil {
+// clearS3Credentials removes S3 and repository fields, preserving unrelated Secret data.
+func (h *TargetHandler) clearS3Credentials() error {
+	secret, err := h.getBackupSecret()
+	if err != nil || secret == nil {
 		return err
+	}
+	data := secretData(secret)
+	// A default or NFS target clears all S3 and repository credentials.
+	for _, key := range []string{
+		util.AWSAccessKey, util.AWSSecretKey, util.AWSEndpoints, util.AWSCERT,
+		util.VirtualHostedStyle, util.HTTPProxyEnv, util.HTTPSProxyEnv, util.NoProxyEnv,
+		backuputil.RepositoryIDKey, backuputil.ResticPasswordKey, backuputil.KopiaPasswordKey,
+	} {
+		delete(data, key)
 	}
 	return h.updateBackupSecret(secret, data)
 }
 
-// setRepositoryPasswords handles passwords for a valid S3 backup target:
-//
-//  1. No stored repository ID: initialize the ID, RESTIC_PASSWORD, and
-//     KOPIA_PASSWORD. This covers upgrades and changing the Setting from empty
-//     to a valid S3 target.
-//  2. Same repository ID: preserve both passwords. This covers AWS credential
-//     rotation and reconciliation after credentials are stripped from the Setting.
-//  3. Different repository ID: an explicit change from one repository to another
-//     (allowChange=true) reaches the default case and replaces the ID and both
-//     passwords. Ordinary reconciliation (allowChange=false) rejects a mismatch.
-//  4. Clearing the backup target bypasses this helper; resetBackupTargetSecret
-//     clears all data in the shared Secret instead.
-//
-// Both AWS credentials must be present in data. Incomplete stored password state
-// returns an error without replacing passwords.
-func setRepositoryPasswords(
-	data, stored map[string][]byte,
-	target *settings.BackupTarget,
-	allowChange bool,
-) error {
+func checkS3Credentials(data map[string][]byte) error {
 	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey} {
 		if len(data[key]) == 0 {
 			return fmt.Errorf("backup target Secret is missing %s", key)
 		}
-	}
-	repositoryID := backuputil.RepositoryID(target)
-	previousID := string(stored[backuputil.RepositoryIDKey])
-	switch {
-	case previousID == "":
-		return initUnsetPasswords(data, stored, target)
-	case previousID == repositoryID:
-		return keepRepositoryPasswords(data, stored, repositoryID)
-	case !allowChange:
-		return fmt.Errorf("backup target Secret repository ID does not match the configured backup target")
-	default:
-		return initRepositoryPasswords(data, target)
-	}
-}
-
-// initUnsetPasswords handles first-time setup and upgrades. Existing passwords
-// without a repository ID indicate incomplete state and must not be replaced.
-func initUnsetPasswords(data, stored map[string][]byte, target *settings.BackupTarget) error {
-	for _, key := range []string{resticutil.PasswordKey, kopiautil.PasswordKey} {
-		if len(stored[key]) != 0 {
-			return fmt.Errorf("backup target Secret has repository passwords without a repository ID")
-		}
-	}
-	return initRepositoryPasswords(data, target)
-}
-
-func keepRepositoryPasswords(data, stored map[string][]byte, repositoryID string) error {
-	keys := []string{resticutil.PasswordKey, kopiautil.PasswordKey}
-	for _, key := range keys {
-		if len(stored[key]) == 0 {
-			return fmt.Errorf("backup target Secret is missing %s", key)
-		}
-	}
-	for _, key := range keys {
-		data[key] = append([]byte(nil), stored[key]...)
-	}
-	data[backuputil.RepositoryIDKey] = []byte(repositoryID)
-	return nil
-}
-
-func initRepositoryPasswords(data map[string][]byte, target *settings.BackupTarget) error {
-	repositoryID := backuputil.RepositoryID(target)
-	passwords := make(map[string][]byte, 3)
-	for backupType, key := range map[harvesterv1.BackupType]string{
-		harvesterv1.Restic: resticutil.PasswordKey,
-		harvesterv1.Kopia:  kopiautil.PasswordKey,
-	} {
-		password, err := backuputil.RepositoryPassword(repositoryID, backupType, data)
-		if err != nil {
-			return err
-		}
-		passwords[key] = []byte(password)
-	}
-	passwords[backuputil.RepositoryIDKey] = []byte(repositoryID)
-	for key, password := range passwords {
-		data[key] = password
 	}
 	return nil
 }
@@ -549,14 +539,14 @@ func stringMapToBytes(data map[string]string) map[string][]byte {
 	return result
 }
 
-func (h *TargetHandler) updateLonghornBackupTargetSecretSetting() error {
+func (h *TargetHandler) setLonghornSecret(name string) error {
 	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
 	if err != nil {
 		return err
 	}
 
 	lhBackupTargetCpy := lhBackupTarget.DeepCopy()
-	lhBackupTargetCpy.Spec.CredentialSecret = util.BackupTargetSecretName
+	lhBackupTargetCpy.Spec.CredentialSecret = name
 
 	if reflect.DeepEqual(lhBackupTarget, lhBackupTargetCpy) {
 		return nil
@@ -574,6 +564,9 @@ func (h *TargetHandler) setConfiguredCondition(setting *harvesterv1.Setting, rea
 }
 
 func (h *TargetHandler) updateLHBackupTargetPollInterval(backupTarget *settings.BackupTarget) error {
+	if backupTarget.RefreshIntervalInSeconds <= 0 {
+		return nil
+	}
 	lhBackupTarget, err := h.lhBackupTargetCache.Get(util.LonghornSystemNamespaceName, longhorntypes.DefaultBackupTargetName)
 	if err != nil {
 		return err
