@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -181,10 +182,12 @@ func TestUpdateStatusWaitsForVMStartup(t *testing.T) {
 
 type startupRestoreOperator struct {
 	restorecommon.VMRestoreOperator
-	startErr error
-	starts   int
-	cleanups int
-	updated  *harvesterv1.VirtualMachineRestore
+	startErr   error
+	cleanupErr error
+	updateErr  error
+	starts     int
+	cleanups   int
+	updated    *harvesterv1.VirtualMachineRestore
 }
 
 func (o *startupRestoreOperator) StartVM(context.Context, *kubevirtv1.VirtualMachine) error {
@@ -196,6 +199,9 @@ func (o *startupRestoreOperator) Update(
 	_ *harvesterv1.VirtualMachineRestore,
 	newVMr *harvesterv1.VirtualMachineRestore,
 ) (*harvesterv1.VirtualMachineRestore, error) {
+	if o.updateErr != nil {
+		return nil, o.updateErr
+	}
 	o.updated = newVMr.DeepCopy()
 	return o.updated, nil
 }
@@ -207,7 +213,71 @@ func (o *startupRestoreOperator) UpdateError(old *harvesterv1.VirtualMachineRest
 
 func (o *startupRestoreOperator) DeleteOldPVCs(*harvesterv1.VirtualMachineRestore, *kubevirtv1.VirtualMachine) error {
 	o.cleanups++
-	return nil
+	return o.cleanupErr
+}
+
+func TestRestoreCleanupRetries(t *testing.T) {
+	cleanupErr := errors.New("PVC deletion unavailable")
+	updateErr := errors.New("status update unavailable")
+	tests := []struct {
+		name       string
+		keepHalted bool
+		updateErr  error
+	}{
+		{name: "ready VM"},
+		{name: "halted VM", keepHalted: true},
+		{name: "status update fails", updateErr: updateErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := &startupRestoreOperator{
+				VMRestoreOperator: restorecommon.NewVMRestoreOperatorBuilder().Build(),
+				cleanupErr:        cleanupErr,
+				updateErr:         tt.updateErr,
+			}
+			h := &RestoreHandler{vmro: op}
+			vmr := &harvesterv1.VirtualMachineRestore{
+				Spec: harvesterv1.VirtualMachineRestoreSpec{HaltAfterRestore: tt.keepHalted},
+			}
+			vm := &kubevirtv1.VirtualMachine{
+				Status: kubevirtv1.VirtualMachineStatus{Ready: !tt.keepHalted},
+			}
+			original := vmr.DeepCopy()
+
+			err := h.updateStatus(vmr, vmr.DeepCopy(), vm, true)
+			require.ErrorIs(t, err, cleanupErr)
+			require.Equal(t, original, vmr, "informer object must not be mutated")
+			if tt.updateErr != nil {
+				require.ErrorIs(t, err, updateErr)
+				require.Nil(t, op.updated)
+			} else {
+				vmr = op.updated
+			}
+
+			// A repeated failure must remain retryable after persisting its condition.
+			op.updateErr = nil
+			err = h.updateStatus(vmr, vmr.DeepCopy(), vm, true)
+			require.ErrorIs(t, err, cleanupErr)
+			vmr = op.updated
+			require.True(t, op.IsProgressing(vmr))
+			require.False(t, op.IsFailed(vmr), "the reconcile guard must allow cleanup retries")
+			require.False(t, op.IsComplete(vmr))
+			for _, condition := range vmr.Status.Conditions {
+				require.Contains(t, condition.Message, cleanupErr.Error())
+				if condition.Type == harvesterv1.RestoreConditionProgressing {
+					require.Equal(t, corev1.ConditionTrue, condition.Status)
+				}
+			}
+
+			op.cleanupErr = nil
+			err = h.updateStatus(vmr, vmr.DeepCopy(), vm, true)
+			require.NoError(t, err)
+			require.True(t, op.IsComplete(op.updated))
+			require.False(t, op.IsFailed(op.updated))
+			require.Equal(t, 3, op.cleanups)
+			require.Zero(t, op.starts)
+		})
+	}
 }
 
 func TestRestoreDeletionUsesSavedType(t *testing.T) {
