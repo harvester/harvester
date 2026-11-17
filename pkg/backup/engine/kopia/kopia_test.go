@@ -551,20 +551,28 @@ func TestRemoveRetriesPartialDeletion(t *testing.T) {
 }
 
 func TestRemoveCancelsPendingJobs(t *testing.T) {
-	ke, vmb, client := removeFixture(t)
-	// Disconnected cleanup must not need remote credentials or start more work.
-	restarted := *ke
-	client.ClearActions()
-	updated, err := restarted.Remove(vmb, false)
-	require.NoError(t, err)
-	require.Equal(t, "true", updated.Annotations[backupcommon.SkipAnnotation])
-	for _, action := range client.Actions() {
-		require.NotEqual(t, "create", action.GetVerb())
-		require.NotEqual(t, "secrets", action.GetResource().Resource)
+	for _, target := range []string{`{}`, `{"type":"s3","bucketName":"another-repository"}`} {
+		t.Run(target, func(t *testing.T) {
+			ke, vmb, client := removeFixture(t)
+			require.NoError(t, settings.BackupTargetSet.Set(target))
+			require.NoError(t, client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Delete(
+				context.Background(), util.BackupTargetSecretName, metav1.DeleteOptions{},
+			))
+			// Changed or disconnected targets must not need credentials or start remote work.
+			restarted := *ke
+			client.ClearActions()
+			updated, err := restarted.Remove(vmb, false)
+			require.NoError(t, err)
+			require.Equal(t, "true", updated.Annotations[backupcommon.SkipAnnotation])
+			for _, action := range client.Actions() {
+				require.NotEqual(t, "create", action.GetVerb())
+				require.NotEqual(t, "secrets", action.GetResource().Resource)
+			}
+			jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Empty(t, jobs.Items)
+		})
 	}
-	jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Empty(t, jobs.Items)
 }
 
 func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
