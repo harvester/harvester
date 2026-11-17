@@ -90,31 +90,6 @@ func TestValidateRepositoryTransition(t *testing.T) {
 	assert.Error(t, validator.validateRepositoryTransition(&targetB))
 }
 
-func TestToggleThirdPartyBackup(t *testing.T) {
-	const target = `{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups",` +
-		`"bucketRegion":"test-region","thirdPartyBackupEnabled":%t}`
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
-			oldSetting := &v1beta1.Setting{
-				ObjectMeta: metav1.ObjectMeta{Name: settings.BackupTargetSettingName},
-				Value:      fmt.Sprintf(target, !enabled),
-			}
-			clientset := fake.NewSimpleClientset(oldSetting)
-			validator := &settingValidator{
-				settingCache: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
-				vmBackupCache: fakeclients.VMBackupCache(
-					clientset.HarvesterhciV1beta1().VirtualMachineBackups,
-				),
-				vmbr: backupcommon.NewVMBackupReader(),
-			}
-			newSetting := oldSetting.DeepCopy()
-			newSetting.Value = fmt.Sprintf(target, enabled)
-			// Toggling the gate must not require re-entering stripped S3 credentials.
-			assert.NoError(t, validator.validateUpdateBackupTarget(nil, oldSetting, newSetting))
-		})
-	}
-}
-
 func Test_validateOvercommitConfig(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -3388,6 +3363,7 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 }
 
 func TestThirdPartyBackupConfigAdmission(t *testing.T) {
+	validator := &settingValidator{}
 	for _, value := range []string{
 		`not-json`, `{"restic":{"memoryRequest":"-1Gi"}}`,
 		`{"kopia":{"memoryLimit":"128Mi"}}`, `{"kopia":{"cacheSize":"4Mi"}}`,
@@ -3397,15 +3373,17 @@ func TestThirdPartyBackupConfigAdmission(t *testing.T) {
 			setting := &v1beta1.Setting{
 				ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
 			}
-			assert.Error(t, validateSetting(nil, setting))
-			assert.Error(t, validateUpdateSetting(nil, setting, setting))
+			_, err := decodeBackupConfig(setting)
+			assert.Error(t, err)
+			assert.Error(t, validator.checkConfigUpdate(nil, setting, setting))
 		})
 	}
 	for _, value := range []string{"", "{}", settings.InitThirdPartyBackupConfig(), `{"restic":{"noCache":true}}`} {
 		setting := &v1beta1.Setting{
 			ObjectMeta: metav1.ObjectMeta{Name: settings.ThirdPartyBackupConfigSettingName}, Value: value,
 		}
-		assert.NoError(t, validateSetting(nil, setting))
-		assert.NoError(t, validateUpdateSetting(nil, setting, setting))
+		_, err := decodeBackupConfig(setting)
+		assert.NoError(t, err)
+		assert.NoError(t, validator.checkConfigUpdate(nil, setting, setting))
 	}
 }

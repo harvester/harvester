@@ -65,6 +65,7 @@ func TestReconcileKopiaMaintenanceRemovesCronJobsWhenDisabledOrTargetIsEmpty(t *
 		name   string
 		target *settings.BackupTarget
 	}{
+		{name: "feature disabled", target: &settings.BackupTarget{Type: settings.S3BackupType, KopiaGCEnabled: true}},
 		{name: "disabled", target: kopiaMaintenanceTarget(false)},
 		{name: "empty target", target: &settings.BackupTarget{}},
 		{name: "deleted setting", target: nil},
@@ -101,11 +102,12 @@ func prepareKopiaMaintenanceTest(t *testing.T) {
 
 func kopiaMaintenanceTarget(enabled bool) *settings.BackupTarget {
 	return &settings.BackupTarget{
-		Type:           settings.S3BackupType,
-		Endpoint:       "http://minio.example.com:9000",
-		BucketName:     "backups",
-		BucketRegion:   "test-region",
-		KopiaGCEnabled: enabled,
+		Type:                    settings.S3BackupType,
+		Endpoint:                "http://minio.example.com:9000",
+		BucketName:              "backups",
+		BucketRegion:            "test-region",
+		KopiaGCEnabled:          enabled,
+		ThirdPartyBackupEnabled: true,
 	}
 }
 
