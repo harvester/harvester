@@ -20,7 +20,7 @@ if [[ "${MODE}" != "run" && "${MODE}" != "cleanup" ]]; then
 fi
 
 NAMESPACE="${NAMESPACE:-longhorn-system}"
-# The Secret must contain S3 credentials and the derived repository password
+# The Secret must contain S3 credentials and the configured repository password
 # for this target, including when overriding the target below.
 SECRET_NAME="${SECRET_NAME:-harvester-backup-target-secret}"
 BACKUP_TARGET_SETTING="${BACKUP_TARGET_SETTING:-backup-target}"

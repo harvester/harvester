@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -66,8 +67,13 @@ func DecodeThirdPartyBackupConfig(value string) (*ThirdPartyBackupConfig, error)
 		return nil, fmt.Errorf("%s must be a JSON object", ThirdPartyBackupConfigSettingName)
 	}
 	config := defaultThirdPartyBackupConfig()
-	if err := json.Unmarshal([]byte(value), &config); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("invalid %s: %w", ThirdPartyBackupConfigSettingName, err)
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("%s must contain a single JSON object", ThirdPartyBackupConfigSettingName)
 	}
 	for engine, job := range map[string]BackupJobConfig{
 		"restic": config.Restic.BackupJobConfig,
