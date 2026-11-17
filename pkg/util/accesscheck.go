@@ -14,7 +14,9 @@ import (
 // Kubernetes resource API verbs for use with CheckObjectAccess.
 const (
 	VerbGet    = "get"
+	VerbCreate = "create"
 	VerbUpdate = "update"
+	VerbDelete = "delete"
 )
 
 // GVRs used with CheckObjectAccess.
@@ -26,13 +28,15 @@ var (
 )
 
 type ResourceAccessCheck struct {
-	SAR       authorizationv1client.SubjectAccessReviewInterface
-	Username  string
-	Groups    []string
-	Verb      string
-	GVR       schema.GroupVersionResource
-	Namespace string
-	Name      string
+	SAR      authorizationv1client.SubjectAccessReviewInterface
+	Username string
+	Groups   []string
+	Verb     string
+	GVR      schema.GroupVersionResource
+	// Subresource is optional, for example "start" for subresources.kubevirt.io virtualmachines/start.
+	Subresource string
+	Namespace   string
+	Name        string
 }
 
 // CheckObjectAccess checks whether the given user/groups can perform the requested verb on a resource.
@@ -40,12 +44,13 @@ func CheckObjectAccess(ctx context.Context, check ResourceAccessCheck) (bool, er
 	review, err := check.SAR.Create(ctx, &authorizationv1.SubjectAccessReview{
 		Spec: authorizationv1.SubjectAccessReviewSpec{
 			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Namespace: check.Namespace,
-				Verb:      check.Verb,
-				Group:     check.GVR.Group,
-				Version:   check.GVR.Version,
-				Resource:  check.GVR.Resource,
-				Name:      check.Name,
+				Namespace:   check.Namespace,
+				Verb:        check.Verb,
+				Group:       check.GVR.Group,
+				Version:     check.GVR.Version,
+				Resource:    check.GVR.Resource,
+				Subresource: check.Subresource,
+				Name:        check.Name,
 			},
 			User:   check.Username,
 			Groups: check.Groups,
