@@ -48,6 +48,7 @@ var (
 	OvercommitConfig                       = NewSetting(OvercommitConfigSettingName, `{"cpu":1000,"memory":150,"storage":100}`)
 	VipPools                               = NewSetting(VipPoolsConfigSettingName, "")
 	AutoDiskProvisionPaths                 = NewSetting(AutoDiskProvisionPathsSettingName, "")
+	KubeVirtFeatureGates                   = NewSetting(KubeVirtFeatureGatesSettingName, "") // comma-separated additional KubeVirt feature gates
 	CSIDriverConfig                        = NewSetting(CSIDriverConfigSettingName, `{"driver.longhorn.io":{"volumeSnapshotClassName":"longhorn-snapshot","backupVolumeSnapshotClassName":"longhorn"}}`)
 	CSIOnlineExpandValidation              = NewSetting(CSIOnlineExpandValidationSettingName, `{"driver.longhorn.io":true}`)
 	ContainerdRegistry                     = NewSetting(ContainerdRegistrySettingName, "")
@@ -130,6 +131,7 @@ const (
 	VMMigrationNetworkSettingName                     = "vm-migration-network"
 	RancherClusterSettingName                         = "rancher-cluster"
 	KubeVirtMigrationSettingName                      = "kubevirt-migration"
+	KubeVirtFeatureGatesSettingName                   = "kubevirt-feature-gates"
 	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 	TraefikDefaultTLSOptionsSettingName               = "traefik-default-tls-options"
 	MaintenanceModeDrainTimeoutSettingName            = "maintenance-mode-drain-timeout"

@@ -215,6 +215,8 @@ func NewValidator(
 
 	validateSettingFuncs[settings.KubeVirtMigrationSettingName] = validator.validateKubeVirtMigration
 	validateSettingUpdateFuncs[settings.KubeVirtMigrationSettingName] = validator.validateUpdateKubeVirtMigration
+	validateSettingFuncs[settings.KubeVirtFeatureGatesSettingName] = validator.validateKubeVirtFeatureGates
+	validateSettingUpdateFuncs[settings.KubeVirtFeatureGatesSettingName] = validator.validateUpdateKubeVirtFeatureGates
 
 	validateSettingDeleteFuncs[settings.ClusterPodSecurityStandardSettingName] = validator.validateDeleteClusterPodSecurityStandard
 
@@ -2758,6 +2760,20 @@ func (v *settingValidator) validateKubeVirtMigration(newSetting *v1beta1.Setting
 
 func (v *settingValidator) validateUpdateKubeVirtMigration(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
 	return v.validateKubeVirtMigration(newSetting)
+}
+
+func (v *settingValidator) validateKubeVirtFeatureGates(newSetting *v1beta1.Setting) error {
+	if _, err := settings.ParseKubeVirtFeatureGates(newSetting.Default); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordDefault)
+	}
+	if _, err := settings.ParseKubeVirtFeatureGates(newSetting.Value); err != nil {
+		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	}
+	return nil
+}
+
+func (v *settingValidator) validateUpdateKubeVirtFeatureGates(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
+	return v.validateKubeVirtFeatureGates(newSetting)
 }
 
 func (v *settingValidator) validateDeleteClusterPodSecurityStandard(_ *v1beta1.Setting) error {
