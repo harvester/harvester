@@ -158,11 +158,11 @@ func (v *virtualMachineBackupValidator) validateStandardBackup(vmb *v1beta1.Virt
 }
 
 func (v *virtualMachineBackupValidator) validateVMBackupRecover(vmb *v1beta1.VirtualMachineBackup) error {
-	if v.vmbr.GetType(vmb) != v1beta1.Backup {
+	if v.vmbr.GetType(vmb).IsDataMover() {
 		return nil
 	}
 
-	// Perform LH backup specific validation only for native Longhorn backups.
+	// Preserve existing validation for Longhorn and snapshots with populated status.
 	return webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 }
 

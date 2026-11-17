@@ -6,10 +6,12 @@ import (
 	"testing"
 
 	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -19,6 +21,45 @@ import (
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
+
+func TestCreateRecoveredBackup(t *testing.T) {
+	const target = `{"type":"s3","bucketName":"backups","thirdPartyBackupEnabled":true}`
+	for _, engine := range []struct {
+		backupType v1beta1.BackupType
+		requiresLH bool
+	}{
+		{backupType: v1beta1.Backup, requiresLH: true},
+		{backupType: v1beta1.Snapshot, requiresLH: true},
+		{backupType: v1beta1.Restic},
+		{backupType: v1beta1.Kopia},
+	} {
+		for _, tt := range []struct {
+			name       string
+			backupName *string
+		}{
+			{name: "missing Longhorn backup name"},
+			{name: "empty Longhorn backup name", backupName: ptr.To("")},
+			{name: "valid Longhorn backup name", backupName: ptr.To("lh-backup")},
+		} {
+			t.Run(fmt.Sprintf("%s/%s", engine.backupType, tt.name), func(t *testing.T) {
+				validator := gateValidator(target)
+				vmb := newVMBackup("default", "removed-vm", engine.backupType)
+				vmb.Status.SourceSpec = &v1beta1.VirtualMachineSourceSpec{}
+				vmb.Status.VolumeBackups = []v1beta1.VolumeBackup{{
+					Name:               ptr.To("volume-backup"),
+					LonghornBackupName: tt.backupName,
+				}}
+
+				err := validator.Create(nil, vmb)
+				if engine.requiresLH && (tt.backupName == nil || *tt.backupName == "") {
+					require.ErrorContains(t, err, "not from LH")
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	}
+}
 
 func TestCheckBackupVolumeSnapshotClassLonghornV2(t *testing.T) {
 	const (
