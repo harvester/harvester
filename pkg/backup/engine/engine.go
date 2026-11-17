@@ -43,9 +43,10 @@ type BackupEngine interface {
 	// backups. It must work when per-volume readiness is absent. Engines
 	// without temporary resources return nil.
 	Cleanup(vmb *harvesterv1.VirtualMachineBackup) error
-	// Remove completes or skips remote deletion, persists that decision, and
-	// releases local resources. Return the latest VMBackup for finalization.
-	Remove(vmb *harvesterv1.VirtualMachineBackup, removeRemote bool) (*harvesterv1.VirtualMachineBackup, error)
+	// Remove releases local resources and returns the latest VMBackup for finalization.
+	// For data movers, cleanup requests remote deletion. For Longhorn, it requests
+	// forced local snapshot cleanup when the backup target changed.
+	Remove(vmb *harvesterv1.VirtualMachineBackup, cleanup bool) (*harvesterv1.VirtualMachineBackup, error)
 	// RegisterWatchers gives the engine an opportunity to register its own
 	// informer event handlers (e.g. on Jobs it creates) and call enqueue to
 	// trigger reconcile on the owning VMBackup. Engines that don't need any

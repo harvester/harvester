@@ -194,13 +194,13 @@ func (v *virtualMachineBackupValidator) checkBackupVolumeSnapshotClass(
 		}
 
 		backupType := v.vmbr.GetType(newVMBackup)
-		if backupType.UsesRemoteBackupTarget() && !backupType.IsDataMover() {
+		if backupType == v1beta1.Backup {
 			if err := v.checkLonghornV2Volume(vm, pvc); err != nil {
 				return err
 			}
 		}
 
-		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, v.vmbr.GetType(newVMBackup), cdc); err != nil {
+		if err := webhookutil.ValidateProvisionerAndConfig(pvc, v.scCache, backupType, cdc); err != nil {
 			return err
 		}
 	}
@@ -302,8 +302,12 @@ func (v *virtualMachineBackupValidator) checkBackupTarget(backupType v1beta1.Bac
 	if backupTarget.IsDefaultBackupTarget() {
 		return fmt.Errorf("backup target is not set")
 	}
-	if backupType.IsDataMover() && backupTarget.Type != settings.S3BackupType {
-		return fmt.Errorf("%s backup requires an S3 backup target", backupType)
+	if !backupType.IsDataMover() {
+		return nil
+	}
+	if backupTarget.Type != settings.S3BackupType || !backupTarget.ThirdPartyBackupEnabled {
+		return fmt.Errorf(
+			"%s backup requires an S3 backup target with thirdPartyBackupEnabled=true", backupType)
 	}
 
 	return nil

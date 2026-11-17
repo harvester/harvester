@@ -29,6 +29,9 @@ type BackupTarget struct {
 	BucketRegion       string     `json:"bucketRegion"`
 	Cert               string     `json:"cert"`
 	VirtualHostedStyle bool       `json:"virtualHostedStyle"`
+	// ThirdPartyBackupEnabled allows creating Restic and Kopia VM backups.
+	// It is disabled by default; snapshot and Longhorn backups are unaffected.
+	ThirdPartyBackupEnabled bool `json:"thirdPartyBackupEnabled"`
 	// KopiaGCEnabled enables the controller-managed quick and full Kopia
 	// repository maintenance CronJobs for an S3 backup target.
 	KopiaGCEnabled           bool  `json:"kopiaGCEnabled"`
