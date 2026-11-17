@@ -275,14 +275,14 @@ func TestCheckBackupTarget(t *testing.T) {
 		{
 			name:        "restic rejects NFS target",
 			backupType:  v1beta1.Restic,
-			targetValue: `{"type":"nfs","endpoint":"server:/backups"}`,
+			targetValue: `{"type":"nfs","endpoint":"server:/backups","thirdPartyBackupEnabled":true}`,
 			wantErr:     true,
 			errContains: "restic backup requires an S3 backup target",
 		},
 		{
 			name:        "kopia rejects NFS target",
 			backupType:  v1beta1.Kopia,
-			targetValue: `{"type":"nfs","endpoint":"server:/backups"}`,
+			targetValue: `{"type":"nfs","endpoint":"server:/backups","thirdPartyBackupEnabled":true}`,
 			wantErr:     true,
 			errContains: "kopia backup requires an S3 backup target",
 		},
@@ -292,14 +292,14 @@ func TestCheckBackupTarget(t *testing.T) {
 			targetValue: `{"type":"nfs","endpoint":"server:/backups"}`,
 		},
 		{
-			name:        "restic allows S3 target",
+			name:        "restic allows enabled S3 target",
 			backupType:  v1beta1.Restic,
-			targetValue: `{"type":"s3","endpoint":"https://s3.example.com"}`,
+			targetValue: `{"type":"s3","endpoint":"https://s3.example.com","thirdPartyBackupEnabled":true}`,
 		},
 		{
-			name:        "kopia allows S3 target",
+			name:        "kopia allows enabled S3 target",
 			backupType:  v1beta1.Kopia,
-			targetValue: `{"type":"s3","endpoint":"https://s3.example.com"}`,
+			targetValue: `{"type":"s3","endpoint":"https://s3.example.com","thirdPartyBackupEnabled":true}`,
 		},
 		{
 			name:        "data mover rejects missing target",

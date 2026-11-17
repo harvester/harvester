@@ -303,7 +303,7 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 }
 
 // OnBackupRemove removes remote backup state and releases cleanup resources.
-// A disconnected target preserves remote backups for later discovery.
+// A changed or disconnected target preserves remote backups for later discovery.
 func (h *Handler) OnBackupRemove(_ string, vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
 	if vmb == nil {
 		return nil, nil
@@ -330,9 +330,15 @@ func (h *Handler) removeBackup(
 	if err := h.deleteVMBackupMetadata(vmb, target); err != nil {
 		return nil, fmt.Errorf("failed to delete VM backup metadata: %w", err)
 	}
-	// CSI handles native backups unless the target changed.
-	removeRemote := h.vmbo.GetType(vmb).OwnsExternalState() || !h.vmbo.IsTargetConsistent(vmb, target)
-	return backupEngine.Remove(vmb, removeRemote)
+	sameTarget := h.vmbo.IsTargetConsistent(vmb, target)
+	backupType := h.vmbo.GetType(vmb)
+	if backupType.IsDataMover() {
+		// Preserve remote snapshots when their repository is no longer configured.
+		return backupEngine.Remove(vmb, sameTarget)
+	}
+	// Longhorn needs forced local snapshot cleanup when CSI cannot use the old target.
+	forceCleanup := backupType == harvesterv1.Backup && !sameTarget
+	return backupEngine.Remove(vmb, forceCleanup)
 }
 
 // CreateVolumeBackups reconciles volumes on a copy owned by the caller. Status

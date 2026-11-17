@@ -55,6 +55,7 @@ func TestCredentialsSurviveRotation(t *testing.T) {
 	h, setting, target, _ := credentialHandler(t)
 	require.NoError(t, h.syncRepositoryPasswords(target))
 	initial := readCredentials(t, h)
+	target.ThirdPartyBackupEnabled = true
 
 	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey} {
 		if key == util.AWSAccessKey {
@@ -74,6 +75,7 @@ func TestCredentialsSurviveRotation(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stripped.AccessKeyID)
 		require.Empty(t, stripped.SecretAccessKey)
+		require.True(t, stripped.ThirdPartyBackupEnabled)
 		_, err = h.OnBackupTargetChange(setting.Name, setting)
 		require.NoError(t, err)
 		current := readCredentials(t, h)

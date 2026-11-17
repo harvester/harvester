@@ -484,9 +484,9 @@ func (le *LonghornEngine) removeVolume(vmb *harvesterv1.VirtualMachineBackup, vo
 
 func (le *LonghornEngine) Remove(
 	vmb *harvesterv1.VirtualMachineBackup,
-	removeRemote bool,
+	forceCleanup bool,
 ) (*harvesterv1.VirtualMachineBackup, error) {
-	if !removeRemote {
+	if !forceCleanup {
 		return vmb, nil
 	}
 	for i, vb := range le.vmbo.GetVolBackups(vmb) {
