@@ -3310,3 +3310,21 @@ func Test_validateUpdateVMMigrationNetwork_IPv6OOM(t *testing.T) {
 		t.Log("UNPROTECTED (guard absent): v.Update hung as expected - OOM/DoS risk confirmed")
 	}
 }
+
+func TestValidateKubeVirtFeatureGatesChange(t *testing.T) {
+	newSetting := func(value string) *v1beta1.Setting {
+		s := &v1beta1.Setting{Value: value}
+		s.Name = settings.KubeVirtFeatureGatesSettingName
+		return s
+	}
+	v := &settingValidator{}
+
+	assert.NoError(t, v.validateKubeVirtFeatureGates(newSetting("VSOCK,Snapshot")))
+	assert.ErrorContains(t, v.validateKubeVirtFeatureGates(newSetting("ExpandDisks")), "generally available")
+
+	// A gate kept from the old value is not checked again, so an edit is not
+	// blocked after an upgrade made the gate GA.
+	assert.NoError(t, v.validateUpdateKubeVirtFeatureGates(nil, newSetting("ExpandDisks"), newSetting("ExpandDisks,VSOCK")))
+	assert.ErrorContains(t, v.validateUpdateKubeVirtFeatureGates(nil, newSetting("VSOCK"), newSetting("VSOCK,ExpandDisks")), "generally available")
+	assert.ErrorContains(t, v.validateUpdateKubeVirtFeatureGates(nil, newSetting(""), newSetting("Root")), "not supported by Harvester")
+}

@@ -27,5 +27,35 @@ spec:
 {{- $existingPatches = $spec.customizeComponents.patches | default list }}
 {{- end }}
 {{- $_ := set $spec "customizeComponents" (dict "patches" (concat $existingPatches $ipFamilyPatches)) }}
+{{- /*
+  additionalFeatureGates is kept outside .spec on purpose: it is written to the
+  ManagedChart values by the Harvester `kubevirt-feature-gates` setting. Helm
+  replaces lists instead of merging them, so a user list at
+  spec.configuration.developerConfiguration.featureGates would pin the chart
+  defaults of the release it was written on. Merging here lets every release
+  keep its own defaults and adds the user gates on top. A gate must not appear
+  in both featureGates and disabledFeatureGates (virt-operator rejects it), so
+  user gates are also removed from the disabled list.
+*/}}
+{{- $extraGates := .Values.additionalFeatureGates | default list }}
+{{- if $extraGates }}
+{{- $config := $spec.configuration | default dict }}
+{{- $devConfig := $config.developerConfiguration | default dict }}
+{{- $enabled := uniq (concat ($devConfig.featureGates | default list) $extraGates) }}
+{{- $disabled := list }}
+{{- range ($devConfig.disabledFeatureGates | default list) }}
+{{- if not (has . $extraGates) }}
+{{- $disabled = append $disabled . }}
+{{- end }}
+{{- end }}
+{{- $_ := set $devConfig "featureGates" $enabled }}
+{{- if $disabled }}
+{{- $_ := set $devConfig "disabledFeatureGates" $disabled }}
+{{- else }}
+{{- $_ := unset $devConfig "disabledFeatureGates" }}
+{{- end }}
+{{- $_ := set $config "developerConfiguration" $devConfig }}
+{{- $_ := set $spec "configuration" $config }}
+{{- end }}
 {{ toYaml $spec | indent 2 }}
 {{- end }}

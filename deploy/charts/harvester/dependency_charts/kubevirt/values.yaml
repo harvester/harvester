@@ -12,6 +12,13 @@ nameOverride: ""
 ##
 fullnameOverride: ""
 
+## Additional KubeVirt feature gates to enable on top of the defaults in
+## spec.configuration.developerConfiguration. Managed by the Harvester
+## `kubevirt-feature-gates` setting; gates listed here are also removed from
+## disabledFeatureGates.
+##
+additionalFeatureGates: []
+
 ## Specify the specification of KubeVirt resource.
 ##
 spec:
