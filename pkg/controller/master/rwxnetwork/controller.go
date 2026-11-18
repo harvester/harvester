@@ -86,6 +86,13 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	}
 
 	settingController.OnChange(ctx, ControllerName, h.OnSettingChange)
+	// The source NAD may be recreated or rewritten without the managed excludes.
+	nads.OnChange(ctx, ControllerName, func(_ string, nad *nadv1.NetworkAttachmentDefinition) (*nadv1.NetworkAttachmentDefinition, error) {
+		if nad != nil && nad.Namespace == util.HarvesterSystemNamespaceName {
+			h.enqueue()
+		}
+		return nad, nil
+	})
 	nodes.OnChange(ctx, ControllerName, func(_ string, node *corev1.Node) (*corev1.Node, error) {
 		h.enqueue()
 		return node, nil
