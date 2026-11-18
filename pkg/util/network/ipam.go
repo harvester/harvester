@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/netip"
 	"slices"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/k8snetworkplumbingwg/whereabouts/pkg/iphelpers"
 )
 
 // AssignHostIPs binds each node to an address in hostIPRange. Existing bindings in
@@ -222,8 +222,7 @@ func IPPoolAllocations(pool *whereaboutsv1alpha1.IPPool) (map[netip.Addr]string,
 	if err != nil {
 		return nil, fmt.Errorf("invalid IPPool range %q: %w", pool.Spec.Range, err)
 	}
-	base := new(big.Int).SetBytes(prefix.Masked().Addr().AsSlice())
-	size := len(prefix.Addr().AsSlice())
+	base := prefix.Masked().Addr()
 
 	allocations := make(map[netip.Addr]string, len(pool.Spec.Allocations))
 	for key, allocation := range pool.Spec.Allocations {
@@ -231,11 +230,18 @@ func IPPoolAllocations(pool *whereaboutsv1alpha1.IPPool) (map[netip.Addr]string,
 		if err != nil {
 			continue
 		}
-		sum := new(big.Int).Add(base, new(big.Int).SetUint64(offset))
-		if sum.BitLen() > size*8 {
+		addr, ok := netip.AddrFromSlice(iphelpers.IPAddOffset(base.AsSlice(), offset))
+		if !ok {
 			continue
 		}
-		addr, _ := netip.AddrFromSlice(sum.FillBytes(make([]byte, size)))
+		if base.Is4() {
+			// Whereabouts returns IPv4 addresses in their 16-byte form.
+			addr = addr.Unmap()
+		}
+		if addr.BitLen() != base.BitLen() || addr.Less(base) {
+			// The offset overflows the address family.
+			continue
+		}
 		allocations[addr] = allocation.PodRef
 	}
 	return allocations, nil
