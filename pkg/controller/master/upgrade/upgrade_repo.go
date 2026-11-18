@@ -285,7 +285,7 @@ func (r *Repo) deleteService() error {
 		return nil
 	}
 	err = r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{
-		Preconditions: &metav1.Preconditions{UID: &service.UID},
+		Preconditions: &metav1.Preconditions{UID: &service.UID, ResourceVersion: &service.ResourceVersion},
 	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete service %s/%s error %w", upgradeNamespace, nm, err)
@@ -600,7 +600,7 @@ func (r *Repo) deleteDeployment() error {
 		return nil
 	}
 	err = r.h.deploymentClient.Delete(namespace, name, &metav1.DeleteOptions{
-		Preconditions: &metav1.Preconditions{UID: &deployment.UID},
+		Preconditions: &metav1.Preconditions{UID: &deployment.UID, ResourceVersion: &deployment.ResourceVersion},
 	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete deployment %s/%s error %w", r.GetVMNamespace(), r.GetDeploymentName(), err)

@@ -173,6 +173,8 @@ func newTestUpgradeRepo() (*Repo, *fake.Clientset) {
 }
 
 func TestRepoBootstrap(t *testing.T) {
+	const deploymentUID types.UID = "existing-deployment-uid"
+	const serviceUID types.UID = "existing-service-uid"
 	testCases := []struct {
 		name             string
 		deploymentExists bool
@@ -190,11 +192,17 @@ func TestRepoBootstrap(t *testing.T) {
 			if tc.deploymentExists {
 				image, err := repo.GetImage(repo.upgrade.Status.ImageID)
 				require.NoError(t, err)
-				_, err = repo.CreateDeployment(image)
+				deployment, err := repo.CreateDeployment(image)
+				require.NoError(t, err)
+				deployment.UID = deploymentUID
+				_, err = repo.h.deploymentClient.Update(deployment)
 				require.NoError(t, err)
 			}
 			if tc.serviceExists {
-				_, err := repo.createService()
+				service, err := repo.createService()
+				require.NoError(t, err)
+				service.UID = serviceUID
+				_, err = repo.h.serviceClient.Update(service)
 				require.NoError(t, err)
 			}
 
@@ -203,6 +211,12 @@ func TestRepoBootstrap(t *testing.T) {
 			require.NoError(t, err)
 			service, err := repo.h.serviceClient.Get(upgradeNamespace, repo.getRepoServiceName(), metav1.GetOptions{})
 			require.NoError(t, err)
+			if tc.deploymentExists {
+				assert.Equal(t, deploymentUID, deployment.UID)
+			}
+			if tc.serviceExists {
+				assert.Equal(t, serviceUID, service.UID)
+			}
 
 			require.NoError(t, repo.Bootstrap())
 			actualDeployment, err := repo.h.deploymentClient.Get(upgradeNamespace, repo.GetDeploymentName(), metav1.GetOptions{})
@@ -427,6 +441,7 @@ func TestRepoDeleteResource(t *testing.T) {
 				require.NoError(t, err)
 				uid := types.UID("repo-resource-uid")
 				metadata.SetUID(uid)
+				metadata.SetResourceVersion("42")
 				require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
 
 				injectedErr := errors.New("cleanup API failure")
@@ -437,8 +452,10 @@ func TestRepoDeleteResource(t *testing.T) {
 					require.NotNil(t, options.Preconditions)
 					require.NotNil(t, options.Preconditions.UID)
 					assert.Equal(t, uid, *options.Preconditions.UID)
+					require.NotNil(t, options.Preconditions.ResourceVersion)
+					assert.Equal(t, metadata.GetResourceVersion(), *options.Preconditions.ResourceVersion)
 					if failure == "delete" {
-						return true, nil, injectedErr
+						return true, nil, apierrors.NewConflict(resource.GroupResource(), metadata.GetName(), injectedErr)
 					}
 					return false, nil, nil
 				})
@@ -449,7 +466,11 @@ func TestRepoDeleteResource(t *testing.T) {
 				}
 				err = remove()
 				if failure != "" {
-					require.ErrorIs(t, err, injectedErr)
+					if failure == "delete" {
+						require.True(t, apierrors.IsConflict(err))
+					} else {
+						require.ErrorIs(t, err, injectedErr)
+					}
 					_, err = clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
 					require.NoError(t, err)
 				} else {
