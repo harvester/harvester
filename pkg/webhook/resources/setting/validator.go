@@ -1585,8 +1585,15 @@ func (v *settingValidator) validateRWXNetworkHelper(setting *v1beta1.Setting) er
 		return werror.NewInvalidError(fmt.Sprintf("invalid JSON for %s: %v", settings.RWXNetworkSettingName, err), settings.KeywordValue)
 	}
 
+	if err := v.checkRWXNetwork(&rwxConfig); err != nil {
+		return err
+	}
+	return v.checkRWXReservedRanges(&rwxConfig)
+}
+
+func (v *settingValidator) checkRWXNetwork(rwxConfig *settings.RWXNetworkConfig) error {
 	if rwxConfig.Network == nil {
-		return v.checkRWXReservedRanges(&rwxConfig)
+		return nil
 	}
 
 	networkJSON, err := json.Marshal(rwxConfig.Network)
@@ -1615,7 +1622,7 @@ func (v *settingValidator) validateRWXNetworkHelper(setting *v1beta1.Setting) er
 		return werror.NewInvalidError(err.Error(), settings.RWXNetworkSettingName)
 	}
 
-	return v.checkRWXReservedRanges(&rwxConfig)
+	return nil
 }
 
 func (v *settingValidator) validateDeleteRWXNetwork(_ *v1beta1.Setting) error {
@@ -2925,40 +2932,49 @@ func validateTraefikDefaultTLSOptionsUpdate(_ *types.Request, _ *v1beta1.Setting
 // checkRWXReservedRanges validates hostIPRange and vipRange against the network that
 // carries RWX traffic, which is the storage network in share mode.
 func (v *settingValidator) checkRWXReservedRanges(rwxConfig *settings.RWXNetworkConfig) error {
-	if rwxConfig.HostIPRange == "" && rwxConfig.VIPRange == "" {
+	hostRange, vipRange := rwxConfig.HostIPRange, rwxConfig.VIPRange
+	if hostRange == "" && vipRange == "" {
 		return nil
 	}
-	if rwxConfig.HostIPRange == "" || rwxConfig.VIPRange == "" {
+	if hostRange == "" || vipRange == "" {
 		return werror.NewInvalidError("hostIPRange and vipRange must be set together", settings.KeywordValue)
 	}
 
-	source := rwxConfig.Network
-	if rwxConfig.ShareStorageNetwork {
-		storageNetworkConfig, err := v.getNetworkConfig(settings.StorageNetworkName)
-		if err != nil {
-			return werror.NewInternalError(err.Error())
-		}
-		source = storageNetworkConfig
+	source, err := v.rwxSourceNetwork(rwxConfig)
+	if err != nil {
+		return err
 	}
-	if source == nil || source.Range == "" {
-		return werror.NewInvalidError("hostIPRange and vipRange require a dedicated network or share-storage-network", settings.KeywordValue)
-	}
-
-	if err := v.validateRWXReservedRanges(source, rwxConfig.HostIPRange, rwxConfig.VIPRange); err != nil {
+	if err := v.validateRWXReservedRanges(source, hostRange, vipRange); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 
-	reserved := withExcludes(source, rwxConfig.HostIPRange, rwxConfig.VIPRange)
-	var err error
-	if rwxConfig.ShareStorageNetwork {
-		err = v.checkStorageNetworkCapacity(reserved, true)
-	} else {
-		err = v.checkRWXNetworkRangeValid(reserved)
-	}
-	if err != nil {
+	reserved := withExcludes(source, hostRange, vipRange)
+	if err := v.checkRWXCapacity(reserved, rwxConfig.ShareStorageNetwork); err != nil {
 		return werror.NewInvalidError(err.Error(), settings.KeywordValue)
 	}
 	return nil
+}
+
+func (v *settingValidator) rwxSourceNetwork(rwxConfig *settings.RWXNetworkConfig) (*networkutil.Config, error) {
+	source := rwxConfig.Network
+	if rwxConfig.ShareStorageNetwork {
+		var err error
+		source, err = v.getNetworkConfig(settings.StorageNetworkName)
+		if err != nil {
+			return nil, werror.NewInternalError(err.Error())
+		}
+	}
+	if source == nil || source.Range == "" {
+		return nil, werror.NewInvalidError("hostIPRange and vipRange require a dedicated network or share-storage-network", settings.KeywordValue)
+	}
+	return source, nil
+}
+
+func (v *settingValidator) checkRWXCapacity(config *networkutil.Config, shareStorage bool) error {
+	if shareStorage {
+		return v.checkStorageNetworkCapacity(config, true)
+	}
+	return v.checkRWXNetworkRangeValid(config)
 }
 
 // checkStorageNetworkNotLockedByRWX rejects storage network changes while rwx-network
@@ -3013,46 +3029,52 @@ func (v *settingValidator) validateRWXReservedRanges(config *networkutil.Config,
 		return fmt.Errorf("invalid range %q: %w", config.Range, err)
 	}
 	subnet = subnet.Masked()
-	broadcast := lastAddr(subnet)
 
-	parse := func(name, value string) (netip.Prefix, error) {
-		prefix, err := netip.ParsePrefix(value)
-		if err != nil {
-			return netip.Prefix{}, fmt.Errorf("invalid %s %q: %w", name, value, err)
-		}
-		if !prefix.Addr().Is4() {
-			return netip.Prefix{}, fmt.Errorf("%s %s must be an IPv4 CIDR", name, value)
-		}
-		if prefix != prefix.Masked() {
-			return netip.Prefix{}, fmt.Errorf("%s should be subnet CIDR %v", name, prefix.Masked())
-		}
-		if prefix.Bits() < subnet.Bits() || !subnet.Contains(prefix.Addr()) {
-			return netip.Prefix{}, fmt.Errorf("%s %s is not within range %s", name, value, config.Range)
-		}
-		if prefix.Contains(subnet.Addr()) || prefix.Contains(broadcast) {
-			return netip.Prefix{}, fmt.Errorf("%s %s must not include the network or broadcast address of %s", name, value, config.Range)
-		}
-		for _, exclude := range config.Exclude {
-			excludePrefix, err := netip.ParsePrefix(exclude)
-			if err == nil && prefix.Overlaps(excludePrefix) {
-				return netip.Prefix{}, fmt.Errorf("%s %s overlaps exclude entry %s", name, value, exclude)
-			}
-		}
-		return prefix, nil
-	}
-
-	hostPrefix, err := parse("hostIPRange", hostIPRange)
+	hostPrefix, err := parseRWXRange("hostIPRange", hostIPRange, config, subnet)
 	if err != nil {
 		return err
 	}
-	vipPrefix, err := parse("vipRange", vipRange)
+	vipPrefix, err := parseRWXRange("vipRange", vipRange, config, subnet)
 	if err != nil {
 		return err
 	}
 	if hostPrefix.Overlaps(vipPrefix) {
 		return fmt.Errorf("hostIPRange %s overlaps vipRange %s", hostIPRange, vipRange)
 	}
+	if err := v.checkRWXHosts(config, hostIPRange, hostPrefix); err != nil {
+		return err
+	}
+	return v.checkRangesNotAllocated(config.Range, hostPrefix, vipPrefix)
+}
 
+func parseRWXRange(name, value string, config *networkutil.Config, subnet netip.Prefix) (netip.Prefix, error) {
+	broadcast := lastAddr(subnet)
+	prefix, err := netip.ParsePrefix(value)
+	if err != nil {
+		return netip.Prefix{}, fmt.Errorf("invalid %s %q: %w", name, value, err)
+	}
+	if !prefix.Addr().Is4() {
+		return netip.Prefix{}, fmt.Errorf("%s %s must be an IPv4 CIDR", name, value)
+	}
+	if prefix != prefix.Masked() {
+		return netip.Prefix{}, fmt.Errorf("%s should be subnet CIDR %v", name, prefix.Masked())
+	}
+	if prefix.Bits() < subnet.Bits() || !subnet.Contains(prefix.Addr()) {
+		return netip.Prefix{}, fmt.Errorf("%s %s is not within range %s", name, value, config.Range)
+	}
+	if prefix.Contains(subnet.Addr()) || prefix.Contains(broadcast) {
+		return netip.Prefix{}, fmt.Errorf("%s %s must not include the network or broadcast address of %s", name, value, config.Range)
+	}
+	for _, exclude := range config.Exclude {
+		excludePrefix, err := netip.ParsePrefix(exclude)
+		if err == nil && prefix.Overlaps(excludePrefix) {
+			return netip.Prefix{}, fmt.Errorf("%s %s overlaps exclude entry %s", name, value, exclude)
+		}
+	}
+	return prefix, nil
+}
+
+func (v *settingValidator) checkRWXHosts(config *networkutil.Config, hostRange string, host netip.Prefix) error {
 	// The hosts join the network through a VLAN sub-interface, which cannot carry untagged traffic.
 	if config.Vlan < 2 {
 		return fmt.Errorf("hostIPRange and vipRange require a tagged VLAN (2-4094), got %d", config.Vlan)
@@ -3060,20 +3082,14 @@ func (v *settingValidator) validateRWXReservedRanges(config *networkutil.Config,
 	if err := utils.IsHostNetworkIntfNameValid(config.ClusterNetwork, config.Vlan); err != nil {
 		return err
 	}
-
 	nonWitnessCount, err := v.countNonWitnessNodes()
 	if err != nil {
 		return err
 	}
-	if hostCount := 1 << (32 - hostPrefix.Bits()); hostCount < nonWitnessCount {
-		return fmt.Errorf("hostIPRange %s has %d addresses, fewer than the %d non-witness nodes", hostIPRange, hostCount, nonWitnessCount)
+	if hostCount := 1 << (32 - host.Bits()); hostCount < nonWitnessCount {
+		return fmt.Errorf("hostIPRange %s has %d addresses, fewer than the %d non-witness nodes", hostRange, hostCount, nonWitnessCount)
 	}
-
-	if err := v.checkForeignHostNetworkConfig(config.ClusterNetwork, config.Vlan); err != nil {
-		return err
-	}
-
-	return v.checkRangesNotAllocated(config.Range, hostPrefix, vipPrefix)
+	return v.checkForeignHostNetworkConfig(config.ClusterNetwork, config.Vlan)
 }
 
 func (v *settingValidator) checkForeignHostNetworkConfig(clusterNetwork string, vlan uint16) error {
