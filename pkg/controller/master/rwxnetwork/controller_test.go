@@ -119,3 +119,14 @@ func TestTeardownReleasesExcludesAfterHostNetworkConfig(t *testing.T) {
 	assert.NotContains(t, getNAD(t).Annotations, util.RWXManagedExcludeAnnotation)
 	assert.NotContains(t, getNAD(t).Spec.Config, "exclude")
 }
+
+func TestHostNetworkBlockerReportsForeignHostNetworkConfig(t *testing.T) {
+	foreign := &networkv1.HostNetworkConfig{ObjectMeta: metav1.ObjectMeta{Name: HostNetworkConfigName}}
+	clientset := fake.NewSimpleClientset(foreign)
+	h := &Handler{hncCache: fakeclients.HostNetworkConfigCache(clientset.NetworkV1beta1().HostNetworkConfigs)}
+
+	reason, message, err := h.hostNetworkBlocker("172.16.0.0/24", "172.16.0.240/29")
+	require.NoError(t, err)
+	assert.Equal(t, ReasonHostNetworkConfigConflict, reason)
+	assert.Contains(t, message, "reserved for the rwx-network setting")
+}

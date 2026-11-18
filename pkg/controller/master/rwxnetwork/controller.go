@@ -189,7 +189,8 @@ func (h *Handler) hostNetworkBlocker(subnet string, ranges ...string) (reason, m
 	if err == nil && hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
 		// The HostNetworkConfig watch requeues once the foreign one is removed.
 		return ReasonHostNetworkConfigConflict,
-			fmt.Sprintf("HostNetworkConfig %s exists but is not managed by Harvester", HostNetworkConfigName), nil
+			fmt.Sprintf("HostNetworkConfig %s is reserved for the %s setting but is not managed by Harvester, remove it to continue",
+				HostNetworkConfigName, settings.RWXNetworkSettingName), nil
 	}
 
 	// Pods may have got an address in the ranges before they were excluded. Hold the
