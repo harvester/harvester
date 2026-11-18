@@ -596,3 +596,24 @@ func TestShareManagerAddressAnnouncement(t *testing.T) {
 		assert.Empty(t, env.announcers(t))
 	})
 }
+
+func TestVIPServiceName(t *testing.T) {
+	assert.Equal(t, "rwx-vip-pvc-1", vipServiceName("pvc-1"))
+
+	long := vipServiceName(strings.Repeat("a", 63))
+	assert.LessOrEqual(t, len(long), 63)
+	assert.True(t, strings.HasPrefix(long, vipServicePrefix))
+	assert.NotEqual(t, long, vipServiceName(strings.Repeat("a", 62)+"b"))
+}
+
+func TestShareManagerVolumeFromPodKey(t *testing.T) {
+	assert.Equal(t, "pvc-1", shareManagerVolumeFromPodKey("longhorn-system/share-manager-pvc-1"))
+	assert.Empty(t, shareManagerVolumeFromPodKey("longhorn-system/instance-manager-abc"))
+	assert.Empty(t, shareManagerVolumeFromPodKey("default/share-manager-pvc-1"))
+}
+
+func TestIsVIPServiceKey(t *testing.T) {
+	assert.True(t, isVIPServiceKey("longhorn-system/rwx-vip-pvc-1"))
+	assert.False(t, isVIPServiceKey("longhorn-system/longhorn-frontend"))
+	assert.False(t, isVIPServiceKey("default/rwx-vip-pvc-1"))
+}

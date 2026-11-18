@@ -15,6 +15,7 @@ import (
 	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	lhtypes "github.com/longhorn/longhorn-manager/types"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	wranglername "github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -23,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 
@@ -132,29 +134,31 @@ func registerShareManagerVIP(ctx context.Context, management *config.Management)
 		}
 		return hnc, nil
 	})
-	pods.OnChange(ctx, ShareManagerVIPControllerName, func(_ string, pod *corev1.Pod) (*corev1.Pod, error) {
-		if pod != nil && pod.Namespace == util.LonghornSystemNamespaceName &&
+	// Removals are handled from the key of the nil object, since OnRemove would add a
+	// finalizer to every pod and Service.
+	pods.OnChange(ctx, ShareManagerVIPControllerName, func(key string, pod *corev1.Pod) (*corev1.Pod, error) {
+		if pod == nil {
+			// The EndpointSlice must not keep pointing at a removed pod.
+			h.enqueue(shareManagerVolumeFromPodKey(key))
+			return nil, nil
+		}
+		if pod.Namespace == util.LonghornSystemNamespaceName &&
 			pod.Labels[lhtypes.GetLonghornLabelComponentKey()] == lhtypes.LonghornLabelShareManager {
 			h.enqueue(pod.Labels[lhtypes.GetLonghornLabelKey(lhtypes.LonghornLabelShareManager)])
 		}
 		return pod, nil
 	})
-	services.OnChange(ctx, ShareManagerVIPControllerName, func(_ string, svc *corev1.Service) (*corev1.Service, error) {
-		if svc != nil && svc.Namespace == util.LonghornSystemNamespaceName && svc.Labels[util.RWXVolServiceLabel] != "" {
+	services.OnChange(ctx, ShareManagerVIPControllerName, func(key string, svc *corev1.Service) (*corev1.Service, error) {
+		if svc == nil {
+			// A removed Service may release a VIP for volumes waiting on an exhausted
+			// range, or the VIP Service name of a volume.
+			if isVIPServiceKey(key) {
+				h.enqueueAll()
+			}
+			return nil, nil
+		}
+		if svc.Namespace == util.LonghornSystemNamespaceName && svc.Labels[util.RWXVolServiceLabel] != "" {
 			h.enqueue(svc.Labels[util.RWXVolServiceLabel])
-		}
-		return svc, nil
-	})
-	services.OnRemove(ctx, ShareManagerVIPControllerName, func(_ string, svc *corev1.Service) (*corev1.Service, error) {
-		if svc == nil || svc.Namespace != util.LonghornSystemNamespaceName {
-			return svc, nil
-		}
-		if svc.Labels[util.RWXVolServiceLabel] != "" {
-			// A released VIP may unblock volumes waiting on an exhausted range.
-			h.enqueueAll()
-		} else if volumeName, ok := strings.CutPrefix(svc.Name, vipServicePrefix); ok {
-			// A removed foreign Service may unblock the volume whose VIP Service name it took.
-			h.enqueue(volumeName)
 		}
 		return svc, nil
 	})
@@ -576,7 +580,26 @@ func podReady(pod *corev1.Pod) bool {
 }
 
 func vipServiceName(volumeName string) string {
-	return vipServicePrefix + volumeName
+	return wranglername.SafeConcatName(vipServicePrefix + volumeName)
+}
+
+func isVIPServiceKey(key string) bool {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	return err == nil && namespace == util.LonghornSystemNamespaceName && strings.HasPrefix(name, vipServicePrefix)
+}
+
+// shareManagerVolumeFromPodKey returns the volume of a Share Manager pod key, or an empty
+// string for any other pod.
+func shareManagerVolumeFromPodKey(key string) string {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil || namespace != util.LonghornSystemNamespaceName {
+		return ""
+	}
+	volumeName, ok := strings.CutPrefix(name, lhtypes.GetShareManagerPodNameFromShareManagerName(""))
+	if !ok {
+		return ""
+	}
+	return volumeName
 }
 
 func serviceVIP(svc *corev1.Service) string {
