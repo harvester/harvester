@@ -313,15 +313,13 @@ func (r *Repo) deleteImage(pvcName string) error {
 	}
 
 	if pvcName == "" {
-		logrus.Infof("Delete upgrade repo image %s", imageID)
-		return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+		return r.deleteImageWithoutPVC(image)
 	}
 
 	pvc, err := r.h.pvcClient.Get(upgradeNamespace, pvcName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.Infof("Delete upgrade repo image %s", imageID)
-			return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+			return r.deleteImageWithoutPVC(image)
 		}
 		return err
 	}
@@ -339,6 +337,17 @@ func (r *Repo) deleteImage(pvcName string) error {
 
 	_, err = r.h.vmImageClient.Update(toUpdate)
 	return err
+}
+
+func (r *Repo) deleteImageWithoutPVC(image *harvesterv1.VirtualMachineImage) error {
+	// Cleanup can run again after ownership has been handed off to the VM's PVC.
+	if len(image.OwnerReferences) > 0 && !r.hasUpgradeOwner(image) {
+		return nil
+	}
+	logrus.Infof("Delete upgrade repo image %s/%s", image.Namespace, image.Name)
+	return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &image.UID, ResourceVersion: &image.ResourceVersion},
+	})
 }
 
 func (r *Repo) getRepoServiceName() string {

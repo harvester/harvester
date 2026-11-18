@@ -164,6 +164,7 @@ func newTestUpgradeRepo() (*Repo, *fake.Clientset) {
 		pvcClient:        fakeclients.PersistentVolumeClaimClient(clientset.CoreV1().PersistentVolumeClaims),
 		vmCache:          fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 		vmImageCache:     fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+		vmImageClient:    fakeclients.VirtualMachineImageClient(clientset.HarvesterhciV1beta1().VirtualMachineImages),
 		deploymentClient: fakeclients.DeploymentClient(clientset.AppsV1().Deployments),
 		serviceClient:    fakeclients.ServiceClient(clientset.CoreV1().Services),
 		scClient:         fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
@@ -420,6 +421,41 @@ func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
 	}
 }
 
+func TestRepoCleanupImageAfterVMRemoval(t *testing.T) {
+	for _, handoff := range []bool{false, true} {
+		t.Run(fmt.Sprintf("PVC handoff=%t", handoff), func(t *testing.T) {
+			repo, _ := newTestUpgradeRepo()
+			image, err := repo.GetImage(repo.upgrade.Status.ImageID)
+			require.NoError(t, err)
+			image = image.DeepCopy()
+			image.OwnerReferences = []metav1.OwnerReference{upgradeReference(repo.upgrade)}
+			_, err = repo.h.vmImageClient.Update(image)
+			require.NoError(t, err)
+
+			if handoff {
+				_, err := repo.h.pvcClient.Create(&corev1.PersistentVolumeClaim{
+					TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "PersistentVolumeClaim"},
+					ObjectMeta: metav1.ObjectMeta{Namespace: upgradeNamespace, Name: "vm-disk", UID: "vm-disk-uid"},
+				})
+				require.NoError(t, err)
+				require.NoError(t, repo.deleteImage("vm-disk"))
+			}
+
+			// The repo VM is absent when cleanup runs again.
+			require.NoError(t, repo.Cleanup())
+			image, err = repo.GetImage(repo.upgrade.Status.ImageID)
+			if handoff {
+				require.NoError(t, err)
+				require.Equal(t, []metav1.OwnerReference{{
+					APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "vm-disk", UID: "vm-disk-uid",
+				}}, image.OwnerReferences)
+			} else {
+				require.True(t, apierrors.IsNotFound(err))
+			}
+		})
+	}
+}
+
 func TestRepoDeleteResource(t *testing.T) {
 	for _, resource := range []schema.GroupVersionResource{
 		{Group: "apps", Version: "v1", Resource: "deployments"},
@@ -445,9 +481,9 @@ func TestRepoDeleteResource(t *testing.T) {
 				require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
 
 				injectedErr := errors.New("cleanup API failure")
-				deleteCalled := false
+				deleteCalls := 0
 				clientset.PrependReactor("delete", resource.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
-					deleteCalled = true
+					deleteCalls++
 					options := action.(k8stesting.DeleteAction).GetDeleteOptions()
 					require.NotNil(t, options.Preconditions)
 					require.NotNil(t, options.Preconditions.UID)
@@ -455,7 +491,14 @@ func TestRepoDeleteResource(t *testing.T) {
 					require.NotNil(t, options.Preconditions.ResourceVersion)
 					assert.Equal(t, metadata.GetResourceVersion(), *options.Preconditions.ResourceVersion)
 					if failure == "delete" {
-						return true, nil, apierrors.NewConflict(resource.GroupResource(), metadata.GetName(), injectedErr)
+						owners := metadata.GetOwnerReferences()
+						owners[0].UID = "another-upgrade-uid"
+						metadata.SetOwnerReferences(owners)
+						metadata.SetResourceVersion("43")
+						require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
+						if *options.Preconditions.ResourceVersion != metadata.GetResourceVersion() {
+							return true, nil, apierrors.NewConflict(resource.GroupResource(), metadata.GetName(), injectedErr)
+						}
 					}
 					return false, nil, nil
 				})
@@ -468,6 +511,10 @@ func TestRepoDeleteResource(t *testing.T) {
 				if failure != "" {
 					if failure == "delete" {
 						require.True(t, apierrors.IsConflict(err))
+						require.NoError(t, remove())
+						actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
+						require.NoError(t, err)
+						require.Equal(t, obj, actual)
 					} else {
 						require.ErrorIs(t, err, injectedErr)
 					}
@@ -478,7 +525,11 @@ func TestRepoDeleteResource(t *testing.T) {
 					_, err = clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
 					require.True(t, apierrors.IsNotFound(err))
 				}
-				assert.Equal(t, failure != "get", deleteCalled)
+				if failure == "get" {
+					assert.Zero(t, deleteCalls)
+				} else {
+					assert.Equal(t, 1, deleteCalls)
+				}
 			})
 		}
 	}
