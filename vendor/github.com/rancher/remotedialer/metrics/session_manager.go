@@ -101,20 +101,24 @@ var (
 // Register registers a series of session
 // metrics for Prometheus.
 func Register() {
+	MustRegister(prometheus.DefaultRegisterer)
+}
 
+// MustRegister registers all metrics with the provided registerer
+func MustRegister(registerer prometheus.Registerer) {
 	prometheusMetrics = true
 
 	// Session metrics
-	prometheus.MustRegister(TotalAddWS)
-	prometheus.MustRegister(TotalRemoveWS)
-	prometheus.MustRegister(TotalAddConnectionsForWS)
-	prometheus.MustRegister(TotalRemoveConnectionsForWS)
-	prometheus.MustRegister(TotalTransmitBytesOnWS)
-	prometheus.MustRegister(TotalTransmitErrorBytesOnWS)
-	prometheus.MustRegister(TotalReceiveBytesOnWS)
-	prometheus.MustRegister(TotalAddPeerAttempt)
-	prometheus.MustRegister(TotalPeerConnected)
-	prometheus.MustRegister(TotalPeerDisConnected)
+	registerer.MustRegister(TotalAddWS)
+	registerer.MustRegister(TotalRemoveWS)
+	registerer.MustRegister(TotalAddConnectionsForWS)
+	registerer.MustRegister(TotalRemoveConnectionsForWS)
+	registerer.MustRegister(TotalTransmitBytesOnWS)
+	registerer.MustRegister(TotalTransmitErrorBytesOnWS)
+	registerer.MustRegister(TotalReceiveBytesOnWS)
+	registerer.MustRegister(TotalAddPeerAttempt)
+	registerer.MustRegister(TotalPeerConnected)
+	registerer.MustRegister(TotalPeerDisConnected)
 }
 
 func init() {

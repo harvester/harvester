@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -637,7 +639,7 @@ func Test_validateAddons(t *testing.T) {
 		clientset := fake.NewSimpleClientset()
 		fakeAddonCache := fakeclients.AddonCache(clientset.HarvesterhciV1beta1().Addons)
 
-		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
+		validator := NewValidator(nil, fakeAddonCache, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).(*upgradeValidator)
 		addon := getTestAddon(tc.enabled)
 		if tc.addonState != "" {
 			setAddonState(addon, tc.addonState)
@@ -974,6 +976,113 @@ func TestUpgradeValidator_checkVersionFlavor(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestUpgradeValidator_checkStorageClass(t *testing.T) {
+	cases := []struct {
+		name          string
+		hasDefaultSC  bool
+		annotationSC  string
+		addExtraSC    bool
+		expectedError bool
+	}{
+		{
+			name:          "no default StorageClass blocks upgrade",
+			hasDefaultSC:  false,
+			expectedError: true,
+		},
+		{
+			name:          "default StorageClass present allows upgrade",
+			hasDefaultSC:  true,
+			expectedError: false,
+		},
+		{
+			name:          "annotation SC set and exists allows upgrade without default",
+			hasDefaultSC:  false,
+			annotationSC:  "custom-sc",
+			addExtraSC:    true,
+			expectedError: false,
+		},
+		{
+			name:          "annotation SC set but missing blocks upgrade",
+			hasDefaultSC:  false,
+			annotationSC:  "missing-sc",
+			addExtraSC:    false,
+			expectedError: true,
+		},
+	}
+
+	airgapCases := []struct {
+		name         string
+		hasDefaultSC bool
+	}{
+		{name: "airgap with no default SC allows upgrade", hasDefaultSC: false},
+		{name: "airgap with default SC allows upgrade", hasDefaultSC: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.hasDefaultSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							"storageclass.kubernetes.io/is-default-class": "true",
+						},
+					},
+				}
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
+			if tc.addExtraSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{Name: "custom-sc"},
+				}
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
+
+			validator := &upgradeValidator{
+				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			upgrade := &harvesterv1.Upgrade{}
+			if tc.annotationSC != "" {
+				upgrade.Annotations = map[string]string{
+					util.AnnotationUpgradeStorageClass: tc.annotationSC,
+				}
+			}
+
+			err := validator.checkStorageClass(upgrade)
+			if tc.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+
+	for _, tc := range airgapCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset()
+			if tc.hasDefaultSC {
+				sc := &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-sc",
+						Annotations: map[string]string{
+							"storageclass.kubernetes.io/is-default-class": "true",
+						},
+					},
+				}
+				require.NoError(t, clientset.Tracker().Add(sc))
+			}
+			validator := &upgradeValidator{
+				storageClassCache: fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+			upgrade := &harvesterv1.Upgrade{
+				Spec: harvesterv1.UpgradeSpec{Image: "harvester-system/some-image"},
+			}
+			assert.NoError(t, validator.checkStorageClass(upgrade))
 		})
 	}
 }

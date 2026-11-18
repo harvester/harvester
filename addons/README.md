@@ -59,6 +59,7 @@ Labels (`addon.harvesterhci.io/{experimental,preview,ga,deprecated}`) are derive
 | [harvester-csi-driver-lvm](standalone/harvester-csi-driver-lvm/metadata.yaml) | experimental |
 | [harvester-upgrade-manager](standalone/harvester-upgrade-manager/metadata.yaml) | experimental |
 | [harvester-vm-dhcp-controller](standalone/harvester-vm-dhcp-controller/metadata.yaml) | experimental |
+| [k3k](standalone/k3k/metadata.yaml) | experimental |
 | [rancher-k3k](standalone/rancher-k3k/metadata.yaml) | experimental |
 | [rancher-vcluster](standalone/rancher-vcluster/metadata.yaml) | experimental |
 | [suse-observability-agent](standalone/suse-observability-agent/metadata.yaml) | experimental |

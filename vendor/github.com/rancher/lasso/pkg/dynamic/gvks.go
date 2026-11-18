@@ -2,6 +2,7 @@ package dynamic
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 type gvksCallback func([]schema.GroupVersionKind) error
@@ -75,7 +76,11 @@ func (g *gvkWatcher) queueRefresh() {
 func (g *gvkWatcher) getGVKs() (result []schema.GroupVersionKind, _ error) {
 	_, resources, err := g.client.ServerGroupsAndResources()
 	if err != nil {
-		return nil, err
+		if gd, ok := err.(*discovery.ErrGroupDiscoveryFailed); ok {
+			klog.Warning("Failed to read API for groups: ", gd.Groups)
+		} else {
+			return nil, fmt.Errorf("getGVKs: %w", err)
+		}
 	}
 	for _, resource := range resources {
 		for _, apiResource := range resource.APIResources {

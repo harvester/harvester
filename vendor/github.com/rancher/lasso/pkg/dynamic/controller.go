@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/lasso/pkg/log"
+	"github.com/rancher/lasso/pkg/metrics"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,6 +55,8 @@ type Controller struct {
 
 func (c *Controller) Register(ctx context.Context, factory controller.SharedControllerFactory) error {
 	c.ctx = ctx
+	c.handler.CtxID = metrics.ContextID(ctx)
+	c.handler.ControllerName = "dynamic.Controller"
 	c.cacheFactory = factory.SharedCacheFactory()
 	c.clientFactory = factory.SharedCacheFactory().SharedClientFactory()
 	return watchGVKS(ctx, c.discovery, factory, c.OnGVKs)
