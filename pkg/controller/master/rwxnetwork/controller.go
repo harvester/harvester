@@ -140,64 +140,84 @@ func (h *Handler) reconcile(setting *harvesterv1.Setting) (*harvesterv1.Setting,
 	}
 
 	nadKey, err := h.sourceNAD(setting, rwxConfig)
+	// The setting is updated again once the storage network controller has the NAD ready.
+	if err != nil || nadKey == "" {
+		return setting, err
+	}
+	network, err := h.loadRWXNetwork(nadKey)
 	if err != nil {
 		return setting, err
 	}
-	if nadKey == "" {
-		// The setting is updated again once the storage network controller has the NAD ready.
-		return setting, nil
+	ranges := []string{rwxConfig.HostIPRange, rwxConfig.VIPRange}
+	if err := h.syncNADExcludes(nadKey, ranges); err != nil {
+		return setting, err
 	}
 
-	namespace, name, err := cache.SplitMetaNamespaceKey(nadKey)
+	reason, message, err := h.hostNetworkBlocker(network.Range, ranges...)
 	if err != nil {
 		return setting, err
+	}
+	if reason != "" {
+		return h.setHostIPsAssignedCondition(setting, false, reason, message)
+	}
+	return h.syncHostIPs(setting, network, rwxConfig.HostIPRange)
+}
+
+func (h *Handler) loadRWXNetwork(nadKey string) (networkutil.BridgeNAD, error) {
+	namespace, name, err := cache.SplitMetaNamespaceKey(nadKey)
+	if err != nil {
+		return networkutil.BridgeNAD{}, err
 	}
 	nad, err := h.nadCache.Get(namespace, name)
 	if err != nil {
-		return setting, fmt.Errorf("failed to get RWX source NAD %s: %w", nadKey, err)
+		return networkutil.BridgeNAD{}, fmt.Errorf("failed to get RWX source NAD %s: %w", nadKey, err)
 	}
 	network, err := networkutil.ParseBridgeNADConfig(nad.Spec.Config)
 	if err != nil {
-		return setting, fmt.Errorf("failed to parse RWX source NAD %s: %w", nadKey, err)
+		return networkutil.BridgeNAD{}, fmt.Errorf("failed to parse RWX source NAD %s: %w", nadKey, err)
 	}
+	return network, nil
+}
 
-	if err := h.syncNADExcludes(nadKey, []string{rwxConfig.HostIPRange, rwxConfig.VIPRange}); err != nil {
-		return setting, err
-	}
-
+// hostNetworkBlocker returns a condition reason and message when the host network
+// setup must wait.
+func (h *Handler) hostNetworkBlocker(subnet string, ranges ...string) (reason, message string, err error) {
 	hnc, err := h.hncCache.Get(HostNetworkConfigName)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return setting, err
+		return "", "", err
 	}
 	if err == nil && hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
 		// The HostNetworkConfig watch requeues once the foreign one is removed.
-		return h.setHostIPsAssignedCondition(setting, false, ReasonHostNetworkConfigConflict,
-			fmt.Sprintf("HostNetworkConfig %s exists but is not managed by Harvester", HostNetworkConfigName))
+		return ReasonHostNetworkConfigConflict,
+			fmt.Sprintf("HostNetworkConfig %s exists but is not managed by Harvester", HostNetworkConfigName), nil
 	}
 
 	// Pods may have got an address in the ranges before they were excluded. Hold the
 	// host network until those addresses are released rather than hand them out twice.
-	inUse, err := h.reservedAddrsInUse(network.Range, rwxConfig.HostIPRange, rwxConfig.VIPRange)
+	inUse, err := h.reservedAddrsInUse(subnet, ranges...)
 	if err != nil {
-		return setting, err
+		return "", "", err
 	}
 	if len(inUse) > 0 {
-		return h.setHostIPsAssignedCondition(setting, false, ReasonAddressInUse,
-			fmt.Sprintf("address(es) in hostIPRange or vipRange still allocated: %s", strings.Join(inUse, ", ")))
+		return ReasonAddressInUse,
+			fmt.Sprintf("address(es) in hostIPRange or vipRange still allocated: %s", strings.Join(inUse, ", ")), nil
 	}
+	return "", "", nil
+}
 
-	unassigned, err := h.syncHostNetworkConfig(network, rwxConfig.HostIPRange)
+func (h *Handler) syncHostIPs(setting *harvesterv1.Setting, network networkutil.BridgeNAD, hostRange string) (*harvesterv1.Setting, error) {
+	unassigned, err := h.syncHostNetworkConfig(network, hostRange)
 	if errors.Is(err, errHostNetworkConfigMismatch) {
 		return h.setHostIPsAssignedCondition(setting, false, ReasonHostNetworkConfigMismatch,
 			fmt.Sprintf("HostNetworkConfig %s no longer matches the %s setting, remove hostIPRange and vipRange and set them again",
 				HostNetworkConfigName, settings.RWXNetworkSettingName))
-	} else if err != nil {
+	}
+	if err != nil {
 		return setting, err
 	}
-
 	if len(unassigned) > 0 {
 		return h.setHostIPsAssignedCondition(setting, false, ReasonHostIPRangeExhausted,
-			fmt.Sprintf("no address left in hostIPRange %s for node(s) %s", rwxConfig.HostIPRange, strings.Join(unassigned, ", ")))
+			fmt.Sprintf("no address left in hostIPRange %s for node(s) %s", hostRange, strings.Join(unassigned, ", ")))
 	}
 	return h.setHostIPsAssignedCondition(setting, true, "", "")
 }
@@ -265,43 +285,58 @@ func (h *Handler) setNADManagedExcludes(nad *nadv1.NetworkAttachmentDefinition, 
 		return nil
 	}
 
-	var previous []string
-	annotation, annotated := nad.Annotations[util.RWXManagedExcludeAnnotation]
-	if annotated {
-		if err := json.Unmarshal([]byte(annotation), &previous); err != nil {
-			return fmt.Errorf("failed to decode annotation %s of NAD %s/%s: %w", util.RWXManagedExcludeAnnotation, nad.Namespace, nad.Name, err)
-		}
+	previous, annotated, err := readExcludeAnnotation(nad)
+	if err != nil {
+		return err
 	}
 	if !annotated && len(want) == 0 {
 		return nil
 	}
 
-	config, configChanged, err := networkutil.SetManagedExcludes(nad.Spec.Config, previous, want)
+	config, changed, err := networkutil.SetManagedExcludes(nad.Spec.Config, previous, want)
 	if err != nil {
 		return fmt.Errorf("failed to update excludes of NAD %s/%s: %w", nad.Namespace, nad.Name, err)
 	}
 
 	nadCopy := nad.DeepCopy()
 	nadCopy.Spec.Config = config
-	if len(want) == 0 {
-		delete(nadCopy.Annotations, util.RWXManagedExcludeAnnotation)
-	} else {
-		wantJSON, err := json.Marshal(want)
-		if err != nil {
-			return err
-		}
-		if nadCopy.Annotations == nil {
-			nadCopy.Annotations = map[string]string{}
-		}
-		nadCopy.Annotations[util.RWXManagedExcludeAnnotation] = string(wantJSON)
+	if err := setExcludeAnnotation(nadCopy, want); err != nil {
+		return err
 	}
-
-	if !configChanged && reflect.DeepEqual(nad.Annotations, nadCopy.Annotations) {
+	if !changed && reflect.DeepEqual(nad.Annotations, nadCopy.Annotations) {
 		return nil
 	}
 	if _, err := h.nads.Update(nadCopy); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
+	return nil
+}
+
+func readExcludeAnnotation(nad *nadv1.NetworkAttachmentDefinition) ([]string, bool, error) {
+	annotation, exists := nad.Annotations[util.RWXManagedExcludeAnnotation]
+	if !exists {
+		return nil, false, nil
+	}
+	var previous []string
+	if err := json.Unmarshal([]byte(annotation), &previous); err != nil {
+		return nil, true, fmt.Errorf("failed to decode annotation %s of NAD %s/%s: %w", util.RWXManagedExcludeAnnotation, nad.Namespace, nad.Name, err)
+	}
+	return previous, true, nil
+}
+
+func setExcludeAnnotation(nad *nadv1.NetworkAttachmentDefinition, want []string) error {
+	if len(want) == 0 {
+		delete(nad.Annotations, util.RWXManagedExcludeAnnotation)
+		return nil
+	}
+	data, err := json.Marshal(want)
+	if err != nil {
+		return err
+	}
+	if nad.Annotations == nil {
+		nad.Annotations = map[string]string{}
+	}
+	nad.Annotations[util.RWXManagedExcludeAnnotation] = string(data)
 	return nil
 }
 
@@ -315,7 +350,8 @@ func (h *Handler) reservedAddrsInUse(subnet string, ranges ...string) ([]string,
 	pool, err := h.ipPoolCache.Get(util.KubeSystemNamespace, poolName)
 	if apierrors.IsNotFound(err) {
 		return nil, nil
-	} else if err != nil {
+	}
+	if err != nil {
 		return nil, err
 	}
 	allocations, err := networkutil.IPPoolAllocations(pool)
@@ -325,15 +361,22 @@ func (h *Handler) reservedAddrsInUse(subnet string, ranges ...string) ([]string,
 
 	var inUse []string
 	for addr, podRef := range allocations {
-		for _, r := range ranges {
-			if prefix, err := netip.ParsePrefix(r); err == nil && prefix.Contains(addr) {
-				inUse = append(inUse, fmt.Sprintf("%s (%s)", addr, podRef))
-				break
-			}
+		if !addrInRanges(addr, ranges...) {
+			continue
 		}
+		inUse = append(inUse, fmt.Sprintf("%s (%s)", addr, podRef))
 	}
 	sort.Strings(inUse)
 	return inUse, nil
+}
+
+func addrInRanges(addr netip.Addr, ranges ...string) bool {
+	for _, r := range ranges {
+		if prefix, err := netip.ParsePrefix(r); err == nil && prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 // errHostNetworkConfigMismatch reports a managed HostNetworkConfig that cannot be updated
@@ -356,55 +399,74 @@ func (h *Handler) syncHostNetworkConfig(network networkutil.BridgeNAD, hostIPRan
 	if err != nil {
 		return nil, err
 	}
-
-	hnc, err := h.hncCache.Get(HostNetworkConfigName)
-	if apierrors.IsNotFound(err) {
-		hnc = nil
-	} else if err != nil {
+	hnc, err := h.loadHostNetworkConfig()
+	if err != nil {
 		return nil, err
 	}
-	if hnc != nil && hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
-		return nil, fmt.Errorf("HostNetworkConfig %s is not managed by Harvester", hnc.Name)
-	}
 
-	current := map[string]string{}
-	if hnc != nil && hnc.Spec.ClusterNetwork == network.ClusterNetwork && hnc.Spec.VlanID == network.Vlan {
-		for node, ip := range hnc.Spec.HostIPs {
-			if prefix, err := netip.ParsePrefix(string(ip)); err == nil && prefix.Bits() == subnet.Bits() {
-				current[node] = prefix.Addr().String()
-			}
-		}
-	}
-
+	current := currentHostIPs(hnc, network, subnet.Bits())
 	assigned, unassigned, err := networkutil.AssignHostIPs(hostIPRange, current, nodes)
 	if err != nil {
 		return nil, err
 	}
 	desired := newHostNetworkConfig(network, subnet.Bits(), assigned)
+	if err := h.applyHostNetworkConfig(hnc, desired); err != nil {
+		return nil, err
+	}
+	return unassigned, nil
+}
 
-	switch {
-	case hnc == nil:
-		if desired != nil {
-			if _, err := h.hncs.Create(desired); err != nil {
-				return nil, err
-			}
-		}
-	case hnc.DeletionTimestamp != nil:
-		// The HostNetworkConfig watch requeues once the deletion completes.
-	case desired == nil:
-		// Keep the current one: the node and VlanConfig caches may not have caught up
-		// yet, e.g. right after a leader change.
-	case !updatableInPlace(hnc, desired):
-		return nil, errHostNetworkConfigMismatch
-	case !reflect.DeepEqual(hnc.Spec, desired.Spec):
-		hncCopy := hnc.DeepCopy()
-		hncCopy.Spec = desired.Spec
-		if _, err := h.hncs.Update(hncCopy); err != nil {
-			return nil, err
+func (h *Handler) loadHostNetworkConfig() (*networkv1.HostNetworkConfig, error) {
+	hnc, err := h.hncCache.Get(HostNetworkConfigName)
+	if apierrors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if hnc.Labels[util.RWXNetworkManagedLabel] != "true" {
+		return nil, fmt.Errorf("HostNetworkConfig %s is not managed by Harvester", hnc.Name)
+	}
+	return hnc, nil
+}
+
+func currentHostIPs(hnc *networkv1.HostNetworkConfig, network networkutil.BridgeNAD, prefixBits int) map[string]string {
+	current := map[string]string{}
+	if hnc == nil || hnc.Spec.ClusterNetwork != network.ClusterNetwork || hnc.Spec.VlanID != network.Vlan {
+		return current
+	}
+	for node, ip := range hnc.Spec.HostIPs {
+		if prefix, err := netip.ParsePrefix(string(ip)); err == nil && prefix.Bits() == prefixBits {
+			current[node] = prefix.Addr().String()
 		}
 	}
+	return current
+}
 
-	return unassigned, nil
+func (h *Handler) applyHostNetworkConfig(current, desired *networkv1.HostNetworkConfig) error {
+	if desired == nil {
+		// Keep the current one: the node and VlanConfig caches may not have caught up
+		// yet, e.g. right after a leader change.
+		return nil
+	}
+	if current == nil {
+		_, err := h.hncs.Create(desired)
+		return err
+	}
+	if current.DeletionTimestamp != nil {
+		// The HostNetworkConfig watch requeues once the deletion completes.
+		return nil
+	}
+	if !updatableInPlace(current, desired) {
+		return errHostNetworkConfigMismatch
+	}
+	if reflect.DeepEqual(current.Spec, desired.Spec) {
+		return nil
+	}
+	hncCopy := current.DeepCopy()
+	hncCopy.Spec = desired.Spec
+	_, err := h.hncs.Update(hncCopy)
+	return err
 }
 
 // eligibleNodes returns the non-witness nodes that the cluster network spans.
