@@ -223,18 +223,23 @@ func (h *Handler) syncHostIPs(setting *harvesterv1.Setting, network networkutil.
 }
 
 func (h *Handler) teardown(setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
-	if err := h.syncNADExcludes("", nil); err != nil {
-		return setting, err
-	}
-
 	hnc, err := h.managedHostNetworkConfig()
 	if err != nil {
 		return setting, err
 	}
-	if hnc != nil && hnc.DeletionTimestamp == nil {
-		if err := h.hncs.Delete(hnc.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return setting, err
+	if hnc != nil {
+		if hnc.DeletionTimestamp == nil {
+			if err := h.hncs.Delete(hnc.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return setting, err
+			}
 		}
+		// Keep the host addresses excluded until their interfaces are gone. The
+		// HostNetworkConfig watch requeues once the deletion completes.
+		return setting, nil
+	}
+
+	if err := h.syncNADExcludes("", nil); err != nil {
+		return setting, err
 	}
 
 	settingCopy := setting.DeepCopy()
