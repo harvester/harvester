@@ -3,7 +3,7 @@ module github.com/harvester/harvester
 go 1.26.0
 
 replace (
-	github.com/cilium/ebpf => github.com/cilium/ebpf v0.7.0
+	github.com/cilium/ebpf => github.com/cilium/ebpf v0.22.0
 	github.com/containerd/containerd => github.com/containerd/containerd v1.7.35
 	github.com/cyphar/filepath-securejoin => github.com/cyphar/filepath-securejoin v0.3.6
 	github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible // oras dep requires a replace is set
