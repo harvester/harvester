@@ -141,6 +141,10 @@ func runStartCase(t *testing.T, tt startCase) {
 	switch {
 	case tt.wantInFlight:
 		require.ErrorIs(t, err, ErrVMStartInProgress)
+		if tt.response != nil {
+			require.Contains(t, err.Error(), tt.response.Error())
+			require.False(t, apierrors.IsInternalError(err), "expected start state must not carry an independent API failure")
+		}
 	case tt.wantError:
 		require.Error(t, err)
 		require.NotErrorIs(t, err, ErrVMStartInProgress)

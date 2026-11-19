@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/util/joblifecycle"
@@ -64,10 +65,28 @@ func (c Client) Ensure(job *batchv1.Job, data func() (map[string][]byte, error))
 	if !ptr.Deref(job.Spec.Suspend, false) {
 		return nil
 	}
-	updated := job.DeepCopy()
-	updated.Spec.Suspend = ptr.To(false)
-	_, err := c.Jobs.Update(updated)
-	return err
+	return c.resumeJob(job)
+}
+
+// resumeJob reloads on each attempt because the Job controller can update status
+// between creation and resuming. Never resume a replacement or completed Job.
+func (c Client) resumeJob(job *batchv1.Job) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := c.Jobs.Get(job.Namespace, job.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.UID != job.UID {
+			return fmt.Errorf("job %s/%s has been replaced", job.Namespace, job.Name)
+		}
+		if !pending(current) || !ptr.Deref(current.Spec.Suspend, false) {
+			return nil
+		}
+		updated := current.DeepCopy()
+		updated.Spec.Suspend = ptr.To(false)
+		_, err = c.Jobs.Update(updated)
+		return err
+	})
 }
 
 func (c Client) ensureSecret(job *batchv1.Job, data func() (map[string][]byte, error)) error {
