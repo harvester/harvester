@@ -278,17 +278,19 @@ func SnapshotCheckCommand(resticCommand string, tags []string) string {
 	)
 }
 
-// ForgetCommand waits for competing repository operations instead of failing
-// immediately on an exclusive lock. Restic 0.17+ uses exit code 10 for a missing
-// repository: only that case means there is nothing to clean up. Authentication,
-// network and lock-timeout errors must remain failures, not permit finalization.
+// ForgetCommand removes stale locks before waiting for active repository operations.
+// A lock from another Pod becomes stale 30 minutes after its last refresh; retries
+// must run unlock again because waiting alone does not remove it. Never use
+// unlock --remove-all, which also removes active locks. Only exit code 10 (missing
+// repository) permits finalization after an unlock or forget failure.
 func ForgetCommand(resticCommand string, tags []string) string {
 	// A single comma-separated --tag filter ANDs namespace, VMBackup and volume
 	// tags. --unsafe-allow-remove-all explicitly removes all matching snapshots;
 	// --keep-last 0 would instead be interpreted as no retention policy.
 	return fmt.Sprintf(
-		"%s --retry-lock 5m forget --tag=%s --unsafe-allow-remove-all --prune; "+
+		"%s unlock && %s --retry-lock 5m forget --tag=%s --unsafe-allow-remove-all --prune; "+
 			"RESTIC_EXIT_CODE=$?; test \"$RESTIC_EXIT_CODE\" -ne 10 || exit 0; exit \"$RESTIC_EXIT_CODE\"",
+		resticCommand,
 		resticCommand,
 		strings.Join(tags, ","),
 	)
