@@ -68,7 +68,16 @@ func (lr *localRestic) holdLock() (*os.File, *exec.Cmd, *bytes.Buffer) {
 	lr.t.Cleanup(func() { _ = holder.Process.Kill(); _ = holder.Wait() })
 	require.Eventually(lr.t, func() bool {
 		locks, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
-		return err == nil && len(locks) > 0
+		if err != nil {
+			return false
+		}
+		for _, lock := range locks {
+			// Restic publishes a 64-character ID after renaming its temporary file.
+			if len(lock.Name()) == 64 {
+				return true
+			}
+		}
+		return false
 	}, 5*time.Second, 20*time.Millisecond, "lock holder did not acquire repository lock")
 	return writer, holder, logs
 }
@@ -124,16 +133,52 @@ func TestConcurrentForget(t *testing.T) {
 	lr := newLocalRestic(t)
 	// Keep a backup's shared lock alive; all forget commands must wait.
 	writer, holder, logs := lr.holdLock()
+	locks, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
+	require.NoError(t, err)
+	lr.run("", "unlock")
+	remaining, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
+	require.NoError(t, err)
+	require.Equal(t, locks, remaining, "unlock must preserve the active backup's lock")
 	results := lr.startForgets()
 	select {
 	case r := <-results:
 		t.Fatalf("forget %d returned before lock release: %v\n%s", r.index, r.err, r.output)
 	case <-time.After(500 * time.Millisecond):
 	}
-	_, err := writer.WriteString("unrelated backup payload")
+	_, err = writer.WriteString("unrelated backup payload")
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 	require.NoError(t, holder.Wait(), "%s", logs.String())
 	lr.waitForgets(results)
 	lr.assertClean()
+}
+
+func TestForgetAfterKilledBackup(t *testing.T) {
+	lr := newLocalRestic(t)
+	_, holder, _ := lr.holdLock()
+	require.NoError(t, holder.Process.Kill())
+	require.Error(t, holder.Wait())
+	locks, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
+	require.NoError(t, err)
+	require.NotEmpty(t, locks, "killing the backup must leave its repository lock")
+
+	// Both processes share a hostname, so Restic detects the dead PID immediately.
+	// Across Pods, unlock removes the lock only after the 30-minute timeout.
+	command := ForgetCommand(shellQuote(lr.binary)+" --no-cache", []string{
+		"ns=default", "vmb=backup-0", "sn=volume",
+	})
+	output, err := runShell(t, command)
+	require.NoError(t, err, output)
+	remaining, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
+	require.NoError(t, err)
+	require.Empty(t, remaining, "forget must recover the orphaned lock")
+
+	var snapshots []struct {
+		Tags []string `json:"tags"`
+	}
+	require.NoError(t, json.Unmarshal(lr.run("", "snapshots", "--json"), &snapshots))
+	require.Len(t, snapshots, 2, "forget must remove only the selected backup")
+	for _, snapshot := range snapshots {
+		require.NotContains(t, snapshot.Tags, "vmb=backup-0")
+	}
 }
