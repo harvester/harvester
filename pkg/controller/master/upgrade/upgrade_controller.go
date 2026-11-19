@@ -338,6 +338,9 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		logrus.Info("Starting upgrade repo")
 		toUpdate := upgrade.DeepCopy()
 		if err := repo.Bootstrap(); err != nil {
+			if errors.Is(err, errGetExistingRepoResource) {
+				return nil, err
+			}
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 			toUpdate.Labels[upgradeCleanupLabel] = StatePending
 			return h.upgradeClient.Update(toUpdate)

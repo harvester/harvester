@@ -35,6 +35,8 @@ const (
 	isoMountPath  = "/srv/www/htdocs/harvester-iso"
 )
 
+var errGetExistingRepoResource = errors.New("failed to get existing repo resource")
+
 // Images in the list will be retained during the image pruning process at
 // the end of an upgrade.
 var imageRetainList = []string{
@@ -84,7 +86,7 @@ func (r *Repo) Bootstrap() error {
 	if apierrors.IsAlreadyExists(err) {
 		deployment, err := r.h.deploymentClient.Get(upgradeNamespace, r.GetDeploymentName(), metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to get existing repo deployment %s/%s: %w", upgradeNamespace, r.GetDeploymentName(), err)
+			return fmt.Errorf("%w: deployment %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.GetDeploymentName(), err)
 		}
 		if err := r.validateResourceMetadata(deployment, map[string]string{
 			harvesterUpgradeLabel:          r.upgrade.Name,
@@ -102,7 +104,7 @@ func (r *Repo) Bootstrap() error {
 	if apierrors.IsAlreadyExists(err) {
 		service, err := r.h.serviceClient.Get(upgradeNamespace, r.getRepoServiceName(), metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to get existing repo service %s/%s: %w", upgradeNamespace, r.getRepoServiceName(), err)
+			return fmt.Errorf("%w: service %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.getRepoServiceName(), err)
 		}
 		if err := r.validateResourceMetadata(service, map[string]string{
 			util.LabelVMCreator:            "harvester",
@@ -296,7 +298,7 @@ func (r *Repo) deleteService() error {
 // deleteImage deletes a repo image
 // (1) If a PVC based on the image exists, it adds the PVC as the OwnerReference to the repo image.
 // Once the repo VM is deleted and VM's PVC is deleted, the repo image will be garbage collected.
-// (2) If there is no PVCs based on the repo image. We delete the image directly.
+// (2) Without a PVC, delete the image directly only if the current Upgrade owns it.
 func (r *Repo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
@@ -341,7 +343,8 @@ func (r *Repo) deleteImage(pvcName string) error {
 
 func (r *Repo) deleteImageWithoutPVC(image *harvesterv1.VirtualMachineImage) error {
 	// Cleanup can run again after ownership has been handed off to the VM's PVC.
-	if len(image.OwnerReferences) > 0 && !r.hasUpgradeOwner(image) {
+	if !r.hasUpgradeOwner(image) {
+		logrus.Warnf("Skip deleting repo image %s/%s because it is not owned by upgrade %s/%s", image.Namespace, image.Name, r.upgrade.Namespace, r.upgrade.Name)
 		return nil
 	}
 	logrus.Infof("Delete upgrade repo image %s/%s", image.Namespace, image.Name)

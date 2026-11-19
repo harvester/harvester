@@ -385,10 +385,24 @@ func TestRepoBootstrapGetFailure(t *testing.T) {
 			repo, clientset := newTestUpgradeRepo()
 			require.NoError(t, repo.Bootstrap())
 			getErr := errors.New("failed to read existing resource")
+			failGet := true
 			clientset.PrependReactor("get", resource, func(_ k8stesting.Action) (bool, runtime.Object, error) {
-				return true, nil, getErr
+				if failGet {
+					failGet = false
+					return true, nil, getErr
+				}
+				return false, nil, nil
 			})
-			require.ErrorIs(t, repo.Bootstrap(), getErr)
+			_, err := repo.h.OnChanged(repo.upgrade.Name, repo.upgrade)
+			require.ErrorIs(t, err, errGetExistingRepoResource)
+			require.ErrorIs(t, err, getErr)
+			upgrade, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.Background(), repo.upgrade.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, repo.upgrade, upgrade)
+
+			upgrade, err = repo.h.OnChanged(upgrade.Name, upgrade)
+			require.NoError(t, err)
+			assert.Equal(t, StatePreparingRepo, upgrade.Labels[upgradeStateLabel])
 		})
 	}
 }
@@ -425,6 +439,16 @@ func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
 }
 
 func TestRepoCleanupImageAfterVMRemoval(t *testing.T) {
+	t.Run("image without owner", func(t *testing.T) {
+		repo, _ := newTestUpgradeRepo()
+		image, err := repo.GetImage(repo.upgrade.Status.ImageID)
+		require.NoError(t, err)
+		require.Empty(t, image.OwnerReferences)
+		require.NoError(t, repo.Cleanup())
+		actual, err := repo.GetImage(repo.upgrade.Status.ImageID)
+		require.NoError(t, err)
+		assert.Equal(t, image, actual)
+	})
 	for _, handoff := range []bool{false, true} {
 		t.Run(fmt.Sprintf("PVC handoff=%t", handoff), func(t *testing.T) {
 			repo, _ := newTestUpgradeRepo()
