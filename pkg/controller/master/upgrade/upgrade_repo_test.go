@@ -244,21 +244,18 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 			mutate: func(obj metav1.Object) {
 				obj.SetLabels(nil)
 			},
-			wantErr: "label",
 		},
 		{
 			name: "wrong upgrade label",
 			mutate: func(obj metav1.Object) {
 				obj.GetLabels()[harvesterUpgradeLabel] = "another-upgrade"
 			},
-			wantErr: harvesterUpgradeLabel,
 		},
 		{
 			name: "wrong component label",
 			mutate: func(obj metav1.Object) {
 				obj.GetLabels()[harvesterUpgradeComponentLabel] = "another-component"
 			},
-			wantErr: harvesterUpgradeComponentLabel,
 		},
 		{
 			name: "missing owner",
@@ -321,7 +318,6 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 							obj.GetLabels()[util.LabelVMCreator] = value
 						}
 					},
-					wantErr: util.LabelVMCreator,
 				})
 			}
 		}
@@ -361,15 +357,6 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 					})
 					_, err = repo.h.OnChanged(upgrade.Name, upgrade)
 					require.ErrorIs(t, err, clusterErr)
-					actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
-					if tc.wantErr == "owner reference" {
-						require.NoError(t, err)
-						assert.Equal(t, obj, actual)
-					} else {
-						// Incorrect labels do not prevent cleaning up our own resources.
-						assert.True(t, apierrors.IsNotFound(err))
-					}
-					return
 				}
 				actual, err := clientset.Tracker().Get(resource, upgradeNamespace, metadata.GetName())
 				require.NoError(t, err)

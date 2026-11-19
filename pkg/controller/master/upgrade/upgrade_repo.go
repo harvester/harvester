@@ -88,10 +88,7 @@ func (r *Repo) Bootstrap() error {
 		if err != nil {
 			return fmt.Errorf("%w: deployment %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.GetDeploymentName(), err)
 		}
-		if err := r.validateResourceMetadata(deployment, map[string]string{
-			harvesterUpgradeLabel:          r.upgrade.Name,
-			harvesterUpgradeComponentLabel: upgradeComponentRepo,
-		}); err != nil {
+		if err := r.validateUpgradeOwner(deployment); err != nil {
 			return fmt.Errorf("invalid existing repo deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
 		}
 	}
@@ -106,25 +103,14 @@ func (r *Repo) Bootstrap() error {
 		if err != nil {
 			return fmt.Errorf("%w: service %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.getRepoServiceName(), err)
 		}
-		if err := r.validateResourceMetadata(service, map[string]string{
-			util.LabelVMCreator:            "harvester",
-			harvesterUpgradeLabel:          r.upgrade.Name,
-			harvesterUpgradeComponentLabel: upgradeComponentRepo,
-		}); err != nil {
+		if err := r.validateUpgradeOwner(service); err != nil {
 			return fmt.Errorf("invalid existing repo service %s/%s: %w", service.Namespace, service.Name, err)
 		}
 	}
 	return nil
 }
 
-func (r *Repo) validateResourceMetadata(obj metav1.Object, expectedLabels map[string]string) error {
-	// Check required labels only; other controllers may add labels and annotations.
-	for key, expected := range expectedLabels {
-		if actual := obj.GetLabels()[key]; actual != expected {
-			return fmt.Errorf("label %q: expected %q, got %q", key, expected, actual)
-		}
-	}
-
+func (r *Repo) validateUpgradeOwner(obj metav1.Object) error {
 	if r.hasUpgradeOwner(obj) {
 		return nil
 	}
