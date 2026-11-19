@@ -118,16 +118,17 @@ type upgradeHandler struct {
 	managedChartCache  mgmtv3.ManagedChartCache
 	managedChartClient mgmtv3.ManagedChartClient
 
-	vmImageClient    ctlharvesterv1.VirtualMachineImageClient
-	vmImageCache     ctlharvesterv1.VirtualMachineImageCache
-	vmClient         kubevirtctrl.VirtualMachineClient
-	vmCache          kubevirtctrl.VirtualMachineCache
-	kubevirtClient   kubevirtctrl.KubeVirtClient
-	kubevirtCache    kubevirtctrl.KubeVirtCache
-	serviceClient    ctlcorev1.ServiceClient
-	pvcClient        ctlcorev1.PersistentVolumeClaimClient
-	deploymentClient ctlappsv1.DeploymentClient
-	deploymentCache  ctlappsv1.DeploymentCache
+	vmImageClient     ctlharvesterv1.VirtualMachineImageClient
+	vmImageCache      ctlharvesterv1.VirtualMachineImageCache
+	vmClient          kubevirtctrl.VirtualMachineClient
+	vmCache           kubevirtctrl.VirtualMachineCache
+	kubevirtClient    kubevirtctrl.KubeVirtClient
+	kubevirtCache     kubevirtctrl.KubeVirtCache
+	serviceClient     ctlcorev1.ServiceClient
+	pvcClient         ctlcorev1.PersistentVolumeClaimClient
+	deploymentClient  ctlappsv1.DeploymentClient
+	deploymentCache   ctlappsv1.DeploymentCache
+	enqueueDeployment func(namespace, name string)
 
 	clusterClient provisioningctrl.ClusterClient
 	clusterCache  provisioningctrl.ClusterCache
@@ -338,11 +339,17 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 		toUpdate := upgrade.DeepCopy()
 		if err := repo.Bootstrap(); err != nil {
 			setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+			toUpdate.Labels[upgradeCleanupLabel] = StatePending
 			return h.upgradeClient.Update(toUpdate)
 		}
 		toUpdate.Labels[upgradeStateLabel] = StatePreparingRepo
 		harvesterv1.RepoProvisioned.CreateUnknownIfNotExists(toUpdate)
 		return h.upgradeClient.Update(toUpdate)
+	}
+
+	if upgrade.Labels[upgradeStateLabel] == StatePreparingRepo && harvesterv1.RepoProvisioned.IsUnknown(upgrade) {
+		// The Deployment may already have become ready before PreparingRepo was observed.
+		h.enqueueDeployment(upgradeNamespace, repo.GetDeploymentName())
 	}
 
 	if harvesterv1.RepoProvisioned.IsTrue(upgrade) && harvesterv1.NodesPrepared.GetStatus(upgrade) == "" {

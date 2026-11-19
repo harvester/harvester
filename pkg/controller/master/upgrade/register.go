@@ -160,6 +160,7 @@ func Register(ctx context.Context, management *config.Management, options config
 		vmRestClient:       virtSubresourceClient,
 		deploymentClient:   deployments,
 		deploymentCache:    deployments.Cache(),
+		enqueueDeployment:  deployments.Enqueue,
 		scClient:           storageClasses,
 		scCache:            storageClasses.Cache(),
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ import (
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
@@ -345,6 +347,7 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 					upgrade, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.Background(), repo.upgrade.Name, metav1.GetOptions{})
 					require.NoError(t, err)
 					assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(upgrade))
+					assert.Equal(t, StatePending, upgrade.Labels[upgradeCleanupLabel])
 					assert.Empty(t, harvesterv1.RepoProvisioned.GetStatus(upgrade))
 
 					// Model an already removed image so the next reconciliation can
@@ -585,6 +588,12 @@ func TestRepoBootstrapRetry(t *testing.T) {
 	}
 }
 
+type fakeUpgradeHeartbeat struct {
+	ctlharvesterv1.UpgradeController
+}
+
+func (fakeUpgradeHeartbeat) EnqueueAfter(string, string, time.Duration) {}
+
 func TestUpgradeBootstrapServiceFailure(t *testing.T) {
 	for _, updateConflict := range []bool{false, true} {
 		t.Run(fmt.Sprintf("update conflict=%t", updateConflict), func(t *testing.T) {
@@ -626,10 +635,33 @@ func TestUpgradeBootstrapServiceFailure(t *testing.T) {
 			if !updateConflict {
 				assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(upgrade))
 				assert.Equal(t, StateFailed, upgrade.Labels[upgradeStateLabel])
+				assert.Equal(t, StatePending, upgrade.Labels[upgradeCleanupLabel])
 				assert.Equal(t, serviceErr.Error(), harvesterv1.UpgradeCompleted.GetReason(upgrade))
 				return
 			}
 
+			// The Deployment becomes available before the Upgrade retry records PreparingRepo.
+			deployments := clientset.AppsV1().Deployments(upgradeNamespace)
+			deployment, err := deployments.Get(context.Background(), repo.GetDeploymentName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			deployment.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
+			deployment, err = deployments.UpdateStatus(context.Background(), deployment, metav1.UpdateOptions{})
+			require.NoError(t, err)
+			handler := &deploymentHandler{
+				upgradeClient: repo.h.upgradeClient,
+				upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			}
+			_, err = handler.OnChanged("", deployment)
+			require.NoError(t, err)
+			upgrade, err = handler.upgradeCache.Get(upgradeNamespace, upgrade.Name)
+			require.NoError(t, err)
+			require.Empty(t, harvesterv1.RepoProvisioned.GetStatus(upgrade))
+
+			var queued []types.NamespacedName
+			repo.h.enqueueDeployment = func(namespace, name string) {
+				queued = append(queued, types.NamespacedName{Namespace: namespace, Name: name})
+			}
+			repo.h.upgradeController = fakeUpgradeHeartbeat{}
 			// Retry with the persisted Upgrade, not the failed update's in-memory copy.
 			require.True(t, harvesterv1.UpgradeCompleted.IsUnknown(upgrade))
 			_, err = repo.h.OnChanged(upgrade.Name, upgrade)
@@ -642,6 +674,17 @@ func TestUpgradeBootstrapServiceFailure(t *testing.T) {
 			_, err = repo.h.serviceClient.Get(upgradeNamespace, repo.getRepoServiceName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			assert.Equal(t, 2, serviceAttempts)
+			require.Empty(t, queued)
+
+			_, err = repo.h.OnChanged(upgrade.Name, upgrade)
+			require.NoError(t, err)
+			require.Equal(t, []types.NamespacedName{{Namespace: deployment.Namespace, Name: deployment.Name}}, queued)
+			_, err = handler.OnChanged(queued[0].String(), deployment)
+			require.NoError(t, err)
+			upgrade, err = handler.upgradeCache.Get(upgradeNamespace, upgrade.Name)
+			require.NoError(t, err)
+			assert.Equal(t, StateRepoPrepared, upgrade.Labels[upgradeStateLabel])
+			assert.True(t, harvesterv1.RepoProvisioned.IsTrue(upgrade))
 		})
 	}
 }
