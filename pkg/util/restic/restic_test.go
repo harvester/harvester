@@ -147,30 +147,46 @@ func TestForgetCommand(t *testing.T) {
 	require.Contains(t, command, "restic --no-cache --retry-lock 5m forget")
 	require.Contains(t, command, "--tag=ns=default,vmb=backup,sn=volume")
 	require.Contains(t, command, "--unsafe-allow-remove-all --prune")
-	require.NotContains(t, command, "unlock")
+	require.Contains(t, command, "restic --no-cache unlock && restic --no-cache --retry-lock")
+	require.NotContains(t, command, "unlock --remove-all")
 	require.NotContains(t, command, "snapshots > /dev/null")
 }
 
 func TestForgetCommandExitCodes(t *testing.T) {
 	tests := []struct {
-		name string
-		code int
-		want int
+		name   string
+		unlock int
+		forget int
+		want   int
 	}{
 		{name: "success"},
-		{name: "missing repository", code: 10},
-		{name: "lock wait exhausted", code: 11, want: 11},
-		{name: "invalid credentials", code: 12, want: 12},
-		{name: "other backend failure", code: 1, want: 1},
-		{name: "interrupted", code: 130, want: 130},
+		{name: "missing repository during unlock", unlock: 10},
+		{name: "missing repository during forget", forget: 10},
+		{name: "lock wait exhausted", forget: 11, want: 11},
+		{name: "unlock invalid credentials", unlock: 12, want: 12},
+		{name: "forget invalid credentials", forget: 12, want: 12},
+		{name: "unlock backend failure", unlock: 1, want: 1},
+		{name: "forget backend failure", forget: 1, want: 1},
+		{name: "unlock interrupted", unlock: 130, want: 130},
+		{name: "forget interrupted", forget: 130, want: 130},
+		{name: "unlock unknown failure", unlock: 42, want: 42},
+		{name: "forget unknown failure", forget: 42, want: 42},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// A shell function replaces only the Restic binary; execute the same
 			// wrapper used by forget Jobs to check that it preserves failures.
-			script := fmt.Sprintf("restic() { return %d; }; ", tt.code) +
+			script := fmt.Sprintf("restic() { case \"$1\" in "+
+				"unlock) echo unlock; return %d;; "+
+				"--retry-lock) echo forget; return %d;; "+
+				"*) return 99;; esac; }; ", tt.unlock, tt.forget) +
 				ForgetCommand("restic", []string{"ns=default", "vmb=backup", "sn=volume"})
-			err := exec.Command("/bin/sh", "-c", script).Run()
+			output, err := exec.Command("/bin/sh", "-c", script).CombinedOutput()
+			calls := "unlock\n"
+			if tt.unlock == 0 {
+				calls += "forget\n"
+			}
+			require.Equal(t, calls, string(output), "forget must run only after unlock succeeds")
 			if tt.want == 0 {
 				require.NoError(t, err)
 				return
