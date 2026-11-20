@@ -3,8 +3,13 @@ package virtualmachineimage
 import (
 	"fmt"
 
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
+	"github.com/sirupsen/logrus"
+
+	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 
@@ -17,7 +22,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
+func NewMutator(scCache ctlstoragev1.StorageClassCache, nodeCache ctlcorev1.NodeCache) types.Mutator {
 	vmim := common.GetVMIMutator(scCache)
 	mutators := map[harvesterv1.VMIBackend]backend.Mutator{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetMutator(vmim),
@@ -25,15 +30,17 @@ func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
 	}
 
 	return &virtualMachineImageMutator{
-		scCache:  scCache,
-		mutators: mutators,
+		scCache:   scCache,
+		nodeCache: nodeCache,
+		mutators:  mutators,
 	}
 }
 
 type virtualMachineImageMutator struct {
 	types.DefaultMutator
-	scCache  ctlstoragev1.StorageClassCache
-	mutators map[harvesterv1.VMIBackend]backend.Mutator
+	scCache   ctlstoragev1.StorageClassCache
+	nodeCache ctlcorev1.NodeCache
+	mutators  map[harvesterv1.VMIBackend]backend.Mutator
 }
 
 func (m *virtualMachineImageMutator) Resource() types.Resource {
@@ -55,8 +62,14 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 	vmi := newObj.(*harvesterv1.VirtualMachineImage)
 
 	if vmi.Spec.Backend == "" {
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/backend", "value": "%s"}`, harvesterv1.VMIBackendBackingImage))
-		vmi.Spec.Backend = harvesterv1.VMIBackendBackingImage
+		backend, err := m.defaultBackend()
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to determine default backend for VirtualMachineImage %s/%s, VMI creation will be rejected", vmi.Namespace, vmi.Name)
+			return patchOps, err
+		}
+		logrus.Infof("VirtualMachineImage %s/%s has no backend specified, defaulting to %q", vmi.Namespace, vmi.Name, backend)
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/spec/backend", "value": "%s"}`, backend))
+		vmi.Spec.Backend = backend
 	}
 
 	// Inject the imageDisplayName label at creation time so that the validating
@@ -77,16 +90,44 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 	return patchOps, nil
 }
 
+// defaultBackend assumes management nodes share the installer's Longhorn default disk choice;
+// worker nodes are ignored.
+func (m *virtualMachineImageMutator) defaultBackend() (harvesterv1.VMIBackend, error) {
+	nodes, err := m.nodeCache.List(labels.Everything())
+	if err != nil {
+		return "", fmt.Errorf("failed to list nodes: %w", err)
+	}
+	for _, node := range nodes {
+		if util.IsManagementRole(node) && node.Labels[longhorntypes.NodeCreateDefaultDiskLabelKey] == "false" {
+			return harvesterv1.VMIBackendCDI, nil
+		}
+	}
+	return harvesterv1.VMIBackendBackingImage, nil
+}
+
 func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) (types.PatchOps, error) {
 	newVMI := newObj.(*harvesterv1.VirtualMachineImage)
 	oldVMI := oldObj.(*harvesterv1.VirtualMachineImage)
+
+	var patchOps types.PatchOps
+	if newVMI.Spec.Backend == "" {
+		backend := oldVMI.Spec.Backend
+		if backend == "" {
+			var err error
+			backend, err = m.defaultBackend()
+			if err != nil {
+				return nil, err
+			}
+		}
+		patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/spec/backend", "value": "%s"}`, backend))
+		newVMI.Spec.Backend = backend
+	}
 
 	mutatePatches, err := m.mutators[util.GetVMIBackend(newVMI)].Update(oldVMI, newVMI)
 	if err != nil {
 		return nil, err
 	}
 
-	patchOps := make(types.PatchOps, 0, len(mutatePatches))
 	patchOps = append(patchOps, mutatePatches...)
 	return patchOps, nil
 }

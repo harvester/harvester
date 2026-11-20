@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	longhorntypes "github.com/longhorn/longhorn-manager/types"
 	ctlbatchv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/batch/v1"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
@@ -126,6 +127,15 @@ func (v *nodeValidator) Update(_ *types.Request, oldObj runtime.Object, newObj r
 	}
 	if err := validateWitnessRoleChange(oldNode, newNode); err != nil {
 		return err
+	}
+	return validateSkippedLonghornDefaultDiskLabel(oldNode, newNode)
+}
+
+// validateSkippedLonghornDefaultDiskLabel keeps the installer's skip marker immutable;
+// the VMI mutator derives the default image backend from it.
+func validateSkippedLonghornDefaultDiskLabel(oldNode, newNode *corev1.Node) error {
+	if oldNode.Labels[longhorntypes.NodeCreateDefaultDiskLabelKey] != newNode.Labels[longhorntypes.NodeCreateDefaultDiskLabelKey] {
+		return werror.NewBadRequest(fmt.Sprintf("label %s cannot be changed or removed", longhorntypes.NodeCreateDefaultDiskLabelKey))
 	}
 	return nil
 }
