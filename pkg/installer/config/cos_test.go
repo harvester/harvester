@@ -421,11 +421,17 @@ func TestDisableLonghornMultipathing_DirectoryIsTraversable(t *testing.T) {
 	stage := yipSchema.Stage{}
 	disableLonghornMultipathing(&stage)
 
-	for _, dir := range stage.Directories {
+	perms := map[string]uint32{}
+	for i, dir := range stage.Directories {
+		perms[dir.Path] = dir.Permissions
 		if dir.Path == "/etc/multipath/conf.d" {
-			assert.Equal(t, uint32(0755), dir.Permissions)
-			return
+			// the parent must come first so yip applies its own mode to it
+			assert.Contains(t, perms, "/etc/multipath", "expected /etc/multipath before conf.d (index %d)", i)
 		}
 	}
-	t.Fatal("expected /etc/multipath/conf.d in the stage directories")
+	for _, path := range []string{"/etc/multipath", "/etc/multipath/conf.d"} {
+		if assert.Contains(t, perms, path) {
+			assert.Equal(t, uint32(0755), perms[path], path)
+		}
+	}
 }
