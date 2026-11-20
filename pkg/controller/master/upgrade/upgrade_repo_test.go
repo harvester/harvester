@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	k8stesting "k8s.io/client-go/testing"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
@@ -425,6 +426,55 @@ func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
 	}
 }
 
+func TestUpgradeClaimsUploadedISO(t *testing.T) {
+	pvcOwner := metav1.OwnerReference{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "vm-disk", UID: "vm-disk-uid"}
+	for _, tc := range []struct {
+		name      string
+		namespace string
+		marked    bool
+		owners    []metav1.OwnerReference
+		wantClaim bool
+	}{
+		{name: "upgrade ISO", namespace: upgradeNamespace, marked: true, wantClaim: true},
+		{name: "ordinary image", namespace: upgradeNamespace},
+		{name: "PVC-owned ISO", namespace: upgradeNamespace, marked: true, owners: []metav1.OwnerReference{pvcOwner}},
+		{name: "ISO in another namespace", namespace: "other", marked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _ := newTestUpgradeRepo()
+			image := newTestExistingVirtualMachineImage(tc.namespace, "uploaded-iso")
+			image.OwnerReferences = tc.owners
+			if tc.marked {
+				image.Annotations = map[string]string{util.AnnotationUpgradeImage: "True"}
+			}
+			_, err := repo.h.vmImageClient.Create(image)
+			require.NoError(t, err)
+			upgrade := newTestUpgradeBuilder().InitStatus().Build()
+			upgrade.TypeMeta = repo.upgrade.TypeMeta
+			upgrade.UID = repo.upgrade.UID
+			upgrade.Spec.Image = image.Namespace + "/" + image.Name
+			upgrade, err = repo.h.OnChanged(upgrade.Name, upgrade)
+			require.NoError(t, err)
+			actual, err := repo.GetImage(upgrade.Status.ImageID)
+			require.NoError(t, err)
+			assert.Equal(t, upgrade.Name, actual.Labels[harvesterUpgradeLabel])
+			if tc.wantClaim {
+				require.Equal(t, []metav1.OwnerReference{upgradeReference(upgrade)}, actual.OwnerReferences)
+			} else {
+				require.Equal(t, tc.owners, actual.OwnerReferences)
+			}
+			repo.upgrade = upgrade
+			require.NoError(t, repo.Cleanup())
+			_, err = repo.GetImage(upgrade.Status.ImageID)
+			if tc.wantClaim {
+				require.True(t, apierrors.IsNotFound(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestRepoCleanupImageAfterVMRemoval(t *testing.T) {
 	t.Run("image without owner", func(t *testing.T) {
 		repo, _ := newTestUpgradeRepo()
@@ -438,7 +488,7 @@ func TestRepoCleanupImageAfterVMRemoval(t *testing.T) {
 	})
 	for _, handoff := range []bool{false, true} {
 		t.Run(fmt.Sprintf("PVC handoff=%t", handoff), func(t *testing.T) {
-			repo, _ := newTestUpgradeRepo()
+			repo, clientset := newTestUpgradeRepo()
 			image, err := repo.GetImage(repo.upgrade.Status.ImageID)
 			require.NoError(t, err)
 			image = image.DeepCopy()
@@ -452,7 +502,20 @@ func TestRepoCleanupImageAfterVMRemoval(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Namespace: upgradeNamespace, Name: "vm-disk", UID: "vm-disk-uid"},
 				})
 				require.NoError(t, err)
-				require.NoError(t, repo.deleteImage("vm-disk"))
+				now := metav1.Now()
+				vm := &kubevirtv1.VirtualMachine{ObjectMeta: metav1.ObjectMeta{
+					Name: repo.GetVMName(), Namespace: upgradeNamespace, DeletionTimestamp: &now,
+					Annotations: map[string]string{util.RemovedPVCsAnnotationKey: "vm-disk"},
+				}}
+				vms := clientset.KubevirtV1().VirtualMachines(upgradeNamespace)
+				_, err = vms.Create(context.Background(), vm, metav1.CreateOptions{})
+				require.NoError(t, err)
+				clientset.ClearActions()
+				require.NoError(t, repo.deleteVM())
+				for _, action := range clientset.Actions() {
+					require.False(t, action.Matches("delete", "virtualmachines"))
+				}
+				require.NoError(t, vms.Delete(context.Background(), vm.Name, metav1.DeleteOptions{}))
 			}
 
 			// The repo VM is absent when cleanup runs again.
@@ -520,6 +583,15 @@ func TestRepoDeleteResource(t *testing.T) {
 					clientset.PrependReactor("get", resource.Resource, func(_ k8stesting.Action) (bool, runtime.Object, error) {
 						return true, nil, injectedErr
 					})
+				}
+				if failure == "" {
+					now := metav1.Now()
+					metadata.SetDeletionTimestamp(&now)
+					require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
+					require.NoError(t, remove())
+					require.Zero(t, deleteCalls)
+					metadata.SetDeletionTimestamp(nil)
+					require.NoError(t, clientset.Tracker().Update(resource, obj, upgradeNamespace))
 				}
 				err = remove()
 				if failure != "" {

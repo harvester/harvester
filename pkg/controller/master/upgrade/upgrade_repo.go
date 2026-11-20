@@ -249,6 +249,11 @@ func (r *Repo) deleteVM() error {
 		}
 	}
 
+	// A terminating VM can still carry the PVC annotation needed for the image
+	// ownership handoff above. Only skip the duplicate VM deletion.
+	if vm.DeletionTimestamp != nil {
+		return nil
+	}
 	err = r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
 	if err == nil {
 		return nil
@@ -267,6 +272,9 @@ func (r *Repo) deleteService() error {
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get service %s/%s for cleanup: %w", upgradeNamespace, nm, err)
+	}
+	if service.DeletionTimestamp != nil {
+		return nil
 	}
 	if !r.hasUpgradeOwner(service) {
 		logrus.Warnf("Skip deleting service %s/%s because it is not owned by upgrade %s/%s", upgradeNamespace, nm, r.upgrade.Namespace, r.upgrade.Name)
@@ -592,6 +600,9 @@ func (r *Repo) deleteDeployment() error {
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get deployment %s/%s for cleanup: %w", namespace, name, err)
+	}
+	if deployment.DeletionTimestamp != nil {
+		return nil
 	}
 	if !r.hasUpgradeOwner(deployment) {
 		logrus.Warnf("Skip deleting deployment %s/%s because it is not owned by upgrade %s/%s", namespace, name, r.upgrade.Namespace, r.upgrade.Name)
