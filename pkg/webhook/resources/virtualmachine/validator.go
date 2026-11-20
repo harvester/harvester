@@ -92,6 +92,7 @@ func (v *vmValidator) Resource() types.Resource {
 		OperationTypes: []admissionregv1.OperationType{
 			admissionregv1.Create,
 			admissionregv1.Update,
+			admissionregv1.Delete,
 		},
 	}
 }
@@ -262,6 +263,21 @@ func (v *vmValidator) Create(request *types.Request, newObj runtime.Object) erro
 
 	if err := v.validateVMStateStorageClass(vm); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Delete refuses to delete a VM that has delete protection enabled, in the same way as
+// the KubeVirt SSP vm-delete-protection ValidatingAdmissionPolicy.
+func (v *vmValidator) Delete(_ *types.Request, oldObj runtime.Object) error {
+	vm, ok := oldObj.(*kubevirtv1.VirtualMachine)
+	if !ok || vm == nil {
+		return nil
+	}
+
+	if vmutil.IsDeleteProtected(vm) {
+		return werror.NewBadRequest(vmutil.DeleteProtectionError(vm).Error())
 	}
 
 	return nil

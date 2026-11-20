@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
 	"kubevirt.io/kubevirt/pkg/util/hardware"
 
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
@@ -113,6 +114,11 @@ func (m *vmMutator) Create(request *types.Request, newObj runtime.Object) (types
 	}
 
 	patchOps, err = m.patchManagedTapBinding(vm, patchOps)
+	if err != nil {
+		return nil, err
+	}
+
+	patchOps, err = m.patchDeleteProtection(vm, patchOps)
 	if err != nil {
 		return nil, err
 	}
@@ -635,6 +641,52 @@ func (m *vmMutator) patchTerminationGracePeriodSeconds(vm *kubevirtv1.VirtualMac
 	}
 
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": %s}`, value))
+	return patchOps, nil
+}
+
+// patchDeleteProtection applies the default-vm-delete-protection setting to a new VM.
+// It only runs on create, so existing VMs keep their current protection. An explicit
+// label value (including "false") wins over the setting, and VMs owned by the Rancher
+// node driver, CAPHV or Harvester itself are skipped so their controllers can delete them.
+func (m *vmMutator) patchDeleteProtection(vm *kubevirtv1.VirtualMachine, patchOps types.PatchOps) (types.PatchOps, error) {
+	if vm == nil {
+		return patchOps, nil
+	}
+	if _, ok := vm.Labels[util.LabelVMDeleteProtection]; ok {
+		return patchOps, nil
+	}
+	if virtualmachine.IsDeleteProtectionDefaultExempt(vm) {
+		return patchOps, nil
+	}
+
+	s, err := m.setting.Get(settings.DefaultVMDeleteProtectionSettingName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return patchOps, nil
+		}
+		return patchOps, err
+	}
+	value := s.Default
+	if s.Value != "" {
+		value = s.Value
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		// Fail closed: treating an invalid value as "false" would silently create
+		// unprotected VMs, for example while an older webhook is still running
+		// during an upgrade and accepted a value this version rejects.
+		return patchOps, fmt.Errorf("invalid value %q in setting %s, must be a boolean such as \"true\" or \"false\": %w",
+			value, settings.DefaultVMDeleteProtectionSettingName, err)
+	}
+	if !enabled {
+		return patchOps, nil
+	}
+
+	if len(vm.Labels) == 0 {
+		patchOps = append(patchOps, `{"op": "add", "path": "/metadata/labels", "value": {}}`)
+	}
+	patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/metadata/labels/%s", "value": "true"}`,
+		patch.EscapeJSONPointer(util.LabelVMDeleteProtection)))
 	return patchOps, nil
 }
 

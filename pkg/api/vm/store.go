@@ -14,6 +14,7 @@ import (
 
 	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 )
 
 type vmStore struct {
@@ -33,6 +34,12 @@ func (s *vmStore) Delete(request *types.APIRequest, _ *types.APISchema, id strin
 			return types.APIObject{}, apierror.NewAPIError(validation.NotFound, fmt.Sprintf("VirtualMachine %s/%s not found", request.Namespace, request.Name))
 		}
 		return types.APIObject{}, apierror.NewAPIError(validation.ServerError, fmt.Sprintf("Failed to get vm %s/%s, %v", request.Namespace, request.Name, err))
+	}
+
+	// Refuse before touching the VM: the removedPersistentVolumeClaims annotation set below
+	// would otherwise stay on a VM whose delete the webhook then rejects.
+	if vmutil.IsDeleteProtected(vm) {
+		return types.APIObject{}, apierror.NewAPIError(validation.InvalidAction, vmutil.DeleteProtectionError(vm).Error())
 	}
 
 	var removedPVCs []string
