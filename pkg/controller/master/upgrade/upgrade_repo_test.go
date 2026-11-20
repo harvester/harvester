@@ -441,6 +441,44 @@ func TestRepoBootstrapGetFailure(t *testing.T) {
 	}
 }
 
+func TestRepoBootstrapRetriesTerminatingResource(t *testing.T) {
+	for _, resource := range []schema.GroupVersionResource{
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Version: "v1", Resource: "services"},
+	} {
+		t.Run(resource.Resource, func(t *testing.T) {
+			repo, clientset := newTestUpgradeRepo()
+			require.NoError(t, repo.Bootstrap())
+			name := repo.GetDeploymentName()
+			tracker := clientset.Tracker()
+			obj, err := tracker.Get(resource, upgradeNamespace, name)
+			require.NoError(t, err)
+			metadata, err := meta.Accessor(obj)
+			require.NoError(t, err)
+			now := metav1.Now()
+			metadata.SetDeletionTimestamp(&now)
+			require.NoError(t, tracker.Update(resource, obj, upgradeNamespace))
+
+			_, err = repo.h.OnChanged(repo.upgrade.Name, repo.upgrade)
+			require.ErrorIs(t, err, errRepoResourceTerminating)
+			upgrade, err := clientset.HarvesterhciV1beta1().Upgrades(upgradeNamespace).Get(context.Background(), repo.upgrade.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, repo.upgrade, upgrade)
+
+			require.NoError(t, tracker.Delete(resource, upgradeNamespace, name))
+			upgrade, err = repo.h.OnChanged(upgrade.Name, upgrade)
+			require.NoError(t, err)
+			require.Equal(t, StatePreparingRepo, upgrade.Labels[upgradeStateLabel])
+			recreated, err := tracker.Get(resource, upgradeNamespace, name)
+			require.NoError(t, err)
+			metadata, err = meta.Accessor(recreated)
+			require.NoError(t, err)
+			assert.Nil(t, metadata.GetDeletionTimestamp())
+			assert.True(t, repo.hasUpgradeOwner(metadata))
+		})
+	}
+}
+
 func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
 	repo, clientset := newTestUpgradeRepo()
 	require.NoError(t, repo.Bootstrap())

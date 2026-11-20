@@ -35,7 +35,10 @@ const (
 	isoMountPath  = "/srv/www/htdocs/harvester-iso"
 )
 
-var errGetExistingRepoResource = errors.New("failed to get existing repo resource")
+var (
+	errGetExistingRepoResource = errors.New("failed to get existing repo resource")
+	errRepoResourceTerminating = errors.New("repo resource is being deleted")
+)
 
 // Images in the list will be retained during the image pruning process at
 // the end of an upgrade.
@@ -91,6 +94,9 @@ func (r *Repo) Bootstrap() error {
 		if err := r.validateUpgradeOwner(deployment); err != nil {
 			return fmt.Errorf("invalid existing repo deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
 		}
+		if deployment.DeletionTimestamp != nil {
+			return fmt.Errorf("deployment %s/%s: %w", deployment.Namespace, deployment.Name, errRepoResourceTerminating)
+		}
 	}
 
 	// Ensure the Service is created even if the Deployment already exists.
@@ -105,6 +111,9 @@ func (r *Repo) Bootstrap() error {
 		}
 		if err := r.validateUpgradeOwner(service); err != nil {
 			return fmt.Errorf("invalid existing repo service %s/%s: %w", service.Namespace, service.Name, err)
+		}
+		if service.DeletionTimestamp != nil {
+			return fmt.Errorf("service %s/%s: %w", service.Namespace, service.Name, errRepoResourceTerminating)
 		}
 	}
 	return nil
