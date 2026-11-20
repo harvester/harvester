@@ -187,7 +187,12 @@ func Test_validateRWXNetworkReservedRanges(t *testing.T) {
 			name:        "untagged network is rejected",
 			value:       share("172.16.0.224/28", "172.16.0.192/27"),
 			objects:     []runtime.Object{storageNetworkSetting(`{"clusterNetwork":"cn1","range":"172.16.0.0/24"}`)},
-			errContains: "require a tagged VLAN",
+			errContains: "require a VLAN ID (1-4094)",
+		},
+		{
+			name:    "VLAN 1 is allowed",
+			value:   share("172.16.0.224/28", "172.16.0.192/27"),
+			objects: []runtime.Object{storageNetworkSetting(`{"vlan":1,"clusterNetwork":"cn1","range":"172.16.0.0/24"}`)},
 		},
 		{
 			name:        "host interface name must fit the Linux limit",
