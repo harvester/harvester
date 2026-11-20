@@ -710,11 +710,13 @@ func (vmro *vmrestoreOperator) UpdateCondition(old *harvesterv1.VirtualMachineRe
 	return vmro.Update(old, newVMr)
 }
 
+// UpdateError persists a failure and returns it together with any update error.
+// The controller filters retryable errors before calling this method.
 func (vmro *vmrestoreOperator) UpdateError(old *harvesterv1.VirtualMachineRestore, err error) error {
 	newVMr := old.DeepCopy()
 	newVMr = vmro.SetErrorCondition(newVMr, err)
 	_, updateErr := vmro.Update(old, newVMr)
-	return updateErr
+	return errors.Join(err, updateErr)
 }
 
 // Target VM operations
@@ -822,7 +824,8 @@ func (vmro *vmrestoreOperator) startVMSubresource(ctx context.Context, vm *kubev
 	// may return this as an InternalError, so checking IsConflict alone is not
 	// enough to distinguish the expected in-flight state from a real failure.
 	if isStartPending(err) {
-		return fmt.Errorf("%w: %w", ErrVMStartInProgress, err)
+		// This API error describes an expected state, not a second failure.
+		return fmt.Errorf("%w: %v", ErrVMStartInProgress, err)
 	}
 	return err
 }
