@@ -55,6 +55,7 @@ You can see the full installation log by:
 	PartitionType       = "part"
 	MpathType           = "mpath"
 	CosDiskLabelPrefix  = "COS_OEM"
+	DataDiskLabel       = "HARV_LH_DEFAULT"
 )
 
 func newProxyClient() http.Client {
@@ -561,7 +562,7 @@ func doInstall(g *gocui.Gui, hvstConfig *config.HarvesterConfig, webhooks Render
 	}
 
 	// when WipeAllDisks is enabled then find all non installation disks with COS_ prefixed labels
-	// and add them to a list for wiping
+	// or the HARV_LH_DEFAULT label and add them to a list for wiping
 	if hvstConfig.Install.WipeAllDisks {
 		diskOpts := diskOptionsCache.getWipeDisksOptions(hvstConfig)
 		for _, opt := range diskOpts {
@@ -1074,7 +1075,7 @@ func (d *DiskOptionsCache) refresh() error {
 	hvstInstalledDisks := make([]string, 0)
 	for _, device := range resultMap {
 		disks = append(disks, generateDiskEntry(device))
-		if deviceContainsCOSPartition(device) {
+		if deviceContainsCOSPartition(device) || device.Label == DataDiskLabel {
 			hvstInstalledDisks = append(hvstInstalledDisks, generateDiskEntry(device))
 		}
 	}
