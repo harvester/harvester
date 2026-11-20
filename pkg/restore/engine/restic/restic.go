@@ -302,20 +302,14 @@ func (re *ResticRestoreEngine) createRestoreJob(
 
 	pvcName := re.stagingName(vmr, vr)
 	pvName := re.vmbo.GetVolBackupPVName(vb)
-	command := fmt.Sprintf(
-		// pipefail propagates a failing `restic dump` through the pipeline;
-		// without it io-mode's clean exit on empty stdin would hide the
-		// failure and leave the PVC blank. Leading `/` on the dump path
-		// matches the absolute path restic stored via --stdin-filename.
-		"set -eo pipefail; "+
-			"%s -q dump --tag=%s,%s,%s,%s latest /%s | /usr/bin/harvester io-mode -device /dev/%s -mode=write",
-		runtime.Command,
+	tags := []string{
 		resticutil.NamespaceTag(re.vmbo.GetNamespace(vmb)),
 		resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
 		resticutil.SnapshotTag(*vbName),
-		resticutil.CompleteTag,
-		pvName,
-		pvcName,
+	}
+	writer := fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=write", pvcName)
+	command := resticutil.RestoreCommand(
+		runtime.Command, writer, pvName, tags,
 	)
 	job := newRestoreJob(runtime, command, pvcName, jobName)
 	return re.startJob(vmr, vmb, job)
