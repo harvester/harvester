@@ -767,6 +767,31 @@ func Test_validateWitnessRoleChange(t *testing.T) {
 	}
 }
 
+func Test_validateSkippedLonghornDefaultDiskLabel(t *testing.T) {
+	const key = "node.longhorn.io/create-default-disk"
+	nodeWith := func(labels map[string]string) *corev1.Node {
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1", Labels: labels}}
+	}
+	tests := []struct {
+		name        string
+		oldLabels   map[string]string
+		newLabels   map[string]string
+		expectedErr bool
+	}{
+		{name: "skipped label cannot be removed", oldLabels: map[string]string{key: "false"}, newLabels: nil, expectedErr: true},
+		{name: "skipped label cannot be changed", oldLabels: map[string]string{key: "false"}, newLabels: map[string]string{key: "true"}, expectedErr: true},
+		{name: "skipped label kept", oldLabels: map[string]string{key: "false"}, newLabels: map[string]string{key: "false", "other": "x"}},
+		{name: "created label cannot be removed", oldLabels: map[string]string{key: "true"}, newLabels: nil, expectedErr: true},
+		{name: "no label", oldLabels: nil, newLabels: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSkippedLonghornDefaultDiskLabel(nodeWith(tt.oldLabels), nodeWith(tt.newLabels))
+			assert.Equal(t, tt.expectedErr, err != nil)
+		})
+	}
+}
+
 func TestValidateNodeCreateDuringUpgrade(t *testing.T) {
 	type testCase struct {
 		name          string
