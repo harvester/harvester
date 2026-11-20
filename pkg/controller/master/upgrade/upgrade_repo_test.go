@@ -367,6 +367,52 @@ func TestRepoBootstrapExistingMetadata(t *testing.T) {
 	}
 }
 
+func TestRepoDeploymentReadinessUsesUpgradeOwner(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		mutate   func(*appsv1.Deployment)
+		prepared bool
+	}{
+		{"missing labels", func(d *appsv1.Deployment) { d.Labels = nil }, true},
+		{"wrong labels", func(d *appsv1.Deployment) {
+			d.Labels[harvesterUpgradeLabel] = "another-upgrade"
+			d.Labels[harvesterUpgradeComponentLabel] = "another-component"
+		}, true},
+		{"missing owner", func(d *appsv1.Deployment) { d.OwnerReferences = nil }, false},
+		{"old upgrade UID", func(d *appsv1.Deployment) { d.OwnerReferences[0].UID = "old-uid" }, false},
+		{"wrong owner kind", func(d *appsv1.Deployment) { d.OwnerReferences[0].Kind = "ConfigMap" }, false},
+		{"wrong owner API version", func(d *appsv1.Deployment) { d.OwnerReferences[0].APIVersion = "v1" }, false},
+		{"different deployment", func(d *appsv1.Deployment) { d.Name = "another-deployment" }, false},
+		{"not available", func(d *appsv1.Deployment) { d.Status.Conditions = nil }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, clientset := newTestUpgradeRepo()
+			upgrade, err := repo.h.OnChanged(repo.upgrade.Name, repo.upgrade)
+			require.NoError(t, err)
+			require.Equal(t, StatePreparingRepo, upgrade.Labels[upgradeStateLabel])
+
+			deployment, err := repo.h.deploymentClient.Get(upgradeNamespace, repo.GetDeploymentName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			deployment.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
+			tc.mutate(deployment)
+			h := &deploymentHandler{
+				upgradeClient: repo.h.upgradeClient,
+				upgradeCache:  fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades),
+			}
+			_, err = h.OnChanged("", deployment)
+			require.NoError(t, err)
+			actual, err := h.upgradeCache.Get(upgrade.Namespace, upgrade.Name)
+			require.NoError(t, err)
+			if tc.prepared {
+				assert.Equal(t, StateRepoPrepared, actual.Labels[upgradeStateLabel])
+				assert.True(t, harvesterv1.RepoProvisioned.IsTrue(actual))
+			} else {
+				assert.Equal(t, upgrade, actual)
+			}
+		})
+	}
+}
+
 func TestRepoBootstrapGetFailure(t *testing.T) {
 	for _, resource := range []string{"deployments", "services"} {
 		t.Run(resource, func(t *testing.T) {

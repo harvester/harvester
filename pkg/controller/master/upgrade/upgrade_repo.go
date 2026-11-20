@@ -618,5 +618,9 @@ func (r *Repo) deleteDeployment() error {
 }
 
 func (r *Repo) GetDeploymentName() string {
-	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
+	return repoDeploymentName(r.upgrade.Name)
+}
+
+func repoDeploymentName(upgradeName string) string {
+	return repoServiceNamePrefix + upgradeName
 }
