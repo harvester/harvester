@@ -223,10 +223,6 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				imageUpdate.Labels = map[string]string{}
 			}
 			imageUpdate.Labels[harvesterUpgradeLabel] = upgrade.Name
-			// Claim the uploaded upgrade ISO so repo cleanup can reclaim it.
-			if image.Namespace == upgrade.Namespace && image.Annotations[util.AnnotationUpgradeImage] == "True" && len(image.OwnerReferences) == 0 {
-				imageUpdate.OwnerReferences = []metav1.OwnerReference{upgradeReference(upgrade)}
-			}
 			if _, err := h.vmImageClient.Update(imageUpdate); err != nil {
 				return nil, err
 			}

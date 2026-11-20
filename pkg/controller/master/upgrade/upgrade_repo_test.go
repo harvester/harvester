@@ -510,16 +510,15 @@ func TestRepoCleanupPreservesResourcesOwnedByAnotherUpgrade(t *testing.T) {
 	}
 }
 
-func TestUpgradeClaimsUploadedISO(t *testing.T) {
+func TestUpgradePreservesUploadedISO(t *testing.T) {
 	pvcOwner := metav1.OwnerReference{APIVersion: "v1", Kind: "PersistentVolumeClaim", Name: "vm-disk", UID: "vm-disk-uid"}
 	for _, tc := range []struct {
 		name      string
 		namespace string
 		marked    bool
 		owners    []metav1.OwnerReference
-		wantClaim bool
 	}{
-		{name: "upgrade ISO", namespace: upgradeNamespace, marked: true, wantClaim: true},
+		{name: "upgrade ISO", namespace: upgradeNamespace, marked: true},
 		{name: "ordinary image", namespace: upgradeNamespace},
 		{name: "PVC-owned ISO", namespace: upgradeNamespace, marked: true, owners: []metav1.OwnerReference{pvcOwner}},
 		{name: "ISO in another namespace", namespace: "other", marked: true},
@@ -542,19 +541,11 @@ func TestUpgradeClaimsUploadedISO(t *testing.T) {
 			actual, err := repo.GetImage(upgrade.Status.ImageID)
 			require.NoError(t, err)
 			assert.Equal(t, upgrade.Name, actual.Labels[harvesterUpgradeLabel])
-			if tc.wantClaim {
-				require.Equal(t, []metav1.OwnerReference{upgradeReference(upgrade)}, actual.OwnerReferences)
-			} else {
-				require.Equal(t, tc.owners, actual.OwnerReferences)
-			}
+			require.Equal(t, tc.owners, actual.OwnerReferences)
 			repo.upgrade = upgrade
 			require.NoError(t, repo.Cleanup())
 			_, err = repo.GetImage(upgrade.Status.ImageID)
-			if tc.wantClaim {
-				require.True(t, apierrors.IsNotFound(err))
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
