@@ -3,7 +3,6 @@ package kopia
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -23,15 +22,14 @@ import (
 const (
 	ImageEnvVar = "HARVESTER_IMAGE"
 
-	PasswordKey       = backuputil.KopiaPasswordKey
-	BucketKey         = "KOPIA_BUCKET"
-	EndpointKey       = "KOPIA_ENDPOINT"
-	RegionKey         = "KOPIA_REGION"
-	PrefixKey         = "KOPIA_PREFIX"
-	DisableTLSKey     = "KOPIA_DISABLE_TLS"
-	ConfigPath        = "/tmp/kopia.config"
-	RepositoryPrefix  = "kopia/"
-	defaultS3Endpoint = "s3.amazonaws.com"
+	PasswordKey      = backuputil.KopiaPasswordKey
+	BucketKey        = "KOPIA_BUCKET"
+	EndpointKey      = "KOPIA_ENDPOINT"
+	RegionKey        = "KOPIA_REGION"
+	PrefixKey        = "KOPIA_PREFIX"
+	DisableTLSKey    = "KOPIA_DISABLE_TLS"
+	ConfigPath       = "/tmp/kopia.config"
+	RepositoryPrefix = "kopia/"
 
 	CacheDirEnvVar      = "KOPIA_CACHE_DIRECTORY"
 	CacheDir            = "/kopia-cache"
@@ -116,65 +114,17 @@ type Repository struct {
 }
 
 func S3Repository(target *settings.BackupTarget) (*Repository, error) {
-	if target == nil {
-		return nil, fmt.Errorf("backup target is nil")
-	}
-
-	switch target.Type {
-	case settings.S3BackupType:
-		endpoint, disableTLS, err := normalizeS3Endpoint(target.Endpoint)
-		if err != nil {
-			return nil, err
-		}
-		if endpoint == "" {
-			endpoint = defaultS3Endpoint
-		}
-		if target.BucketName == "" {
-			return nil, fmt.Errorf("s3 backup target bucket name is empty")
-		}
-		return &Repository{
-			Bucket:     target.BucketName,
-			Endpoint:   endpoint,
-			Region:     target.BucketRegion,
-			Prefix:     RepositoryPrefix,
-			DisableTLS: disableTLS,
-		}, nil
-	default:
-		return nil, fmt.Errorf("kopia engine currently supports %s backup targets only, got %s", settings.S3BackupType, target.Type)
-	}
-}
-
-func normalizeS3Endpoint(rawEndpoint string) (string, bool, error) {
-	rawEndpoint = strings.TrimRight(rawEndpoint, "/")
-	if rawEndpoint == "" {
-		return "", false, nil
-	}
-	if !strings.Contains(rawEndpoint, "://") {
-		return rawEndpoint, false, nil
-	}
-
-	parsed, err := url.Parse(rawEndpoint)
+	config, err := backuputil.ParseS3Target(target)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to parse s3 backup target endpoint %q: %w", rawEndpoint, err)
+		return nil, err
 	}
-	if parsed.Host == "" {
-		return "", false, fmt.Errorf("s3 backup target endpoint %q is missing host", rawEndpoint)
-	}
-	if parsed.Path != "" && parsed.Path != "/" {
-		return "", false, fmt.Errorf("kopia s3 endpoint must not include a path, got %q", rawEndpoint)
-	}
-	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", false, fmt.Errorf("kopia s3 endpoint must not include query or fragment, got %q", rawEndpoint)
-	}
-
-	switch parsed.Scheme {
-	case "http":
-		return parsed.Host, true, nil
-	case "https":
-		return parsed.Host, false, nil
-	default:
-		return "", false, fmt.Errorf("unsupported s3 backup target endpoint scheme %q", parsed.Scheme)
-	}
+	return &Repository{
+		Bucket:     config.Bucket,
+		Endpoint:   config.Endpoint,
+		Region:     config.Region,
+		Prefix:     RepositoryPrefix,
+		DisableTLS: config.DisableTLS,
+	}, nil
 }
 
 func RepositoryFromSetting() (*Repository, error) {
@@ -198,7 +148,7 @@ func repositoryEnv(repository *Repository) []corev1.EnvVar {
 	}
 }
 
-// MaintenanceCommand connects to (or initializes) the repository, takes
+// MaintenanceCommand connects to the prepared repository, takes
 // maintenance ownership for the short-lived CronJob pod, and runs one explicit
 // maintenance cycle. Automatic maintenance is disabled for the last two
 // commands so taking ownership cannot trigger an additional implicit cycle.
@@ -212,31 +162,49 @@ func MaintenanceCommand(full bool) string {
 			"%s\n"+
 			"%s --no-auto-maintenance maintenance set --owner=me\n"+
 			"%s --no-auto-maintenance maintenance run%s",
-		ConnectOrCreateCommand(), Command(), Command(), fullFlag,
+		ConnectCommand(), Command(), Command(), fullFlag,
 	)
 }
 
 // NewMaintenanceCronJob builds a short-lived repository maintenance job using
 // the same image, S3 configuration, cache limits, and resource settings as the
 // Kopia backup and restore engines.
-func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, repository *Repository) (*batchv1.CronJob, error) {
-	image, err := Image()
+func NewMaintenanceCronJob(
+	name, schedule string, full bool, secretName string, repository *Repository,
+) (*batchv1.CronJob, error) {
+	pod, err := maintenancePod(full, secretName, repository)
 	if err != nil {
 		return nil, err
 	}
-	cacheVolume, cacheMount, err := CacheVolumeAndMount()
-	if err != nil {
-		return nil, err
-	}
-	cacheEnv, err := CacheConfigEnv()
-	if err != nil {
-		return nil, err
-	}
-	resources, err := JobResources()
-	if err != nil {
-		return nil, err
-	}
+	job := batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{
+		BackoffLimit:            ptr.To[int32](0),
+		TTLSecondsAfterFinished: ptr.To[int32](3600),
+		Template:                pod,
+	}}
+	return &batchv1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name, Namespace: util.LonghornSystemNamespaceName, Labels: pod.Labels,
+		},
+		Spec: batchv1.CronJobSpec{
+			Schedule:                   schedule,
+			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
+			SuccessfulJobsHistoryLimit: ptr.To[int32](1),
+			FailedJobsHistoryLimit:     ptr.To[int32](1),
+			JobTemplate:                job,
+		},
+	}, nil
+}
 
+func maintenancePod(full bool, secretName string, repository *Repository) (corev1.PodTemplateSpec, error) {
+	container, err := maintenanceContainer(full, secretName, repository)
+	if err != nil {
+		return corev1.PodTemplateSpec{}, err
+	}
+	volume, mount, err := CacheVolumeAndMount()
+	if err != nil {
+		return corev1.PodTemplateSpec{}, err
+	}
+	container.VolumeMounts = []corev1.VolumeMount{*mount, {Name: CacheVolume, MountPath: "/tmp"}}
 	maintenanceType := "quick"
 	if full {
 		maintenanceType = "full"
@@ -245,65 +213,43 @@ func NewMaintenanceCronJob(name, schedule string, full bool, secretName string, 
 		LabelKopiaMaintenance: LabelValueTrue,
 		LabelMaintenanceType:  maintenanceType,
 	})
+	return corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{Labels: labels},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers:    []corev1.Container{container},
+			Volumes:       []corev1.Volume{*volume},
+		},
+	}, nil
+}
+
+func maintenanceContainer(full bool, secretName string, repository *Repository) (corev1.Container, error) {
+	image, err := Image()
+	if err != nil {
+		return corev1.Container{}, err
+	}
+	cacheEnv, err := CacheConfigEnv()
+	if err != nil {
+		return corev1.Container{}, err
+	}
+	resources, err := JobResources()
+	if err != nil {
+		return corev1.Container{}, err
+	}
 	env := append(Env(secretName, repository), cacheEnv...)
 	env = append(env, corev1.EnvVar{Name: CheckForUpdatesEnvVar, Value: "false"})
-
-	cronJob := &batchv1.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: util.LonghornSystemNamespaceName,
-			Labels:    labels,
-		},
-		Spec: batchv1.CronJobSpec{
-			Schedule:                   schedule,
-			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
-			SuccessfulJobsHistoryLimit: ptr.To[int32](1),
-			FailedJobsHistoryLimit:     ptr.To[int32](1),
-			JobTemplate: batchv1.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					BackoffLimit:            ptr.To[int32](0),
-					TTLSecondsAfterFinished: ptr.To[int32](3600),
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{Labels: labels},
-						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyNever,
-							Containers: []corev1.Container{{
-								Name:      "maintenance",
-								Image:     image,
-								Env:       env,
-								Command:   []string{"/bin/sh", "-c"},
-								Args:      []string{MaintenanceCommand(full)},
-								Resources: resources,
-								VolumeMounts: []corev1.VolumeMount{
-									*cacheMount, {Name: CacheVolume, MountPath: "/tmp"},
-								},
-							}},
-							Volumes: []corev1.Volume{*cacheVolume},
-						},
-					},
-				},
-			},
-		},
-	}
-	return cronJob, nil
+	return corev1.Container{
+		Name:      "maintenance",
+		Image:     image,
+		Env:       env,
+		Command:   []string{"/bin/sh", "-c"},
+		Args:      []string{MaintenanceCommand(full)},
+		Resources: resources,
+	}, nil
 }
 
 func Command() string {
 	return fmt.Sprintf("kopia --log-level=info --file-log-level=debug --config-file=%s", ConfigPath)
-}
-
-func ConnectOrCreateCommand() string {
-	connect := ConnectCommand()
-	create := repositoryCommand("create")
-	prepare := "/usr/bin/harvester " + PrepareSubcommand
-
-	return fmt.Sprintf(
-		"(%s || { (%s && %s) || %s; })",
-		connect,
-		prepare,
-		create,
-		connect,
-	)
 }
 
 func ConnectCommand() string {

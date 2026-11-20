@@ -24,12 +24,12 @@ func BackupCommand(command, reader, filename string, tags []string) string {
 		shellQuote(filename), shellQuote(strings.Join(tags, ",")), reader,
 	)
 	return fmt.Sprintf(
-		"set -eo pipefail\n%s\n"+
+		"set -eo pipefail\n"+
 			"SNAPSHOT=$(%s"+
 			" | jq -er 'select(.message_type == \"summary\") | .snapshot_id // empty')\n"+
 			"test -n \"$SNAPSHOT\"\n"+
 			"%s",
-		initCommand(command), retryCommand(command, backup),
+		retryCommand(command, backup),
 		retryCommand(command, "tag --add "+CompleteTag+" \"$SNAPSHOT\""),
 	)
 }

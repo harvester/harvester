@@ -14,6 +14,16 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
+func checkReadyAnnotation(request *types.Request, old, next *harvesterv1.Setting) error {
+	if old.Annotations[backuputil.ReadyAnnotation] == next.Annotations[backuputil.ReadyAnnotation] {
+		return nil
+	}
+	if request != nil && request.IsFromController() {
+		return nil
+	}
+	return werror.NewInvalidError("repository readiness is managed by the controller", "metadata.annotations")
+}
+
 // checkThirdPartyInput validates user submissions. Authenticated controller
 // masking is handled separately by validateUpdateBackupTarget.
 func (v *settingValidator) checkThirdPartyInput(target *settings.BackupTarget) error {

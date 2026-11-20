@@ -2,6 +2,7 @@ package kopia
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -55,7 +56,10 @@ func TestJobsOwnCredentials(t *testing.T) {
 			}
 			refs = append(refs, env.ValueFrom.SecretKeyRef.Name)
 		}
-		require.Equal(t, []string{secretName, secretName, secretName}, refs)
+		require.Len(t, refs, 3)
+		for _, ref := range refs {
+			require.Equal(t, secretName, ref)
+		}
 		secret, err := secrets.Get(context.Background(), secretName, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.True(t, metav1.IsControlledBy(secret, job))
@@ -127,10 +131,26 @@ func credentialFixture(t *testing.T) (
 	require.NoError(t, settings.BackupTargetSet.Set(`{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups"}`))
 	source.Data[backuputil.RepositoryIDKey] = []byte(vmb.Status.BackupTarget.RepositoryID)
 	source.Data["KOPIA_PASSWORD"] = []byte("stored-password")
+	source.UID, source.ResourceVersion = "source-uid", "1"
+	target, err := backuputil.TargetFromStatus(vmb.Status.BackupTarget)
+	require.NoError(t, err)
+	target.ThirdPartyBackupEnabled = true
+	value, err := json.Marshal(target)
+	require.NoError(t, err)
+	record, err := backuputil.RepoReadyRecord(target, source)
+	require.NoError(t, err)
+	setting := &harvesterv1.Setting{ObjectMeta: metav1.ObjectMeta{
+		Name:        settings.BackupTargetSettingName,
+		Annotations: map[string]string{backuputil.ReadyAnnotation: record},
+	}, Value: string(value)}
+	harvesterv1.SettingConfigured.True(setting)
+	_, err = client.HarvesterhciV1beta1().Settings().Create(context.Background(), setting, metav1.CreateOptions{})
+	require.NoError(t, err)
+	ke.targets = backuputil.TargetClient{Settings: fakeclients.HarvesterSettingClient(client.HarvesterhciV1beta1().Settings), Secrets: ke.secretClient}
 	_, updateErr := client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
 	require.NoError(t, updateErr)
 
-	_, err := client.HarvesterhciV1beta1().VirtualMachineRestores(vmr.Namespace).Create(
+	_, err = client.HarvesterhciV1beta1().VirtualMachineRestores(vmr.Namespace).Create(
 		context.Background(), vmr, metav1.CreateOptions{},
 	)
 	require.NoError(t, err)
@@ -138,7 +158,7 @@ func credentialFixture(t *testing.T) (
 	return ke, vmb, vmr, client
 }
 
-func TestCredentialFailureRetriesRestore(t *testing.T) {
+func TestCredentialFailureKeepsJobSuspended(t *testing.T) {
 	t.Setenv("HARVESTER_IMAGE", "harvester:test")
 	ke, vmb, vmr, client := credentialFixture(t)
 	apiErr := errors.New("API unavailable")
@@ -152,13 +172,13 @@ func TestCredentialFailureRetriesRestore(t *testing.T) {
 	vb, vr := &vmb.Status.VolumeBackups[0], &vmr.Status.VolumeRestores[0]
 	name := ke.checkJobName(vmr, vr)
 	err := ke.createCheckJob(vmr, vmb, vb, name)
-	require.ErrorIs(t, err, engine.ErrRetryLater)
 	require.ErrorIs(t, err, apiErr)
+	require.NotErrorIs(t, err, engine.ErrRetryLater)
 	job, err := ke.jobClient.Get(joblifecycle.Namespace, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.True(t, *job.Spec.Suspend)
 	fail = false
-	// Existing suspended Jobs must recover instead of permanently failing the restore.
+	// A subsequent engine reconcile can repair the Secret and resume the suspended Job.
 	require.ErrorIs(t, ke.checkRemoteSnapshot(vmr, vmb, vr, vb), engine.ErrRetryLater)
 	job, err = ke.jobClient.Get(joblifecycle.Namespace, name, metav1.GetOptions{})
 	require.NoError(t, err)
@@ -193,7 +213,51 @@ func TestDeferredBindingAllowsJobCreation(t *testing.T) {
 	}
 }
 
+func TestJobsUseValidatedCredentials(t *testing.T) {
+	t.Setenv("HARVESTER_IMAGE", "harvester:test")
+	for _, operation := range []string{"check", "restore"} {
+		t.Run(operation, func(t *testing.T) {
+			ke, vmb, vmr, client := credentialFixture(t)
+			// The source becomes unavailable after validation and Job creation.
+			jobCreated := false
+			client.PrependReactor("create", "jobs", func(clienttesting.Action) (bool, runtime.Object, error) {
+				jobCreated = true
+				return false, nil, nil
+			})
+			client.PrependReactor("get", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				if jobCreated && action.GetNamespace() == util.LonghornSystemNamespaceName &&
+					action.(clienttesting.GetAction).GetName() == util.BackupTargetSecretName {
+					return true, nil, errors.New("shared credentials unavailable")
+				}
+				return false, nil, nil
+			})
+			vb := &vmb.Status.VolumeBackups[0]
+			var err error
+			switch operation {
+			case "check":
+				err = ke.createCheckJob(vmr, vmb, vb, "captured")
+			case "restore":
+				err = ke.createRestoreJob(
+					vmr, vmb, &vmr.Status.VolumeRestores[0], vb, "captured",
+				)
+			}
+			require.NoError(t, err)
+			job, err := ke.jobClient.Get(joblifecycle.Namespace, "captured", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.False(t, *job.Spec.Suspend)
+			secret, err := ke.secretClient.Get(job.Namespace, jobcredentials.Name(job.Name), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.True(t, metav1.IsControlledBy(secret, job))
+			require.Equal(t, map[string][]byte{
+				util.AWSAccessKey: []byte("access"), util.AWSSecretKey: []byte("secret"),
+				backuputil.KopiaPasswordKey: []byte("stored-password"),
+			}, secret.Data)
+		})
+	}
+}
+
 func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
+	t.Setenv("HARVESTER_IMAGE", "harvester:test")
 	for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey, backuputil.RepositoryIDKey, "KOPIA_PASSWORD"} {
 		t.Run(key, func(t *testing.T) {
 			ke, vmb, vmr, client := credentialFixture(t)
@@ -203,8 +267,8 @@ func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
 			_, err = client.CoreV1().Secrets(source.Namespace).Update(context.Background(), source, metav1.UpdateOptions{})
 			require.NoError(t, err)
 			vb, vr := &vmb.Status.VolumeBackups[0], &vmr.Status.VolumeRestores[0]
-			require.ErrorIs(t, ke.createCheckJob(vmr, vmb, vb, ke.checkJobName(vmr, vr)), engine.ErrRetryLater)
-			require.ErrorIs(t, ke.createRestoreJob(vmr, vmb, vr, vb, ke.jobName(vmr, vr)), engine.ErrRetryLater)
+			require.Error(t, ke.createCheckJob(vmr, vmb, vb, ke.checkJobName(vmr, vr)))
+			require.Error(t, ke.createRestoreJob(vmr, vmb, vr, vb, ke.jobName(vmr, vr)))
 			jobs, err := client.BatchV1().Jobs(joblifecycle.Namespace).List(context.Background(), metav1.ListOptions{})
 			require.NoError(t, err)
 			require.Empty(t, jobs.Items)

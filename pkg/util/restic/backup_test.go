@@ -79,10 +79,9 @@ fake() {
 			log, err := os.ReadFile(calls)
 			require.NoError(t, err)
 			lines := strings.Split(strings.TrimSpace(string(log)), "\n")
-			require.Len(t, lines, 3+tc.locks)
-			require.Equal(t, "--retry-lock 5m snapshots", lines[0])
-			require.Contains(t, lines[1], "--retry-lock 5m backup ")
-			for _, call := range lines[2:] {
+			require.Len(t, lines, 2+tc.locks)
+			require.Contains(t, lines[0], "--retry-lock 5m backup ")
+			for _, call := range lines[1:] {
 				require.Equal(t, "--retry-lock 5m tag --add harvester-complete abc", call,
 					"retry only the tag for the uploaded snapshot")
 			}

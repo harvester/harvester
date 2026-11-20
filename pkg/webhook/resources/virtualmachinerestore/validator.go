@@ -53,9 +53,11 @@ func NewValidator(
 	vscCache ctlsnapshotv1.VolumeSnapshotClassCache,
 	networkAttachmentDefinitionsCache ctlcniv1.NetworkAttachmentDefinitionCache,
 	sar authorizationv1client.SubjectAccessReviewInterface,
+	targets backuputil.TargetClient,
 ) types.Validator {
 	return &restoreValidator{
 		vms:                               vms,
+		targets:                           targets,
 		setting:                           setting,
 		vmBackup:                          vmBackup,
 		vmRestore:                         vmRestore,
@@ -72,6 +74,7 @@ func NewValidator(
 
 type restoreValidator struct {
 	types.DefaultValidator
+	targets backuputil.TargetClient
 
 	vms                               ctlkubevirtv1.VirtualMachineCache
 	setting                           ctlharvesterv1.SettingCache
@@ -360,13 +363,12 @@ func (v *restoreValidator) checkVMBackupType(vmr *v1beta1.VirtualMachineRestore,
 }
 
 func (v *restoreValidator) checkDataMoverBackup(vmb *v1beta1.VirtualMachineBackup) error {
-	if _, err := backuputil.TargetFromStatus(v.vmbr.GetBackupTarget(vmb)); err != nil {
-		return err
+	key := backuputil.ResticPasswordKey
+	if v.vmbr.GetType(vmb) == v1beta1.Kopia {
+		key = backuputil.KopiaPasswordKey
 	}
-	if err := v.checkBackupTarget(vmb); err != nil {
-		return err
-	}
-	return nil
+	_, err := v.targets.ThirdPartyCredentials(v.vmbr.GetBackupTarget(vmb), key)
+	return err
 }
 
 func (v *restoreValidator) checkBackup(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {

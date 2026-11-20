@@ -21,7 +21,9 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/util/acceleratedio"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
@@ -46,6 +48,7 @@ type KopiaEngine struct {
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
 	secretClient  ctlcorev1.SecretClient
+	targets       backuputil.TargetClient
 	jobController ctlbatchv1.JobController
 	jobClient     ctlbatchv1.JobClient
 	clientset     kubernetes.Interface
@@ -59,6 +62,7 @@ func GetBackupEngine(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
 	secretClient ctlcorev1.SecretClient,
+	settingClient ctlharvesterv1.SettingClient,
 	scCache ctlstoragev1.StorageClassCache,
 	jobController ctlbatchv1.JobController,
 	clientset kubernetes.Interface,
@@ -72,6 +76,7 @@ func GetBackupEngine(
 		pvcClient:     pvcClient,
 		scCache:       scCache,
 		secretClient:  secretClient,
+		targets:       backuputil.TargetClient{Settings: settingClient, Secrets: secretClient},
 		jobController: jobController,
 		jobClient:     jobController,
 		clientset:     clientset,
@@ -393,8 +398,8 @@ func (ke *KopiaEngine) createBackupJob(
 		return fmt.Errorf("volume backup name is nil")
 	}
 	command := kopiautil.BackupCommand(
-		runtime.Command, kopiautil.ConnectOrCreateCommand(),
-		fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=read", clonePVCName),
+		runtime.Command, kopiautil.ConnectCommand(),
+		acceleratedio.ReadCommand("/dev/"+clonePVCName),
 		ke.vmbo.GetVolBackupPVName(vb), ke.snapshotTags(vmb, vb),
 	)
 	return ke.startJob(vmb, newBackupJob(runtime, command, clonePVCName, jobName))
@@ -580,15 +585,9 @@ func newForgetJob(runtime *kopiautil.JobRuntime, command, name string) *batchv1.
 	return job
 }
 
-// jobRuntime validates shared credentials before a Job can be created.
 func (ke *KopiaEngine) jobRuntime(
 	vmb *harvesterv1.VirtualMachineBackup, name string,
 ) (*kopiautil.JobRuntime, error) {
-	if _, err := backuputil.CredentialData(
-		ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
-	); err != nil {
-		return nil, err
-	}
 	repository, err := ke.repository(vmb)
 	if err != nil {
 		return nil, err
@@ -606,23 +605,31 @@ func (ke *KopiaEngine) jobRuntime(
 }
 
 func (ke *KopiaEngine) startJob(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
+	data, err := ke.targets.ThirdPartyCredentials(
+		ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
+	)
+	if err != nil {
+		return err
+	}
 	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	job, err := client.Create(job)
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
 	if err != nil {
 		return err
 	}
-	return ke.ensureSecret(vmb, job)
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return data, nil
+	})
 }
 
 func (ke *KopiaEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
 	return client.Ensure(job, func() (map[string][]byte, error) {
-		return backuputil.CredentialData(
-			ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
+		return ke.targets.ThirdPartyCredentials(
+			ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
 		)
 	})
 }

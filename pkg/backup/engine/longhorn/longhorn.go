@@ -37,6 +37,7 @@ const (
 var vmBackupKind = harvesterv1.SchemeGroupVersion.WithKind(vmBackupKindName)
 
 type LonghornEngine struct {
+	targets            backuputil.TargetClient
 	vmbo               common.VMBackupOperator
 	vsHelper           *common.VolumeSnapshotHelper
 	pvcCache           ctlcorev1.PersistentVolumeClaimCache
@@ -57,8 +58,10 @@ func GetBackupEngine(
 	lhbackupCache ctllonghornv2.BackupCache,
 	lhbackupController ctllonghornv2.BackupController,
 	vmbCache ctlharvesterv1.VirtualMachineBackupCache,
+	targets backuputil.TargetClient,
 ) engine.BackupEngine {
 	return &LonghornEngine{
+		targets:            targets,
 		vmbo:               vmbo,
 		vsHelper:           common.NewVolumeSnapshotHelper(vsCache, vsClient, vscCache, vscClient, vmbo, pvcCache, scCache),
 		pvcCache:           pvcCache,
@@ -402,6 +405,10 @@ func (le *LonghornEngine) ensureVolumeSnapshotExists(
 	// VM may be unrelated or absent at recover time).
 	if le.vmbo.GetVolBackupLHBackupName(vb) != nil {
 		return le.createVSFromLHBackup(vmb, vb, &vsClass)
+	}
+
+	if err := le.targets.CheckLonghornReady(); err != nil {
+		return nil, err
 	}
 
 	// Fresh-backup path: freeze the source filesystem before snapshotting for

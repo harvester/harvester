@@ -1,7 +1,11 @@
 package virtualmachinebackup
 
 import (
+	"context"
 	"fmt"
+	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	corev1 "k8s.io/api/core/v1"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -83,7 +87,21 @@ func gateValidator(target string) *virtualMachineBackupValidator {
 		})
 	}
 	clientset := fake.NewSimpleClientset(objects...)
+	setting, _ := clientset.HarvesterhciV1beta1().Settings().Get(context.Background(), settings.BackupTargetSettingName, metav1.GetOptions{})
+	config, err := settings.DecodeBackupTarget(target)
+	if setting != nil && err == nil && config.ThirdPartyBackupEnabled {
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
+			UID: "credentials", ResourceVersion: "1",
+		}}
+		record, _ := backuputil.RepoReadyRecord(config, secret)
+		setting.Annotations = map[string]string{backuputil.ReadyAnnotation: record}
+		v1beta1.SettingConfigured.True(setting)
+		_, _ = clientset.CoreV1().Secrets(secret.Namespace).Create(context.Background(), secret, metav1.CreateOptions{})
+		_, _ = clientset.HarvesterhciV1beta1().Settings().Update(context.Background(), setting, metav1.UpdateOptions{})
+	}
 	return &virtualMachineBackupValidator{
+		targets:            backuputil.TargetClient{Settings: fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings), Secrets: fakeclients.SecretClient(clientset.CoreV1().Secrets)},
 		vms:                fakeclients.VirtualMachineCache(clientset.KubevirtV1().VirtualMachines),
 		setting:            fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 		resourceQuotaCache: absentQuotaCache{},

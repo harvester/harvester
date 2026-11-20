@@ -71,11 +71,6 @@ func TestS3RepositoryNormalizesHTTPEndpoint(t *testing.T) {
 	require.Contains(t, ConnectCommand(), `--prefix="$KOPIA_PREFIX"`)
 	require.Contains(t, ConnectCommand(), `--content-cache-size-limit-mb="$KOPIA_CONTENT_CACHE_SIZE_LIMIT_MB"`)
 	require.Contains(t, ConnectCommand(), `--metadata-cache-size-limit-mb="$KOPIA_METADATA_CACHE_SIZE_LIMIT_MB"`)
-	require.Contains(t, ConnectOrCreateCommand(), `--region="$KOPIA_REGION"`)
-	require.Contains(t, ConnectOrCreateCommand(), `--prefix="$KOPIA_PREFIX"`)
-	require.Contains(t, ConnectOrCreateCommand(), `--content-cache-size-limit-mb="$KOPIA_CONTENT_CACHE_SIZE_LIMIT_MB"`)
-	require.Contains(t, ConnectOrCreateCommand(), `--metadata-cache-size-limit-mb="$KOPIA_METADATA_CACHE_SIZE_LIMIT_MB"`)
-	require.Contains(t, ConnectOrCreateCommand(), "/usr/bin/harvester kopia-prepare")
 }
 
 func TestS3RepositoryUsesAWSDefaultEndpoint(t *testing.T) {

@@ -16,15 +16,3 @@ func retryCommand(command, args string) string {
 		command, args,
 	)
 }
-
-// initCommand initializes only a missing repository. If another client creates
-// it first, a successful probe after init fails allows the backup to continue.
-func initCommand(command string) string {
-	probe := retryCommand(command, "snapshots")
-	return fmt.Sprintf(
-		"(if %s > /dev/null; then exit 0; else status=$?; fi\n"+
-			"if [ \"$status\" -ne 10 ]; then exit \"$status\"; fi\n"+
-			"%s init || %s > /dev/null)",
-		probe, command, probe,
-	)
-}

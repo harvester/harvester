@@ -102,20 +102,18 @@ func TestCommandsWaitForExclusiveLock(t *testing.T) {
 	require.Equal(t, "complete-data", string(lr.run("", "dump", "--tag", "vmb=concurrent", "latest", "/volume")))
 }
 
-func TestBackupInitializesRepository(t *testing.T) {
+func TestBackupRequiresRepository(t *testing.T) {
 	binary := os.Getenv("HARVESTER_TEST_RESTIC_BINARY")
 	if binary == "" {
 		t.Skip("HARVESTER_TEST_RESTIC_BINARY is not set")
 	}
-	t.Setenv("RESTIC_REPOSITORY", filepath.Join(t.TempDir(), "repository"))
+	repo := filepath.Join(t.TempDir(), "repository")
+	t.Setenv("RESTIC_REPOSITORY", repo)
 	t.Setenv("RESTIC_PASSWORD", "local-regression-test")
 	command := shellQuote(binary) + " --no-cache"
 	tags := []string{"ns=default", "vmb=backup", "sn=volume"}
 	out, err := runShell(t, BackupCommand(command, "printf complete-data", "volume", tags))
-	require.NoError(t, err, out)
-	out, err = runShell(t, SnapshotCheckCommand(command, tags))
-	require.NoError(t, err, out)
-	out, err = runShell(t, RestoreCommand(command, "cat", "volume", tags))
-	require.NoError(t, err, out)
-	require.Equal(t, "complete-data", out, "restored data must match the backup")
+	require.Error(t, err, out)
+	_, err = os.Stat(filepath.Join(repo, "config"))
+	require.True(t, os.IsNotExist(err), "backup must not initialize a missing repository")
 }

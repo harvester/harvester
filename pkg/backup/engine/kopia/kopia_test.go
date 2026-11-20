@@ -2,6 +2,7 @@ package kopia
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -180,7 +181,18 @@ func forgetFixture(t *testing.T) (*KopiaEngine, *harvesterv1.VirtualMachineBacku
 	}
 	credentials.Data[backuputil.RepositoryIDKey] = []byte(vmb.Status.BackupTarget.RepositoryID)
 	credentials.Data[kopiautil.PasswordKey] = []byte("stored-password")
-	clientset := fake.NewSimpleClientset(credentials)
+	target.ThirdPartyBackupEnabled = true
+	credentials.UID, credentials.ResourceVersion = "source-uid", "1"
+	value, err := json.Marshal(target)
+	require.NoError(t, err)
+	record, err := backuputil.RepoReadyRecord(target, credentials)
+	require.NoError(t, err)
+	setting := &harvesterv1.Setting{ObjectMeta: metav1.ObjectMeta{
+		Name:        settings.BackupTargetSettingName,
+		Annotations: map[string]string{backuputil.ReadyAnnotation: record},
+	}, Value: string(value)}
+	harvesterv1.SettingConfigured.True(setting)
+	clientset := fake.NewSimpleClientset(credentials, setting)
 	clientset.PrependReactor("create", "jobs", func(action clienttesting.Action) (bool, runtime.Object, error) {
 		job := action.(clienttesting.CreateAction).GetObject().(*batchv1.Job)
 		job.UID = uuid.NewUUID()
@@ -191,6 +203,7 @@ func forgetFixture(t *testing.T) (*KopiaEngine, *harvesterv1.VirtualMachineBacku
 		vmbo:         vmbo,
 		vsHelper:     backupcommon.NewVolumeSnapshotHelper(nil, nil, nil, nil, vmbo, nil, nil),
 		secretClient: fakeclients.SecretClient(clientset.CoreV1().Secrets),
+		targets:      backuputil.TargetClient{Settings: fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings), Secrets: fakeclients.SecretClient(clientset.CoreV1().Secrets)},
 		jobClient:    fakeclients.JobClient(clientset.BatchV1().Jobs),
 		clientset:    fakeclients.KubernetesClient(clientset),
 	}
@@ -342,7 +355,10 @@ func TestJobsOwnCredentials(t *testing.T) {
 			}
 			refs = append(refs, env.ValueFrom.SecretKeyRef.Name)
 		}
-		require.Equal(t, []string{secretName, secretName, secretName}, refs)
+		require.Len(t, refs, 3)
+		for _, ref := range refs {
+			require.Equal(t, secretName, ref)
+		}
 		secret, err := secrets.Get(context.Background(), secretName, metav1.GetOptions{})
 		require.NoError(t, err)
 		require.True(t, metav1.IsControlledBy(secret, job))
@@ -575,7 +591,52 @@ func TestRemoveCancelsPendingJobs(t *testing.T) {
 	}
 }
 
+func TestJobsUseValidatedCredentials(t *testing.T) {
+	t.Setenv("HARVESTER_IMAGE", "harvester:test")
+	for _, operation := range []string{"backup", "check", "forget"} {
+		t.Run(operation, func(t *testing.T) {
+			ke, vmb, client := forgetFixture(t)
+			vmb.DeletionTimestamp = nil
+			// The source becomes unavailable after validation and Job creation.
+			jobCreated := false
+			client.PrependReactor("create", "jobs", func(clienttesting.Action) (bool, runtime.Object, error) {
+				jobCreated = true
+				return false, nil, nil
+			})
+			client.PrependReactor("get", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				if jobCreated && action.GetNamespace() == util.LonghornSystemNamespaceName &&
+					action.(clienttesting.GetAction).GetName() == util.BackupTargetSecretName {
+					return true, nil, errors.New("shared credentials unavailable")
+				}
+				return false, nil, nil
+			})
+			vb := &vmb.Status.VolumeBackups[0]
+			var err error
+			switch operation {
+			case "backup":
+				err = ke.createBackupJob(vmb, vb, "clone", "captured")
+			case "check":
+				err = ke.createCheckJob(vmb, vb, "captured")
+			case "forget":
+				err = ke.createForgetJob(vmb, vb, "captured")
+			}
+			require.NoError(t, err)
+			job, err := ke.jobClient.Get(joblifecycle.Namespace, "captured", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.False(t, *job.Spec.Suspend)
+			secret, err := ke.secretClient.Get(job.Namespace, jobcredentials.Name(job.Name), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.True(t, metav1.IsControlledBy(secret, job))
+			require.Equal(t, map[string][]byte{
+				util.AWSAccessKey: []byte("access"), util.AWSSecretKey: []byte("secret"),
+				backuputil.KopiaPasswordKey: []byte("stored-password"),
+			}, secret.Data)
+		})
+	}
+}
+
 func TestInvalidCredentialsCreateNoJobs(t *testing.T) {
+	t.Setenv("HARVESTER_IMAGE", "harvester:test")
 	for _, operation := range []string{"backup", "check", "forget"} {
 		for _, key := range []string{util.AWSAccessKey, util.AWSSecretKey, kopiautil.PasswordKey, backuputil.RepositoryIDKey} {
 			t.Run(operation+"/"+key, func(t *testing.T) {

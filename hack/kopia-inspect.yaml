@@ -1,7 +1,7 @@
 # Useful commands after exec'ing into the pod. The container attempts to
 # connect using Harvester's `backup-target` Setting and
 # KOPIA_CONFIG_PATH=/tmp/kopia.config. A missing repository does not stop the
-# pod; it retries every 30 seconds until a backup initializes the repository.
+# pod; it retries every 30 seconds until the backup-target controller prepares the repository.
 # Run commands directly; sourcing backup-target.env is not required:
 #
 #   kopia repository status
@@ -224,7 +224,7 @@ spec:
           }
           retry_interval=30
           until connect_repository "$@"; do
-            echo "Kopia repository is not initialized;" \
+            echo "Unable to open the Kopia repository prepared by backup-target;" \
               "retrying in ${retry_interval} seconds" >&2
             sleep "${retry_interval}"
           done

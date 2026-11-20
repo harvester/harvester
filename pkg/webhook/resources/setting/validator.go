@@ -284,6 +284,11 @@ func (v *settingValidator) Delete(_ *types.Request, oldObj runtime.Object) error
 
 func validateSetting(request *types.Request, newObj runtime.Object) error {
 	setting := newObj.(*v1beta1.Setting)
+	if setting.Name == settings.BackupTargetSettingName {
+		if err := checkReadyAnnotation(request, &v1beta1.Setting{}, setting); err != nil {
+			return err
+		}
+	}
 
 	if validateFunc, ok := validateSettingFuncs[setting.Name]; ok {
 		return validateFunc(setting)
@@ -554,6 +559,9 @@ func (v *settingValidator) validateUpdateBackupTarget(
 	oldSetting *v1beta1.Setting,
 	newSetting *v1beta1.Setting,
 ) error {
+	if err := checkReadyAnnotation(request, oldSetting, newSetting); err != nil {
+		return err
+	}
 	target, err := decodeBackupTarget(newSetting)
 	if err != nil {
 		return err

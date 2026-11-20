@@ -190,6 +190,10 @@ func newBackupEngines(
 			controllers.lhbackups.Cache(),
 			controllers.lhbackups,
 			controllers.vmbs.Cache(),
+			backuputil.TargetClient{
+				Settings: management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+				Secrets:  controllers.secrets,
+			},
 		),
 		harvesterv1.Restic: backuprestic.GetBackupEngine(
 			vmbo,
@@ -199,6 +203,7 @@ func newBackupEngines(
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.secrets,
+			management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
 			controllers.storageClasses.Cache(),
 			controllers.jobs,
 			management.ClientSet,
@@ -211,6 +216,7 @@ func newBackupEngines(
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.secrets,
+			management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
 			controllers.storageClasses.Cache(),
 			controllers.jobs,
 			management.ClientSet,

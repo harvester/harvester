@@ -2,6 +2,7 @@ package backup_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestCredentialDataRejectsInvalidSource(t *testing.T) {
 				delete(source.Data, key)
 				_, err = secrets.Update(source)
 				require.NoError(t, err)
-				_, err = backuputil.CredentialData(secrets, target, passwordKey)
+				_, err = credentialReader(client).ThirdPartyCredentials(target, passwordKey)
 				require.Error(t, err)
 			})
 		}
@@ -45,7 +46,7 @@ func TestCredentialDataRejectsInvalidSource(t *testing.T) {
 		source.Data[backuputil.RepositoryIDKey] = []byte("another-repository")
 		_, err = secrets.Update(source)
 		require.NoError(t, err)
-		_, err = backuputil.CredentialData(secrets, target, "RESTIC_PASSWORD")
+		_, err = credentialReader(client).ThirdPartyCredentials(target, "RESTIC_PASSWORD")
 		require.ErrorContains(t, err, "repository ID does not match")
 	})
 	t.Run("missing secret", func(t *testing.T) {
@@ -53,35 +54,36 @@ func TestCredentialDataRejectsInvalidSource(t *testing.T) {
 		require.NoError(t, client.CoreV1().Secrets(util.LonghornSystemNamespaceName).Delete(
 			context.Background(), util.BackupTargetSecretName, metav1.DeleteOptions{},
 		))
-		_, err := backuputil.CredentialData(
-			fakeclients.SecretClient(client.CoreV1().Secrets), target, "RESTIC_PASSWORD",
-		)
+		_, err := credentialReader(client).ThirdPartyCredentials(target, "RESTIC_PASSWORD")
 		require.True(t, apierrors.IsNotFound(err))
 	})
 }
 
 func TestCredentialDataChecksTargetBeforeReadingSecret(t *testing.T) {
 	client, target := credentialFixture(t)
-	require.NoError(t, settings.BackupTargetSet.Set(`{"type":"s3","bucketName":"other"}`))
+	setting, err := client.HarvesterhciV1beta1().Settings().Get(context.Background(), settings.BackupTargetSettingName, metav1.GetOptions{})
+	require.NoError(t, err)
+	setting.Value = `{"type":"s3","bucketName":"other"}`
+	_, err = client.HarvesterhciV1beta1().Settings().Update(context.Background(), setting, metav1.UpdateOptions{})
+	require.NoError(t, err)
 	client.ClearActions()
-	_, err := backuputil.CredentialData(
-		fakeclients.SecretClient(client.CoreV1().Secrets), target, "RESTIC_PASSWORD",
-	)
+	_, err = credentialReader(client).ThirdPartyCredentials(target, "RESTIC_PASSWORD")
 	require.ErrorContains(t, err, "does not match the configured backup target")
-	require.Empty(t, client.Actions())
+	require.Len(t, client.Actions(), 1)
+	require.Equal(t, "settings", client.Actions()[0].GetResource().Resource)
 }
 
 func credentialFixture(t *testing.T) (*fake.Clientset, *harvesterv1.BackupTarget) {
 	t.Helper()
 	old := settings.BackupTargetSet.Get()
 	t.Cleanup(func() { require.NoError(t, settings.BackupTargetSet.Set(old)) })
-	value := `{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups"}`
+	value := `{"type":"s3","endpoint":"https://s3.example.com","bucketName":"backups","thirdPartyBackupEnabled":true}`
 	require.NoError(t, settings.BackupTargetSet.Set(value))
 	target, err := settings.DecodeBackupTarget(value)
 	require.NoError(t, err)
 	source := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
+			Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName, UID: "source", ResourceVersion: "1",
 		},
 		Data: map[string][]byte{
 			util.AWSAccessKey:          []byte("access"),
@@ -92,7 +94,15 @@ func credentialFixture(t *testing.T) (*fake.Clientset, *harvesterv1.BackupTarget
 			util.AWSEndpoints:          []byte("https://s3.example.com"),
 		},
 	}
-	return fake.NewSimpleClientset(source), backuputil.BackupTargetStatus(target)
+	record, err := backuputil.RepoReadyRecord(target, source)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(target)
+	require.NoError(t, err)
+	setting := &harvesterv1.Setting{ObjectMeta: metav1.ObjectMeta{
+		Name: settings.BackupTargetSettingName, Annotations: map[string]string{backuputil.ReadyAnnotation: record},
+	}, Value: string(encoded)}
+	harvesterv1.SettingConfigured.True(setting)
+	return fake.NewSimpleClientset(source, setting), backuputil.BackupTargetStatus(target)
 }
 
 func TestCredentialDataPreservesLiteralValues(t *testing.T) {
@@ -109,7 +119,7 @@ func TestCredentialDataPreservesLiteralValues(t *testing.T) {
 	}
 	_, err = secrets.Update(source)
 	require.NoError(t, err)
-	data, err := backuputil.CredentialData(secrets, target, backuputil.ResticPasswordKey)
+	data, err := credentialReader(client).ThirdPartyCredentials(target, backuputil.ResticPasswordKey)
 	require.NoError(t, err)
 	require.Equal(t, values, data)
 	for key := range values {
@@ -117,11 +127,18 @@ func TestCredentialDataPreservesLiteralValues(t *testing.T) {
 		source.Data[key] = []byte("private\x00value")
 		_, err = secrets.Update(source)
 		require.NoError(t, err)
-		_, err = backuputil.CredentialData(secrets, target, backuputil.ResticPasswordKey)
+		_, err = credentialReader(client).ThirdPartyCredentials(target, backuputil.ResticPasswordKey)
 		require.ErrorContains(t, err, "invalid "+key)
 		require.NotContains(t, err.Error(), "private")
 		source.Data[key] = old
 	}
-	_, err = backuputil.CredentialData(secrets, target, util.AWSSecretKey)
+	_, err = credentialReader(client).ThirdPartyCredentials(target, util.AWSSecretKey)
 	require.ErrorContains(t, err, "unsupported")
+}
+
+func credentialReader(client *fake.Clientset) backuputil.TargetClient {
+	return backuputil.TargetClient{
+		Settings: fakeclients.HarvesterSettingClient(client.HarvesterhciV1beta1().Settings),
+		Secrets:  fakeclients.SecretClient(client.CoreV1().Secrets),
+	}
 }

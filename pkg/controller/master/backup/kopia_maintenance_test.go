@@ -14,15 +14,18 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	clientfake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
+	"github.com/harvester/harvester/pkg/util/fakeclients"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
 )
 
 func TestReconcileKopiaMaintenanceCreatesQuickAndFullCronJobs(t *testing.T) {
 	prepareKopiaMaintenanceTest(t)
 	clientset := fake.NewSimpleClientset()
-	h := &TargetHandler{ctx: context.Background(), clientset: clientset}
+	h := maintenanceHandler(t, clientset)
 	target := kopiaMaintenanceTarget(true)
 
 	require.NoError(t, h.reconcileKopiaMaintenance(target))
@@ -45,12 +48,13 @@ func TestReconcileKopiaMaintenanceCreatesQuickAndFullCronJobs(t *testing.T) {
 func TestReconcileKopiaMaintenanceUpdatesChangedTarget(t *testing.T) {
 	prepareKopiaMaintenanceTest(t)
 	clientset := fake.NewSimpleClientset()
-	h := &TargetHandler{ctx: context.Background(), clientset: clientset}
+	h := maintenanceHandler(t, clientset)
 	target := kopiaMaintenanceTarget(true)
 	require.NoError(t, h.reconcileKopiaMaintenance(target))
 
 	target.Endpoint = "https://new.example.com"
 	target.BucketRegion = "new-region"
+	publishMaintenance(t, h, target)
 	require.NoError(t, h.reconcileKopiaMaintenance(target))
 
 	quick := getMaintenanceCronJob(t, clientset, kopiautil.QuickMaintenanceCronJobName)
@@ -72,7 +76,7 @@ func TestReconcileKopiaMaintenanceRemovesCronJobsWhenDisabledOrTargetIsEmpty(t *
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			clientset := fake.NewSimpleClientset()
-			h := &TargetHandler{ctx: context.Background(), clientset: clientset}
+			h := maintenanceHandler(t, clientset)
 			require.NoError(t, h.reconcileKopiaMaintenance(kopiaMaintenanceTarget(true)))
 
 			require.NoError(t, h.reconcileKopiaMaintenance(test.target))
@@ -153,7 +157,7 @@ func TestMaintenanceConfigUpdates(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, settings.BackupTargetSet.Set(string(target)))
 	clientset := fake.NewSimpleClientset()
-	h := &TargetHandler{ctx: context.Background(), clientset: clientset}
+	h := maintenanceHandler(t, clientset)
 	for _, value := range []string{
 		`{"kopia":{"memoryRequest":"2Gi","memoryLimit":"2Gi",` +
 			`"cacheSize":"1Gi","ephemeralRequest":"1Gi","ephemeralLimit":"2Gi"}}`,
@@ -188,4 +192,42 @@ func TestMaintenanceConfigUpdates(t *testing.T) {
 			require.Equal(t, segment, maintenanceEnvValue(cron, kopiautil.LogSegmentSizeKey))
 		}
 	}
+}
+
+func maintenanceHandler(t *testing.T, client *fake.Clientset) *TargetHandler {
+	t.Helper()
+	api := clientfake.NewSimpleClientset()
+	h := &TargetHandler{ctx: context.Background(), clientset: client,
+		settings: fakeclients.HarvesterSettingClient(api.HarvesterhciV1beta1().Settings),
+		secrets:  fakeclients.SecretClient(api.CoreV1().Secrets),
+	}
+	publishMaintenance(t, h, kopiaMaintenanceTarget(true))
+	return h
+}
+
+func publishMaintenance(t *testing.T, h *TargetHandler, target *settings.BackupTarget) {
+	t.Helper()
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName,
+		UID: "source-uid", ResourceVersion: "1",
+	}}
+	_, err := h.secrets.Create(secret)
+	if apierrors.IsAlreadyExists(err) {
+		_, err = h.secrets.Update(secret)
+	}
+	require.NoError(t, err)
+	record, err := backuputil.RepoReadyRecord(target, secret)
+	require.NoError(t, err)
+	value, err := json.Marshal(target)
+	require.NoError(t, err)
+	setting := &harvesterv1.Setting{ObjectMeta: metav1.ObjectMeta{
+		Name:        settings.BackupTargetSettingName,
+		Annotations: map[string]string{backuputil.ReadyAnnotation: record},
+	}, Value: string(value)}
+	harvesterv1.SettingConfigured.True(setting)
+	_, err = h.settings.Create(setting)
+	if apierrors.IsAlreadyExists(err) {
+		_, err = h.settings.Update(setting)
+	}
+	require.NoError(t, err)
 }

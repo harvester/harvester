@@ -22,6 +22,8 @@ fi
 NAMESPACE="${NAMESPACE:-longhorn-system}"
 # The Secret must contain S3 credentials and the configured repository password
 # for this target, including when overriding the target below.
+# Prepare the repository through backup-target before running this script;
+# the smoke backup only connects and never initializes a repository.
 SECRET_NAME="${SECRET_NAME:-harvester-backup-target-secret}"
 BACKUP_TARGET_SETTING="${BACKUP_TARGET_SETTING:-backup-target}"
 IMAGE="${IMAGE:-10.115.54.34:5000/harvester:issue-10567-head}"
@@ -372,7 +374,7 @@ spec:
               restic "\$@"
             fi
           }
-          (restic_cmd snapshots > /dev/null 2>&1 || { restic_cmd init || restic_cmd snapshots > /dev/null 2>&1; })
+          restic_cmd cat config > /dev/null
           /usr/bin/harvester io-mode -device /dev/source -mode=read | \
             restic_cmd -q backup --stdin --stdin-filename ${SOURCE_PV} --tag=ns:${NAMESPACE},vmb:${VMBACKUP_TAG},sn:${SNAPSHOT_TAG},${SMOKE_TEST_TAG}
         volumeMounts:

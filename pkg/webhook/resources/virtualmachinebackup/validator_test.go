@@ -19,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
@@ -357,12 +358,26 @@ func TestCheckBackupTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: settings.BackupTargetSettingName},
 				Value:      tt.targetValue,
 			}
-			clientset := fake.NewSimpleClientset(setting)
+			secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "harvester-backup-target-secret", Namespace: "longhorn-system", UID: "source-uid", ResourceVersion: "1",
+			}}
+			target, err := settings.DecodeBackupTarget(setting.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := backuputil.RepoReadyRecord(target, secret)
+			if err != nil {
+				t.Fatal(err)
+			}
+			setting.Annotations = map[string]string{backuputil.ReadyAnnotation: record}
+			v1beta1.SettingConfigured.True(setting)
+			clientset := fake.NewSimpleClientset(setting, secret)
 			validator := &virtualMachineBackupValidator{
 				setting: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+				targets: backuputil.TargetClient{Settings: fakeclients.HarvesterSettingClient(clientset.HarvesterhciV1beta1().Settings), Secrets: fakeclients.SecretClient(clientset.CoreV1().Secrets)},
 			}
 
-			err := validator.checkBackupTarget(tt.backupType)
+			err = validator.checkBackupTarget(tt.backupType)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

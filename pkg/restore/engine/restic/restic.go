@@ -21,6 +21,7 @@ import (
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
 	"github.com/harvester/harvester/pkg/restore/pvchelper"
+	"github.com/harvester/harvester/pkg/util/acceleratedio"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
@@ -41,6 +42,7 @@ type ResticRestoreEngine struct {
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
 	secretClient  ctlcorev1.SecretClient
+	targets       backuputil.TargetClient
 	jobController ctlbatchv1.JobController
 	jobClient     ctlbatchv1.JobClient
 	vmrController ctlharvesterv1.VirtualMachineRestoreController
@@ -53,6 +55,7 @@ func GetRestoreEngine(
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
 	scCache ctlstoragev1.StorageClassCache,
 	secretClient ctlcorev1.SecretClient,
+	settingClient ctlharvesterv1.SettingClient,
 	jobController ctlbatchv1.JobController,
 	vmrController ctlharvesterv1.VirtualMachineRestoreController,
 	clientset kubernetes.Interface,
@@ -63,6 +66,7 @@ func GetRestoreEngine(
 		pvcClient:     pvcClient,
 		scCache:       scCache,
 		secretClient:  secretClient,
+		targets:       backuputil.TargetClient{Settings: settingClient, Secrets: secretClient},
 		jobController: jobController,
 		jobClient:     jobController,
 		vmrController: vmrController,
@@ -307,7 +311,7 @@ func (re *ResticRestoreEngine) createRestoreJob(
 		resticutil.VMBackupTag(re.vmbo.GetName(vmb)),
 		resticutil.SnapshotTag(*vbName),
 	}
-	writer := fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=write", pvcName)
+	writer := acceleratedio.WriteCommand("/dev/" + pvcName)
 	command := resticutil.RestoreCommand(
 		runtime.Command, writer, pvName, tags,
 	)
@@ -424,15 +428,9 @@ func (re *ResticRestoreEngine) createCheckJob(
 	return re.startJob(vmr, vmb, job)
 }
 
-// jobRuntime validates shared credentials before a Job can be created.
 func (re *ResticRestoreEngine) jobRuntime(
 	vmb *harvesterv1.VirtualMachineBackup, name string,
 ) (*resticutil.JobRuntime, error) {
-	if _, err := backuputil.CredentialData(
-		re.secretClient, re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
-	); err != nil {
-		return nil, fmt.Errorf("reading repository credentials: %w: %w", engine.ErrRetryLater, err)
-	}
 	repository, err := re.repository(vmb)
 	if err != nil {
 		return nil, err
@@ -453,16 +451,24 @@ func (re *ResticRestoreEngine) jobRuntime(
 func (re *ResticRestoreEngine) startJob(
 	vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job,
 ) error {
+	data, err := re.targets.ThirdPartyCredentials(
+		re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
+	)
+	if err != nil {
+		return err
+	}
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	job, err := client.Create(job)
+	job, err = client.Create(job)
 	if apierrors.IsAlreadyExists(err) {
 		return engine.ErrRetryLater
 	}
 	if err != nil {
-		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+		return err
 	}
-	return re.ensureSecret(vmb, job)
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return data, nil
+	})
 }
 
 func (re *ResticRestoreEngine) snapshotTags(
@@ -477,15 +483,11 @@ func (re *ResticRestoreEngine) snapshotTags(
 
 func (re *ResticRestoreEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
 	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	err := client.Ensure(job, func() (map[string][]byte, error) {
-		return backuputil.CredentialData(
-			re.secretClient, re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return re.targets.ThirdPartyCredentials(
+			re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
 		)
 	})
-	if err != nil {
-		return fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
-	}
-	return nil
 }
 
 func (re *ResticRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) (*resticutil.RepositoryConfig, error) {
