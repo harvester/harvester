@@ -30,6 +30,10 @@ import (
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
+
+	longhornTypes "github.com/longhorn/longhorn-manager/types"
 
 	"github.com/harvester/harvester/pkg/installer/config"
 	"github.com/harvester/harvester/pkg/installer/util"
@@ -99,7 +103,7 @@ func validatePingServerURL(url string) error {
 		},
 	}
 	// After configure the network, network need a few seconds to be available.
-	return retryOnError(3, 2, func() error {
+	return retry.OnError(wait.Backoff{Duration: 2 * time.Second, Factor: 1, Steps: 3}, func(error) bool { return true }, func() error {
 		_, err := getURL(client, url)
 		return err
 	})
@@ -257,22 +261,6 @@ func diskExceedsMBRLimit(blockDevPath string) (bool, error) {
 	return false, nil
 }
 
-func retryOnError(retryNum, retryInterval int64, process func() error) error {
-	for {
-		if err := process(); err != nil {
-			if retryNum == 0 {
-				return err
-			}
-			retryNum--
-			if retryInterval > 0 {
-				time.Sleep(time.Duration(retryInterval) * time.Second)
-			}
-			continue
-		}
-		return nil
-	}
-}
-
 func getRemoteSSHKeys(url string) ([]string, error) {
 	client := newProxyClient()
 	b, err := getURL(client, url)
@@ -293,7 +281,7 @@ func getRemoteSSHKeys(url string) ([]string, error) {
 		keys = append(keys, line)
 	}
 	if len(keys) == 0 {
-		return nil, errors.Errorf(("no key found"))
+		return nil, errors.Errorf("no key found")
 	}
 	return keys, nil
 }
@@ -464,7 +452,7 @@ func saveElementalConfig(obj interface{}) (string, string, error) {
 	}
 
 	elementalConfigFile := filepath.Join(ElementalConfigDir, ElementalConfigFile)
-	err = os.WriteFile(elementalConfigFile, bytes, 0600)
+	err = os.WriteFile(elementalConfigFile, bytes, 0o600)
 	if err != nil {
 		return "", "", err
 	}
@@ -496,7 +484,7 @@ func saveTemp(obj interface{}, prefix string) (string, error) {
 
 func roleSetup(c *config.HarvesterConfig) error {
 	if c.Role == "" {
-		return nil
+		c.Role = config.RoleDefault
 	}
 	if c.Labels == nil {
 		c.Labels = make(map[string]string)
@@ -508,11 +496,20 @@ func roleSetup(c *config.HarvesterConfig) error {
 		c.Labels[util.HarvesterWorkerNodeLabelKey] = "true"
 	case config.RoleWitness:
 		c.Labels[util.HarvesterWitnessNodeLabelKey] = "true"
+		// Witness nodes have no Longhorn disk and must not carry the label in either direction.
+		delete(c.Labels, longhornTypes.NodeCreateDefaultDiskLabelKey)
+		return nil
 	case config.RoleDefault:
-		// do not set any label
+		// do not set any role label
 	default:
 		return fmt.Errorf("unknown role %s, please correct it", c.Role)
 	}
+
+	c.Labels[longhornTypes.NodeCreateDefaultDiskLabelKey] = "true"
+	if c.SkipLonghornDefaultDisk {
+		c.Labels[longhornTypes.NodeCreateDefaultDiskLabelKey] = "false"
+	}
+
 	return nil
 }
 
@@ -549,7 +546,7 @@ func doInstall(g *gocui.Gui, hvstConfig *config.HarvesterConfig, webhooks Render
 		elementalConfig = config.CreateRootPartitioningLayoutSeparateDataDisk(elementalConfig)
 	}
 
-	if hvstConfig.DataDisk != "" {
+	if hvstConfig.DataDisk != "" && !hvstConfig.Install.SkipLonghornDefaultDisk {
 		env = append(env, fmt.Sprintf("HARVESTER_DATA_DISK=%s", hvstConfig.DataDisk))
 	}
 
@@ -622,7 +619,6 @@ func doInstall(g *gocui.Gui, hvstConfig *config.HarvesterConfig, webhooks Render
 			cancel()
 			return quit(g, v)
 		}); err != nil {
-
 		return err
 	}
 
@@ -666,7 +662,6 @@ func printToPanel(g *gocui.Gui, message string, panelName string) {
 	ch := make(chan struct{})
 
 	g.Update(func(g *gocui.Gui) error {
-
 		defer func() {
 			ch <- struct{}{}
 		}()
@@ -699,20 +694,21 @@ func retryRemoteConfig(configURL string, g *gocui.Gui) (*config.HarvesterConfig,
 	var confData []byte
 	client := newProxyClient()
 
-	retries := 30
-	interval := 10
-	err := retryOnError(int64(retries), int64(interval), func() error {
+	const interval = 10 * time.Second
+	remaining := 30
+	err := retry.OnError(wait.Backoff{Duration: interval, Factor: 1, Steps: remaining}, func(error) bool { return true }, func() error {
 		var e error
 		confData, e = getURL(client, configURL)
 		if e != nil {
+			remaining--
 			logrus.Error(e)
 			printToPanel(g, e.Error(), installPanel)
-			printToPanel(g, fmt.Sprintf("Retry after %d seconds (Remaining: %d)...", interval, retries), installPanel)
-			retries--
+			if remaining > 0 {
+				printToPanel(g, fmt.Sprintf("Retry after %.0f seconds (Remaining: %d)...", interval.Seconds(), remaining), installPanel)
+			}
 		}
 		return e
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("fail to fetch config: %w", err)
 	}
@@ -912,7 +908,6 @@ func restartCoreServices() error {
 }
 
 func applyRancherdConfig(ctx context.Context, g *gocui.Gui, hvstConfig *config.HarvesterConfig, cosConfig *yipSchema.YipConfig) error {
-
 	conf, err := config.GenerateRancherdConfig(hvstConfig)
 	if err != nil {
 		return err
@@ -1044,10 +1039,8 @@ const (
 	diskType = "disk"
 )
 
-var (
-	// So that we can fake this stuff up for unit tests
-	run = runCommand
-)
+// So that we can fake this stuff up for unit tests
+var run = runCommand
 
 type DiskOptionsCache struct {
 	diskOptions              []widgets.Option
@@ -1060,7 +1053,6 @@ func NewDiskOptionsCache() *DiskOptionsCache {
 
 func (d *DiskOptionsCache) refresh() error {
 	output, err := run(exec.Command("/bin/sh", "-c", `lsblk -J -o NAME,SIZE,TYPE,WWN,SERIAL,LABEL`))
-
 	if err != nil {
 		return err
 	}

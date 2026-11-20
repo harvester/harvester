@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
+	imagecommon "github.com/harvester/harvester/pkg/image/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
 	"github.com/harvester/harvester/pkg/webhook/resources/persistentvolumeclaim"
@@ -29,12 +30,17 @@ func Mutation(clients *clients.Clients, options *config.Options, crdExists bool)
 	nodeCache := clients.CoreFactory.Core().V1().Node().Cache()
 	vmBackupCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineBackup().Cache()
 	pvcCache := clients.Core.PersistentVolumeClaim().Cache()
-	vmImgCache := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage().Cache()
+	imageController := clients.HarvesterFactory.Harvesterhci().V1beta1().VirtualMachineImage()
+	vmImgCache := imageController.Cache()
 	vmCache := clients.KubevirtFactory.Kubevirt().V1().VirtualMachine().Cache()
 	kubevirtCache := clients.KubevirtFactory.Kubevirt().V1().KubeVirt().Cache()
 	var kubeovnSubnetCache ctlkubeovnv1.SubnetCache
 	if crdExists {
 		kubeovnSubnetCache = clients.KubeovnFactory.Kubeovn().V1().Subnet().Cache()
+	}
+	vmio, err := imagecommon.GetVMIOperator(imageController, vmImgCache, storageClassCache, http.Client{})
+	if err != nil {
+		return nil, nil, err
 	}
 	mutators := []types.Mutator{
 		persistentvolumeclaim.NewMutator(pvcCache, vmImgCache),
@@ -43,7 +49,7 @@ func Mutation(clients *clients.Clients, options *config.Options, crdExists bool)
 		upgrade.NewMutator(nodeCache, settingCache),
 		virtualmachine.NewMutator(settingCache, nadCache, kubevirtCache, kubeovnSubnetCache),
 		virtualmachineinstance.NewMutator(vmCache, nadCache),
-		virtualmachineimage.NewMutator(storageClassCache),
+		virtualmachineimage.NewMutator(storageClassCache, vmio),
 		virtualmachinebackup.NewMutator(vmBackupCache),
 		storageclass.NewMutator(),
 	}

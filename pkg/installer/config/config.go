@@ -145,7 +145,8 @@ type LonghornChartValues struct {
 
 type StorageClass struct {
 	// 0 is invalid, will be omitted
-	ReplicaCount uint32 `json:"replicaCount,omitempty"`
+	ReplicaCount               uint32 `json:"replicaCount,omitempty"`
+	SkipLonghornStorageClasses bool   `json:"skipLonghornStorageClasses,omitempty"`
 }
 
 type HarvesterChartValues struct {
@@ -193,6 +194,9 @@ type Install struct {
 	// Following options are not cOS installer flag
 	ForceMBR bool   `json:"forceMbr,omitempty"`
 	DataDisk string `json:"dataDisk,omitempty"`
+	// SkipLonghornDefaultDisk controls this node's Longhorn default disk.
+	// The first create node also uses it to bootstrap cluster-wide storage defaults.
+	SkipLonghornDefaultDisk bool `json:"skipLonghornDefaultDisk,omitempty"`
 
 	Webhooks                []Webhook            `json:"webhooks,omitempty"`
 	Addons                  map[string]Addon     `json:"addons,omitempty"`
@@ -446,6 +450,10 @@ func (c *HarvesterConfig) GetKubeReserved() string {
 func (c HarvesterConfig) ShouldCreateDataPartitionOnOsDisk() bool {
 	// Witness nodes don't need a data partition
 	if c.Install.Role == RoleWitness {
+		return false
+	}
+
+	if c.SkipLonghornDefaultDisk {
 		return false
 	}
 	// DataDisk is empty means only using the OS disk, and most of the time we should create data
