@@ -57,7 +57,6 @@ spec:
           spec:
             properties:
               backend:
-                default: backingimage
                 enum:
                 - backingimage
                 - cdi

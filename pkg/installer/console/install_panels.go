@@ -33,8 +33,10 @@ type UserInputData struct {
 	HasCheckedNTPServers bool
 }
 
-type IPMask = net.IPMask
-type ParseError = net.ParseError
+type (
+	IPMask     = net.IPMask
+	ParseError = net.ParseError
+)
 
 const (
 	NICStateNotFound = iota
@@ -235,6 +237,12 @@ func addFooterPanel(c *Console) error {
 func showDiskPage(c *Console) error {
 	diskConfirmed = false
 
+	skipLonghornDefaultDiskV, err := c.GetElement(skipLonghornDefaultDiskPanel)
+	if err != nil {
+		return err
+	}
+	skipLonghornDefaultDiskV.(*widgets.DropDown).Value = ""
+
 	if err := diskOptionsCache.refresh(); err != nil {
 		return err
 	}
@@ -243,23 +251,144 @@ func showDiskPage(c *Console) error {
 
 	presetConfigDisks(c, diskOptions)
 
+	// The config may have changed outside the dropdown (Witness clears the data
+	// disk); DropDown.Show redraws its own Value, so keep it in sync.
+	dataDiskV, err := c.GetElement(dataDiskPanel)
+	if err != nil {
+		return err
+	}
+	dataDiskV.(*widgets.DropDown).Value = c.config.Install.DataDisk
+
 	if len(diskOptions) == 0 {
 		return showNext(c, diskFatalPanel)
 	}
 
-	showPersistentSizeOption := c.config.Install.Role != config.RoleWitness &&
-		(len(diskOptions) == 1 || c.config.Install.DataDisk == c.config.Install.Device)
+	c.CloseElements(skipLonghornDefaultDiskPanel, dataDiskPanel, persistentSizePanel)
+	if err := layoutDiskPage(c, len(diskOptions)); err != nil {
+		return err
+	}
+	visiblePanels := diskPageVisiblePanels(c.config.Install, len(diskOptions))
 
-	nextComponents := []string{diskPanel}
-	if c.config.Install.Role != config.RoleWitness &&
-		len(diskOptions) > 1 {
-		nextComponents = append([]string{dataDiskPanel}, nextComponents...)
+	panelsToShow := make([]string, len(visiblePanels))
+	for i := range visiblePanels {
+		// showNext focuses the final panel. Showing the panels in reverse keeps
+		// the first visible field focused when the page opens.
+		panelsToShow[i] = visiblePanels[len(visiblePanels)-1-i]
+	}
+	return showNext(c, panelsToShow...)
+}
+
+func diskPageVisiblePanels(install config.Install, diskCount int) []string {
+	if install.Role == config.RoleWitness {
+		return []string{diskPanel}
 	}
 
-	if showPersistentSizeOption {
-		nextComponents = append([]string{persistentSizePanel}, nextComponents...)
+	panels := []string{diskPanel, skipLonghornDefaultDiskPanel}
+	if diskCount > 1 && !install.SkipLonghornDefaultDisk {
+		panels = append(panels, dataDiskPanel)
 	}
-	return showNext(c, nextComponents...)
+	if !install.SkipLonghornDefaultDisk && (diskCount == 1 || install.DataDisk == install.Device) {
+		panels = append(panels, persistentSizePanel)
+	}
+	return panels
+}
+
+type diskPage struct {
+	panels []string
+	note   string
+}
+
+func diskPageState(install config.Install, diskCount int) diskPage {
+	state := diskPage{panels: diskPageVisiblePanels(install, diskCount)}
+	if install.Role == config.RoleWitness {
+		return state
+	}
+	if install.SkipLonghornDefaultDisk {
+		state.note = skipLonghornNote
+	} else if slices.Contains(state.panels, persistentSizePanel) {
+		state.note = persistentSizeNote
+	} else {
+		state.note = createLonghornNote
+	}
+	return state
+}
+
+func refreshDataDiskOptions(install config.Install, diskCount int) bool {
+	return slices.Contains(diskPageVisiblePanels(install, diskCount), dataDiskPanel)
+}
+
+// layoutDiskPage stacks the visible disk fields from the top without gaps left
+// by hidden fields, with the note and validator right below the last field.
+// Visible panels move only when shown again.
+func layoutDiskPage(c *Console, diskCount int) error {
+	relocate := createVerticalLocator(c)
+	for _, name := range diskPageVisiblePanels(c.config.Install, diskCount) {
+		elem, err := c.GetElement(name)
+		if err != nil {
+			return err
+		}
+		relocate(elem, 3)
+	}
+	if noteElem, err := c.GetElement(diskNotePanel); err == nil {
+		relocate(noteElem, 5)
+	}
+	if validatorElem, err := c.GetElement(diskValidatorPanel); err == nil {
+		relocate(validatorElem, 3)
+	}
+	return nil
+}
+
+// diskNote explains what the current disk choices do to the installation disk.
+func diskNote(install config.Install, diskCount int) string {
+	return diskPageState(install, diskCount).note
+}
+
+// diskReviewPanels shows dependent fields while keeping the changed selector focused.
+func diskReviewPanels(install config.Install, diskCount int) []string {
+	visible := diskPageVisiblePanels(install, diskCount)
+	if len(visible) <= 2 {
+		return []string{skipLonghornDefaultDiskPanel}
+	}
+	return append(visible[2:], skipLonghornDefaultDiskPanel)
+}
+
+func joinNeedsDiskSelection(alreadyInstalled bool) bool {
+	return !alreadyInstalled
+}
+
+func restoredDataDisk(previousDataDisk, installationDisk string) string {
+	if previousDataDisk != "" {
+		return previousDataDisk
+	}
+	return installationDisk
+}
+
+func nextPanelAfterDataDiskSelection(installationDisk, dataDisk string) string {
+	if installationDisk == dataDisk {
+		return persistentSizePanel
+	}
+	return ""
+}
+
+func dataDisksForLonghornDefaultDiskSelection(wasSkipping, isSkipping bool, currentDataDisk, rememberedDataDisk, installationDisk string) (string, string) {
+	if isSkipping {
+		if !wasSkipping {
+			rememberedDataDisk = currentDataDisk
+		}
+		return "", rememberedDataDisk
+	}
+	if wasSkipping {
+		return restoredDataDisk(rememberedDataDisk, installationDisk), rememberedDataDisk
+	}
+	return currentDataDisk, rememberedDataDisk
+}
+
+func requiresPersistentSizeValidation(install config.Install) bool {
+	return install.Role != config.RoleWitness && !install.SkipLonghornDefaultDisk
+}
+
+func diskSelectionCompleteAfterInstallationDiskConfirmation(install config.Install) bool {
+	return install.Role == config.RoleWitness || install.SkipLonghornDefaultDisk
 }
 
 func calculateDefaultPersistentSize(dev string) (string, error) {
@@ -276,6 +405,9 @@ func calculateDefaultPersistentSize(dev string) (string, error) {
 	return fmt.Sprintf("%dGi", defaultSize), nil
 }
 
+// lastDataDisk remembers the data disk while Witness or skip clears it from the config.
+var lastDataDisk string
+
 func presetConfigDisks(c *Console, diskOpts []widgets.Option) {
 	if c.config.Install.Device != "" && c.config.Install.DataDisk != "" {
 		return
@@ -287,8 +419,8 @@ func presetConfigDisks(c *Console, diskOpts []widgets.Option) {
 	if c.config.Install.Device == "" {
 		c.config.Install.Device = diskOpts[0].Value
 	}
-	if c.config.Install.DataDisk == "" {
-		c.config.Install.DataDisk = c.config.Install.Device
+	if c.config.Install.DataDisk == "" && !c.config.Install.SkipLonghornDefaultDisk {
+		c.config.Install.DataDisk = restoredDataDisk(lastDataDisk, c.config.Install.Device)
 	}
 }
 
@@ -296,9 +428,16 @@ func addDiskPanel(c *Console) error {
 	diskConfirmed = false
 
 	setLocation := createVerticalLocator(c)
+	setDiskLocation := func(element widgets.Element) {
+		// Initial positions only: layoutDiskPage restacks visible fields at
+		// height 3. The extra row here keeps the wipe-disks panels, which
+		// are not restacked, below the restacked note and validator.
+		setLocation(element, 4)
+	}
+	lastDataDisk = c.config.Install.DataDisk
 
 	setPageTitle := func() error {
-		if c.config.Install.Role == config.RoleWitness {
+		if c.config.Install.Role == config.RoleWitness || c.config.Install.SkipLonghornDefaultDisk {
 			return c.setContentByName(titlePanel, "Choose installation target. Device will be formatted")
 		}
 		return c.setContentByName(titlePanel, "Choose installation target and data disk. Device will be formatted")
@@ -307,6 +446,7 @@ func addDiskPanel(c *Console) error {
 		c.CloseElements(
 			diskFatalPanel,
 			diskPanel,
+			skipLonghornDefaultDiskPanel,
 			dataDiskPanel,
 			diskValidatorPanel,
 			diskNotePanel,
@@ -345,13 +485,12 @@ func addDiskPanel(c *Console) error {
 		if err := diskV.SetData(c.config.Install.Device); err != nil {
 			return err
 		}
-
-		if err := c.setContentByName(diskNotePanel, ""); err != nil {
+		diskCount := len(diskOptionsCache.getAllValidDiskOptions())
+		if err := c.setContentByName(diskNotePanel, diskPageState(c.config.Install, diskCount).note); err != nil {
 			return err
 		}
 		return setPageTitle()
 	}
-	setLocation(diskV.Panel, 3)
 	c.AddElement(diskPanel, diskV)
 
 	dataDiskV, err := widgets.NewDropDown(c.Gui, dataDiskPanel, dataDiskLabel, func() ([]widgets.Option, error) {
@@ -362,10 +501,37 @@ func addDiskPanel(c *Console) error {
 	}
 
 	dataDiskV.PreShow = func() error {
-		return dataDiskV.SetData(c.config.Install.DataDisk)
+		if err := dataDiskV.SetData(c.config.Install.DataDisk); err != nil {
+			return err
+		}
+		return c.setContentByName(diskNotePanel, createLonghornNote)
 	}
-	setLocation(dataDiskV.Panel, 3)
 	c.AddElement(dataDiskPanel, dataDiskV)
+
+	skipLonghornDefaultDiskV, err := widgets.NewDropDown(c.Gui, skipLonghornDefaultDiskPanel, skipLonghornDefaultDiskLabel, func() ([]widgets.Option, error) {
+		return []widgets.Option{
+			{Value: "false", Text: "Create default disk"},
+			{Value: "true", Text: "Skip default disk"},
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
+	// The choice is the first and most consequential control on this page;
+	// give its long title a little room before the selector begins.
+	skipLonghornDefaultDiskV.InputPadding = 4
+	skipLonghornDefaultDiskV.PreShow = func() error {
+		if skipLonghornDefaultDiskV.Value == "" {
+			if c.config.Install.SkipLonghornDefaultDisk {
+				skipLonghornDefaultDiskV.Value = "true"
+			} else {
+				skipLonghornDefaultDiskV.Value = "false"
+			}
+		}
+		diskCount := len(diskOptionsCache.getAllValidDiskOptions())
+		return c.setContentByName(diskNotePanel, diskPageState(c.config.Install, diskCount).note)
+	}
+	c.AddElement(skipLonghornDefaultDiskPanel, skipLonghornDefaultDiskV)
 
 	// Persistent partition size panel
 	persistentSizeV, err := widgets.NewInput(c.Gui, persistentSizePanel, persistentSizeLabel, false)
@@ -376,7 +542,7 @@ func addDiskPanel(c *Console) error {
 		c.Cursor = true
 
 		device := c.config.Install.Device
-		//If the user has already set a persistent partition size, use that
+		// If the user has already set a persistent partition size, use that
 		if persistentSizeV.Value != "" {
 			if c.config.Install.PersistentPartitionSize != "" {
 				persistentSizeV.Value = c.config.Install.PersistentPartitionSize
@@ -394,10 +560,19 @@ func addDiskPanel(c *Console) error {
 			}
 			persistentSizeV.Value = defaultValue
 		}
+		if err := c.setContentByName(diskNotePanel, persistentSizeNote); err != nil {
+			return err
+		}
 		return nil
 	}
-	setLocation(persistentSizeV, 3)
 	c.AddElement(persistentSizePanel, persistentSizeV)
+
+	// Keep the on-screen order aligned with the decision flow. The larger
+	// field height leaves a blank row between controls for readability.
+	setDiskLocation(diskV.Panel)
+	setDiskLocation(skipLonghornDefaultDiskV.Panel)
+	setDiskLocation(dataDiskV.Panel)
+	setDiskLocation(persistentSizeV)
 
 	// WipeDisksPanel
 	wipeDisksTitlePanelV := widgets.NewPanel(c.Gui, wipeDisksTitlePanel)
@@ -425,7 +600,8 @@ func addDiskPanel(c *Console) error {
 	// Note panel for persistent partition size
 	diskNoteV := widgets.NewPanel(c.Gui, diskNotePanel)
 	diskNoteV.Wrap = true
-	setLocation(diskNoteV, 3)
+	diskNoteV.Focus = false   // a label; taking focus would leave the page without key bindings
+	setLocation(diskNoteV, 5) // 4 text rows so the notes are not cut with "..."
 	c.AddElement(diskNotePanel, diskNoteV)
 
 	// Panel for showing validator message
@@ -434,6 +610,10 @@ func addDiskPanel(c *Console) error {
 	diskValidatorV.Wrap = true
 	updateValidatorMessage := func(msg string) error {
 		diskValidatorV.Focus = false
+		if msg == "" {
+			diskValidatorV.SetContent("")
+			return diskValidatorV.Close()
+		}
 		return c.setContentByName(diskValidatorPanel, msg)
 	}
 	setLocation(diskValidatorV, 3)
@@ -452,7 +632,8 @@ func addDiskPanel(c *Console) error {
 				return false, updateValidatorMessage(err.Error())
 			}
 		} else if dataDisk == "" || installDisk == dataDisk {
-			if err := validateDiskSize(installDisk, true); err != nil {
+			single := !c.config.Install.SkipLonghornDefaultDisk
+			if err := validateDiskSize(installDisk, single); err != nil {
 				return false, updateValidatorMessage(err.Error())
 			}
 		} else {
@@ -466,6 +647,10 @@ func addDiskPanel(c *Console) error {
 		return true, nil
 	}
 	validatePersistentPartitionSize := func(persistentSize string) (bool, error) {
+		if !requiresPersistentSizeValidation(c.config.Install) {
+			return true, nil
+		}
+
 		installDisk := c.config.Install.Device
 		dataDisk := c.config.Install.DataDisk
 		if dataDisk == "" || installDisk == dataDisk {
@@ -485,12 +670,16 @@ func addDiskPanel(c *Console) error {
 			return err
 		}
 
-		if c.config.Install.Role == config.RoleWitness {
+		if c.config.Install.Role == config.RoleWitness || c.config.Install.SkipLonghornDefaultDisk {
+			if c.config.Install.DataDisk != "" {
+				// Restored by presetConfigDisks if the user goes back to a non-witness role.
+				lastDataDisk = c.config.Install.DataDisk
+			}
 			c.config.Install.DataDisk = ""
 			if err := dataDiskV.SetData(""); err != nil {
 				return err
 			}
-		} else {
+		} else if requiresPersistentSizeValidation(c.config.Install) {
 			// Make sure the persistent partition size is in the correct size.
 			// Do NOT allow proceeding to next field.
 			if valid, err := validatePersistentPartitionSize(c.config.Install.PersistentPartitionSize); !valid || err != nil {
@@ -527,12 +716,88 @@ func addDiskPanel(c *Console) error {
 		return gotoNextPage(g, v)
 	}
 
-	diskConfirm := func(g *gocui.Gui, v *gocui.View) error {
-		device, err := diskV.GetData()
+	// Use the same dropdown interaction as the disk fields: Tab opens the
+	// choices, Up/Down selects an option, and Enter confirms it.
+	skipLonghornDefaultDiskSelected := func() error {
+		selected, err := skipLonghornDefaultDiskV.GetData()
 		if err != nil {
 			return err
 		}
-		dataDisk, err := dataDiskV.GetData()
+
+		wasSkipping := c.config.Install.SkipLonghornDefaultDisk
+		c.config.Install.SkipLonghornDefaultDisk = selected == "true"
+		c.config.Install.DataDisk, lastDataDisk = dataDisksForLonghornDefaultDiskSelection(
+			wasSkipping,
+			c.config.Install.SkipLonghornDefaultDisk,
+			c.config.Install.DataDisk,
+			lastDataDisk,
+			c.config.Install.Device,
+		)
+		dataDiskV.Value = c.config.Install.DataDisk
+
+		diskOpts := diskOptionsCache.getAllValidDiskOptions()
+		if err := layoutDiskPage(c, len(diskOpts)); err != nil {
+			return err
+		}
+
+		diskConfirmed = false
+		if err := updateValidatorMessage(""); err != nil {
+			return err
+		}
+		if c.config.Install.SkipLonghornDefaultDisk {
+			c.CloseElements(dataDiskPanel, persistentSizePanel)
+		} else if err := showNext(c, diskReviewPanels(c.config.Install, len(diskOpts))...); err != nil {
+			return err
+		}
+		// Write the note last (field PreShow hooks also write it) and before any
+		// validator message, so the note is redrawn at its new position first.
+		if err := c.setContentByName(diskNotePanel, diskNote(c.config.Install, len(diskOpts))); err != nil {
+			return err
+		}
+		if c.config.Install.SkipLonghornDefaultDisk && !c.config.SkipChecks {
+			if err := validateDiskSize(c.config.Install.Device, false); err != nil {
+				return updateValidatorMessage(err.Error())
+			}
+		}
+		return nil
+	}
+	skipLonghornDefaultDiskConfirm := func(g *gocui.Gui, v *gocui.View) error {
+		if err := skipLonghornDefaultDiskSelected(); err != nil {
+			return err
+		}
+		if c.config.Install.SkipLonghornDefaultDisk {
+			diskConfirmed = true
+			return isWipeDisksPanelNeeded(g, v)
+		}
+
+		diskOpts := diskOptionsCache.getAllValidDiskOptions()
+		if len(diskOpts) > 1 {
+			if c.config.Install.DataDisk == c.config.Install.Device {
+				return showNext(c, skipLonghornDefaultDiskPanel, persistentSizePanel, dataDiskPanel)
+			}
+			return showNext(c, skipLonghornDefaultDiskPanel, dataDiskPanel)
+		}
+		return showNext(c, skipLonghornDefaultDiskPanel, persistentSizePanel)
+	}
+	skipLonghornDefaultDiskV.OnSelect = skipLonghornDefaultDiskSelected
+	skipLonghornDefaultDiskV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
+		gocui.KeyEnter:     skipLonghornDefaultDiskConfirm,
+		gocui.KeyArrowDown: skipLonghornDefaultDiskConfirm,
+		gocui.KeyArrowUp: func(g *gocui.Gui, v *gocui.View) error {
+			if err := updateValidatorMessage(""); err != nil {
+				return err
+			}
+			diskConfirmed = false
+			return showNext(c, diskPanel)
+		},
+		gocui.KeyEsc: func(g *gocui.Gui, v *gocui.View) error {
+			diskConfirmed = false
+			return showNext(c, diskPanel)
+		},
+	}
+
+	diskConfirm := func(g *gocui.Gui, v *gocui.View) error {
+		device, err := diskV.GetData()
 		if err != nil {
 			return err
 		}
@@ -541,94 +806,107 @@ func addDiskPanel(c *Console) error {
 			return err
 		}
 		c.config.Install.Device = device
-
-		diskOpts := diskOptionsCache.getAllValidDiskOptions()
-		if len(diskOpts) > 1 {
-			// Show error if disk size validation fails, but allow proceeding to next field
-			if _, err := validateAllDiskSizes(); err != nil {
-				return err
-			}
-			if c.config.Install.Role == config.RoleWitness {
-				return isWipeDisksPanelNeeded(g, v)
-			}
-			if device == dataDisk {
-				return showNext(c, persistentSizePanel, dataDiskPanel)
-			}
-			c.CloseElements(persistentSizePanel)
-			return showNext(c, dataDiskPanel)
-		}
-
-		if c.config.Install.Role != config.RoleWitness {
-			// Only show this for non-witness nodes, because:
-			// 1. witness nodes don't let you set persistent size, so the note makes no sense
-			// 2. showing the note for witness nodes, with no other fields present ends up
-			//    preventing key events and everything locks up
-			if err := c.setContentByName(diskNotePanel, persistentSizeNote); err != nil {
-				return err
-			}
-		}
-		// Show error if disk size validation fails, but allow proceeding to next field
-		valid, err := validateAllDiskSizes()
-		if err != nil {
+		diskCount := len(diskOptionsCache.getAllValidDiskOptions())
+		state := diskPageState(c.config.Install, diskCount)
+		if err := layoutDiskPage(c, diskCount); err != nil {
 			return err
 		}
+		if refreshDataDiskOptions(c.config.Install, diskCount) {
+			if err := dataDiskV.Show(); err != nil {
+				return err
+			}
+		}
+		if slices.Contains(state.panels, persistentSizePanel) {
+			if err := showNext(c, persistentSizePanel); err != nil {
+				return err
+			}
+		} else {
+			c.CloseElements(persistentSizePanel)
+		}
+		if err := c.setContentByName(diskNotePanel, state.note); err != nil {
+			return err
+		}
+
 		if c.config.Install.Role == config.RoleWitness {
-			// Set diskConfirmed here to avoid having to press ENTER twice
-			// to proceed if the disk configuration is valid
+			// Show error if disk size validation fails, but allow proceeding to next field.
+			valid, err := validateAllDiskSizes()
+			if err != nil {
+				return err
+			}
 			diskConfirmed = valid
 			return isWipeDisksPanelNeeded(g, v)
 		}
-		return showNext(c, persistentSizePanel)
+
+		// Show error if disk size validation fails, but allow proceeding to next field.
+		if _, err := validateAllDiskSizes(); err != nil {
+			return err
+		}
+		return showNext(c, skipLonghornDefaultDiskPanel)
 	}
 
 	// Keybindings
 	diskV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
 		gocui.KeyEnter:     diskConfirm,
 		gocui.KeyArrowDown: diskConfirm,
-		gocui.KeyArrowUp: func(_ *gocui.Gui, _ *gocui.View) error {
-			return updateValidatorMessage("")
+		gocui.KeyArrowUp: func(g *gocui.Gui, v *gocui.View) error {
+			if err := updateValidatorMessage(""); err != nil {
+				return err
+			}
+			return gotoPrevPage(g, v)
 		},
 		gocui.KeyEsc: gotoPrevPage,
 	}
 
-	dataDiskConfirm := func(g *gocui.Gui, v *gocui.View) error {
+	dataDiskSelected := func() (string, error) {
 		dataDisk, err := dataDiskV.GetData()
+		if err != nil {
+			return "", err
+		}
+		if err := updateValidatorMessage(""); err != nil {
+			return "", err
+		}
+		c.config.Install.DataDisk = dataDisk
+		diskConfirmed = false
+
+		diskCount := len(diskOptionsCache.getAllValidDiskOptions())
+		if err := layoutDiskPage(c, diskCount); err != nil {
+			return "", err
+		}
+		if slices.Contains(diskPageVisiblePanels(c.config.Install, diskCount), persistentSizePanel) {
+			// Show persistent size, then give focus back to the data disk selector.
+			if err := showNext(c, persistentSizePanel, dataDiskPanel); err != nil {
+				return "", err
+			}
+		} else {
+			c.CloseElements(persistentSizePanel)
+		}
+		return dataDisk, c.setContentByName(diskNotePanel, diskNote(c.config.Install, diskCount))
+	}
+	dataDiskConfirm := func(g *gocui.Gui, v *gocui.View) error {
+		dataDisk, err := dataDiskSelected()
 		if err != nil {
 			return err
 		}
-
-		if err := updateValidatorMessage(""); err != nil {
-			return err
-		}
-		c.config.Install.DataDisk = dataDisk
 
 		installDisk, err := diskV.GetData()
 		if err != nil {
 			return err
 		}
-		if installDisk == dataDisk {
-			if err := c.setContentByName(diskNotePanel, persistentSizeNote); err != nil {
-				return err
-			}
-			// Show error if disk size validation fails, but allow proceeding to next field
-			if _, err := validateAllDiskSizes(); err != nil {
-				return err
-			}
-			return showNext(c, persistentSizePanel)
+		if nextPanel := nextPanelAfterDataDiskSelection(installDisk, dataDisk); nextPanel != "" {
+			return showNext(c, nextPanel)
 		}
 
 		c.CloseElements(persistentSizePanel)
-
-		// Make sure disk settings are correct. Do NOT allow proceeding to
-		// next field.
-		if _, err := validateAllDiskSizes(); err != nil {
+		if valid, err := validateAllDiskSizes(); !valid || err != nil {
 			return err
 		}
 
-		// At this point the disk configuration is valid.
 		diskConfirmed = true
-
 		return isWipeDisksPanelNeeded(g, v)
+	}
+	dataDiskV.OnSelect = func() error {
+		_, err := dataDiskSelected()
+		return err
 	}
 	dataDiskV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
 		gocui.KeyEnter:     dataDiskConfirm,
@@ -638,7 +916,7 @@ func addDiskPanel(c *Console) error {
 				return err
 			}
 			diskConfirmed = false
-			return showNext(c, diskPanel)
+			return showNext(c, skipLonghornDefaultDiskPanel)
 		},
 		gocui.KeyEsc: gotoPrevPage,
 	}
@@ -667,7 +945,8 @@ func addDiskPanel(c *Console) error {
 	}
 
 	persistentSizeV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
-		gocui.KeyEnter: persistentSizeConfirm,
+		gocui.KeyEnter:     persistentSizeConfirm,
+		gocui.KeyArrowDown: persistentSizeConfirm,
 		gocui.KeyArrowUp: func(_ *gocui.Gui, _ *gocui.View) error {
 			diskConfirmed = false
 			diskOpts := diskOptionsCache.getAllValidDiskOptions()
@@ -675,7 +954,7 @@ func addDiskPanel(c *Console) error {
 				if err := updateValidatorMessage(""); err != nil {
 					return err
 				}
-				if err := c.setContentByName(diskNotePanel, ""); err != nil {
+				if err := c.setContentByName(diskNotePanel, createLonghornNote); err != nil {
 					return err
 				}
 				return showNext(c, dataDiskPanel)
@@ -683,13 +962,12 @@ func addDiskPanel(c *Console) error {
 			if err := updateValidatorMessage(""); err != nil {
 				return err
 			}
-			if err := c.setContentByName(diskNotePanel, ""); err != nil {
+			if err := c.setContentByName(diskNotePanel, createLonghornNote); err != nil {
 				return err
 			}
-			return showNext(c, diskPanel)
+			return showNext(c, skipLonghornDefaultDiskPanel)
 		},
-		gocui.KeyArrowDown: persistentSizeConfirm,
-		gocui.KeyEsc:       gotoPrevPage,
+		gocui.KeyEsc: gotoPrevPage,
 	}
 
 	wipeDisksConfirm := func(g *gocui.Gui, v *gocui.View) error {
@@ -714,6 +992,9 @@ func addDiskPanel(c *Console) error {
 
 			if c.config.Install.Role == config.RoleWitness {
 				return showNext(c, diskPanel)
+			}
+			if c.config.Install.SkipLonghornDefaultDisk {
+				return showNext(c, skipLonghornDefaultDiskPanel)
 			}
 			diskOpts := diskOptionsCache.getAllValidDiskOptions()
 			if len(diskOpts) > 1 && disk != dataDisk {
@@ -850,18 +1131,17 @@ func addAskCreatePanel(c *Console) error {
 				installModeOnly = true
 			}
 
-			if c.config.Install.Mode == config.ModeCreate {
-				c.config.Install.Role = config.RoleDefault
-			}
-
 			if err = askCreateV.Close(); err != nil {
 				return err
 			}
 
 			switch selected {
 			case config.ModeCreate:
+				c.config.Install.Role = config.RoleDefault
 				c.config.ServerURL = ""
 				userInputData.ServerURL = ""
+			case config.ModeInstall:
+				c.config.Install.Role = config.RoleDefault
 			case config.ModeUpgrade:
 				return showNext(c, confirmUpgradePanel)
 			}
@@ -1271,7 +1551,7 @@ func addTokenPanel(c *Console) error {
 		return tokenV.Close()
 	}
 	tokenV.KeyBindings = map[gocui.Key]func(*gocui.Gui, *gocui.View) error{
-		gocui.KeyEnter: func(_ *gocui.Gui, _ *gocui.View) error {
+		gocui.KeyEnter: func(g *gocui.Gui, _ *gocui.View) error {
 			token, err := tokenV.GetData()
 			if err != nil {
 				return err
@@ -1870,7 +2150,7 @@ func addNetworkPanel(c *Console) error {
 	setLocation(addressV.Panel, 3)
 	c.AddElement(addressPanel, addressV)
 
-	//AddressMaskV
+	// AddressMaskV
 	addrMaskV.PreShow = func() error {
 		c.Gui.Cursor = true
 		addrMaskV.Value = mgmtNetwork.SubnetMask
@@ -2335,7 +2615,7 @@ func getBondModeOptions() ([]widgets.Option, error) {
 }
 
 func getNetworkInterfaceOptions() ([]widgets.Option, error) {
-	var options = []widgets.Option{}
+	options := []widgets.Option{}
 	nics, err := getNICs()
 	if err != nil {
 		return nil, err
