@@ -26,6 +26,9 @@ const (
 
 	// RestoreConditionProgressing is the "progressing" condition type for restore
 	RestoreConditionProgressing condition.Cond = "InProgress"
+
+	// RestoreConditionVolumesStatusInitialized indicates that both volume status lists have been initialized.
+	RestoreConditionVolumesStatusInitialized condition.Cond = "VolumesStatusInitialized"
 )
 
 // DeletionPolicy defines that to do with resources when VirtualMachineRestore is deleted
