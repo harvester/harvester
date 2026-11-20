@@ -9,8 +9,10 @@ type DropDown struct {
 	Select   *Select
 	ViewName string
 	InputLen int
-	Value    string
-	Text     string
+	// InputPadding adds visual separation between the label and selector.
+	InputPadding int
+	Value        string
+	Text         string
 
 	// For multiselect dropdown
 	multi bool
@@ -59,13 +61,7 @@ func (d *DropDown) Show() error {
 			return err
 		}
 	}
-	offset := 20
-	if d.Content == "" {
-		offset = 0
-	}
-	if len(d.Content) > offset {
-		offset = len(d.Content) + 1
-	}
+	offset := d.inputOffset()
 	x0 := d.X0 + offset
 	x1 := d.X1 - 1
 	y0 := d.Y0
@@ -144,6 +140,17 @@ func (d *DropDown) Show() error {
 	}
 
 	return d.SetData(d.Value)
+}
+
+func (d *DropDown) inputOffset() int {
+	offset := 20
+	if d.Content == "" {
+		offset = 0
+	}
+	if len(d.Content) > offset {
+		offset = len(d.Content) + 1
+	}
+	return offset + d.InputPadding
 }
 
 func (d *DropDown) Close() error {
