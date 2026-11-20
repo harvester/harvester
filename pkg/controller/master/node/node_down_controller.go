@@ -149,7 +149,7 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		hasKubevirtDrainTaint := getNodeTaint(node.Spec.Taints, virtconfig.NodeDrainTaintDefaultKey) != nil
 		hasOutOfServiceTaint := getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) != nil
 		if hasKubevirtDrainTaint && hasOutOfServiceTaint {
-			if drainCondition.Status == corev1.ConditionFalse {
+			if drainCondition == nil || drainCondition.Status == corev1.ConditionFalse {
 				_, err := h.createOrUpdateNodeCondition(node, HarvesterNodeCondDrained, corev1.ConditionTrue, HarvesterNodeDrainedCondReasonDrained, HarvesterNodeDrainedCondMsg)
 				return err
 			}
@@ -166,6 +166,12 @@ func (h *nodeDownHandler) checkNodeReady(node *corev1.Node) error {
 		// if node does not already have out of service taint then we need to wait
 		// and apply new taint for node out of service
 		if getNodeTaint(node.Spec.Taints, corev1.TaintNodeOutOfService) == nil {
+			// The cache may not have the Drained condition yet; its update will requeue the node.
+			if drainCondition == nil {
+				logrus.Debugf("Node %s has the %s taint but no %s condition yet, waiting for it before adding the %s taint",
+					node.Name, virtconfig.NodeDrainTaintDefaultKey, HarvesterNodeCondDrained, corev1.TaintNodeOutOfService)
+				return nil
+			}
 			return h.waitAndAddOutOfServiceTaint(node, drainCondition, vmForceResetPolicy.VMMigrationTimeout)
 		}
 
