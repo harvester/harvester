@@ -17,7 +17,7 @@ import (
 	"github.com/harvester/harvester/pkg/webhook/types"
 )
 
-func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
+func NewMutator(scCache ctlstoragev1.StorageClassCache, vmio common.VMIOperator) types.Mutator {
 	vmim := common.GetVMIMutator(scCache)
 	mutators := map[harvesterv1.VMIBackend]backend.Mutator{
 		harvesterv1.VMIBackendBackingImage: backingimage.GetMutator(vmim),
@@ -26,6 +26,7 @@ func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
 
 	return &virtualMachineImageMutator{
 		scCache:  scCache,
+		vmio:     vmio,
 		mutators: mutators,
 	}
 }
@@ -33,6 +34,7 @@ func NewMutator(scCache ctlstoragev1.StorageClassCache) types.Mutator {
 type virtualMachineImageMutator struct {
 	types.DefaultMutator
 	scCache  ctlstoragev1.StorageClassCache
+	vmio     common.VMIOperator
 	mutators map[harvesterv1.VMIBackend]backend.Mutator
 }
 
@@ -54,10 +56,8 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 	var patchOps types.PatchOps
 	vmi := newObj.(*harvesterv1.VirtualMachineImage)
 
-	if vmi.Spec.Backend == "" {
-		patchOps = append(patchOps, fmt.Sprintf(`{"op": "replace", "path": "/spec/backend", "value": "%s"}`, harvesterv1.VMIBackendBackingImage))
-		vmi.Spec.Backend = harvesterv1.VMIBackendBackingImage
-	}
+	imageBackend, backendPatches := m.patchBackend(vmi, "")
+	patchOps = append(patchOps, backendPatches...)
 
 	// Inject the imageDisplayName label at creation time so that the validating
 	// webhook's CheckDisplayName can always detect duplicate display names via
@@ -68,7 +68,7 @@ func (m *virtualMachineImageMutator) Create(_ *types.Request, newObj runtime.Obj
 	escapedLabel := patch.EscapeJSONPointer(util.LabelImageDisplayName)
 	patchOps = append(patchOps, fmt.Sprintf(`{"op": "add", "path": "/metadata/labels/%s", "value": "%s"}`, escapedLabel, vmi.Spec.DisplayName))
 
-	mutatePatches, err := m.mutators[util.GetVMIBackend(vmi)].Create(vmi)
+	mutatePatches, err := m.mutators[imageBackend].Create(vmi)
 	if err != nil {
 		return patchOps, err
 	}
@@ -81,12 +81,31 @@ func (m *virtualMachineImageMutator) Update(_ *types.Request, oldObj runtime.Obj
 	newVMI := newObj.(*harvesterv1.VirtualMachineImage)
 	oldVMI := oldObj.(*harvesterv1.VirtualMachineImage)
 
-	mutatePatches, err := m.mutators[util.GetVMIBackend(newVMI)].Update(oldVMI, newVMI)
+	imageBackend, patchOps := m.patchBackend(newVMI, m.vmio.GetBackend(oldVMI))
+	mutatePatches, err := m.mutators[imageBackend].Update(oldVMI, newVMI)
 	if err != nil {
 		return nil, err
 	}
 
-	patchOps := make(types.PatchOps, 0, len(mutatePatches))
 	patchOps = append(patchOps, mutatePatches...)
 	return patchOps, nil
+}
+
+func (m *virtualMachineImageMutator) patchBackend(vmi *harvesterv1.VirtualMachineImage, fallback harvesterv1.VMIBackend) (harvesterv1.VMIBackend, types.PatchOps) {
+	if imageBackend := m.vmio.GetBackend(vmi); imageBackend != "" {
+		return imageBackend, nil
+	}
+	if fallback == "" {
+		fallback = m.defaultBackend()
+	}
+	op := fmt.Sprintf(`{"op": "add", "path": "/spec/backend", "value": "%s"}`, fallback)
+	return fallback, types.PatchOps{op}
+}
+
+func (m *virtualMachineImageMutator) defaultBackend() harvesterv1.VMIBackend {
+	sc := util.GetDefaultSC(m.scCache)
+	if sc != nil && util.IsLonghornV1StorageClass(sc) {
+		return harvesterv1.VMIBackendBackingImage
+	}
+	return harvesterv1.VMIBackendCDI
 }

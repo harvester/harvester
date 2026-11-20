@@ -21,11 +21,9 @@ import (
 
 const validTokenChars = "[a-zA-Z0-9 !\"#$%&'()*+,-./:;<=>?@^_`{|}~[\\]\\\\]"
 
-var (
-	persistentStateDirBlackList = []string{
-		"/tmp",
-	}
-)
+var persistentStateDirBlackList = []string{
+	"/tmp",
+}
 
 var (
 	ErrMsgModeCreateContainsServerURL   = fmt.Sprintf("ServerURL need to be empty in %s mode", config.ModeCreate)
@@ -66,15 +64,13 @@ type ValidatorInterface interface {
 	Validate(cfg *config.HarvesterConfig) error
 }
 
-type ConfigValidator struct {
-}
+type ConfigValidator struct{}
 
 func prettyError(errMsg string, value string) error {
 	return errors.Errorf("%s: %s", errMsg, value)
 }
 
 func checkInterface(iface config.NetworkInterface) error {
-
 	err := iface.FindNetworkInterfaceName()
 	if err != nil {
 		return err
@@ -152,7 +148,8 @@ func checkDevice(cfg *config.HarvesterConfig) error {
 			return prettyError(ErrMsgDeviceTooSmall, installDisk)
 		}
 	} else if dataDisk == installDisk || dataDisk == "" {
-		if err := validateDiskSize(installDisk, true); err != nil {
+		single := !cfg.Install.SkipLonghornDefaultDisk
+		if err := validateDiskSize(installDisk, single); err != nil {
 			return prettyError(ErrMsgDeviceTooSmall, installDisk)
 		}
 	} else {

@@ -69,6 +69,7 @@ type VMIOperator interface {
 	GetBackupTarget(vmi *harvesterv1.VirtualMachineImage) *harvesterv1.BackupTarget
 	GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string
 	GetStorageClassName(vmi *harvesterv1.VirtualMachineImage) string
+	GetBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend
 
 	IsInitialized(vmi *harvesterv1.VirtualMachineImage) bool
 	IsImported(vmi *harvesterv1.VirtualMachineImage) bool
@@ -176,6 +177,10 @@ func (vmio *vmiOperator) GetSecuritySrcImgName(vmi *harvesterv1.VirtualMachineIm
 
 func (vmio *vmiOperator) GetDisplayName(vmi *harvesterv1.VirtualMachineImage) string {
 	return vmi.Spec.DisplayName
+}
+
+func (vmio *vmiOperator) GetBackend(vmi *harvesterv1.VirtualMachineImage) harvesterv1.VMIBackend {
+	return vmi.Spec.Backend
 }
 
 func (vmio *vmiOperator) getSCByNames(names ...string) string {

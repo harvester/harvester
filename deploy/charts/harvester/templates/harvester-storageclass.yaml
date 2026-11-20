@@ -1,4 +1,4 @@
-{{- if .Values.longhorn.enabled -}}
+{{- if and .Values.longhorn.enabled (not .Values.storageClass.skipLonghornStorageClasses) -}}
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:

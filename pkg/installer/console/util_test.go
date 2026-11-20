@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,62 @@ import (
 	"github.com/harvester/harvester/pkg/installer/util"
 	"github.com/harvester/harvester/pkg/installer/widgets"
 )
+
+func TestRoleSetupLonghornDefaultDiskLabel(t *testing.T) {
+	testCases := []struct {
+		name      string
+		install   config.Install
+		labels    map[string]string
+		wantLabel string
+	}{
+		{
+			name:      "default node creates a Longhorn default disk",
+			install:   config.Install{Role: config.RoleDefault},
+			wantLabel: "true",
+		},
+		{
+			name:      "skipped node marks the Longhorn default disk label false",
+			install:   config.Install{Role: config.RoleDefault, SkipLonghornDefaultDisk: true},
+			wantLabel: "false",
+		},
+		{
+			name:      "skipped node overrides a configured Longhorn default disk label",
+			install:   config.Install{Role: config.RoleDefault, SkipLonghornDefaultDisk: true},
+			labels:    map[string]string{"node.longhorn.io/create-default-disk": "true"},
+			wantLabel: "false",
+		},
+		{
+			name:      "witness node never creates a Longhorn default disk",
+			install:   config.Install{Role: config.RoleWitness},
+			wantLabel: "",
+		},
+		{
+			name:      "empty role defaults to default, creates disk label",
+			install:   config.Install{Role: ""},
+			wantLabel: "true",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := &config.HarvesterConfig{OS: config.OS{Labels: testCase.labels}, Install: testCase.install}
+
+			err := roleSetup(cfg)
+
+			require.NoError(t, err)
+			assert.Equal(t, testCase.wantLabel, cfg.Labels["node.longhorn.io/create-default-disk"])
+
+			// The label reaches the Node via kubelet node-labels; the VMI mutator defaults to CDI on "false".
+			args, err := cfg.GetKubeletArgs()
+			require.NoError(t, err)
+			if testCase.wantLabel == "" {
+				assert.NotContains(t, strings.Join(args, " "), "node.longhorn.io/create-default-disk")
+			} else {
+				assert.Contains(t, strings.Join(args, " "), "node.longhorn.io/create-default-disk="+testCase.wantLabel)
+			}
+		})
+	}
+}
 
 func TestGetSSHKeysFromURL(t *testing.T) {
 	testCases := []struct {
