@@ -334,6 +334,10 @@ func setNodesUpgradedCondition(upgrade *harvesterv1.Upgrade, status corev1.Condi
 
 func setUpgradeCompletedCondition(upgrade *harvesterv1.Upgrade, state string, status corev1.ConditionStatus, reason, message string) {
 	upgrade.Labels[upgradeStateLabel] = state
+	if state == StateFailed && status == corev1.ConditionFalse {
+		// Block the next Upgrade until this one finishes cleanup.
+		upgrade.Labels[upgradeCleanupLabel] = StatePending
+	}
 	harvesterv1.UpgradeCompleted.SetStatus(upgrade, string(status))
 	harvesterv1.UpgradeCompleted.Reason(upgrade, reason)
 	harvesterv1.UpgradeCompleted.Message(upgrade, message)

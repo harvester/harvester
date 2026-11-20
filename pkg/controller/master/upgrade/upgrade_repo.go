@@ -35,6 +35,11 @@ const (
 	isoMountPath  = "/srv/www/htdocs/harvester-iso"
 )
 
+var (
+	errGetExistingRepoResource = errors.New("failed to get existing repo resource")
+	errRepoResourceTerminating = errors.New("repo resource is being deleted")
+)
+
 // Images in the list will be retained during the image pruning process at
 // the end of an upgrade.
 var imageRetainList = []string{
@@ -78,12 +83,59 @@ func (r *Repo) Bootstrap() error {
 	logrus.Infof("Create upgrade repo with image %v and service", image)
 
 	_, err = r.CreateDeployment(upgradeImage)
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
+	if apierrors.IsAlreadyExists(err) {
+		deployment, err := r.h.deploymentClient.Get(upgradeNamespace, r.GetDeploymentName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("%w: deployment %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.GetDeploymentName(), err)
+		}
+		if err := r.validateUpgradeOwner(deployment); err != nil {
+			return fmt.Errorf("invalid existing repo deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+		}
+		if deployment.DeletionTimestamp != nil {
+			return fmt.Errorf("deployment %s/%s: %w", deployment.Namespace, deployment.Name, errRepoResourceTerminating)
+		}
+	}
 
+	// Ensure the Service is created even if the Deployment already exists.
 	_, err = r.createService()
-	return err
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	if apierrors.IsAlreadyExists(err) {
+		service, err := r.h.serviceClient.Get(upgradeNamespace, r.getRepoServiceName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("%w: service %s/%s: %w", errGetExistingRepoResource, upgradeNamespace, r.getRepoServiceName(), err)
+		}
+		if err := r.validateUpgradeOwner(service); err != nil {
+			return fmt.Errorf("invalid existing repo service %s/%s: %w", service.Namespace, service.Name, err)
+		}
+		if service.DeletionTimestamp != nil {
+			return fmt.Errorf("service %s/%s: %w", service.Namespace, service.Name, errRepoResourceTerminating)
+		}
+	}
+	return nil
+}
+
+func (r *Repo) validateUpgradeOwner(obj metav1.Object) error {
+	if r.hasUpgradeOwner(obj) {
+		return nil
+	}
+	return fmt.Errorf("missing owner reference to upgrade %s/%s with UID %s", r.upgrade.Namespace, r.upgrade.Name, r.upgrade.UID)
+}
+
+func (r *Repo) hasUpgradeOwner(obj metav1.Object) bool {
+	// Upgrade owner references do not set the Controller flag.
+	expectedOwner := upgradeReference(r.upgrade)
+	for _, owner := range obj.GetOwnerReferences() {
+		if owner.UID == expectedOwner.UID && owner.Name == expectedOwner.Name &&
+			owner.Kind == expectedOwner.Kind && owner.APIVersion == expectedOwner.APIVersion {
+			return true
+		}
+	}
+	return false
 }
 
 // Clean repo related resources
@@ -206,6 +258,11 @@ func (r *Repo) deleteVM() error {
 		}
 	}
 
+	// A terminating VM can still carry the PVC annotation needed for the image
+	// ownership handoff above. Only skip the duplicate VM deletion.
+	if vm.DeletionTimestamp != nil {
+		return nil
+	}
 	err = r.h.vmClient.Delete(vm.Namespace, vm.Name, &metav1.DeleteOptions{})
 	if err == nil {
 		return nil
@@ -218,8 +275,23 @@ func (r *Repo) deleteVM() error {
 
 func (r *Repo) deleteService() error {
 	nm := r.getRepoServiceName()
-	// no serviceCache, delete via client directly
-	err := r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{})
+	service, err := r.h.serviceClient.Get(upgradeNamespace, nm, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get service %s/%s for cleanup: %w", upgradeNamespace, nm, err)
+	}
+	if service.DeletionTimestamp != nil {
+		return nil
+	}
+	if !r.hasUpgradeOwner(service) {
+		logrus.Warnf("Skip deleting service %s/%s because it is not owned by upgrade %s/%s", upgradeNamespace, nm, r.upgrade.Namespace, r.upgrade.Name)
+		return nil
+	}
+	err = r.h.serviceClient.Delete(upgradeNamespace, nm, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &service.UID, ResourceVersion: &service.ResourceVersion},
+	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete service %s/%s error %w", upgradeNamespace, nm, err)
 	}
@@ -229,7 +301,7 @@ func (r *Repo) deleteService() error {
 // deleteImage deletes a repo image
 // (1) If a PVC based on the image exists, it adds the PVC as the OwnerReference to the repo image.
 // Once the repo VM is deleted and VM's PVC is deleted, the repo image will be garbage collected.
-// (2) If there is no PVCs based on the repo image. We delete the image directly.
+// (2) Without a PVC, delete the image directly only if the current Upgrade owns it.
 func (r *Repo) deleteImage(pvcName string) error {
 	imageID := r.upgrade.Status.ImageID
 	if imageID == "" {
@@ -246,15 +318,13 @@ func (r *Repo) deleteImage(pvcName string) error {
 	}
 
 	if pvcName == "" {
-		logrus.Infof("Delete upgrade repo image %s", imageID)
-		return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+		return r.deleteImageWithoutPVC(image)
 	}
 
 	pvc, err := r.h.pvcClient.Get(upgradeNamespace, pvcName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logrus.Infof("Delete upgrade repo image %s", imageID)
-			return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{})
+			return r.deleteImageWithoutPVC(image)
 		}
 		return err
 	}
@@ -272,6 +342,18 @@ func (r *Repo) deleteImage(pvcName string) error {
 
 	_, err = r.h.vmImageClient.Update(toUpdate)
 	return err
+}
+
+func (r *Repo) deleteImageWithoutPVC(image *harvesterv1.VirtualMachineImage) error {
+	// Cleanup can run again after ownership has been handed off to the VM's PVC.
+	if !r.hasUpgradeOwner(image) {
+		logrus.Warnf("Skip deleting repo image %s/%s because it is not owned by upgrade %s/%s", image.Namespace, image.Name, r.upgrade.Namespace, r.upgrade.Name)
+		return nil
+	}
+	logrus.Infof("Delete upgrade repo image %s/%s", image.Namespace, image.Name)
+	return r.h.vmImageClient.Delete(image.Namespace, image.Name, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &image.UID, ResourceVersion: &image.ResourceVersion},
+	})
 }
 
 func (r *Repo) getRepoServiceName() string {
@@ -519,7 +601,25 @@ func (r *Repo) repoDeployment(pvcName string, mode corev1.PersistentVolumeMode) 
 }
 
 func (r *Repo) deleteDeployment() error {
-	err := r.h.deploymentClient.Delete(r.GetVMNamespace(), r.GetDeploymentName(), &metav1.DeleteOptions{})
+	namespace := r.GetVMNamespace()
+	name := r.GetDeploymentName()
+	deployment, err := r.h.deploymentClient.Get(namespace, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get deployment %s/%s for cleanup: %w", namespace, name, err)
+	}
+	if deployment.DeletionTimestamp != nil {
+		return nil
+	}
+	if !r.hasUpgradeOwner(deployment) {
+		logrus.Warnf("Skip deleting deployment %s/%s because it is not owned by upgrade %s/%s", namespace, name, r.upgrade.Namespace, r.upgrade.Name)
+		return nil
+	}
+	err = r.h.deploymentClient.Delete(namespace, name, &metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &deployment.UID, ResourceVersion: &deployment.ResourceVersion},
+	})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete deployment %s/%s error %w", r.GetVMNamespace(), r.GetDeploymentName(), err)
 	}
@@ -527,5 +627,9 @@ func (r *Repo) deleteDeployment() error {
 }
 
 func (r *Repo) GetDeploymentName() string {
-	return fmt.Sprintf("%s%s", repoServiceNamePrefix, r.upgrade.Name)
+	return repoDeploymentName(r.upgrade.Name)
+}
+
+func repoDeploymentName(upgradeName string) string {
+	return repoServiceNamePrefix + upgradeName
 }
