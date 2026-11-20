@@ -8,7 +8,6 @@ import (
 	"sort"
 	"time"
 
-	longhornv1 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +46,7 @@ func (h *storageClassHandler) OnChanged(_ string, sc *storagev1.StorageClass) (*
 func (h *storageClassHandler) syncCDI(sc *storagev1.StorageClass) error {
 	// If the storage class is Longhorn v1, we don't need to sync CDI settings or
 	// storage profile, as we don't support CDI for Longhorn v1.
-	if isLonghornV1(sc) {
+	if util.IsLonghornV1StorageClass(sc) {
 		return nil
 	}
 
@@ -59,12 +58,6 @@ func (h *storageClassHandler) syncCDI(sc *storagev1.StorageClass) error {
 	}
 
 	return nil
-}
-
-func isLonghornV1(sc *storagev1.StorageClass) bool {
-	// Check if the storage class is Longhorn v1 by checking the provisioner and parameters
-	return sc.Provisioner == util.CSIProvisionerLonghorn &&
-		sc.Parameters["dataEngine"] == string(longhornv1.DataEngineTypeV1)
 }
 
 // syncCDISettings updates the CDI based on the annotations of the StorageClass.

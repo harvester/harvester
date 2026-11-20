@@ -3,7 +3,7 @@ if: '[ ! -f "/run/cos/recovery_mode" ]'
 name: "Rootfs layout overwrite"
 environment_file: /run/cos/cos-layout.env
 environment:
-  VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local{{ if .ShouldMountDataPartition }} LABEL=HARV_LH_DEFAULT:/var/lib/harvester/defaultdisk{{ end }}"
+  VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local{{ if and (.ShouldMountDataPartition) (not .Install.SkipLonghornDefaultDisk) }} LABEL=HARV_LH_DEFAULT:/var/lib/harvester/defaultdisk{{ end }}"
   OVERLAY: "tmpfs:25%"
   RW_PATHS: "/var /etc /srv /boot /lib/firmware"
   PERSISTENT_STATE_PATHS: >-
@@ -33,7 +33,7 @@ environment:
     {{ $path }}
     {{- end }}
     {{- end }}
-    {{- if not .ShouldMountDataPartition }}
+    {{- if and (not .ShouldMountDataPartition) (not .Install.SkipLonghornDefaultDisk) }}
     /var/lib/harvester/defaultdisk
     {{- end }}
   PERSISTENT_STATE_BIND: "true"
