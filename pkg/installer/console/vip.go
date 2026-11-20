@@ -2,6 +2,7 @@ package console
 
 import (
 	"context"
+	errs "errors"
 	"net"
 	"strconv"
 
@@ -19,7 +20,7 @@ type vipAddr struct {
 	ipv4Addr string
 }
 
-func createMacvlan(name, hwAddr string) (netlink.Link, error) {
+func createMacvlan(name, hwAddr string) (_ netlink.Link, err error) {
 	l, err := netlink.LinkByName(name)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to fetch %s", name)
@@ -46,6 +47,15 @@ func createMacvlan(name, hwAddr string) (netlink.Link, error) {
 	if err = netlink.LinkAdd(macvlan); err != nil {
 		return nil, errors.Wrapf(err, "failed to add %s", macvlanName)
 	}
+	// Remove the link we just added if the rest of the setup fails.
+	defer func() {
+		if err == nil {
+			return
+		}
+		if delErr := netlink.LinkDel(macvlan); delErr != nil {
+			err = errs.Join(err, errors.Wrapf(delErr, "failed to del %s", macvlanName))
+		}
+	}()
 	if err = netlink.LinkSetUp(macvlan); err != nil {
 		return nil, errors.Wrapf(err, "failed to set %s up", macvlanName)
 	}
@@ -56,7 +66,7 @@ func createMacvlan(name, hwAddr string) (netlink.Link, error) {
 func deleteMacvlan(l netlink.Link) error {
 	// It's necessary to set macvlan down at first to notify the network stack to clear the related files automatically.
 	if err := netlink.LinkSetDown(l); err != nil {
-		return errors.Wrapf(err, "failed to set %s down", err)
+		return errors.Wrapf(err, "failed to set %s down", l.Attrs().Name)
 	}
 	if err := netlink.LinkDel(l); err != nil {
 		return errors.Wrapf(err, "failed to del %s", l.Attrs().Name)
@@ -65,18 +75,20 @@ func deleteMacvlan(l netlink.Link) error {
 	return nil
 }
 
-func getVipThroughDHCP(iface, hwAddr string) (*vipAddr, error) {
+func getVipThroughDHCP(iface, hwAddr string) (vip *vipAddr, err error) {
 	l, err := createMacvlan(iface, hwAddr)
 	if err != nil {
 		return nil, err
 	}
+	// Remove the temporary macvlan on every return, including DHCP errors.
+	defer func() {
+		if delErr := deleteMacvlan(l); delErr != nil {
+			vip, err = nil, errs.Join(err, delErr)
+		}
+	}()
 
 	ip, err := getIPThroughDHCP(l.Attrs().Name)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := deleteMacvlan(l); err != nil {
 		return nil, err
 	}
 
