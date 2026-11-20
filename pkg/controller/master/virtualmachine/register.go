@@ -19,6 +19,8 @@ const (
 	vmControllerRemoveDeprecatedFinalizerControllerName          = "VMController.RemoveDeprecatedFinalizer"
 	vmControllerSetTargetVolumeStrategyControllerName            = "VMController.SetTargetVolumeStrategy"
 	vmControllerCleanupTargetVolumeAnnotationControllerName      = "VMController.CleanupTargetVolumeAnnotation"
+	vmControllerCleanupStaleLauncherPodsControllerName           = "VMController.CleanupStaleLauncherPods"
+	podControllerCleanupStaleLauncherPodsControllerName          = "PodController.CleanupStaleLauncherPods"
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
 	vmControllerReconcileBSCloneControllerName                   = "VMController.ReconcileBackendStorageClone"
@@ -67,10 +69,12 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 		jobClient:        jobClient,
 		jobCache:         jobCache,
 		podClient:        podClient,
+		podCache:         podCache,
 		pvcClient:        pvcClient,
 		pvcCache:         pvcCache,
 		vmClient:         vmClient,
 		vmController:     vmClient,
+		vmCache:          vmCache,
 		vmiClient:        vmiClient,
 		vmiCache:         vmiCache,
 		vmImgClient:      vmImgClient,
@@ -94,6 +98,8 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	vmClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
 	vmClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
 	vmClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
+	vmClient.OnChange(ctx, vmControllerCleanupStaleLauncherPodsControllerName, vmCtrl.CleanupStaleLauncherPodsOnVMChange)
+	podClient.OnChange(ctx, podControllerCleanupStaleLauncherPodsControllerName, vmCtrl.CleanupStaleLauncherPodsOnPodChange)
 	vmClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
 
 	vmClient.OnChange(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
