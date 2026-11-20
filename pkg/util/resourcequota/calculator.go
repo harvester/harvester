@@ -68,6 +68,11 @@ func (c *Calculator) VMPodsExist(namespace, vmName string) (bool, error) {
 
 // CheckIfVMCanStartByResourceQuota checks if the VM can be started based on the resource quota limits
 func (c *Calculator) CheckIfVMCanStartByResourceQuota(vm *kubevirtv1.VirtualMachine) error {
+	if vm.DeletionTimestamp != nil {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: VM %s/%s is being deleted, skip check", vm.Namespace, vm.Name)
+		return nil
+	}
+
 	// return if the VM status is empty.
 	if vm.Status.PrintableStatus == "" {
 		return nil
@@ -148,6 +153,23 @@ func (c *Calculator) containsEnoughResourceQuotaToStartVM(
 	vm *kubevirtv1.VirtualMachine,
 	namespaceResourceQuota *v3.NamespaceResourceQuota,
 	rq *corev1.ResourceQuota) error {
+	if vm.Spec.Template == nil {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: VM %s/%s has no template, skip check", vm.Namespace, vm.Name)
+		return nil
+	}
+
+	limits := vm.Spec.Template.Spec.Domain.Resources.Limits
+	vmCPU, hasCPULimit := limits[corev1.ResourceCPU]
+	vmMem, hasMemoryLimit := limits[corev1.ResourceMemory]
+
+	// Skip the pre-check when neither CPU nor memory limits are explicitly
+	// configured. KubeVirt may assign automatic limits to the virt-launcher
+	// pod, which are subsequently enforced by Kubernetes ResourceQuota.
+	if !hasCPULimit && !hasMemoryLimit {
+		logrus.Debugf("CheckIfVMCanStartByResourceQuota: VM %s/%s has no explicit CPU or memory limits, skip check", vm.Namespace, vm.Name)
+		return nil
+	}
+
 	// get running migrations' used resource
 	vmimsCPU, vmimsMem, _, err := c.getRunningVMIMResources(rq)
 	if err != nil {
@@ -161,10 +183,11 @@ func (c *Calculator) containsEnoughResourceQuotaToStartVM(
 	usedCPU.Sub(vmimsCPU)
 	usedMem.Sub(vmimsMem)
 
-	memOverhead := c.calculateVMActualOverhead(vm)
-	vmCPU := vm.Spec.Template.Spec.Domain.Resources.Limits[corev1.ResourceCPU]
-	vmMem := vm.Spec.Template.Spec.Domain.Resources.Limits[corev1.ResourceMemory]
-	vmMem.Add(*memOverhead)
+	if hasMemoryLimit {
+		if memOverhead := c.calculateVMActualOverhead(vm); memOverhead != nil {
+			vmMem.Add(*memOverhead)
+		}
+	}
 
 	actualRq, err := convertNamespaceResourceLimitToResourceList(&namespaceResourceQuota.Limit)
 	if err != nil {
@@ -175,15 +198,15 @@ func (c *Calculator) containsEnoughResourceQuotaToStartVM(
 
 	logrus.Debugf("%s/%s CPU: used %v, vmim %v vm %v actual %v, memory: used %v, vmim %v vm %v actual %v", vm.Namespace, vm.Name, usedCPU.MilliValue(), vmimsCPU.MilliValue(), vmCPU.MilliValue(), actualCPU.MilliValue(), usedMem.Value(), vmimsMem.Value(), vmMem.Value(), actualMem.Value())
 
-	// check if remaining quotas on namespace are sufficient to run this VM
-	// if not, return insufficient resource error
-	if !actualCPU.IsZero() {
+	// Only check quota for resources with explicitly configured VM limits.
+	// An omitted limit is unspecified, not a zero-valued requirement.
+	if hasCPULimit && !actualCPU.IsZero() {
 		actualCPU.Sub(*usedCPU)
 		if actualCPU.Cmp(vmCPU) == -1 {
 			return cpuInsufficientResourceError()
 		}
 	}
-	if !actualMem.IsZero() {
+	if hasMemoryLimit && !actualMem.IsZero() {
 		actualMem.Sub(*usedMem)
 		if actualMem.Cmp(vmMem) == -1 {
 			return memInsufficientResourceError()
