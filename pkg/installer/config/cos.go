@@ -340,6 +340,10 @@ func setConfigDefaultValues(config *HarvesterConfig) {
 		config.KubeovnOperatorChartVersion = KubeovnOperatorChartVersion
 	}
 
+	if config.Install.SkipLonghornDefaultDisk {
+		config.Harvester.StorageClass.SkipLonghornStorageClasses = true
+	}
+
 	// 0 is invalid and skipped from yaml to strut, no need to check
 	if config.Harvester.StorageClass.ReplicaCount > defaultReplicaCount {
 		config.Harvester.StorageClass.ReplicaCount = defaultReplicaCount

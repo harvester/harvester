@@ -508,11 +508,20 @@ func roleSetup(c *config.HarvesterConfig) error {
 		c.Labels[util.HarvesterWorkerNodeLabelKey] = "true"
 	case config.RoleWitness:
 		c.Labels[util.HarvesterWitnessNodeLabelKey] = "true"
+		// Witness nodes have no Longhorn disk and must not carry the label in either direction.
+		delete(c.Labels, longhornTypes.NodeCreateDefaultDiskLabelKey)
+		return nil
 	case config.RoleDefault:
 		// do not set any label
 	default:
 		return fmt.Errorf("unknown role %s, please correct it", c.Role)
 	}
+
+	c.Labels[longhornTypes.NodeCreateDefaultDiskLabelKey] = "true"
+	if c.SkipLonghornDefaultDisk {
+		c.Labels[longhornTypes.NodeCreateDefaultDiskLabelKey] = "false"
+	}
+
 	return nil
 }
 
