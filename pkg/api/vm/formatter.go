@@ -4,6 +4,7 @@ import (
 	"runtime"
 
 	"github.com/rancher/apiserver/pkg/types"
+	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/wrangler/v3/pkg/data/convert"
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	cdicommon "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -74,18 +76,10 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 	// reset resource actions, because action map already be set when add actions handler,
 	// but current framework can't support use formatter to remove key from action map
 	resource.Actions = make(map[string]string, 1)
-	if request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) != nil {
+	canUpdate := request.AccessControl.CanUpdate(request, resource.APIObject, resource.Schema) == nil
+	accessSet := accesscontrol.AccessSetFromAPIRequest(request)
+	if !canUpdate && accessSet == nil {
 		return
-	}
-
-	if ok, err := apiutil.CanUpdateResourceQuota(vf.clientSet, request.Namespace, request.GetUser()); err != nil {
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"namespace": request.Namespace,
-			"user":      request.GetUser(),
-		}).Error("Failed to check update resource quota")
-	} else if ok {
-		resource.AddAction(request, updateResourceQuotaAction)
-		resource.AddAction(request, deleteResourceQuotaAction)
 	}
 
 	vm := &kubevirtv1.VirtualMachine{}
@@ -94,92 +88,113 @@ func (vf *vmformatter) formatter(request *types.APIRequest, resource *types.RawR
 		return
 	}
 
-	resource.AddAction(request, addVolume)
-	resource.AddAction(request, removeVolume)
-	resource.AddAction(request, cloneVM)
+	// addAction adds the action only when the user holds the permission that
+	// authorizes it (see util.LookupActionPermission), so that, for example, a
+	// user with only virtualmachines/start can see the Start action.
+	addAction := func(action string) {
+		if canDoVMAction(accessSet, canUpdate, vm.Namespace, vm.Name, action) {
+			resource.AddAction(request, action)
+		}
+	}
+
+	if canUpdate {
+		if ok, err := apiutil.CanUpdateResourceQuota(vf.clientSet, request.Namespace, request.GetUser()); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": request.Namespace,
+				"user":      request.GetUser(),
+			}).Error("Failed to check update resource quota")
+		} else if ok {
+			resource.AddAction(request, updateResourceQuotaAction)
+			resource.AddAction(request, deleteResourceQuotaAction)
+		}
+	}
+
+	addAction(addVolume)
+	addAction(removeVolume)
+	addAction(cloneVM)
 
 	if canInsertCdRomVolume(vm) {
-		resource.AddAction(request, insertCdRomVolume)
+		addAction(insertCdRomVolume)
 	}
 
 	if canEjectCdRomVolume(vm) {
-		resource.AddAction(request, ejectCdRomVolume)
+		addAction(ejectCdRomVolume)
 	}
 
 	vmi := vf.getVMI(vm)
 	if vf.canStart(vm, vmi) {
-		resource.AddAction(request, startVM)
+		addAction(startVM)
 	}
 
 	if vf.canStop(vm, vmi) {
-		resource.AddAction(request, stopVM)
+		addAction(stopVM)
 	}
 
 	if vf.canRestart(vm, vmi) {
-		resource.AddAction(request, restartVM)
+		addAction(restartVM)
 	}
 
 	if vf.canSoftReboot(vmi) {
-		resource.AddAction(request, softReboot)
+		addAction(softReboot)
 	}
 
 	if vf.canPause(vmi) {
-		resource.AddAction(request, pauseVM)
+		addAction(pauseVM)
 	}
 
 	if vf.canUnPause(vmi) {
-		resource.AddAction(request, unpauseVM)
+		addAction(unpauseVM)
 	}
 
 	if canMigrate(vf.nodeCache, vmi) {
-		resource.AddAction(request, migrate)
-		resource.AddAction(request, findMigratableNodes)
-		resource.AddAction(request, storageMigration)
+		addAction(migrate)
+		addAction(findMigratableNodes)
+		addAction(storageMigration)
 
 		if canCPUAndMemoryHotplug(vm) {
-			resource.AddAction(request, cpuAndMemoryHotplug)
+			addAction(cpuAndMemoryHotplug)
 		}
 
 		if canHotplugNic(vm) {
-			resource.AddAction(request, addNic)
+			addAction(addNic)
 		}
 
 		if canHotUnplugNic(vm) {
-			resource.AddAction(request, removeNic)
-			resource.AddAction(request, findHotunpluggableNics)
+			addAction(removeNic)
+			addAction(findHotunpluggableNics)
 		}
 	}
 
 	if canAbortMigrate(vmi) {
-		resource.AddAction(request, abortMigration)
+		addAction(abortMigration)
 	}
 
 	if vf.canDoBackup(vm, vmi) {
-		resource.AddAction(request, backupVM)
+		addAction(backupVM)
 	}
 
 	if vf.canDoSnapshot(vm, vmi) {
-		resource.AddAction(request, snapshotVM)
+		addAction(snapshotVM)
 	}
 
 	if vf.canDoRestore(vm, vmi) {
-		resource.AddAction(request, restoreVM)
+		addAction(restoreVM)
 	}
 
 	if vf.canCreateTemplate(vmi) {
-		resource.AddAction(request, createTemplate)
+		addAction(createTemplate)
 	}
 
 	if vf.canForceStop(vm) {
-		resource.AddAction(request, forceStopVM)
+		addAction(forceStopVM)
 	}
 
 	if canDismissInsufficientResourceQuota(vm) {
-		resource.AddAction(request, dismissInsufficientResourceQuota)
+		addAction(dismissInsufficientResourceQuota)
 	}
 
 	if hasActiveStorageMigration(vm) {
-		resource.AddAction(request, cancelStorageMigration)
+		addAction(cancelStorageMigration)
 	}
 }
 
@@ -540,3 +555,20 @@ func canEjectCdRomVolume(vm *kubevirtv1.VirtualMachine) bool {
 	ok, _ := virtualmachine.SupportEjectCdRomVolume(vm)
 	return ok
 }
+
+// canDoVMAction reports whether the user may run the action on the VM. Actions with a
+// dedicated permission are checked against the user's access set; all other actions
+// require update on the VM, as before.
+func canDoVMAction(accessSet *accesscontrol.AccessSet, canUpdate bool, namespace, name, action string) bool {
+	perm, ok := util.LookupActionPermission(virtualMachineGR, action)
+	if !ok || accessSet == nil {
+		return canUpdate
+	}
+	objectName := ""
+	if perm.TargetsObject() {
+		objectName = name
+	}
+	return accessSet.Grants(perm.Verb, schema.GroupResource{Group: perm.Group, Resource: perm.AccessSetResource()}, namespace, objectName)
+}
+
+var virtualMachineGR = schema.GroupResource{Group: kubevirtv1.SchemeGroupVersion.Group, Resource: "virtualmachines"}

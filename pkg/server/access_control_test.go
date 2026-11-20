@@ -80,3 +80,57 @@ func TestActionAccessControlCanAction(t *testing.T) {
 		})
 	}
 }
+
+func TestActionAccessControlUsesActionPermission(t *testing.T) {
+	tests := []struct {
+		name            string
+		action          string
+		wantVerb        string
+		wantGroup       string
+		wantResource    string
+		wantSubresource string
+		wantName        string
+	}{
+		{name: "start maps to the KubeVirt start subresource", action: "start", wantVerb: "update", wantGroup: "subresources.kubevirt.io", wantResource: "virtualmachines", wantSubresource: "start", wantName: "vm-a"},
+		{name: "pause maps to the VMI pause subresource", action: "pause", wantVerb: "update", wantGroup: "subresources.kubevirt.io", wantResource: "virtualmachineinstances", wantSubresource: "pause", wantName: "vm-a"},
+		{name: "backup maps to create on VM backups in the namespace", action: "backup", wantVerb: "create", wantGroup: "harvesterhci.io", wantResource: "virtualmachinebackups"},
+		{name: "migrate maps to create on VMI migrations in the namespace", action: "migrate", wantVerb: "create", wantGroup: "kubevirt.io", wantResource: "virtualmachineinstancemigrations"},
+		{name: "unmapped actions keep requiring update on the VM", action: "clone", wantVerb: "update", wantGroup: "kubevirt.io", wantResource: "virtualmachines", wantName: "vm-a"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset()
+			client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				review := action.(k8stesting.CreateAction).GetObject().(*authorizationv1.SubjectAccessReview)
+				attrs := review.Spec.ResourceAttributes
+				assert.Equal(t, tc.wantVerb, attrs.Verb)
+				assert.Equal(t, tc.wantGroup, attrs.Group)
+				assert.Equal(t, tc.wantResource, attrs.Resource)
+				assert.Equal(t, tc.wantSubresource, attrs.Subresource)
+				assert.Equal(t, "ns-a", attrs.Namespace)
+				assert.Equal(t, tc.wantName, attrs.Name)
+				review.Status.Allowed = true
+				return true, review, nil
+			})
+
+			access := &actionAccessControl{
+				AccessControl: &apiserver.SchemaBasedAccess{},
+				sar:           client.AuthorizationV1().SubjectAccessReviews(),
+			}
+			req := httptest.NewRequest(http.MethodPost, "/v1/kubevirt.io.virtualmachines/ns-a/vm-a?action="+tc.action, nil)
+			req = req.WithContext(request.WithUser(req.Context(), &user.DefaultInfo{Name: "alice"}))
+			apiOp := &types.APIRequest{Request: req, Namespace: "ns-a", Name: "vm-a"}
+			apiSchema := &types.APISchema{
+				Schema: &schemas.Schema{ID: "kubevirt.io.virtualmachine", Attributes: map[string]interface{}{
+					"group":    "kubevirt.io",
+					"version":  "v1",
+					"resource": "virtualmachines",
+				}},
+				ActionHandlers: map[string]http.Handler{tc.action: http.NotFoundHandler()},
+			}
+
+			require.NoError(t, access.CanAction(apiOp, apiSchema, tc.action))
+		})
+	}
+}
