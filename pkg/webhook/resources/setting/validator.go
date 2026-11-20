@@ -3075,9 +3075,10 @@ func parseRWXRange(name, value string, config *networkutil.Config, subnet netip.
 }
 
 func (v *settingValidator) checkRWXHosts(config *networkutil.Config, hostRange string, host netip.Prefix) error {
-	// The hosts join the network through a VLAN sub-interface, which cannot carry untagged traffic.
-	if config.Vlan < 2 {
-		return fmt.Errorf("hostIPRange and vipRange require a tagged VLAN (2-4094), got %d", config.Vlan)
+	// The hosts join the network through a VLAN sub-interface, which HostNetworkConfig
+	// only creates for VLAN IDs from 1.
+	if config.Vlan == 0 {
+		return fmt.Errorf("hostIPRange and vipRange require a VLAN ID (1-4094), got %d", config.Vlan)
 	}
 	if err := utils.IsHostNetworkIntfNameValid(config.ClusterNetwork, config.Vlan); err != nil {
 		return err
