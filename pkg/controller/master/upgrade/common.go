@@ -3,6 +3,7 @@ package upgrade
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1154,6 +1155,16 @@ func (n *nodeBuilder) WithLabel(key, value string) *nodeBuilder {
 
 func (n *nodeBuilder) Build() *corev1.Node {
 	return n.node
+}
+
+func isOwnedByUpgrade(obj metav1.Object, upgrade *harvesterv1.Upgrade) bool {
+	if obj == nil || upgrade == nil {
+		return false
+	}
+
+	return slices.ContainsFunc(obj.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
+		return ref.UID == upgrade.UID
+	})
 }
 
 func upgradeReference(upgrade *harvesterv1.Upgrade) metav1.OwnerReference {
