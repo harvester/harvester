@@ -4,6 +4,10 @@ This repo is the Harvester API server — a Go binary implementing Kubernetes co
 
 When reviewing code, use the conventions outlined below to ensure consistency and maintainability. Pay particular attention to the [Security Checks](#security-checks) section below.
 
+## Contribution Policy
+
+Follow the AI Guidance in `CONTRIBUTING.md`. When reviewing a PR, flag it if the AI disclosure section is missing from the PR description.
+
 ## Go Conventions
 
 - Go version: see `go.mod` (`go` directive)

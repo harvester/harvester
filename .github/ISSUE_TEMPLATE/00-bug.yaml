@@ -13,6 +13,20 @@ body:
       
       For general questions or discussions, please use the [Discussions](https://github.com/harvester/harvester/discussions) tab.
 
+- type: checkboxes
+  attributes:
+    label: AI Disclosure
+    description: See the [AI Guidance](https://github.com/harvester/harvester/blob/master/CONTRIBUTING.md#ai-guidance).
+    options:
+    - label: This issue was created with the help of AI tools, and I have verified its content.
+
+- type: textarea
+  attributes:
+    label: TL;DR
+    description: Required if you ticked the box above. Describe the problem in under 100 words. Write it yourself; it must not be AI-generated.
+  validations:
+    required: false
+
 - type: textarea
   attributes:
     label: Describe the Bug

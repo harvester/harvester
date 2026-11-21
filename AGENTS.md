@@ -2,6 +2,15 @@
 
 Harvester is an open-source bare-metal Hyperconverged Infrastructure (HCI) platform built on Kubernetes. It integrates virtual machine management (KubeVirt), distributed block storage (Longhorn), and cluster management (Rancher) into a cohesive platform. This repository contains the **Harvester API server** — a Go binary that implements Kubernetes controllers, admission webhooks, and REST API handlers for all Harvester resources.
 
+## Contribution Policy
+
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before making changes, in particular the [AI Guidance](./CONTRIBUTING.md#ai-guidance). That file is the source of truth; this section only summarizes it.
+
+- Add an `Assisted-by:`, `Co-authored-by:`, or `Generated-by:` trailer naming yourself to every commit you help write.
+- `Signed-off-by` is the human author's certification. Never list an AI tool there.
+- Never open a PR or an issue, or post a comment, before the human author has reviewed it.
+- Tick the AI disclosure checkbox in PR and issue templates. An AI-generated issue needs a TL;DR under 100 words. The human author must write the TL;DR; never generate it.
+
 ## Repository Structure
 
 ```
@@ -151,7 +160,7 @@ Admission webhooks live in `pkg/webhook/admission/`. Validators implement the `a
 - **Signed-off commits required** — every commit needs `Signed-off-by: Name <email>` (use `git commit -s`)
 - **PRs must link to an issue** — use `Issue #N`, not `Fixes #N` (which auto-closes issues on merge)
 - **Target `master` branch** — the default and primary development branch is `master`
-- **AI use must be disclosed** — if AI tools were used in authoring a PR, disclose it in the PR description
+- **AI use must be disclosed** — in the PR, in commit trailers, and in issues; see [Contribution Policy](#contribution-policy)
 - **`scripts/.version_env`** — must be generated on a host with git access before running Docker builds in a worktree (`make gen-version-env` or `scripts/version`)
 
 ## Documentation
