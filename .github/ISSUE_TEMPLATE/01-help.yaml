@@ -1,0 +1,64 @@
+name: Help wanted
+description: Ask for help from the community or the maintainers
+title: "[Help wanted] "
+labels: [ "kind/help", "reproduce/needed" ]
+assignees:
+-
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for stopping by to ask for help!
+
+      For general questions or discussions, please use the [Discussions](https://github.com/harvester/harvester/discussions) tab.
+
+- type: textarea
+  attributes:
+    label: Describe the Issue
+    description: A clear and concise description of what the issue is.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: To Reproduce
+    description: Please provide the steps to reproduce the behavior.
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: A clear and concise description of what you expected to happen.
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Support Bundle for Troubleshooting
+    description: |
+      You can generate a support bundle at the bottom of Harvester UI (https://docs.harvesterhci.io/v1.0/troubleshooting/harvester/#generate-a-support-bundle). It includes logs and configurations that help diagnose the issue.
+
+      Tokens, passwords, and secrets are automatically removed from support bundles. If you feel it's not appropriate to share the bundle files publicly, please consider:
+      - Wait for a developer to reach you and provide the bundle file by any secure method.
+      - Join our Slack community (https://rancher-users.slack.com/archives/C01GKHKAG0K) to provide the bundle.
+      - Send the bundle to harvester-support-bundle@suse.com with the correct issue ID.
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Environment
+    description: Please provide the environment setup.
+    value: |
+      - Harvester ISO version:
+      - Underlying Infrastructure (e.g., Baremetal with Dell PowerEdge R630):
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Additional context
+    description: Please add any other context about the problem here.
+  validations:
+    required: false
