@@ -41,6 +41,7 @@ type Interface interface {
 	Node() NodeController
 	Replica() ReplicaController
 	Setting() SettingController
+	ShareManager() ShareManagerController
 	Snapshot() SnapshotController
 	Volume() VolumeController
 }
@@ -93,6 +94,10 @@ func (v *version) Replica() ReplicaController {
 
 func (v *version) Setting() SettingController {
 	return generic.NewController[*v1beta2.Setting, *v1beta2.SettingList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "Setting"}, "settings", true, v.controllerFactory)
+}
+
+func (v *version) ShareManager() ShareManagerController {
+	return generic.NewController[*v1beta2.ShareManager, *v1beta2.ShareManagerList](schema.GroupVersionKind{Group: "longhorn.io", Version: "v1beta2", Kind: "ShareManager"}, "sharemanagers", true, v.controllerFactory)
 }
 
 func (v *version) Snapshot() SnapshotController {
