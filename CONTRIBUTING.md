@@ -10,7 +10,7 @@ To report an issue, click the "New Issue" button and select the appropriate issu
 
 ### Issue management
 
-We use GitHub Project to manage issues, please see https://github.com/harvester/harvester/wiki/Issue-Management for more information. Note you must be a member of the Harvester organization to see the project. Feel free to delegate the issue management to maintainers if you are not a member.
+We use GitHub Projects to manage issues, please see https://github.com/harvester/harvester/wiki/Issue-Management for more information. Note you must be a member of the Harvester organization to see the project. Feel free to delegate the issue management to maintainers if you are not a member.
 
 ## Developer Guide
 
@@ -18,22 +18,49 @@ For developers who want to contribute to Harvester, please refer to our [Develop
 
 ### AI Guidance
 
-If you used AI tools to help compose your PR, you must disclose this in the description of your PR. As the author, you are responsible for understanding every change made in your PR, regardless of whether AI tools were used. All contributions must follow the contribution policy described in the [Developer Guide](./DEVELOPER_GUIDE.md#before-opening-a-pull-request).
+Using AI tools is welcome, but you are the author. You are responsible for understanding and verifying everything you submit (code, commit messages, issues, and comments), regardless of whether AI tools were used. All contributions must follow the contribution policy described in the [Developer Guide](./DEVELOPER_GUIDE.md#before-opening-a-pull-request).
 
-Large AI-generated PRs and AI-generated commit messages are not allowed.
+#### Disclosure
 
-Maintainers will not start reviewing your PR until the first set of AI-generated reviews are addressed. Where applicable, provide explanations on why you think the AI-generated feedback is or is not applicable.
+Disclose AI use when an AI tool generates or substantially changes the code or technical content you submit. Single-line code completion, spelling and grammar corrections, and translation that preserves your original meaning do not need disclosure. When in doubt, disclose.
 
-Reviewers may ask questions about your AI-assisted code, and if you cannot explain why a change was made, the PR will be closed.
+- **Pull requests**: tick the AI disclosure checkbox in the PR template.
+- **Commits**: add one of the `Assisted-by:`, `Co-authored-by:`, or `Generated-by:` trailers, naming the tool, to every commit that contains AI-assisted changes. For example, `Assisted-by: GitHub Copilot`. `Signed-off-by` is the human author's certification. Never list an AI tool there.
+- **Issues**: tick the AI disclosure checkbox in the issue template. If the template has no checkbox, disclose it in the issue description.
+- **Comments**: when a comment includes AI-generated analysis, say so in the comment.
 
-When responding to discussions in issues and pull requests, participants must independently validate any AI-assisted feedback before posting it. AI can be used for private brainstorming and investigation, but its output must not be posted until they are verified. If the feedback cannot be verified, it shouldn't be posted as a review comment.
+#### Pull requests
 
-When addressing review feedback from the maintainers, you must do so without relying on AI tools. Reviewers want to engage directly with you, not with generated responses. If you do not engage directly with reviewers, the PR will be closed.
+- An AI-generated PR will be given lower priority until its linked issue has a milestone. A milestone means that the maintainers have triaged the issue and it is ready for development.
+- If your PR is AI-generated, keep its commits small and well-scoped.
+- Review all changes and run the relevant builds and tests yourself before opening the PR.
+- Commit messages and PR descriptions drafted with AI must be reviewed and edited by you so that they are accurate and concise.
+- Address the AI-generated review feedback on your PR before asking maintainers to review it: fix what is relevant and explain why the rest does not apply. Maintainers may wait until this is done. AI-generated feedback is advisory; maintainers make the final review decisions.
+- Reviewers may ask questions about your AI-assisted code. If you cannot explain why a change was made, the PR will be given lower priority.
+- Respond to maintainer feedback based on your own understanding and investigation. You may use AI tools to improve wording or to translate your reply, but you must verify every claim and be able to explain your reasoning. Reviewers want to engage directly with you, not with generated responses. If you do not engage directly with reviewers, the PR will be given lower priority.
+
+#### Issues
+
+- An AI-generated issue must have a **TL;DR** at the top, after the AI disclosure: a description of the problem in under 100 words. Write the TL;DR yourself. It must not be AI-generated.
+- Verify the content before filing. Versions, logs, and reproduction steps must be real, never generated by the AI tool. Say which reproduction steps you verified yourself, and label anything unverified.
+- Trim AI verbosity. Keep only what helps maintainers understand and reproduce the problem.
+
+#### Reviews, discussions, and comments
+
+When responding to discussions in issues and pull requests, participants must independently validate any AI-assisted feedback before posting it. AI can be used for private brainstorming and investigation, but its output must not be posted until it is verified.
+
+Using AI tools to help review a PR is fine. Before posting, make sure you understand each issue the AI tool raises, then write the review comment in your own words instead of pasting the AI output. Keep review comments short and specific.
+
+Do not let AI agents open issues or pull requests, or post comments, on your behalf without reviewing them first. Project-approved automation is exempt.
+
+#### Enforcement
+
+Maintainers may ask for a missing disclosure or TL;DR, and may close issues and PRs that do not follow this guidance. Repeated low-quality AI-generated submissions may lead to being blocked from contributing.
 
 ## Contribute to Harvester Documentation
 
-There are two document sites:
-- Harvester Document (https://docs.harvesterhci.io/): You can submit PRs at https://github.com/harvester/docs.
+There are two documentation sites:
+- Harvester Documentation (https://docs.harvesterhci.io/): You can submit PRs at https://github.com/harvester/docs.
 - Harvester Knowledge Base (https://harvesterhci.io/kb/): You can submit PRs at https://github.com/harvester/harvesterhci.io.
 
 The documents are written in Markdown and you can check the preview after submitting PRs.

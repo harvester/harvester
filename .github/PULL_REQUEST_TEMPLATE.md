@@ -3,6 +3,10 @@
 Please do not create a Pull Request without creating an issue first.
 -->
 
+#### AI disclosure:
+<!-- Tick the box if this PR needs AI disclosure. See CONTRIBUTING.md#ai-guidance. -->
+- [ ] AI tools were used in this PR. AI-assisted commits carry an `Assisted-by` / `Co-authored-by` / `Generated-by` trailer.
+
 #### Problem:
 <!-- Explain the problem you aim to resolve in this PR. -->
 
