@@ -190,8 +190,9 @@ chmod -R a=r,u+w,a+X "${extract_dir}"
 # Copy squashfs image for PXE boot
 cp "${extract_dir}/rootfs.squashfs" "${ARTIFACTS_DIR}/${PROJECT_PREFIX}-rootfs-${ARCH}.squashfs"
 
-# Currently only building Net-install ISO for amd64 builds.
-if [ "${ARCH}" == "amd64" ] && [ "${DISABLE_BUILD_NET_INSTALL_ISO:-false}" != "true" ]
+iso_vol_id="$(yq '.iso.label' manifest.yaml)"
+
+if [ "${ARCH}" == "amd64" ]
 then
 # Use dd to create empty image, create an empty FAT32 filesystem
 # and copy EFI files to it to make it UEFI bootable
@@ -202,7 +203,19 @@ dd if=/dev/zero of="${uefi_img}" bs=1k count=4096 status=progress
 mkfs.vfat "${uefi_img}" -n COS_GRUB
 mcopy -s -i "${uefi_img}" "${extract_dir}/EFI" ::
 
-iso_vol_id="$(yq '.iso.label' manifest.yaml)"
+# Repack the ISO to boot in both legacy BIOS and UEFI modes. Bare metal
+# instances of several public clouds and some on-prem hardware only support
+# legacy BIOS boot. elemental build-iso only produces UEFI bootable images.
+bios_dir="${unpack_base}/bios"
+prepare_bios_boot "${HARVESTER_OS_IMAGE}" "${extract_dir}" "${bios_dir}"
+bios_mbr="${bios_dir}/boot_hybrid.img"
+rm -f "${ARTIFACTS_DIR}/${ISO_PREFIX}.iso"
+pack_iso "${extract_dir}" "${uefi_img}" "$iso_vol_id" "${ARTIFACTS_DIR}/${ISO_PREFIX}.iso" "${bios_mbr}"
+fi
+
+# Currently only building Net-install ISO for amd64 builds.
+if [ "${ARCH}" == "amd64" ] && [ "${DISABLE_BUILD_NET_INSTALL_ISO:-false}" != "true" ]
+then
 
 # Net-install ISO
 echo "set extra_iso_cmdline=harvester.install.with_net_images=true" >> ${extract_dir}/boot/grub2/harvester.cfg
@@ -221,7 +234,7 @@ rm -rf ${extract_dir}/bundle
 mv ${extract_dir}/bundle.new ${extract_dir}/bundle
 chmod -R a=r,u+w,a+X "${extract_dir}/bundle"
 
-pack_iso "${extract_dir}" "${uefi_img}" "$iso_vol_id" "${ARTIFACTS_DIR}/${ISO_PREFIX}-net-install.iso"
+pack_iso "${extract_dir}" "${uefi_img}" "$iso_vol_id" "${ARTIFACTS_DIR}/${ISO_PREFIX}-net-install.iso" "${bios_mbr}"
 
 fi
 
