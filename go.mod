@@ -58,6 +58,7 @@ replace (
 )
 
 require (
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/cisco-open/operator-tools v0.37.0
 	github.com/containernetworking/cni v1.3.0
 	github.com/deckarep/golang-set/v2 v2.6.0
@@ -82,6 +83,7 @@ require (
 	github.com/kube-logging/logging-operator/pkg/sdk v0.12.0
 	github.com/kubeovn/kube-ovn v1.14.10
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
+	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 	github.com/longhorn/backupstore v0.0.0-20250804022317-794abf817297
 	github.com/longhorn/longhorn-manager v1.10.0
 	github.com/mattn/go-isatty v0.0.22
@@ -117,6 +119,7 @@ require (
 	github.com/urfave/cli/v3 v3.4.1
 	github.com/vishvananda/netlink v1.3.1
 	go.uber.org/multierr v1.11.0
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
 	golang.org/x/net v0.60.0
@@ -170,7 +173,6 @@ require (
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/c9s/goprocinfo v0.0.0-20210130143923-c95fcf8c64a8 // indirect
@@ -266,7 +268,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kube-logging/logging-operator v0.0.0-20250424202944-7e1f9aad6e21 // indirect
 	github.com/kubereboot/kured v1.13.1 // indirect
-	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
@@ -365,7 +366,6 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.46.0 // indirect

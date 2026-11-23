@@ -7,15 +7,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
-func (h *Handler) updateConditions(vmb *harvesterv1.VirtualMachineBackup) error {
-	var vmbCpy = vmb.DeepCopy()
+func (h *Handler) updateConditions(
+	vmb, vmbCpy *harvesterv1.VirtualMachineBackup, ready bool,
+) error {
 	if h.vmbo.IsProcessing(vmbCpy) {
 		vmbCpy = h.vmbo.SetProcessingCondition(vmbCpy)
 	}
 
-	ready := true
 	var volBackupErr error
 	var volumeSizeSum int64
 	var progressWeightSum int64
@@ -27,7 +28,7 @@ func (h *Handler) updateConditions(vmb *harvesterv1.VirtualMachineBackup) error 
 			ready = false
 		}
 
-		progress, err := backupEngine.UpdateProgress(vb)
+		progress, err := backupEngine.UpdateProgress(vmbCpy, vb)
 		if err != nil {
 			return err
 		}
@@ -68,6 +69,10 @@ func (h *Handler) updateConditions(vmb *harvesterv1.VirtualMachineBackup) error 
 
 func (h *Handler) updateVolumeSnapshotChanged(_ string, vs *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshot, error) {
 	if vs == nil || vs.DeletionTimestamp != nil {
+		return nil, nil
+	}
+	if name := joblifecycle.ParentName(vs.ObjectMeta, vmBackupKind.Kind); name != "" {
+		h.vmbController.Enqueue(vs.Annotations[joblifecycle.AnnotationParentNamespace], name)
 		return nil, nil
 	}
 

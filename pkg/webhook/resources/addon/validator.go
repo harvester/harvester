@@ -11,6 +11,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	"go.yaml.in/yaml/v3"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -40,6 +41,8 @@ const (
 	kubeOVNOperatorAddon = util.KubeOVNOperatorName
 
 	labelParentSRIOVGPUDevice = "harvesterhci.io/parentSRIOVGPUDevice"
+
+	betaDefaultStorageClassAnnotation = "storageclass.beta.kubernetes.io/is-default-class"
 )
 
 var vgpuDeviceGVR = schema.GroupVersionResource{
@@ -155,6 +158,10 @@ func (v *addonValidator) validateNewAddon(newAddon *v1beta1.Addon) error {
 		}
 	}
 
+	if newAddon.Spec.Enabled && isStorageBackedAddon(newAddon.Name) {
+		return v.validateDefaultStorageClass(newAddon)
+	}
+
 	return nil
 }
 
@@ -183,7 +190,78 @@ func (v *addonValidator) validateUpdatedAddon(newAddon *v1beta1.Addon, oldAddon 
 		return v.validateLVMAddonUpdate(newAddon, oldAddon)
 	}
 
+	if isStorageBackedAddon(newAddon.Name) && isAddonBeingEnabled(newAddon, oldAddon) {
+		return v.validateDefaultStorageClass(newAddon)
+	}
+
 	return nil
+}
+
+// storageBackedAddons require a default StorageClass for PVC provisioning.
+var storageBackedAddons = map[string]struct{}{
+	util.RancherMonitoringName: {},
+	util.RancherK3KName:        {},
+}
+
+func isStorageBackedAddon(name string) bool {
+	_, ok := storageBackedAddons[name]
+	return ok
+}
+
+func (v *addonValidator) validateDefaultStorageClass(addon *v1beta1.Addon) error {
+	if hasExplicitStorageClass(addon.Spec.ValuesContent) {
+		return nil
+	}
+
+	storageClasses, err := v.storageClassCache.List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("failed to list storage classes: %w", err)
+	}
+	for _, sc := range storageClasses {
+		isDefault := sc.Annotations[util.AnnotationIsDefaultStorageClassName] == "true"
+		isBetaDefault := sc.Annotations[betaDefaultStorageClassAnnotation] == "true"
+		if isDefault || isBetaDefault {
+			return nil
+		}
+	}
+
+	return werror.NewBadRequest(fmt.Sprintf(
+		"set a default StorageClass before enabling addon %s",
+		addon.Name,
+	))
+}
+
+// hasExplicitStorageClass reports whether valuesContent sets a non-empty storageClassName anywhere, so no default SC is needed.
+// shortcut: any one explicit SC skips the check, a PVC without its own SC still needs the default; check per PVC path if that bites.
+func hasExplicitStorageClass(valuesContent string) bool {
+	var values interface{}
+	if err := yaml.Unmarshal([]byte(valuesContent), &values); err != nil {
+		return false
+	}
+	return containsStorageClassName(values)
+}
+
+func containsStorageClassName(value interface{}) bool {
+	switch n := value.(type) {
+	case map[string]interface{}:
+		for k, v := range n {
+			if k == "storageClassName" {
+				if s, ok := v.(string); ok && s != "" {
+					return true
+				}
+			}
+			if containsStorageClassName(v) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, v := range n {
+			if containsStorageClassName(v) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (v *addonValidator) validateRancherLoggingAddonUpdate(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) error {
@@ -272,6 +350,10 @@ func (v *addonValidator) validateLVMAddonUpdate(newAddon *v1beta1.Addon, oldAddo
 
 func isAddonBeingDisabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
 	return oldAddon.Spec.Enabled && !newAddon.Spec.Enabled
+}
+
+func isAddonBeingEnabled(newAddon *v1beta1.Addon, oldAddon *v1beta1.Addon) bool {
+	return !oldAddon.Spec.Enabled && newAddon.Spec.Enabled
 }
 
 func (v *addonValidator) validateEnableRancherLoggingAddon(newAddon *v1beta1.Addon) error {
@@ -699,12 +781,43 @@ func (v *addonValidator) validateKubeOVNAddonUpdate(newAddon, oldAddon *v1beta1.
 		return werror.NewInternalError(fmt.Sprintf("failed to retrieve subnets err=%v", err))
 	}
 
-	// V4UsingIPs and V6UsingIPs will be non-zero both when the VM is running and
-	// when it is stopped, as long as it is still attached to an overlay network.
+	// Note: Disabling the Kube-OVN operator is not a simple one-click action.
+	// Users must strictly follow the official documentation steps:
+	// https://docs.harvesterhci.io/v1.10/advanced/addons/kubeovn-operator#disabling-kubeovn-operator
+	// Attempting to disable the addon directly without prior cleanup will emit validation errors.
+
+	remainingInternalSubnets := make([]string, 0, 2)
+
+	// 1. VM usage guard: Check if any VMs are still attached to overlay subnets.
+	// V4UsingIPs and V6UsingIPs track active IP address allocations across both IPv4
+	// and IPv6 families. These counters remain non-zero regardless of the VM's power
+	// state (running or stopped) as long as the VM remains attached to the network.
 	for _, subnet := range subnets {
-		if subnet.Status.V4UsingIPs != 0 || subnet.Status.V6UsingIPs != 0 {
-			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, delete the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
+		// The join subnet is managed entirely by the system; skip its IP usage check.
+		if subnet.Name == util.KubeOVNInternalSubnetJoin {
+			remainingInternalSubnets = append(remainingInternalSubnets, util.KubeOVNInternalSubnetJoin)
+			continue
 		}
+
+		// Guard against active VM IP allocations (covering both IPv4 and IPv6 families) on the subnet.
+		// Note: ovn-default can be used directly by users as a default fallback subnet if they
+		// didn't create a custom one. If VMs are still attached, it will trigger this usage error first.
+		if subnet.Status.V4UsingIPs != 0 || subnet.Status.V6UsingIPs != 0 {
+			return werror.NewBadRequest(fmt.Sprintf("kubeovn-operator addon cannot be disabled as VMs attached to overlay network %s in subnet %s are still in use, stop and detach the VMs before disabling the addon", subnet.Spec.Provider, subnet.Name))
+		}
+
+		if subnet.Name == util.KubeOVNInternalSubnetOVNDefault {
+			remainingInternalSubnets = append(remainingInternalSubnets, util.KubeOVNInternalSubnetOVNDefault)
+		}
+	}
+
+	// 2. Internal resource cleanup guard: If ovn-default or join still exists,
+	// it means manual cleanup was not completed or failed.
+	if len(remainingInternalSubnets) > 0 {
+		return werror.NewBadRequest(fmt.Sprintf(
+			"kubeovn-operator addon cannot be disabled as internal subnet(s) [%s] still exist; please follow https://docs.harvesterhci.io/v1.10/advanced/addons/kubeovn-operator#disabling-kubeovn-operator to clean them up manually before disabling the addon",
+			strings.Join(remainingInternalSubnets, ", "),
+		))
 	}
 
 	return nil

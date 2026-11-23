@@ -1,14 +1,17 @@
 package virtualmachinebackup
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	longhornv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
@@ -19,7 +22,46 @@ import (
 	"github.com/harvester/harvester/pkg/util/fakeclients"
 )
 
-func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
+func TestCreateRecoveredBackup(t *testing.T) {
+	const target = `{"type":"s3","bucketName":"backups","thirdPartyBackupEnabled":true}`
+	for _, engine := range []struct {
+		backupType v1beta1.BackupType
+		requiresLH bool
+	}{
+		{backupType: v1beta1.Backup, requiresLH: true},
+		{backupType: v1beta1.Snapshot, requiresLH: true},
+		{backupType: v1beta1.Restic},
+		{backupType: v1beta1.Kopia},
+	} {
+		for _, tt := range []struct {
+			name       string
+			backupName *string
+		}{
+			{name: "missing Longhorn backup name"},
+			{name: "empty Longhorn backup name", backupName: ptr.To("")},
+			{name: "valid Longhorn backup name", backupName: ptr.To("lh-backup")},
+		} {
+			t.Run(fmt.Sprintf("%s/%s", engine.backupType, tt.name), func(t *testing.T) {
+				validator := gateValidator(target)
+				vmb := newVMBackup("default", "removed-vm", engine.backupType)
+				vmb.Status.SourceSpec = &v1beta1.VirtualMachineSourceSpec{}
+				vmb.Status.VolumeBackups = []v1beta1.VolumeBackup{{
+					Name:               ptr.To("volume-backup"),
+					LonghornBackupName: tt.backupName,
+				}}
+
+				err := validator.Create(nil, vmb)
+				if engine.requiresLH && (tt.backupName == nil || *tt.backupName == "") {
+					require.ErrorContains(t, err, "not from LH")
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	}
+}
+
+func TestCheckBackupVolumeSnapshotClassLonghornV2(t *testing.T) {
 	const (
 		namespace = "default"
 		vmName    = "test-vm"
@@ -38,7 +80,7 @@ func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:       "rejects backup of Longhorn v2 volume",
+			name:       "native backup rejects Longhorn v2 volume",
 			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
@@ -60,7 +102,7 @@ func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 			},
 		},
 		{
-			name:       "allows backup of Longhorn v1 volume",
+			name:       "native backup allows Longhorn v1 volume",
 			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
@@ -100,12 +142,22 @@ func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 			},
 		},
 		{
-			name:       "ignores non-Longhorn volume",
+			name:       "native backup ignores non-Longhorn volume",
 			backupType: v1beta1.Backup,
 			objects: []runtime.Object{
 				newCSIDriverConfigSetting(),
 				newPVC(namespace, pvcName, pvName, otherSC),
 				newStorageClass(otherSC, "example.com/csi"),
+			},
+		},
+		{
+			name:       "data mover backup allows Longhorn v2 volume",
+			backupType: v1beta1.Restic,
+			objects: []runtime.Object{
+				newCSIDriverConfigSetting(),
+				newPVC(namespace, pvcName, pvName, longhornSC),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newLonghornVolume(pvName, longhornv1beta2.DataEngineTypeV2),
 			},
 		},
 	}
@@ -121,7 +173,196 @@ func TestCheckBackupVolumeSnapshotClassLonghornV2Volumes(t *testing.T) {
 				vmbr:        common.NewVMBackupReader(),
 			}
 
-			err := validator.checkBackupVolumeSnapshotClass(newVM(namespace, vmName, pvcName), newVMBackup(namespace, vmName, tt.backupType))
+			err := validator.checkBackupVolumeSnapshotClass(
+				newVM(namespace, vmName, pvcName),
+				newVMBackup(namespace, vmName, tt.backupType),
+			)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error to contain %q, got %q", tt.errContains, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestCheckDataMoverVolumes(t *testing.T) {
+	const (
+		namespace  = "default"
+		vmName     = "test-vm"
+		longhornSC = "longhorn"
+		lvmSC      = "lvm"
+	)
+
+	blockMode := corev1.PersistentVolumeBlock
+	filesystemMode := corev1.PersistentVolumeFilesystem
+
+	tests := []struct {
+		name        string
+		backupType  v1beta1.BackupType
+		pvcNames    []string
+		objects     []runtime.Object
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "restic rejects filesystem volume",
+			backupType: v1beta1.Restic,
+			pvcNames:   []string{"lvm-pvc"},
+			objects: []runtime.Object{
+				newPVCWithMode(namespace, "lvm-pvc", "lvm-pv", lvmSC, &filesystemMode),
+				newStorageClass(lvmSC, util.CSIProvisionerLVM),
+			},
+			wantErr:     true,
+			errContains: "requires Block volume mode",
+		},
+		{
+			name:       "kopia rejects default filesystem volume",
+			backupType: v1beta1.Kopia,
+			pvcNames:   []string{"lvm-pvc"},
+			objects: []runtime.Object{
+				newPVC(namespace, "lvm-pvc", "lvm-pv", lvmSC),
+				newStorageClass(lvmSC, util.CSIProvisionerLVM),
+			},
+			wantErr:     true,
+			errContains: "uses Filesystem",
+		},
+		{
+			name:       "restic rejects Longhorn v1 volume",
+			backupType: v1beta1.Restic,
+			pvcNames:   []string{"longhorn-v1-pvc"},
+			objects: []runtime.Object{
+				newPVCWithMode(namespace, "longhorn-v1-pvc", "longhorn-v1-pv", longhornSC, &blockMode),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newLonghornVolume("longhorn-v1-pv", longhornv1beta2.DataEngineTypeV1),
+			},
+			wantErr:     true,
+			errContains: "Longhorn v1 PVC default/longhorn-v1-pvc is not supported",
+		},
+		{
+			name:       "kopia rejects Longhorn v1 among other volumes",
+			backupType: v1beta1.Kopia,
+			pvcNames:   []string{"longhorn-v2-pvc", "longhorn-v1-pvc"},
+			objects: []runtime.Object{
+				newPVCWithMode(namespace, "longhorn-v1-pvc", "longhorn-v1-pv", longhornSC, &blockMode),
+				newPVCWithMode(namespace, "longhorn-v2-pvc", "longhorn-v2-pv", longhornSC, &blockMode),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newLonghornVolume("longhorn-v1-pv", longhornv1beta2.DataEngineTypeV1),
+				newLonghornVolume("longhorn-v2-pv", longhornv1beta2.DataEngineTypeV2),
+			},
+			wantErr:     true,
+			errContains: "Longhorn v1 PVC default/longhorn-v1-pvc is not supported",
+		},
+		{
+			name:       "kopia allows Longhorn v2 and LVM volumes",
+			backupType: v1beta1.Kopia,
+			pvcNames:   []string{"longhorn-v2-pvc", "lvm-pvc"},
+			objects: []runtime.Object{
+				newPVCWithMode(namespace, "longhorn-v2-pvc", "longhorn-v2-pv", longhornSC, &blockMode),
+				newPVCWithMode(namespace, "lvm-pvc", "lvm-pv", lvmSC, &blockMode),
+				newStorageClass(longhornSC, util.CSIProvisionerLonghorn),
+				newStorageClass(lvmSC, util.CSIProvisionerLVM),
+				newLonghornVolume("longhorn-v2-pv", longhornv1beta2.DataEngineTypeV2),
+			},
+		},
+		{
+			name:       "native backup does not require block volumes",
+			backupType: v1beta1.Backup,
+			pvcNames:   []string{"lvm-pvc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewSimpleClientset(tt.objects...)
+			validator := &virtualMachineBackupValidator{
+				pvcCache:    fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
+				volumeCache: fakeclients.LonghornVolumeCache(clientset.LonghornV1beta2().Volumes),
+				scCache:     fakeclients.StorageClassCache(clientset.StorageV1().StorageClasses),
+			}
+
+			err := validator.checkDataMoverVolumes(newVM(namespace, vmName, tt.pvcNames...), tt.backupType)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("expected error to contain %q, got %q", tt.errContains, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestCheckBackupTarget(t *testing.T) {
+	tests := []struct {
+		name        string
+		backupType  v1beta1.BackupType
+		targetValue string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "restic rejects NFS target",
+			backupType:  v1beta1.Restic,
+			targetValue: `{"type":"nfs","endpoint":"server:/backups","thirdPartyBackupEnabled":true}`,
+			wantErr:     true,
+			errContains: "restic backup requires an S3 backup target",
+		},
+		{
+			name:        "kopia rejects NFS target",
+			backupType:  v1beta1.Kopia,
+			targetValue: `{"type":"nfs","endpoint":"server:/backups","thirdPartyBackupEnabled":true}`,
+			wantErr:     true,
+			errContains: "kopia backup requires an S3 backup target",
+		},
+		{
+			name:        "native backup allows NFS target",
+			backupType:  v1beta1.Backup,
+			targetValue: `{"type":"nfs","endpoint":"server:/backups"}`,
+		},
+		{
+			name:        "restic allows enabled S3 target",
+			backupType:  v1beta1.Restic,
+			targetValue: `{"type":"s3","endpoint":"https://s3.example.com","thirdPartyBackupEnabled":true}`,
+		},
+		{
+			name:        "kopia allows enabled S3 target",
+			backupType:  v1beta1.Kopia,
+			targetValue: `{"type":"s3","endpoint":"https://s3.example.com","thirdPartyBackupEnabled":true}`,
+		},
+		{
+			name:        "data mover rejects missing target",
+			backupType:  v1beta1.Restic,
+			targetValue: `{}`,
+			wantErr:     true,
+			errContains: "backup target is not set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setting := &v1beta1.Setting{
+				ObjectMeta: metav1.ObjectMeta{Name: settings.BackupTargetSettingName},
+				Value:      tt.targetValue,
+			}
+			clientset := fake.NewSimpleClientset(setting)
+			validator := &virtualMachineBackupValidator{
+				setting: fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
+			}
+
+			err := validator.checkBackupTarget(tt.backupType)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -155,7 +396,21 @@ func newVMBackup(namespace, sourceName string, backupType v1beta1.BackupType) *v
 	}
 }
 
-func newVM(namespace, name, pvcName string) *kubevirtv1.VirtualMachine {
+func newVM(namespace, name string, pvcNames ...string) *kubevirtv1.VirtualMachine {
+	volumes := make([]kubevirtv1.Volume, 0, len(pvcNames))
+	for i, pvcName := range pvcNames {
+		volumes = append(volumes, kubevirtv1.Volume{
+			Name: fmt.Sprintf("disk-%d", i),
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: pvcName,
+					},
+				},
+			},
+		})
+	}
+
 	return &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -163,26 +418,20 @@ func newVM(namespace, name, pvcName string) *kubevirtv1.VirtualMachine {
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
-				Spec: kubevirtv1.VirtualMachineInstanceSpec{
-					Volumes: []kubevirtv1.Volume{
-						{
-							Name: "disk-0",
-							VolumeSource: kubevirtv1.VolumeSource{
-								PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
-									PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
-										ClaimName: pvcName,
-									},
-								},
-							},
-						},
-					},
-				},
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{Volumes: volumes},
 			},
 		},
 	}
 }
 
 func newPVC(namespace, name, volumeName, storageClassName string) *corev1.PersistentVolumeClaim {
+	return newPVCWithMode(namespace, name, volumeName, storageClassName, nil)
+}
+
+func newPVCWithMode(
+	namespace, name, volumeName, storageClassName string,
+	volumeMode *corev1.PersistentVolumeMode,
+) *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -191,6 +440,7 @@ func newPVC(namespace, name, volumeName, storageClassName string) *corev1.Persis
 		Spec: corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &storageClassName,
 			VolumeName:       volumeName,
+			VolumeMode:       volumeMode,
 		},
 	}
 }

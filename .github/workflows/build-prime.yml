@@ -5,6 +5,9 @@ name: Build Prime
 # Prime. Staging builds pull every Harvester image from staging, so images
 # pinned at release tags (support-bundle-kit, dated harvester/os2 builds) must
 # be published to both registries.
+# A prime-vX.Y.Z release uploads its ISO artifacts to
+# suse-virtualization/vX.Y.Z-gold/ in the Prime bucket; run
+# promote-prime-artifacts.yml to copy them to suse-virtualization/vX.Y.Z/.
 # Release events cannot filter by tag: the configure job skips releases
 # without the prime- prefix, and build-for-tag.yml skips those with it. Never
 # also trigger on tag pushes: creating a release with a new tag would build
@@ -12,18 +15,23 @@ name: Build Prime
 #
 # Branch builds: push events use the workflow file from the pushed branch, so
 # each release line controls its own merge builds through `branches` below.
-# Keep at most one branch pattern, following the release line's lifecycle:
-#   1. master and newly created v1.x branches: no branch pattern (no merge builds).
+# 'release-prime-*' is always listed, so pushes to release branches build;
+# their names never collide with a release line's.
+# For the release line itself, list at most one more pattern, following its
+# lifecycle:
+#   1. master and newly created v1.x branches: no other pattern, so merges
+#      into them do not build.
 #   2. Enable Prime builds on community merges: add 'v1.*' on the v1.x branch.
-#   3. Move to the Prime branch: remove 'v1.*' from v1.x, and use only
+#   3. Move to the Prime branch: remove 'v1.*' from v1.x, and add
 #      'prime-v1.*' on prime-v1.x.
 # Never list both: v1.x and prime-v1.x publish the same image tag and ISO folder.
 on:
   release:
     types: [published]
-  # push:
-  #   branches:
-  #   - 'v1.*'
+  push:
+    branches:
+    # - 'v1.*'
+    - 'release-prime-*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -86,6 +94,12 @@ jobs:
           image_tag=$version
           build_version=$version
           iso_folder=$version
+          # Final releases upload to <version>-gold; promote-prime-artifacts.yml
+          # copies them to <version> after validation. version.yaml already
+          # points at <version>, the final location.
+          if [[ "$target" == prime ]]; then
+            iso_folder=$version-gold
+          fi
         else
           target=staging
           tag=
@@ -112,9 +126,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
-    env:
-      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
-      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -230,8 +241,6 @@ jobs:
           SERVER_FLAVOR=prime
           RELEASE_DOWNLOAD_URL=${{ secrets.PRIME_RELEASE_DOWNLOAD_URL }}
           HARVESTER_SYSTEM_DEFAULT_REGISTRY=${{ env.MK_HARVESTER_PRIME_REGISTRY }}
-          HARVESTER_UI_VERSION=${{ needs.configure.outputs.tag }}
-          HARVESTER_UI_PLUGIN_BUNDLED_VERSION=${{ needs.configure.outputs.tag }}
 
     - name: Publish harvester-webhook
       uses: *publish-prime-image
@@ -311,9 +320,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
-    env:
-      HARVESTER_UI_VERSION: ${{ needs.configure.outputs.tag }}
-      HARVESTER_UI_PLUGIN_BUNDLED_VERSION: ${{ needs.configure.outputs.tag }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

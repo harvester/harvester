@@ -340,19 +340,31 @@ func (v *restoreValidator) checkNetwork(vmBackup *v1beta1.VirtualMachineBackup) 
 func (v *restoreValidator) checkVMBackupType(vmr *v1beta1.VirtualMachineRestore, vmb *v1beta1.VirtualMachineBackup) error {
 	var err error
 	backupType := v.vmbr.GetType(vmb)
-	switch backupType {
-	case v1beta1.Backup:
+	switch {
+	case backupType == v1beta1.Backup:
 		err = v.checkBackup(vmr, vmb)
 		if err == nil {
 			// Because of the misleading items https://github.com/harvester/harvester/issues/7755#issue-2896409886,
 			// User may have VMBackups with non-LH source volume. We should prevent this VMBackup from restoring
 			err = webhookutil.IsLHBackupRelated(vmb, v.vmbr)
 		}
-	case v1beta1.Snapshot:
+	case backupType == v1beta1.Snapshot:
 		err = v.checkSnapshot(vmr, vmb)
+	case backupType.IsDataMover():
+		err = v.checkDataMoverBackup(vmb)
 	}
 	if err != nil {
 		return werror.NewInvalidError(err.Error(), fieldVirtualMachineBackupName)
+	}
+	return nil
+}
+
+func (v *restoreValidator) checkDataMoverBackup(vmb *v1beta1.VirtualMachineBackup) error {
+	if _, err := backuputil.TargetFromStatus(v.vmbr.GetBackupTarget(vmb)); err != nil {
+		return err
+	}
+	if err := v.checkBackupTarget(vmb); err != nil {
+		return err
 	}
 	return nil
 }

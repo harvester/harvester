@@ -57,6 +57,7 @@ import (
 	ctllhv1b2 "github.com/harvester/harvester/pkg/generated/controllers/longhorn.io/v1beta2"
 	ctlnetworkv1 "github.com/harvester/harvester/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
@@ -183,9 +184,13 @@ func NewValidator(
 		secretCache:        secretCache,
 		nadCache:           nadCache,
 		vmbr:               common.NewVMBackupReader(),
+		vmrr:               restorecommon.NewVMRestoreReader(),
 	}
 
-	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupTarget
+	validateSettingFuncs[settings.ThirdPartyBackupConfigSettingName] = validator.checkConfigCreate
+	validateSettingUpdateFuncs[settings.ThirdPartyBackupConfigSettingName] = validator.checkConfigUpdate
+	validateSettingDeleteFuncs[settings.ThirdPartyBackupConfigSettingName] = validator.checkConfigDelete
+	validateSettingFuncs[settings.BackupTargetSettingName] = validator.validateBackupSetting
 	validateSettingFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateVolumeSnapshotClass
 	validateSettingUpdateFuncs[settings.BackupTargetSettingName] = validator.validateUpdateBackupTarget
 	validateSettingUpdateFuncs[settings.VolumeSnapshotClassSettingName] = validator.validateUpdateVolumeSnapshotClass
@@ -247,6 +252,7 @@ type settingValidator struct {
 	secretCache        ctlcorev1.SecretCache
 	nadCache           ctlcniv1.NetworkAttachmentDefinitionCache
 	vmbr               common.VMBackupReader
+	vmrr               restorecommon.VMRestoreReader
 }
 
 func (v *settingValidator) Resource() types.Resource {
@@ -468,102 +474,187 @@ func validateUpdateVMForceResetPolicy(_ *types.Request, _ *v1beta1.Setting, newS
 	return validateVMForceResetPolicy(newSetting)
 }
 
-// chech if this backup target is updated again by controller to strip secret information
-func (v *settingValidator) isUpdatedS3BackupTarget(target *settings.BackupTarget) bool {
-	if target.Type != settings.S3BackupType || target.SecretAccessKey != "" || target.AccessKeyID != "" {
-		return false
-	}
-
-	if savedSetting, err := v.settingCache.Get(settings.BackupTargetSettingName); err != nil {
-		return false
-	} else if savedTarget, err := settings.DecodeBackupTarget(savedSetting.Value); err != nil {
-		return false
-	} else if savedTarget.Type != target.Type || savedTarget.BucketName != target.BucketName || savedTarget.BucketRegion != target.BucketRegion || savedTarget.Endpoint != target.Endpoint || savedTarget.VirtualHostedStyle != target.VirtualHostedStyle {
-		// when any of those fields is different, then it is from user input, not from internal re-config
-		return false
-	}
-
-	return true
-}
-
-// for each type of backup target, a well defined field composition is checked here
 func (v *settingValidator) validateBackupTargetFields(target *settings.BackupTarget) error {
 	switch target.Type {
 	case settings.S3BackupType:
-		if target.SecretAccessKey == "" || target.AccessKeyID == "" {
-			return werror.NewInvalidError("S3 backup target should have access key and access key id", settings.KeywordValue)
-		}
-
-		if target.BucketName == "" || target.BucketRegion == "" {
-			return werror.NewInvalidError("S3 backup target should have bucket name and region ", settings.KeywordValue)
-		}
-
+		return checkS3Fields(target)
 	case settings.NFSBackupType:
-		if target.Endpoint == "" {
-			return werror.NewInvalidError("NFS backup target should have endpoint", settings.KeywordValue)
-		}
-
-		if target.SecretAccessKey != "" || target.AccessKeyID != "" {
-			return werror.NewInvalidError("NFS backup target should not have access key or access key id", settings.KeywordValue)
-		}
-
-		if target.BucketName != "" || target.BucketRegion != "" {
-			return werror.NewInvalidError("NFS backup target should not have bucket name or region", settings.KeywordValue)
-		}
-
+		return checkNFSFields(target)
 	default:
-		// do not check target.IsDefaultBackupTarget again, direct return error
 		return werror.NewInvalidError("Invalid backup target type", settings.KeywordValue)
 	}
+}
 
+func checkS3Fields(target *settings.BackupTarget) error {
+	if target.SecretAccessKey == "" || target.AccessKeyID == "" {
+		return werror.NewInvalidError("S3 backup target should have access key and access key id", settings.KeywordValue)
+	}
+	if target.BucketName == "" || target.BucketRegion == "" {
+		return werror.NewInvalidError("S3 backup target should have bucket name and region ", settings.KeywordValue)
+	}
 	return nil
 }
 
-func (v *settingValidator) validateUpdateBackupTarget(_ *types.Request, _ *v1beta1.Setting, newSetting *v1beta1.Setting) error {
-	return v.validateBackupTarget(newSetting)
+func checkNFSFields(target *settings.BackupTarget) error {
+	if target.KopiaGCEnabled {
+		return werror.NewInvalidError("Kopia GC is supported only for S3 backup targets", settings.KeywordValue)
+	}
+	if target.Endpoint == "" {
+		return werror.NewInvalidError("NFS backup target should have endpoint", settings.KeywordValue)
+	}
+	if target.SecretAccessKey != "" || target.AccessKeyID != "" {
+		return werror.NewInvalidError("NFS backup target should not have access key or access key id", settings.KeywordValue)
+	}
+	if target.BucketName != "" || target.BucketRegion != "" {
+		return werror.NewInvalidError("NFS backup target should not have bucket name or region", settings.KeywordValue)
+	}
+	return nil
 }
 
-func validateBackupTargetHelper(setting *v1beta1.Setting) (*settings.BackupTarget, error) {
-	var target *settings.BackupTarget
+// Every user S3 update requires both AWS keys, bucket and region, including rotation.
+// Missing S3 fields are rejected.
+//
+// These tables cover Restic/Kopia repository passwords. Password input means
+// thirdPartyRepositoryPassword; both stored passwords are RESTIC_PASSWORD and
+// KOPIA_PASSWORD in the shared Secret. ID means repository ID compared with the
+// Secret's REPOSITORY_ID.
+//
+// Third-party backups enabled (S3 with thirdPartyBackupEnabled=true):
+//
+//	| User action                                      | Result                                            |
+//	| ------------------------------------------------ | ------------------------------------------------- |
+//	| Enable or update without a password              | Reject, even if the Secret already has passwords  |
+//	| Supply a password; no stored repository ID       | Save the ID and both passwords                    |
+//	| Same ID; input matches both stored passwords     | Accept and keep that password                     |
+//	| Same ID; both stored passwords are empty         | Accept and initialize both passwords              |
+//	| Same ID; input differs from a stored password    | Reject                                            |
+//	| Same ID; one password missing or pair mismatched | Reject                                            |
+//	| Different repository; supply a password          | Save the new ID and both passwords                |
+//
+// Disabling, resetting, switching to NFS, and controller masking:
+//
+//	| User/controller action                           | Result                                            |
+//	| ------------------------------------------------ | ------------------------------------------------- |
+//	| Disable third-party backups; omit password       | Clear both passwords; keep S3 target, keys and ID |
+//	| Disable third-party backups; supply any password | Reject, even if it matches the stored passwords   |
+//	| Reset the backup target to default               | Clear target credentials, ID and both passwords   |
+//	| Switch to NFS; third-party off, password empty   | Clear S3 credentials, ID and both passwords       |
+//	| Controller clears AWS keys and password input    | Allow; keep stored passwords when enabled         |
+//
+// Accepted user changes still require idle backups/restores and a reachable target.
+// Repository changes are rejected while Restic/Kopia backups refer to another target.
+// Default reset skips the connection and repository-reference checks.
+//
+// Metadata/status-only updates need no credentials. After saving credentials to the
+// Secret, the controller clears their inputs from the Setting. This cleanup requires
+// the authenticated controller and unchanged target options; it does not clear the
+// Secret's passwords for an enabled target.
+func (v *settingValidator) validateUpdateBackupTarget(
+	request *types.Request,
+	oldSetting *v1beta1.Setting,
+	newSetting *v1beta1.Setting,
+) error {
+	target, err := decodeBackupTarget(newSetting)
+	if err != nil {
+		return err
+	}
+	if oldSetting.Value == newSetting.Value && oldSetting.Default == newSetting.Default {
+		return nil
+	}
+	if isCredentialMasking(request, oldSetting, target) {
+		return nil
+	}
+	if err := v.validateBackupTarget(target); err != nil {
+		return err
+	}
+	if target == nil || target.IsDefaultBackupTarget() {
+		return nil
+	}
+	return v.validateRepositoryTransition(target)
+}
 
-	if setting.Default != "" {
-		defaultTarget, err := settings.DecodeBackupTarget(setting.Default)
-		if err != nil {
-			return nil, werror.NewInvalidError(err.Error(), settings.KeywordDefault)
-		}
-		target = defaultTarget
+func (v *settingValidator) validateRepositoryTransition(target *settings.BackupTarget) error {
+	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
+	if err != nil {
+		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
 	}
 
-	if setting.Value != "" {
-		valueTarget, err := settings.DecodeBackupTarget(setting.Value)
-		if err != nil {
-			return nil, werror.NewInvalidError(err.Error(), settings.KeywordValue)
+	for _, vmBackup := range vmBackups {
+		backupType := v.vmbr.GetType(vmBackup)
+		if !backupType.IsDataMover() {
+			continue
 		}
-		target = valueTarget
+		if backuputil.IsBackupTargetSame(v.vmbr.GetBackupTarget(vmBackup), target) {
+			continue
+		}
+		return werror.NewBadRequest(fmt.Sprintf(
+			"Can't change the backup target repository while VMBackup %s/%s refers to the current repository",
+			v.vmbr.GetNamespace(vmBackup), v.vmbr.GetName(vmBackup)))
+	}
+	return nil
+}
+
+func decodeBackupTarget(setting *v1beta1.Setting) (*settings.BackupTarget, error) {
+	target, err := parseTarget(setting.Default, settings.KeywordDefault)
+	if err != nil {
+		return nil, err
+	}
+	if target.RepoPassword != "" {
+		return nil, werror.NewInvalidError("repository password must only be submitted in value", settings.KeywordDefault)
+	}
+	if setting.Value == "" {
+		return target, nil
+	}
+	return parseTarget(setting.Value, settings.KeywordValue)
+}
+
+func parseTarget(value, field string) (*settings.BackupTarget, error) {
+	target, err := settings.DecodeBackupTarget(value)
+	if err != nil {
+		return nil, werror.NewInvalidError(err.Error(), field)
 	}
 	return target, nil
 }
 
-func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error {
-	target, err := validateBackupTargetHelper(setting)
+func (v *settingValidator) validateBackupSetting(setting *v1beta1.Setting) error {
+	target, err := decodeBackupTarget(setting)
 	if err != nil {
 		return err
 	}
+	return v.validateBackupTarget(target)
+}
+
+func (v *settingValidator) validateBackupTarget(target *settings.BackupTarget) error {
 	if target == nil {
 		return nil
 	}
-
 	if target.RefreshIntervalInSeconds < 0 {
 		return werror.NewInvalidError("Refresh interval should be greater than or equal to 0", settings.KeywordValue)
 	}
-
-	// when target is from internal re-update, allow fast pass
-	if v.isUpdatedS3BackupTarget(target) {
+	if err := v.checkThirdPartyInput(target); err != nil {
+		return err
+	}
+	logrus.Debugf("validate backup target:%s:%s", target.Type, target.Endpoint)
+	if err := v.checkBackupIdle(); err != nil {
+		return err
+	}
+	if target.IsDefaultBackupTarget() {
 		return nil
 	}
+	if err := v.validateBackupTargetFields(target); err != nil {
+		return err
+	}
+	return v.checkTargetConnection(target)
+}
 
-	logrus.Debugf("validate backup target:%s:%s", target.Type, target.Endpoint)
+func (v *settingValidator) checkBackupIdle() error {
+	if err := v.checkBackupsIdle(); err != nil {
+		return err
+	}
+	return v.checkRestoresIdle()
+}
 
+func (v *settingValidator) checkBackupsIdle() error {
 	vmBackups, err := v.vmBackupCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Can't list VM backups, err: %+v", err.Error()))
@@ -571,7 +662,10 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	if hasVMBackupInCreatingOrDeletingProgress(vmBackups, v.vmbr) {
 		return werror.NewBadRequest("There is VMBackup in creating or deleting progress")
 	}
+	return nil
+}
 
+func (v *settingValidator) checkRestoresIdle() error {
 	vmRestores, err := v.vmRestoreCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return werror.NewInternalError(fmt.Sprintf("Failed to get the VM restore objects, err: %+v", err.Error()))
@@ -579,25 +673,12 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	if hasVMRestoreInCreatingOrDeletingProgress(vmRestores) {
 		return werror.NewBadRequest("Can't update the backup target. There is a VM either in the process of creating or deleting")
 	}
+	return nil
+}
 
-	// It is allowed to reset the current backup target setting to the default value
-	// when it is default, the validator will skip all remaining checks
-	if target.IsDefaultBackupTarget() {
-		return nil
-	}
-
-	if err = v.validateBackupTargetFields(target); err != nil {
+func (v *settingValidator) checkTargetConnection(target *settings.BackupTarget) error {
+	if err := v.configureS3Connection(target); err != nil {
 		return err
-	}
-
-	if target.Type == settings.S3BackupType {
-		// Set OS environment variables for S3
-		os.Setenv(util.AWSAccessKey, target.AccessKeyID)
-		os.Setenv(util.AWSSecretKey, target.SecretAccessKey)
-		os.Setenv(util.AWSEndpoints, target.Endpoint)
-		if err := v.customizeTransport(); err != nil {
-			return err
-		}
 	}
 
 	// GetBackupStoreDriver tests whether the driver can List objects, so we don't need to do it again here.
@@ -608,7 +689,7 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	// There might be a goroutine leak if the driver doesn't end properly,
 	// Although we can pass ctx, but the underlying driver implementation doesn't support it.
 	// So we should be careful when using GetBackupStoreDriver function.
-	_, err = util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
+	_, err := util.RunWithTimeoutAndResult(backuputil.ConnectBackupStoreTimeout, func(_ context.Context) (backupstore.BackupStoreDriver, error) {
 		return backupstore.GetBackupStoreDriver(endpoint)
 	})
 	if err != nil {
@@ -616,6 +697,16 @@ func (v *settingValidator) validateBackupTarget(setting *v1beta1.Setting) error 
 	}
 
 	return nil
+}
+
+func (v *settingValidator) configureS3Connection(target *settings.BackupTarget) error {
+	if target.Type != settings.S3BackupType {
+		return nil
+	}
+	os.Setenv(util.AWSAccessKey, target.AccessKeyID)
+	os.Setenv(util.AWSSecretKey, target.SecretAccessKey)
+	os.Setenv(util.AWSEndpoints, target.Endpoint)
+	return v.customizeTransport()
 }
 
 // customizeTransport sets HTTP proxy and trusted CAs in the default HTTP transport.

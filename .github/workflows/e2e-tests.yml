@@ -47,6 +47,14 @@ on:
         required: false
         default: ""
         type: string
+      cdi_storage:
+        description: "CDI test storage backend (none disables automatic preparation)"
+        required: false
+        default: "lvm"
+        type: choice
+        options:
+          - lvm
+          - none
 
 jobs:
   configure_input_vars:
@@ -58,6 +66,7 @@ jobs:
       tests_branch: ${{ steps.tests_src.outputs.branch }}
       test_tags: ${{ steps.tests_src.outputs.tags }}
       test_files: ${{ steps.tests_src.outputs.files }}
+      cdi_storage: ${{ steps.tests_src.outputs.cdi_storage }}
     steps:
     - name: Checkout code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -74,6 +83,7 @@ jobs:
     #   E2E-Tests-Branch: <branch>
     #   E2E-Tests-Tags: <tag>, ...         run together with pr-baseline
     #   E2E-Tests-Files: tests/<path>, ... each runs after pr-baseline
+    #   E2E-Tests-CDI-Storage: none       disable CDI storage setup (default: lvm)
     - name: Resolve E2E tests settings
       id: tests_src
       env:
@@ -83,15 +93,17 @@ jobs:
         BRANCH: ${{ inputs.harvester_tests_branch }}
         TAGS: ${{ inputs.extra_test_tags }}
         FILES: ${{ inputs.extra_test_files }}
+        CDI_STORAGE: ${{ inputs.cdi_storage || 'lvm' }}
       run: |
         set -euo pipefail
         fail() { echo "::error::$1"; exit 1; }
-        to_list() { tr ', \t' '\n\n\n' <<<"$1" | sed '/^$/d'; }
+        to_list() { tr ', \t' '\n' <<<"$1" | sed '/^$/d'; }
 
         repo="$REPO"
         branch="$BRANCH"
         tags="$TAGS"
         files="$FILES"
+        cdi_storage="$CDI_STORAGE"
         if [ -n "$PR_NUMBER" ]; then
           # Fetch the body live so that editing the PR description and
           # re-running the workflow picks up the change.
@@ -103,7 +115,13 @@ jobs:
           v=$(pr_value E2E-Tests-Branch); branch="${v:-$branch}"
           v=$(pr_value E2E-Tests-Tags); tags="${v:-$tags}"
           v=$(pr_value E2E-Tests-Files); files="${v:-$files}"
+          v=$(pr_value E2E-Tests-CDI-Storage); cdi_storage="${v:-$cdi_storage}"
         fi
+
+        case "$cdi_storage" in
+          none|lvm) ;;
+          *) fail "Invalid E2E CDI storage: $cdi_storage (expected none or lvm)" ;;
+        esac
 
         # The tests' run.sh evals its arguments, so only allow safe values.
         repo="${repo%/}"
@@ -132,11 +150,14 @@ jobs:
           echo "branch=$branch"
           echo "tags=$include"
           echo "files=${test_files[*]}"
+          echo "cdi_storage=$cdi_storage"
         } >> "$GITHUB_OUTPUT"
         {
           echo "E2E tests source: \`$repo\` @ \`${branch:-<default branch>}\`"
           echo
           echo "E2E test tags: \`$include\`"
+          echo
+          echo "E2E CDI storage: \`$cdi_storage\`"
           if [ ${#test_files[@]} -gt 0 ]; then
             echo
             echo "E2E test files: \`${test_files[*]}\`"
@@ -155,3 +176,4 @@ jobs:
       harvester_tests_branch: ${{ needs.configure_input_vars.outputs.tests_branch }}
       test_tags: ${{ needs.configure_input_vars.outputs.test_tags }}
       test_files: ${{ needs.configure_input_vars.outputs.test_files }}
+      cdi_storage: ${{ needs.configure_input_vars.outputs.cdi_storage }}

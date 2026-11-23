@@ -17,13 +17,30 @@ global:
   ##
   ## Valid values (same as Kubernetes Service.spec.ipFamilyPolicy):
   ##   - SingleStack      (default; matches historical/IPv4-only behavior)
-  ##   - PreferDualStack  (safe on IPv4-only clusters too; degrades automatically)
-  ##   - RequireDualStack
+  ##   - PreferDualStack  (Note: While Kubernetes technically allows PreferDualStack on
+  ##                       IPv4-only clusters where it degrades automatically, setting
+  ##                       this via `.global.ipFamilyPolicy` explicitly means the Harvester
+  ##                       cluster itself is installed in dual-stack mode, with the
+  ##                       underlying Linux host OS kernel IPv6 stack enabled.)
+  ##   (RequireDualStack is not supported yet)
   ##
-  ## The installer sets this based on how the cluster's IPFamilies were
-  ## configured (single-stack IPv4 vs. dual-stack IPv4+IPv6), so this should
-  ## not be hand-edited for a running installation; it is overridden via the
-  ## ManagedChart `values` from pkg/installer/config/templates/rancherd-10-harvester.yaml.
+  ## =========================================================================
+  ## Controller Runtime & Architecture Notes:
+  ## =========================================================================
+  ##   - Host Stack Assumption: When configured as `PreferDualStack`, it indicates
+  ##     the underlying Linux host OS network stack is installed in dual-IPv4-first
+  ##     mode with the kernel IPv6 stack enabled, allowing the controller (e.g. network)
+  ##     runtime to safely assume a dual-stack environment (IPv4+IPv6).
+  ##
+  ##   - Configuration Propagation: The installer sets this automatically based
+  ##     on the cluster's initial IPFamilies configuration, propagated via the
+  ##     ManagedChart values from `pkg/installer/config/templates/rancherd-10-harvester.yaml`.
+  ##
+  ##   - CRITICAL SAFETY WARNING:
+  ##     Never modify `ipFamilyPolicy` independently or directly afterwards.
+  ##     It must strictly match the host-OS network stack established
+  ##     at installation; a mismatched or independent change will break system networking
+  ##     or trigger panics.
   ##
   ipFamilyPolicy: SingleStack
 

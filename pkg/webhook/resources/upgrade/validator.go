@@ -14,6 +14,7 @@ import (
 	fleetv1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	mgmtv3 "github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io/v3"
 	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -71,6 +72,7 @@ func NewValidator(
 	vmCache ctlkubevirtv1.VirtualMachineCache,
 	vmiCache ctlkubevirtv1.VirtualMachineInstanceCache,
 	endpointSliceCache ctldiscoveryv1.EndpointSliceCache,
+	scCache ctlstoragev1.StorageClassCache,
 	httpClient *http.Client,
 ) types.Validator {
 	return &upgradeValidator{
@@ -88,6 +90,7 @@ func NewValidator(
 		vmiCache:           vmiCache,
 		endpointSliceCache: endpointSliceCache,
 		settingCache:       settingCache,
+		storageClassCache:  scCache,
 		httpClient:         httpClient,
 	}
 }
@@ -109,6 +112,7 @@ type upgradeValidator struct {
 	vmiCache           ctlkubevirtv1.VirtualMachineInstanceCache
 	endpointSliceCache ctldiscoveryv1.EndpointSliceCache
 	settingCache       ctlharvesterv1.SettingCache
+	storageClassCache  ctlstoragev1.StorageClassCache
 	httpClient         *http.Client
 }
 
@@ -315,7 +319,29 @@ func (v *upgradeValidator) checkResources(upgrade *v1beta1.Upgrade) error {
 		}
 	}
 
+	if err := v.checkStorageClass(upgrade); err != nil {
+		return err
+	}
+
 	return v.checkCerts(upgrade)
+}
+
+func (v *upgradeValidator) checkStorageClass(upgrade *v1beta1.Upgrade) error {
+	// When spec.image is set the PVC already exists; no SC selection is needed.
+	if upgrade.Spec.Image != "" {
+		return nil
+	}
+	if sc := upgrade.Annotations[util.AnnotationUpgradeStorageClass]; sc != "" {
+		_, err := v.storageClassCache.Get(sc)
+		if err != nil {
+			return werror.NewBadRequest(fmt.Sprintf("annotation %s: StorageClass %q: %v", util.AnnotationUpgradeStorageClass, sc, err))
+		}
+		return nil
+	}
+	if util.GetDefaultSC(v.storageClassCache) == nil {
+		return werror.NewBadRequest("no default StorageClass found; configure one before upgrading")
+	}
+	return nil
 }
 
 func (v *upgradeValidator) hasDegradedVolume() (bool, error) {

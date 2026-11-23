@@ -25,13 +25,16 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
+	backupkopia "github.com/harvester/harvester/pkg/backup/engine/kopia"
 	"github.com/harvester/harvester/pkg/backup/engine/longhorn"
+	backuprestic "github.com/harvester/harvester/pkg/backup/engine/restic"
 	"github.com/harvester/harvester/pkg/backup/engine/snapshot"
 	"github.com/harvester/harvester/pkg/config"
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/scheme"
@@ -70,7 +73,11 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 	vmbo := newBackupOperator(controllers, restClient)
 
 	// Initialize backup engines
-	engines := newBackupEngines(controllers, vmbo)
+	snapshotClient, err := dynamic.NewForConfig(management.RestConfig)
+	if err != nil {
+		return err
+	}
+	engines := newBackupEngines(controllers, management, vmbo, snapshotClient)
 
 	// Let each engine wire up its own informer event handlers (e.g. Job
 	// watchers) so engine-owned resource changes feed back into VMBackup
@@ -84,6 +91,7 @@ func RegisterBackup(ctx context.Context, management *config.Management, _ config
 
 	// Register event handlers
 	registerBackupEventHandlers(ctx, controllers, handler)
+	registerRepositoryCleanup(ctx, management, controllers, snapshotClient)
 
 	return nil
 }
@@ -158,7 +166,9 @@ func newBackupOperator(
 // newBackupEngines creates backup engines for different backup types
 func newBackupEngines(
 	controllers *backupControllerSet,
+	management *config.Management,
 	vmbo common.VMBackupOperator,
+	snapshotClient dynamic.Interface,
 ) map[harvesterv1.BackupType]engine.BackupEngine {
 	return map[harvesterv1.BackupType]engine.BackupEngine{
 		harvesterv1.Snapshot: snapshot.GetBackupEngine(
@@ -179,6 +189,30 @@ func newBackupEngines(
 			controllers.lhbackups.Cache(),
 			controllers.lhbackups,
 			controllers.vmbs.Cache(),
+		),
+		harvesterv1.Restic: backuprestic.GetBackupEngine(
+			vmbo,
+			controllers.vss.Cache(),
+			controllers.vss,
+			snapshotClient,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.secrets,
+			controllers.storageClasses.Cache(),
+			controllers.jobs,
+			management.ClientSet,
+		),
+		harvesterv1.Kopia: backupkopia.GetBackupEngine(
+			vmbo,
+			controllers.vss.Cache(),
+			controllers.vss,
+			snapshotClient,
+			controllers.pvcs.Cache(),
+			controllers.pvcs,
+			controllers.secrets,
+			controllers.storageClasses.Cache(),
+			controllers.jobs,
+			management.ClientSet,
 		),
 	}
 }
@@ -252,101 +286,110 @@ func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup
 		return nil, nil
 	}
 
-	// TODO, make sure status is initialized, and "Lock" the source VM by adding a finalizer and setting snapshotInProgress in status
-
 	_, csiVSClassMap, err := h.vmbo.BuildCSIDriverMap(vmb)
 	if err != nil {
 		return nil, h.vmbo.UpdateError(vmb, err)
 	}
 
-	// create volume snapshots if not exist
-	if err := h.CreateVolumeBackups(vmb, csiVSClassMap); err != nil {
+	updated := vmb.DeepCopy()
+	err = h.CreateVolumeBackups(updated, csiVSClassMap)
+	if err != nil && err != engine.ErrRetryLater {
 		return nil, h.vmbo.UpdateError(vmb, err)
 	}
-
-	// reconcile backup status of volume backups, validate if those volumeSnapshots are ready to use
-	if err := h.updateConditions(vmb); err != nil {
-		return nil, err
+	if err == engine.ErrRetryLater {
+		h.enqueueBackup(vmb)
 	}
-
-	return nil, nil
+	return nil, h.updateConditions(vmb, updated, err == nil)
 }
 
-// OnBackupRemove removes remote vm backup metadata when a VMBackup is deleted.
-// It handles two scenarios:
-// 1. Delete backup metadata from the backup target if it's not the default target
-// 2. Delete volume backups if the backup target has changed
+// OnBackupRemove removes remote backup state and releases cleanup resources.
+// A changed or disconnected target preserves remote backups for later discovery.
 func (h *Handler) OnBackupRemove(_ string, vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
-	// Skip if backup is nil or doesn't have status/target information
-	if vmb == nil || h.vmbo.GetStatus(vmb) == nil || h.vmbo.GetBackupTarget(vmb) == nil {
+	if vmb == nil {
 		return nil, nil
 	}
-
-	// Get the current backup target configuration
-	currentTarget, err := settings.DecodeBackupTarget(settings.BackupTargetSet.Get())
+	backupEngine := h.getBackupEngine(vmb)
+	if backupEngine == nil {
+		return nil, fmt.Errorf("unsupported backup type %q", h.vmbo.GetType(vmb))
+	}
+	target, err := common.GetCleanupTarget(h.vmbo, vmb)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode backup target: %w", err)
+		return nil, err
 	}
-
-	// Delete metadata from backup target if it's configured (not default)
-	if !currentTarget.IsDefaultBackupTarget() {
-		if err := h.deleteVMBackupMetadata(vmb, currentTarget); err != nil {
-			return nil, fmt.Errorf("failed to delete VM backup metadata: %w", err)
-		}
-	}
-
-	// Force-delete volume backups in two cases:
-	// 1) Target changed since creation — orphaned vol backups against the old
-	//    target need cleanup regardless of type.
-	// 2) The backup type owns remote state nothing else GCs for us — the
-	//    engine must always get a chance to clean up. Currently always false
-	//    for built-in types; reserved for future third-party engines.
-	if !h.vmbo.IsTargetConsistent(vmb, currentTarget) || h.vmbo.GetType(vmb).OwnsExternalState() {
-		if err := h.forceDeleteVolBackups(vmb); err != nil {
-			return nil, fmt.Errorf("failed to delete volume backups: %w", err)
-		}
-	}
-
-	return nil, nil
+	return h.removeBackup(vmb, backupEngine, target)
 }
 
-// CreateVolumeBackups creates volume snapshots for all volumes that need backup.
-// For VM backups from an existing VM, we create volume snapshots from PVCs.
-// For VM backups from syncing metadata, we create volume snapshots from volume snapshot content.
+func (h *Handler) removeBackup(
+	vmb *harvesterv1.VirtualMachineBackup,
+	backupEngine engine.BackupEngine,
+	target *settings.BackupTarget,
+) (*harvesterv1.VirtualMachineBackup, error) {
+	if target == nil {
+		return backupEngine.Remove(vmb, false)
+	}
+	if err := h.deleteVMBackupMetadata(vmb, target); err != nil {
+		return nil, fmt.Errorf("failed to delete VM backup metadata: %w", err)
+	}
+	sameTarget := h.vmbo.IsTargetConsistent(vmb, target)
+	backupType := h.vmbo.GetType(vmb)
+	if backupType.IsDataMover() {
+		// Preserve remote snapshots when their repository is no longer configured.
+		return backupEngine.Remove(vmb, sameTarget)
+	}
+	// Longhorn needs forced local snapshot cleanup when CSI cannot use the old target.
+	forceCleanup := backupType == harvesterv1.Backup && !sameTarget
+	return backupEngine.Remove(vmb, forceCleanup)
+}
+
+// CreateVolumeBackups reconciles volumes on a copy owned by the caller. Status
+// changes, including completed uploads, must be persisted even while retrying.
 func (h *Handler) CreateVolumeBackups(
 	vmb *harvesterv1.VirtualMachineBackup,
 	csiVSClassMap map[string]snapshotv1.VolumeSnapshotClass,
 ) error {
-	// Create a copy to track status changes during the loop
-	vmbCpy := vmb.DeepCopy()
+	backupEngine := h.getBackupEngine(vmb)
+	if backupEngine == nil {
+		return fmt.Errorf("unsupported backup type %q", h.vmbo.GetType(vmb))
+	}
+	ready, err := backupEngine.Prepare(vmb, csiVSClassMap)
+	if err != nil {
+		return err
+	}
+	if !ready {
+		return engine.ErrRetryLater
+	}
+	return h.reconcileVolumes(vmb, backupEngine, csiVSClassMap)
+}
 
-	vbs := h.vmbo.GetVolBackups(vmbCpy)
-	for index, vb := range vbs {
-		// Skip volumes that don't have a name assigned yet
+func (h *Handler) reconcileVolumes(
+	vmb *harvesterv1.VirtualMachineBackup,
+	backupEngine engine.BackupEngine,
+	csiVSClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	var retryErr error
+	for index, vb := range h.vmbo.GetVolBackups(vmb) {
 		if h.vmbo.GetVolBackupName(&vb) == nil {
 			continue
 		}
-
-		// Reconcile the per-volume backup using the appropriate engine
-		backupEngine := h.getBackupEngine(vmbCpy)
-		err := backupEngine.Reconcile(vmbCpy, index, csiVSClassMap)
-
-		// Handle retry case - engine needs more time to complete the operation
-		if err == engine.ErrRetryLater {
-			namespace := h.vmbo.GetNamespace(vmbCpy)
-			name := h.vmbo.GetName(vmbCpy)
-			h.vmbController.EnqueueAfter(namespace, name, engineRetryDelay)
-			return nil
-		}
-
-		if err != nil {
+		wasReady := h.vmbo.GetVolBackupReadyToUse(&vb)
+		if err := backupEngine.Reconcile(vmb, index, csiVSClassMap); err != nil {
 			return err
 		}
+		// Persist the upload checkpoint before the next reconcile removes its
+		// temporary resources. The parent cannot become ready in this pass.
+		if !wasReady {
+			retryErr = engine.ErrRetryLater
+		}
 	}
+	return retryErr
+}
 
-	// Update the VM backup status if any changes were made
-	_, err := h.vmbo.UpdateByStatus(vmb, vmbCpy)
-	return err
+func (h *Handler) enqueueBackup(vmb *harvesterv1.VirtualMachineBackup) {
+	h.vmbController.EnqueueAfter(
+		h.vmbo.GetNamespace(vmb),
+		h.vmbo.GetName(vmb),
+		engineRetryDelay,
+	)
 }
 
 func (h *Handler) deleteVMBackupMetadata(vmb *harvesterv1.VirtualMachineBackup, target *settings.BackupTarget) error {
@@ -411,6 +454,7 @@ func (h *Handler) uploadVMBackupMetadata(vmb *harvesterv1.VirtualMachineBackup) 
 		Name:          h.vmbo.GetName(vmb),
 		Namespace:     h.vmbo.GetNamespace(vmb),
 		BackupSpec:    h.vmbo.GetSpec(vmb),
+		BackupTarget:  h.vmbo.GetBackupTarget(vmb),
 		VMSourceSpec:  h.vmbo.GetSourceSpec(vmb),
 		VolumeBackups: h.vmbo.GetSanitizeVolBackups(vmb),
 		SecretBackups: h.vmbo.GetSecretBackups(vmb),
@@ -451,28 +495,6 @@ func (h *Handler) uploadVMBackupMetadata(vmb *harvesterv1.VirtualMachineBackup) 
 	// even when the upload was skipped. Otherwise recovered backups never get
 	// the MetadataReady condition set.
 	return h.vmbo.UpdateMetadataReady(vmb)
-}
-
-func (h *Handler) forceDeleteVolBackups(vmb *harvesterv1.VirtualMachineBackup) error {
-	backupEngine := h.getBackupEngine(vmb)
-
-	for i, vb := range h.vmbo.GetVolBackups(vmb) {
-		if h.vmbo.GetVolBackupName(&vb) == nil {
-			continue
-		}
-
-		err := backupEngine.ForceDelete(vmb, i)
-		if err != nil {
-			logrus.WithError(err).WithFields(logrus.Fields{
-				"vmBackup":     h.vmbo.GetName(vmb),
-				"volumeBackup": *h.vmbo.GetVolBackupName(&vb),
-				"namespace":    h.vmbo.GetNamespace(vmb),
-				"backupType":   h.vmbo.GetType(vmb),
-			}).Warn("failed to force delete volume backup")
-			return err
-		}
-	}
-	return nil
 }
 
 func (h *Handler) handleBackupReady(vmb *harvesterv1.VirtualMachineBackup) error {

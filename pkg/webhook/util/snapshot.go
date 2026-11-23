@@ -140,9 +140,9 @@ func ValidateProvisionerAndConfig(pvc *corev1.PersistentVolumeClaim,
 
 	var requiredValue string
 	switch {
-	case bt.UsesRemoteBackupTarget():
+	case bt.UsesBackupSnapshotClass():
 		requiredValue = c.BackupVolumeSnapshotClassName
-	case bt == v1beta1.Snapshot:
+	case bt == v1beta1.Snapshot, bt.IsDataMover():
 		requiredValue = c.VolumeSnapshotClassName
 	}
 	if requiredValue == "" {

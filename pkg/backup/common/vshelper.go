@@ -8,6 +8,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	ctlstoragev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/storage/v1"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,6 +19,7 @@ import (
 	"github.com/harvester/harvester/pkg/backup/engine"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
 	"github.com/harvester/harvester/pkg/util"
+	"github.com/harvester/harvester/pkg/util/joblifecycle"
 )
 
 // VolumeSnapshotHelper provides common operations for VolumeSnapshot management
@@ -29,6 +31,18 @@ type VolumeSnapshotHelper struct {
 	vmbo      VMBackupOperator
 	pvcCache  ctlcorev1.PersistentVolumeClaimCache
 	scCache   ctlstoragev1.StorageClassCache
+}
+
+// SnapshotName separates temporary CSI names from the stable remote snapshot
+// tags recorded in VolumeBackup. Native snapshot/Longhorn names stay unchanged.
+func SnapshotName(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) string {
+	if vb == nil || vb.Name == nil {
+		return ""
+	}
+	if vmb.Spec.Type == harvesterv1.Restic || vmb.Spec.Type == harvesterv1.Kopia {
+		return joblifecycle.Name(string(vmb.Spec.Type)+"-source-snapshot", vmb, *vb.Name)
+	}
+	return *vb.Name
 }
 
 // NewVolumeSnapshotHelper creates a new VolumeSnapshotHelper instance
@@ -103,7 +117,7 @@ func (h *VolumeSnapshotHelper) GetLogFields(vmb *harvesterv1.VirtualMachineBacku
 	return fields
 }
 
-// BuildOwnerReference creates an owner reference for a VM backup
+// BuildOwnerReference creates an owner reference for a VM backup.
 func (h *VolumeSnapshotHelper) BuildOwnerReference(vmb *harvesterv1.VirtualMachineBackup) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: harvesterv1.SchemeGroupVersion.String(),
@@ -158,6 +172,152 @@ func (h *VolumeSnapshotHelper) TryFreezeFS(ctx context.Context, vmb *harvesterv1
 		return err
 	}
 	return nil
+}
+
+// PrepareSnapshots creates all local snapshots before a data mover starts
+// uploading any volume. ReadyToUse on VolumeBackup remains reserved for the
+// remote backup, so local snapshot readiness is checked directly here.
+func (h *VolumeSnapshotHelper) PrepareSnapshots(
+	vmb *harvesterv1.VirtualMachineBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) (bool, error) {
+	missing, allReady, err := h.snapshotState(vmb)
+	if err != nil {
+		return false, err
+	}
+	if len(missing) == 0 {
+		return allReady, nil
+	}
+	if err := h.validateSnapshotClasses(missing, vsClassMap); err != nil {
+		return false, err
+	}
+	if err := h.TryFreezeFS(context.Background(), vmb); err != nil {
+		return false, err
+	}
+	if err := h.createSnapshots(vmb, missing, vsClassMap); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func (h *VolumeSnapshotHelper) snapshotState(
+	vmb *harvesterv1.VirtualMachineBackup,
+) ([]*harvesterv1.VolumeBackup, bool, error) {
+	missing := make([]*harvesterv1.VolumeBackup, 0)
+	allReady := true
+	volumeBackups := h.vmbo.GetVolBackups(vmb)
+
+	for i := range volumeBackups {
+		vb := &volumeBackups[i]
+		if h.vmbo.GetVolBackupReadyToUse(vb) {
+			continue
+		}
+
+		vs, err := h.snapshotForBackup(vmb, vb)
+		if err != nil {
+			return nil, false, err
+		}
+		if vs == nil {
+			missing = append(missing, vb)
+			allReady = false
+			continue
+		}
+		ready, err := localSnapshotReady(vs)
+		if err != nil {
+			return nil, false, err
+		}
+		allReady = allReady && ready
+	}
+
+	return missing, allReady, nil
+}
+
+func (h *VolumeSnapshotHelper) snapshotForBackup(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
+) (*snapshotv1.VolumeSnapshot, error) {
+	if h.vmbo.GetVolBackupName(vb) == nil {
+		return nil, ErrVolumeBackupNameNil
+	}
+	vs, err := h.GetVolumeSnapshot(h.vmbo.GetNamespace(vmb), SnapshotName(vmb, vb))
+	if err != nil {
+		return nil, err
+	}
+	if err := h.CheckSnapshotDeletionStatus(vs, vmb, vb); err != nil {
+		return nil, err
+	}
+	if vs == nil {
+		return nil, nil
+	}
+	backupType := h.vmbo.GetType(vmb)
+	if backupType != harvesterv1.Restic && backupType != harvesterv1.Kopia {
+		return vs, nil
+	}
+	return vs, joblifecycle.Validate(vmb, "VirtualMachineBackup", vs.ObjectMeta)
+}
+
+func (h *VolumeSnapshotHelper) validateSnapshotClasses(
+	volumeBackups []*harvesterv1.VolumeBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	for _, vb := range volumeBackups {
+		driver := h.vmbo.GetVolBackupCSIDriver(vb)
+		if _, ok := vsClassMap[driver]; !ok {
+			return fmt.Errorf("VolumeSnapshotClass not found for CSI driver %s", driver)
+		}
+	}
+	return nil
+}
+
+func (h *VolumeSnapshotHelper) createSnapshots(
+	vmb *harvesterv1.VirtualMachineBackup,
+	volumeBackups []*harvesterv1.VolumeBackup,
+	vsClassMap map[string]snapshotv1.VolumeSnapshotClass,
+) error {
+	created := make([]string, 0, len(volumeBackups))
+	ownerRef := h.BuildOwnerReference(vmb)
+
+	for _, vb := range volumeBackups {
+		driver := h.vmbo.GetVolBackupCSIDriver(vb)
+		vsClass := vsClassMap[driver]
+		vs, err := h.CreateVolumeSnapshotFromPVC(vmb, vb, &vsClass, ownerRef)
+		if apierrors.IsAlreadyExists(err) {
+			continue
+		}
+		if err != nil {
+			h.rollbackSnapshots(h.vmbo.GetNamespace(vmb), created)
+			return err
+		}
+		created = append(created, vs.Name)
+	}
+
+	return nil
+}
+
+func (h *VolumeSnapshotHelper) rollbackSnapshots(namespace string, names []string) {
+	for _, name := range names {
+		err := h.vsClient.Delete(namespace, name, metav1.NewDeleteOptions(0))
+		if err != nil && !apierrors.IsNotFound(err) {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"namespace": namespace,
+				"name":      name,
+			}).Warn("failed to roll back VolumeSnapshot")
+		}
+	}
+}
+
+func localSnapshotReady(vs *snapshotv1.VolumeSnapshot) (bool, error) {
+	if vs.Status == nil {
+		return false, nil
+	}
+	if vs.Status.Error != nil {
+		message := "unknown error"
+		if vs.Status.Error.Message != nil {
+			message = *vs.Status.Error.Message
+		}
+		return false, fmt.Errorf("VolumeSnapshot %s/%s is in error state: %s", vs.Namespace, vs.Name, message)
+	}
+	return ptr.Deref(vs.Status.ReadyToUse, false), nil
 }
 
 // clearFinalizersPatch is a JSON merge patch that empties metadata.finalizers
@@ -231,56 +391,69 @@ func (h *VolumeSnapshotHelper) CreateVolumeSnapshotFromPVC(
 	vsClass *snapshotv1.VolumeSnapshotClass,
 	ownerRef metav1.OwnerReference,
 ) (*snapshotv1.VolumeSnapshot, error) {
-	vbName := h.vmbo.GetVolBackupName(vb)
-	if vbName == nil {
+	pvc, err := h.sourcePVC(vb)
+	if err != nil {
+		return nil, err
+	}
+	vs := h.newSnapshot(vmb, vb, pvc, vsClass.Name, ownerRef)
+	logFields := h.GetLogFields(vmb, vb)
+	logFields["sourcePVC"] = h.vmbo.GetVolBackupPVCName(vb)
+	logFields["storageClass"] = vs.Annotations[util.AnnotationStorageClassName]
+	logFields["provisioner"] = vs.Annotations[util.AnnotationStorageProvisioner]
+	logrus.WithFields(logFields).Info("creating VolumeSnapshot from PVC")
+	return h.vsClient.Create(vs)
+}
+
+func (h *VolumeSnapshotHelper) sourcePVC(vb *harvesterv1.VolumeBackup) (*corev1.PersistentVolumeClaim, error) {
+	if h.vmbo.GetVolBackupName(vb) == nil {
 		return nil, ErrVolumeBackupNameNil
 	}
-
-	pvcNamespace := h.vmbo.GetVolBackupPVCNameSpace(vb)
-	pvcName := h.vmbo.GetVolBackupPVCName(vb)
-
-	pvc, err := h.pvcCache.Get(pvcNamespace, pvcName)
+	namespace := h.vmbo.GetVolBackupPVCNameSpace(vb)
+	name := h.vmbo.GetVolBackupPVCName(vb)
+	pvc, err := h.pvcCache.Get(namespace, name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get PVC %s/%s: %w", pvcNamespace, pvcName, err)
+		return nil, fmt.Errorf("failed to get PVC %s/%s: %w", namespace, name, err)
 	}
+	return pvc, nil
+}
 
-	// Extract PVC metadata
-	srcSCName := ptr.Deref(pvc.Spec.StorageClassName, "")
-	srcImageID := pvc.Annotations[util.AnnotationImageID]
-	srcProvisioner := util.GetProvisionedPVCProvisioner(pvc, h.scCache)
-
-	// Build VolumeSnapshot
+func (h *VolumeSnapshotHelper) newSnapshot(
+	vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup,
+	pvc *corev1.PersistentVolumeClaim, className string, ownerRef metav1.OwnerReference,
+) *snapshotv1.VolumeSnapshot {
 	vs := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            *vbName,
+			Name:            SnapshotName(vmb, vb),
 			Namespace:       h.vmbo.GetNamespace(vmb),
 			OwnerReferences: []metav1.OwnerReference{ownerRef},
-			Annotations:     make(map[string]string),
+			Annotations:     h.snapshotAnnotations(pvc),
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
-				PersistentVolumeClaimName: ptr.To(pvcName),
+				PersistentVolumeClaimName: ptr.To(h.vmbo.GetVolBackupPVCName(vb)),
 			},
-			VolumeSnapshotClassName: ptr.To(vsClass.Name),
+			VolumeSnapshotClassName: ptr.To(className),
 		},
 	}
 
-	// Add metadata annotations
-	if srcSCName != "" {
-		vs.Annotations[util.AnnotationStorageClassName] = srcSCName
+	if h.vmbo.GetType(vmb) == harvesterv1.Restic || h.vmbo.GetType(vmb) == harvesterv1.Kopia {
+		// Foreground parent deletion must not let GC remove the backend snapshot
+		// before the system Job, clone PVC, and imported snapshot are cleaned up.
+		joblifecycle.Track(&vs.ObjectMeta, vmb, "VirtualMachineBackup")
 	}
-	if srcImageID != "" {
-		vs.Annotations[util.AnnotationImageID] = srcImageID
-	}
-	if srcProvisioner != "" {
-		vs.Annotations[util.AnnotationStorageProvisioner] = srcProvisioner
-	}
+	return vs
+}
 
-	logFields := h.GetLogFields(vmb, vb)
-	logFields["sourcePVC"] = pvcName
-	logFields["storageClass"] = srcSCName
-	logFields["provisioner"] = srcProvisioner
-	logrus.WithFields(logFields).Info("creating VolumeSnapshot from PVC")
-
-	return h.vsClient.Create(vs)
+func (h *VolumeSnapshotHelper) snapshotAnnotations(pvc *corev1.PersistentVolumeClaim) map[string]string {
+	annotations := map[string]string{
+		util.AnnotationStorageClassName:   ptr.Deref(pvc.Spec.StorageClassName, ""),
+		util.AnnotationImageID:            pvc.Annotations[util.AnnotationImageID],
+		util.AnnotationStorageProvisioner: util.GetProvisionedPVCProvisioner(pvc, h.scCache),
+	}
+	for key, value := range annotations {
+		if value == "" {
+			delete(annotations, key)
+		}
+	}
+	return annotations
 }

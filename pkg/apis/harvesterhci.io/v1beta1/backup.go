@@ -45,28 +45,26 @@ type BackupType string
 const (
 	Backup   BackupType = "backup"
 	Snapshot BackupType = "snapshot"
+	Restic   BackupType = "restic"
+	Kopia    BackupType = "kopia"
 )
 
-// UsesRemoteBackupTarget reports whether this backup type persists data to the
-// configured remote BackupTarget. Snapshot stays in-cluster; Backup pushes to
-// S3 via the Longhorn-native engine. Kept as a predicate so third-party engines
-// can be plugged in later without rewriting call sites.
-func (b BackupType) UsesRemoteBackupTarget() bool {
-	switch b {
-	case Backup:
-		return true
-	}
-	return false
+// IsDataMover reports whether the backup type uses a data-mover engine.
+func (b BackupType) IsDataMover() bool {
+	return b == Restic || b == Kopia
 }
 
-// OwnsExternalState reports whether this backup type holds remote state that
-// no other controller will garbage-collect, requiring the engine's ForceDelete
-// to run on every VMBackup removal. The built-in types don't qualify (native
-// Backup defers to Longhorn's own backup CRs), so this currently always
-// returns false. Kept as an extension point for third-party engines that push
-// to storage outside of any K8s resource lifecycle.
-func (b BackupType) OwnsExternalState() bool {
-	return false
+// UsesRemoteBackupTarget reports whether this backup type persists data to the
+// configured remote BackupTarget. Snapshot stays in-cluster; Backup/Restic/Kopia
+// all push to S3 (via Longhorn-native, restic, or kopia respectively).
+func (b BackupType) UsesRemoteBackupTarget() bool {
+	return b == Backup || b.IsDataMover()
+}
+
+// UsesBackupSnapshotClass reports whether the backup type delegates remote
+// backup creation to the CSI driver. Data movers use a local snapshot class.
+func (b BackupType) UsesBackupSnapshotClass() bool {
+	return b == Backup
 }
 
 // +genclient
@@ -91,7 +89,7 @@ type VirtualMachineBackupSpec struct {
 	Source corev1.TypedLocalObjectReference `json:"source"`
 
 	// +kubebuilder:default:="backup"
-	// +kubebuilder:validation:Enum=backup;snapshot
+	// +kubebuilder:validation:Enum=backup;snapshot;restic;kopia
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.type is immutable"
 	Type BackupType `json:"type,omitempty" default:"backup"`
@@ -141,9 +139,12 @@ type VirtualMachineBackupStatus struct {
 
 // BackupTarget is where VM Backup stores
 type BackupTarget struct {
-	Endpoint     string `json:"endpoint,omitempty"`
-	BucketName   string `json:"bucketName,omitempty"`
-	BucketRegion string `json:"bucketRegion,omitempty"`
+	Type               string `json:"type,omitempty"`
+	Endpoint           string `json:"endpoint,omitempty"`
+	BucketName         string `json:"bucketName,omitempty"`
+	BucketRegion       string `json:"bucketRegion,omitempty"`
+	VirtualHostedStyle bool   `json:"virtualHostedStyle,omitempty"`
+	RepositoryID       string `json:"repositoryID,omitempty"`
 }
 
 // Error is the last error encountered during the snapshot/restore

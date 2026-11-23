@@ -197,17 +197,17 @@ func (sre *SnapshotRestoreEngine) checkPVCStatus(pvc *corev1.PersistentVolumeCla
 	return pvchelper.CheckPVCStatus(pvc)
 }
 
-func (sre *SnapshotRestoreEngine) UpdateProgress(vr *harvesterv1.VolumeRestore) (int64, error) {
+func (sre *SnapshotRestoreEngine) UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error) {
 	// For local snapshots, we don't have detailed progress tracking
 	// Return 100 if it's complete (handled by PVC status check in Create)
 	return 100, nil
 }
 
-func (sre *SnapshotRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore, volIndex int) error {
-	// Cleanup is handled by owner references
-	return nil
-}
-
 // RegisterWatchers is a no-op: the snapshot restore engine has no extra
 // external resources to watch beyond what the controller already wires up.
 func (sre *SnapshotRestoreEngine) RegisterWatchers(_ context.Context, _ func(string, string)) {}
+
+// Delete is a no-op: local snapshot restores create no retained snapshot contents.
+func (sre *SnapshotRestoreEngine) Delete(_ *harvesterv1.VirtualMachineRestore) error {
+	return nil
+}
