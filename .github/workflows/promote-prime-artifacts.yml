@@ -67,7 +67,8 @@ jobs:
 
     - name: Install AWS CLI
       run: |
-        if command -v aws > /dev/null; then
+        # --copy-props in the copy step needs AWS CLI v2.
+        if command -v aws > /dev/null && aws --version 2>&1 | grep -q '^aws-cli/2\.'; then
           exit 0
         fi
         curl --fail --silent --show-error --location --retry 3 \
