@@ -38,7 +38,7 @@ docker.io/rancher/harvester:master-head
 docker.io/rancher/kuberlr-kubectl:v9.0.1
 docker.io/rancher/mirrored-kube-vip-kube-vip-iptables:v1.2.4
 docker.io/rancher/support-bundle-kit:master-head
-ghcr.io/k8snetworkplumbingwg/whereabouts:v0.9.4
+ghcr.io/k8snetworkplumbingwg/whereabouts:latest
 registry.k8s.io/descheduler/descheduler:v0.37.0
 registry.k8s.io/sig-storage/snapshot-controller:v8.7.0
 registry.suse.com/bci/bci-base:16.0
