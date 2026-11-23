@@ -1,0 +1,101 @@
+name: Promote Prime artifacts
+
+# Copies the ISO artifacts of a Prime release from
+# s3://$PRIME_BUCKET_NAME/suse-virtualization/vX.Y.Z-gold/, where build-prime.yml
+# uploads them, to s3://$PRIME_BUCKET_NAME/suse-virtualization/vX.Y.Z/.
+# Files already in the destination are overwritten; the gold folder is kept.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to promote, vX.Y.Z (e.g. v1.9.1)'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  # For testing, check setup-prime-build action's README
+  PRIME_TEST_CONFIG: ${{ secrets.PRIME_TEST_CONFIG }}
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.version }}
+    # Restrict who may promote with the environment's required reviewers and
+    # deployment branch rules (repository Settings > Environments).
+    environment: prime-promote
+    runs-on: ${{ vars.PRIME_RUNNER || format('runs-on,runner=4cpu-linux-x64,run-id={0}', github.run_id) }}
+    permissions:
+      contents: read
+      id-token: write # for reading credential https://github.com/rancher-eio/read-vault-secrets
+    steps:
+    - name: Validate inputs
+      env:
+        VERSION: ${{ inputs.version }}
+        BUCKET: ${{ secrets.PRIME_BUCKET_NAME }}
+      run: |
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "version must be vX.Y.Z, such as v1.9.1, got: $VERSION" >&2
+          exit 1
+        fi
+        if [[ -z "$BUCKET" ]]; then
+          echo "PRIME_BUCKET_NAME secret is not set" >&2
+          exit 1
+        fi
+
+    - name: Checkout code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
+
+    # Provides test-mode S3 endpoint and credentials from PRIME_TEST_CONFIG.
+    - name: Set up Prime build
+      id: prime
+      uses: ./.github/actions/setup-prime-build
+      with:
+        target: prime
+
+    - name: Read Prime artifacts credentials
+      if: steps.prime.outputs.test-mode != 'true'
+      uses: rancher-eio/read-vault-secrets@d266f55186f80a893839f6e15662e67388e443e6 # v3
+      with:
+        secrets: |
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/suse-virtualization/credentials AWS_ACCESS_KEY_ID | PRIME_ARTIFACTS_ACCESS_KEY ;
+          secret/data/github/repo/${{ github.repository }}/prime-artifacts/suse-virtualization/credentials AWS_SECRET_ACCESS_KEY | PRIME_ARTIFACTS_SECRET_KEY
+
+    - name: Install AWS CLI
+      run: |
+        # --copy-props in the copy step needs AWS CLI v2.
+        if command -v aws > /dev/null && aws --version 2>&1 | grep -q '^aws-cli/2\.'; then
+          exit 0
+        fi
+        curl --fail --silent --show-error --location --retry 3 \
+          "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "$RUNNER_TEMP/awscli.zip"
+        unzip -q "$RUNNER_TEMP/awscli.zip" -d "$RUNNER_TEMP"
+        "$RUNNER_TEMP/aws/install" --install-dir "$RUNNER_TEMP/aws-cli" --bin-dir "$RUNNER_TEMP/bin"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+    # AWS_ENDPOINT_URL is exported by setup-prime-build in test mode.
+    - name: Copy gold artifacts to release folder
+      env:
+        AWS_ACCESS_KEY_ID: ${{ env.PRIME_ARTIFACTS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.PRIME_ARTIFACTS_SECRET_KEY }}
+        AWS_REGION: ${{ vars.PRIME_ARTIFACTS_AWS_REGION }}
+        AWS_EC2_METADATA_DISABLED: 'true' # never fall back to the runner's instance role
+        BUCKET: ${{ secrets.PRIME_BUCKET_NAME }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        src="s3://$BUCKET/suse-virtualization/$VERSION-gold/"
+        dst="s3://$BUCKET/suse-virtualization/$VERSION/"
+        if [[ -z "$(aws s3 ls "$src")" ]]; then
+          echo "$src is empty or missing; publish the prime-$VERSION release first" >&2
+          exit 1
+        fi
+        # Server-side copy; overwrites files already in the destination.
+        # The default --copy-props also copies tags, which needs
+        # s3:GetObjectTagging and s3:PutObjectTagging for multipart copies;
+        # the uploader credentials have neither, and uploads set no tags.
+        aws s3 cp "$src" "$dst" --recursive --only-show-errors --copy-props metadata-directive
+        aws s3 ls "$dst"

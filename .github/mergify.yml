@@ -5,6 +5,9 @@ pull_request_rules:
       - check-success="calling-build-factory / Build binaries (arm64)"
       - author = mergify[bot]
       - -conflict
+      # Mergify commits conflict markers into the backport and labels
+      # the PR; -conflict alone does not catch that.
+      - -label=conflicts
     actions:
       merge:
         method: rebase
@@ -27,6 +30,7 @@ pull_request_rules:
       - check-success="calling-build-factory / Build binaries (arm64)"
       - author = mergify[bot]
       - -conflict
+      - -label=conflicts
     actions:
       review:
         type: APPROVE
