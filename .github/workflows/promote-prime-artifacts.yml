@@ -93,5 +93,8 @@ jobs:
           exit 1
         fi
         # Server-side copy; overwrites files already in the destination.
-        aws s3 cp "$src" "$dst" --recursive --only-show-errors
+        # The default --copy-props also copies tags, which needs
+        # s3:GetObjectTagging and s3:PutObjectTagging for multipart copies;
+        # the uploader credentials have neither, and uploads set no tags.
+        aws s3 cp "$src" "$dst" --recursive --only-show-errors --copy-props metadata-directive
         aws s3 ls "$dst"
