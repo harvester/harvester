@@ -35,7 +35,7 @@ docker.io/rancher/harvester-upgrade:master-head
 docker.io/rancher/harvester-vm-import-controller:main-head
 docker.io/rancher/harvester-webhook:master-head
 docker.io/rancher/harvester:master-head
-docker.io/rancher/kuberlr-kubectl:v9.0.1
+docker.io/rancher/kuberlr-kubectl:v9.0.6
 docker.io/rancher/mirrored-kube-vip-kube-vip-iptables:v1.2.4
 docker.io/rancher/support-bundle-kit:master-head
 ghcr.io/k8snetworkplumbingwg/whereabouts:latest
@@ -109,5 +109,5 @@ docker.io/rancher/mirrored-pause:3.10.2
 docker.io/rancher/rke2-cloud-provider:v1.37.2-0.20261016152943-06368081f0b2-build20261021
 docker.io/rancher/hardened-snapshot-controller:v8.7.0-build20261021
 docker.io/rancher/hardened-traefik:v3.7.16-build20261028
-docker.io/rancher/hardened-calico:v3.32.2-build20261022
+docker.io/rancher/hardened-calico:v3.33.1-build20261120
 docker.io/rancher/hardened-flannel:v0.28.10-build20261022
