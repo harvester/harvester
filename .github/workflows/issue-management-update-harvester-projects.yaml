@@ -54,9 +54,29 @@ jobs:
         project-url: ${{ env.HARVESTER_SPRINT_PROJECT_URL }}
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
+    # Only these teams set the Planning milestone by default; issues from other
+    # organization members are triaged first. The teams are checked by slug,
+    # because the action above does not see enterprise teams (ent:*) or members
+    # of child teams. Keep the teams in sync with
+    # issue-management-add-to-projects.yml.
+    - name: Is Planning Team Member
+      id: is-planning-team-member
+      # An API error must not stop the project update below.
+      continue-on-error: true
+      if: ${{
+        github.event.issue.milestone == null &&
+        steps.get-status-field.outcome == 'success'
+        }}
+      uses: harvester/harvester-actions/actions/check-team-membership@45fd3ff19068df5e2bc2426f41e8bba90fe013be # main
+      with:
+        username: ${{ github.actor }}
+        organization: harvester
+        teams: dev qa l3-team-member ent:l3-team-leads maintainer tpm ui ui-qa
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
     - name: Set Milestone to Issue
       if: ${{
-        fromJSON(steps.is-harvester-member.outputs.teams)[0] != null  &&
+        steps.is-planning-team-member.outputs.is-member == 'true' &&
         github.event.issue.milestone == null &&
         steps.get-status-field.outcome == 'success'
         }}
