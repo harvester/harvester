@@ -17,6 +17,7 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	ctlkubevirtv1 "github.com/harvester/harvester/pkg/generated/controllers/kubevirt.io/v1"
 )
 
 const (
@@ -30,12 +31,14 @@ var (
 )
 
 type Handler struct {
-	helm  ctlhelmv1.HelmChartController
-	addon ctlharvesterv1.AddonController
-	job   ctlbatchv1.JobController
-	app   ctlappsv1.AppController
-	pv    ctlcorev1.PersistentVolumeController
-	pvc   ctlcorev1.PersistentVolumeClaimController
+	helm      ctlhelmv1.HelmChartController
+	addon     ctlharvesterv1.AddonController
+	job       ctlbatchv1.JobController
+	app       ctlappsv1.AppController
+	pv        ctlcorev1.PersistentVolumeController
+	pvc       ctlcorev1.PersistentVolumeClaimController
+	vmiCache  ctlkubevirtv1.VirtualMachineInstanceCache
+	vmiClient ctlkubevirtv1.VirtualMachineInstanceClient
 }
 
 func Register(ctx context.Context, management *config.Management, _ config.Options) error {
@@ -45,18 +48,22 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	appController := management.CatalogFactory.Catalog().V1().App()
 	pvController := management.CoreFactory.Core().V1().PersistentVolume()
 	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	vmiController := management.VirtFactory.Kubevirt().V1().VirtualMachineInstance()
 
 	h := &Handler{
-		helm:  helmController,
-		addon: addonController,
-		job:   jobController,
-		app:   appController,
-		pv:    pvController,
-		pvc:   pvcController,
+		helm:      helmController,
+		addon:     addonController,
+		job:       jobController,
+		app:       appController,
+		pv:        pvController,
+		pvc:       pvcController,
+		vmiCache:  vmiController.Cache(),
+		vmiClient: vmiController,
 	}
 
 	addonController.OnChange(ctx, "monitor-addon-per-status", h.MonitorAddonPerStatus)
 	addonController.OnChange(ctx, "monitor-addon-rancher-monitoring", h.MonitorAddonRancherMonitoring)
+	addonController.OnChange(ctx, "cleanup-pcidevices-vmi-finalizers", h.cleanupOrphanedPCIDevicesFinalizer)
 	appController.OnChange(ctx, "monitor-apps-catalog", h.PatchApps)
 	relatedresource.Watch(ctx, "watch-helmcharts", h.ReconcileHelmChartOwners, addonController, helmController)
 	return nil
