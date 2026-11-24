@@ -89,10 +89,29 @@ jobs:
         github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         labeled: kind/test
         label-operator: NOT
-    
+
+    # Only issues from these teams get the Planning milestone by default; issues
+    # from other organization members are triaged first. The teams are checked
+    # by slug, because the action above does not see enterprise teams (ent:*)
+    # or members of child teams. Keep the teams in sync with
+    # issue-management-update-harvester-projects.yaml.
+    - name: Is Planning Team Member
+      id: is-planning-team-member
+      if: ${{
+        steps.is-harvester-member.outputs.isOrganization == 'true' &&
+        github.event.issue.milestone == null
+        }}
+      uses: harvester/harvester-actions/actions/check-team-membership@45fd3ff19068df5e2bc2426f41e8bba90fe013be # main
+      with:
+        username: ${{ github.event.issue.user.login }}
+        organization: harvester
+        teams: dev qa l3-team-member ent:l3-team-leads maintainer tpm ui ui-qa
+        github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
     - name: Set Default Milestone to Issue
       if: ${{
         steps.is-harvester-member.outputs.isOrganization == 'true' &&
+        steps.is-planning-team-member.outputs.is-member == 'true' &&
         github.event.issue.milestone == null
         }}
       env:
