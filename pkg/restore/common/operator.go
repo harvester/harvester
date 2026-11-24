@@ -928,6 +928,7 @@ func (vmro *vmrestoreOperator) createNewVolumeRestore(vmr *harvesterv1.VirtualMa
 			Spec: vmro.vmbo.GetVolBackupPVCSpec(vb),
 		},
 		VolumeBackupName: *vmro.vmbo.GetVolBackupName(vb),
+		VolumeSize:       vmro.vmbo.GetVolBackupSize(vb),
 	}, nil
 }
 

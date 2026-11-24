@@ -102,11 +102,12 @@ func TestReconcileVolumeRestores(t *testing.T) {
 }
 
 type fakeRestoreEngine struct {
-	errors    []error
-	progress  int64
-	calls     []int
-	deletes   int
-	deleteErr error
+	errors         []error
+	progress       int64
+	volumeProgress map[string]int64
+	calls          []int
+	deletes        int
+	deleteErr      error
 }
 
 func (f *fakeRestoreEngine) Reconcile(
@@ -123,7 +124,10 @@ func (f *fakeRestoreEngine) Delete(*harvesterv1.VirtualMachineRestore) error {
 	return f.deleteErr
 }
 
-func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VirtualMachineRestore, *harvesterv1.VolumeRestore) (int64, error) {
+func (f *fakeRestoreEngine) UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error) {
+	if progress, ok := f.volumeProgress[vr.VolumeName]; ok {
+		return progress, nil
+	}
 	return f.progress, nil
 }
 
