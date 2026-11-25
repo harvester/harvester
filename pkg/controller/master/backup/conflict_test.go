@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	restoreengine "github.com/harvester/harvester/pkg/restore/engine"
+	"github.com/harvester/harvester/pkg/util/datamover"
 )
 
 func conflictError() error {
@@ -38,12 +41,27 @@ func reconcileCases(pending error) []reconcileCase {
 	failure := errors.New("transfer failed")
 	conflict := conflictError()
 	forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "jobs"}, "transfer", failure)
+	throttled := apierrors.NewTooManyRequests("API throttled", 1)
+	unavailable := apierrors.NewServiceUnavailable("API unavailable")
+	network := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
 	return []reconcileCase{
 		{name: "conflict", err: conflictError()},
 		{name: "wrapped conflict", err: fmt.Errorf("resume: %w", conflictError())},
+		{name: "already exists", err: apierrors.NewAlreadyExists(schema.GroupResource{Resource: "jobs"}, "transfer")},
+		{name: "throttled", err: throttled},
+		{name: "wrapped throttled", err: fmt.Errorf("getting job: %w", throttled)},
+		{name: "unavailable", err: unavailable},
+		{name: "internal error", err: apierrors.NewInternalError(errors.New("API unavailable"))},
+		{name: "timeout", err: apierrors.NewTimeoutError("API timeout", 1)},
+		{name: "server timeout", err: apierrors.NewServerTimeout(schema.GroupResource{Resource: "jobs"}, "get", 1)},
+		{name: "network error", err: network},
+		{name: "wrapped network error", err: fmt.Errorf("getting job: %w", network)},
+		{name: "workload pending", err: datamover.ErrPending},
 		{name: "wrapped pending", err: fmt.Errorf("prepare: %w", pending)},
 		{name: "joined retries", err: errors.Join(pending, conflict)},
 		{name: "wrapped joined retries", err: fmt.Errorf("resume: %w", errors.Join(pending, conflict))},
+		{name: "joined transient errors", err: errors.Join(throttled, unavailable)},
+		{name: "pending and transient error", err: errors.Join(pending, unavailable)},
 		{name: "failure", err: failure, failed: true},
 		{name: "failure and conflict", err: errors.Join(failure, conflict), failed: true},
 		{name: "conflict and failure", err: errors.Join(conflict, failure), failed: true},
@@ -52,6 +70,13 @@ func reconcileCases(pending error) []reconcileCase {
 		{name: "nested failure", err: fmt.Errorf("resume: %w", errors.Join(conflict, errors.Join(pending, failure))), failed: true},
 		{name: "conflict and forbidden", err: errors.Join(conflict, forbidden), failed: true},
 		{name: "forbidden and conflict", err: errors.Join(forbidden, conflict), failed: true},
+		{name: "throttled and forbidden", err: errors.Join(throttled, forbidden), failed: true},
+		{name: "forbidden and throttled", err: errors.Join(forbidden, throttled), failed: true},
+		{name: "network error and failure", err: errors.Join(network, failure), failed: true},
+		{
+			name: "wrapped network error and failure", failed: true,
+			err: &net.OpError{Op: "read", Net: "tcp", Err: errors.Join(network, failure)},
+		},
 	}
 }
 
@@ -63,11 +88,11 @@ func TestBackupRequeuesConflicts(t *testing.T) {
 			t.Run(string(backupType)+"/"+tc.name, func(t *testing.T) {
 				h, engine, vmb, client := completionFixture(t, backupType)
 				vmb.Status.VolumeBackups = append(vmb.Status.VolumeBackups,
-					harvesterv1.VolumeBackup{Name: ptr.To("data"), VolumeSize: 100})
+					harvesterv1.VolumeBackup{Name: new("data"), VolumeSize: 100})
 				engine.reconcile = func(vmb *harvesterv1.VirtualMachineBackup, index int) error {
 					if index == 0 {
 						vmb.Status.VolumeBackups[index].Progress = 100
-						vmb.Status.VolumeBackups[index].ReadyToUse = ptr.To(true)
+						vmb.Status.VolumeBackups[index].ReadyToUse = new(true)
 						return nil
 					}
 					vmb.Status.VolumeBackups[index].Progress = 50
@@ -97,27 +122,33 @@ func TestBackupRequeuesConflicts(t *testing.T) {
 	}
 }
 
-func TestBackupRequeuesUpdateConflicts(t *testing.T) {
-	for _, stage := range []string{"preparation", "status"} {
-		t.Run(stage, func(t *testing.T) {
-			h, engine, vmb, client := completionFixture(t, harvesterv1.Restic)
-			engine.reconcile = func(*harvesterv1.VirtualMachineBackup, int) error { return backupengine.ErrRetryLater }
-			if stage == "preparation" {
-				h.vmbo = completionOperator{VMBackupOperator: h.vmbo, buildErr: conflictError()}
-			} else {
-				client.PrependReactor("update", "virtualmachinebackups",
-					func(clienttesting.Action) (bool, runtime.Object, error) {
-						return true, nil, conflictError()
-					})
-			}
-			_, err := h.OnBackupChange("", vmb)
-			require.NoError(t, err)
-			current, err := client.HarvesterhciV1beta1().VirtualMachineBackups(vmb.Namespace).
-				Get(context.Background(), vmb.Name, metav1.GetOptions{})
-			require.NoError(t, err)
-			require.Equal(t, vmb.Status, current.Status, "conflict must not persist an error condition")
-			require.Len(t, h.vmbController.(*requeueBackupController).enqueues, 1)
-		})
+func TestBackupRequeuesAPIErrors(t *testing.T) {
+	for _, apiErr := range []error{
+		conflictError(),
+		apierrors.NewTooManyRequests("API throttled", 1),
+		apierrors.NewServiceUnavailable("API unavailable"),
+	} {
+		for _, stage := range []string{"preparation", "status"} {
+			t.Run(stage+"/"+apiErr.Error(), func(t *testing.T) {
+				h, engine, vmb, client := completionFixture(t, harvesterv1.Restic)
+				engine.reconcile = func(*harvesterv1.VirtualMachineBackup, int) error { return backupengine.ErrRetryLater }
+				if stage == "preparation" {
+					h.vmbo = completionOperator{VMBackupOperator: h.vmbo, buildErr: apiErr}
+				} else {
+					client.PrependReactor("update", "virtualmachinebackups",
+						func(clienttesting.Action) (bool, runtime.Object, error) {
+							return true, nil, apiErr
+						})
+				}
+				_, err := h.OnBackupChange("", vmb)
+				require.NoError(t, err)
+				current, err := client.HarvesterhciV1beta1().VirtualMachineBackups(vmb.Namespace).
+					Get(context.Background(), vmb.Name, metav1.GetOptions{})
+				require.NoError(t, err)
+				require.Equal(t, vmb.Status, current.Status, "transient errors must not persist a failure")
+				require.Len(t, h.vmbController.(*requeueBackupController).enqueues, 1)
+			})
+		}
 	}
 }
 
@@ -186,7 +217,7 @@ func TestReadyBackupRequeuesConflict(t *testing.T) {
 	h, _, vmb, client := completionFixture(t, harvesterv1.Restic)
 	h.vmbo = startupBackupOperator{VMBackupOperator: h.vmbo, writeErr: conflictError()}
 	storedStatus := vmb.DeepCopy().Status
-	vmb.Status.ReadyToUse = ptr.To(true)
+	vmb.Status.ReadyToUse = new(true)
 	require.NoError(t, h.reconcileBackup(vmb))
 	current, err := client.HarvesterhciV1beta1().VirtualMachineBackups(vmb.Namespace).
 		Get(context.Background(), vmb.Name, metav1.GetOptions{})
@@ -289,27 +320,33 @@ func TestRestoreRequeuesConflicts(t *testing.T) {
 	}
 }
 
-func TestRestoreRequeuesUpdateConflicts(t *testing.T) {
-	for _, stage := range []string{"lookup", "status"} {
-		t.Run(stage, func(t *testing.T) {
-			h, engine, client := retryRestoreFixture(harvesterv1.Restic)
-			engine.errors = []error{restoreengine.ErrRetryLater}
-			if stage == "lookup" {
-				h.vmro.(*retryRestoreOperator).lookupErr = conflictError()
-			} else {
-				client.updateErr = conflictError()
-			}
-			before := client.current.DeepCopy()
-			_, err := h.RestoreOnChanged("", client.current)
-			require.NoError(t, err)
-			require.Equal(t, before, client.current, "conflict must not persist an error condition")
-			require.Equal(t, []enqueueCall{{before.Namespace, before.Name, restoreProgressPoll}},
-				h.vmrController.(*retryRestoreController).enqueues)
+func TestRestoreRequeuesAPIErrors(t *testing.T) {
+	for _, apiErr := range []error{
+		conflictError(),
+		apierrors.NewTooManyRequests("API throttled", 1),
+		apierrors.NewServiceUnavailable("API unavailable"),
+	} {
+		for _, stage := range []string{"lookup", "status"} {
+			t.Run(stage+"/"+apiErr.Error(), func(t *testing.T) {
+				h, engine, client := retryRestoreFixture(harvesterv1.Restic)
+				engine.errors = []error{restoreengine.ErrRetryLater}
+				if stage == "lookup" {
+					h.vmro.(*retryRestoreOperator).lookupErr = apiErr
+				} else {
+					client.updateErr = apiErr
+				}
+				before := client.current.DeepCopy()
+				_, err := h.RestoreOnChanged("", client.current)
+				require.NoError(t, err)
+				require.Equal(t, before, client.current, "transient errors must not persist a failure")
+				require.Equal(t, []enqueueCall{{before.Namespace, before.Name, restoreProgressPoll}},
+					h.vmrController.(*retryRestoreController).enqueues)
 
-			h.vmro.(*retryRestoreOperator).lookupErr = nil
-			client.updateErr = nil
-			assertRestoreResumes(t, h, engine, client.current)
-		})
+				h.vmro.(*retryRestoreOperator).lookupErr = nil
+				client.updateErr = nil
+				assertRestoreResumes(t, h, engine, client.current)
+			})
+		}
 	}
 }
 
@@ -337,7 +374,7 @@ func retryRestoreFixture(backupType harvesterv1.BackupType) (*RestoreHandler, *f
 		},
 		Spec: harvesterv1.VirtualMachineRestoreSpec{NewVM: true},
 		Status: harvesterv1.VirtualMachineRestoreStatus{
-			Complete: ptr.To(false),
+			Complete: new(false),
 			VolumeRestores: []harvesterv1.VolumeRestore{{
 				VolumeName: "disk", VolumeSize: 100,
 			}},

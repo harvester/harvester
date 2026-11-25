@@ -2,6 +2,7 @@ package datamover
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -197,7 +198,7 @@ func TestHandoffRetriesConflicts(t *testing.T) {
 					err = v.BeginHandoff(parent, "stage", "transfer", destination)
 				}
 				if err != nil {
-					require.True(t, Retryable(err), "%v", err)
+					require.True(t, errors.Is(err, ErrPending) || apierrors.IsConflict(err), "%v", err)
 				}
 				ready = done
 				pv, err := client.CoreV1().PersistentVolumes().Get(ctx, "pv", metav1.GetOptions{})

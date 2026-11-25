@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"slices"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -19,16 +18,6 @@ import (
 )
 
 var ErrPending = errors.New("waiting for repository workload resources")
-
-// Retryable keeps transient API failures from turning a recoverable handoff
-// into a failed restore and triggering cancellation cleanup.
-func Retryable(err error) bool {
-	var networkError net.Error
-	return errors.Is(err, ErrPending) || apierrors.IsAlreadyExists(err) ||
-		apierrors.IsConflict(err) || apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) ||
-		apierrors.IsTooManyRequests(err) || apierrors.IsServiceUnavailable(err) ||
-		apierrors.IsInternalError(err) || errors.As(err, &networkError)
-}
 
 const (
 	BackupKind  = "VirtualMachineBackup"

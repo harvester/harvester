@@ -177,8 +177,8 @@ func NewMaintenanceCronJob(
 		return nil, err
 	}
 	job := batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{
-		BackoffLimit:            ptr.To[int32](0),
-		TTLSecondsAfterFinished: ptr.To[int32](3600),
+		BackoffLimit:            new(int32(0)),
+		TTLSecondsAfterFinished: new(int32(3600)),
 		Template:                pod,
 	}}
 	return &batchv1.CronJob{
@@ -188,8 +188,8 @@ func NewMaintenanceCronJob(
 		Spec: batchv1.CronJobSpec{
 			Schedule:                   schedule,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
-			SuccessfulJobsHistoryLimit: ptr.To[int32](1),
-			FailedJobsHistoryLimit:     ptr.To[int32](1),
+			SuccessfulJobsHistoryLimit: new(int32(1)),
+			FailedJobsHistoryLimit:     new(int32(1)),
 			JobTemplate:                job,
 		},
 	}, nil

@@ -146,7 +146,7 @@ func (ke *KopiaRestoreEngine) resumeHandoff(
 		vmr, ke.stagingName(vmr, vr), ke.destinationPVC(vmr, vr, vb),
 	)
 	if err != nil {
-		return found, pending(err)
+		return found, err
 	}
 	if found && !ready {
 		return true, engine.ErrRetryLater
@@ -214,7 +214,7 @@ func (ke *KopiaRestoreEngine) ensurePVC(
 		return err
 	}
 	if err := datamover.ValidateClaim(vmr, vmRestoreKind, pvc, desired); err != nil {
-		return pending(err)
+		return err
 	}
 	if pvc.Spec.DataSource != nil || pvc.Spec.DataSourceRef != nil {
 		return fmt.Errorf("restore staging PVC has an unexpected source")
@@ -244,7 +244,7 @@ func (ke *KopiaRestoreEngine) getStage(
 		return pvc, err
 	}
 	if _, err := ke.pvcClient.Create(desired); err != nil {
-		return nil, pending(err)
+		return nil, err
 	}
 	return nil, engine.ErrRetryLater
 }
@@ -463,9 +463,6 @@ func (ke *KopiaRestoreEngine) startJob(
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
 	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	if err != nil {
 		return err
 	}
@@ -504,23 +501,22 @@ func (ke *KopiaRestoreEngine) syncFromJob(
 		return engine.ErrRetryLater
 	}
 	volumes := datamover.Volumes{Client: ke.clientset}
-	err := volumes.BeginHandoff(
+	return volumes.BeginHandoff(
 		vmr, ke.stagingName(vmr, vr), job.Name, ke.destinationPVC(vmr, vr, vb),
 	)
-	return pending(err)
 }
 
 func (ke *KopiaRestoreEngine) getJob(vmr *harvesterv1.VirtualMachineRestore, name string) (*batchv1.Job, error) {
 	job, err := joblifecycle.GetJob(ke.jobClient, vmr, vmRestoreKind, name)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("getting job: %w: %w", engine.ErrRetryLater, err)
+		return nil, fmt.Errorf("getting job: %w", err)
 	}
 	return job, err
 }
 
 func (ke *KopiaRestoreEngine) releaseJob(vmr *harvesterv1.VirtualMachineRestore, name string) error {
 	if err := joblifecycle.ReleaseJob(ke.jobClient, vmr, vmRestoreKind, name); err != nil {
-		return fmt.Errorf("releasing restore job: %w: %w", engine.ErrRetryLater, err)
+		return fmt.Errorf("releasing restore job: %w", err)
 	}
 	return nil
 }
@@ -551,14 +547,7 @@ func (ke *KopiaRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) err
 		return nil
 	}
 	if err := datamover.StopJobs(ke.clientset, vmr, vmRestoreKind); err != nil {
-		return pending(err)
+		return err
 	}
-	return pending((datamover.Volumes{Client: ke.clientset}).Cleanup(vmr))
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
+	return (datamover.Volumes{Client: ke.clientset}).Cleanup(vmr)
 }

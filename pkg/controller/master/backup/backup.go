@@ -53,7 +53,7 @@ const (
 
 	vmBackupKindName = "VirtualMachineBackup"
 
-	// engineRetryDelay is the delay before retrying volume backup creation when engine returns ErrRetryLater
+	// engineRetryDelay is the delay before retrying pending work or transient errors.
 	engineRetryDelay = 5 * time.Second
 )
 
@@ -281,7 +281,7 @@ func (h *Handler) reconcileBackup(vmb *harvesterv1.VirtualMachineBackup) error {
 		return err
 	}
 
-	// Pending work and API conflicts share one retry path. Real failures return
+	// Pending work and transient errors share one retry path. Real failures return
 	// to Wrangler, including failures joined with a retryable error.
 	h.enqueueBackup(vmb)
 	return nil

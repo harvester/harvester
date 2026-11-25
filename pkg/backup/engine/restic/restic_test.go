@@ -129,7 +129,7 @@ func TestReconcileRetriesTemporaryCleanup(t *testing.T) {
 		if err == nil {
 			break
 		}
-		require.ErrorIs(t, err, engine.ErrRetryLater)
+		require.True(t, errors.Is(err, engine.ErrRetryLater) || errors.Is(err, datamover.ErrPending))
 	}
 	require.NoError(t, err)
 	_, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.Background(), pvc.Name, metav1.GetOptions{})

@@ -5,7 +5,6 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/util"
 	kopiautil "github.com/harvester/harvester/pkg/util/kopia"
@@ -67,7 +66,7 @@ func (h *TargetHandler) stopMaintenanceJobs() (bool, error) {
 			continue
 		}
 		if err := jobs.Delete(h.ctx, job.Name, metav1.DeleteOptions{
-			PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
+			PropagationPolicy: new(metav1.DeletePropagationForeground),
 			Preconditions:     &metav1.Preconditions{UID: &job.UID},
 		}); err != nil && !apierrors.IsNotFound(err) {
 			return false, err

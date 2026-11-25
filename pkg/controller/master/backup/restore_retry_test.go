@@ -67,7 +67,7 @@ func TestRestoreProgressWriteFailure(t *testing.T) {
 		t.Run(retryErr.Error(), func(t *testing.T) {
 			h, engine, client := retryRestoreFixture(harvesterv1.Restic)
 			engine.errors = []error{retryErr}
-			client.updateErr = apierrors.NewServiceUnavailable("status unavailable")
+			client.updateErr = errors.New("status write failed")
 			before := client.current.DeepCopy()
 
 			err := h.reconcileRestore(client.current)
@@ -75,7 +75,7 @@ func TestRestoreProgressWriteFailure(t *testing.T) {
 			require.ErrorIs(t, err, client.updateErr)
 			require.Equal(t, before, client.current)
 			require.Empty(t, h.vmrController.(*retryRestoreController).enqueues,
-				"a progress write failure must reach Wrangler instead of becoming a timed retry")
+				"a real progress write failure must reach Wrangler instead of becoming a timed retry")
 
 			client.updateErr = nil
 			require.NoError(t, h.reconcileRestore(client.current))
@@ -143,7 +143,9 @@ func TestRestorePreservesStartRetry(t *testing.T) {
 		}{
 			{name: "saved", requeue: true},
 			{name: "conflict", err: conflictError(), requeue: true},
-			{name: "unavailable", err: apierrors.NewServiceUnavailable("status unavailable")},
+			{name: "throttled", err: apierrors.NewTooManyRequests("API throttled", 1), requeue: true},
+			{name: "unavailable", err: apierrors.NewServiceUnavailable("status unavailable"), requeue: true},
+			{name: "failure", err: errors.New("status write failed")},
 		} {
 			t.Run(startErr.Error()+"/"+tc.name, func(t *testing.T) {
 				h, client := restoreVMFixture()

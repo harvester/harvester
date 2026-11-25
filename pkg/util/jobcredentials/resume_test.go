@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/ptr"
 
 	"github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 )
@@ -60,9 +59,9 @@ func TestResumeChecksCurrentJob(t *testing.T) {
 			case "failed":
 				current.Status.Conditions = []batchv1.JobCondition{{Type: batchv1.JobFailed, Status: corev1.ConditionTrue}}
 			case "deleting":
-				current.DeletionTimestamp = ptr.To(metav1.Now())
+				current.DeletionTimestamp = new(metav1.Now())
 			case "resumed":
-				current.Spec.Suspend = ptr.To(false)
+				current.Spec.Suspend = new(false)
 			case "replaced":
 				current.UID = "another-job"
 			}

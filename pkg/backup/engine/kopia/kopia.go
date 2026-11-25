@@ -324,7 +324,7 @@ func (ke *KopiaEngine) retryForgetJob(job *batchv1.Job) error {
 
 func (ke *KopiaEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, name string) error {
 	if err := ke.imports.Import(vmb, common.SnapshotName(vmb, vb), ke.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	pvc, err := ke.pvcCache.Get(joblifecycle.Namespace, name)
 	if apierrors.IsNotFound(err) {
@@ -368,9 +368,6 @@ func (ke *KopiaEngine) createClonePVC(
 	pvc.Spec.DataSourceRef = nil
 	joblifecycle.Track(&pvc.ObjectMeta, vmb, vmBackupKind)
 	_, err := ke.pvcClient.Create(pvc)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	return err
 }
 
@@ -614,9 +611,6 @@ func (ke *KopiaEngine) startJob(vmb *harvesterv1.VirtualMachineBackup, job *batc
 	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
 	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	if err != nil {
 		return err
 	}
@@ -680,10 +674,10 @@ func (ke *KopiaEngine) cleanupTemporaryResources(vmb *harvesterv1.VirtualMachine
 		return err
 	}
 	if err := ke.deleteClonePVC(vmb, vb); err != nil {
-		return pending(err)
+		return err
 	}
 	if err := ke.imports.Delete(vmb, ke.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	return ke.deleteSnapshot(vmb, common.SnapshotName(vmb, vb))
 }
@@ -694,7 +688,7 @@ func (ke *KopiaEngine) stopVolumeJobs(
 	for _, prefix := range []string{jobNamePrefix, checkJobNamePrefix} {
 		name := joblifecycle.Name(prefix, vmb, ke.volumeSnapshotName(vb))
 		if err := datamover.StopJob(ke.clientset, vmb, vmBackupKind, name); err != nil {
-			return pending(err)
+			return err
 		}
 	}
 	return nil
@@ -770,13 +764,6 @@ func (ke *KopiaEngine) snapshotTags(vmb *harvesterv1.VirtualMachineBackup, vb *h
 		kopiautil.VMBackupTag(ke.vmbo.GetName(vmb)),
 		kopiautil.SnapshotTag(*vbName),
 	}
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
 }
 
 func (ke *KopiaEngine) deleteClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) error {

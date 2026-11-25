@@ -31,8 +31,8 @@ type Client struct {
 // owner. Ensure resumes the Job after creating or validating its Secret.
 func (c Client) Create(job *batchv1.Job) (*batchv1.Job, error) {
 	job = job.DeepCopy()
-	job.Spec.Suspend = ptr.To(true)
-	job.Spec.Template.Spec.AutomountServiceAccountToken = ptr.To(false)
+	job.Spec.Suspend = new(true)
+	job.Spec.Template.Spec.AutomountServiceAccountToken = new(false)
 	if job.Spec.Template.Labels == nil {
 		job.Spec.Template.Labels = map[string]string{}
 	}
@@ -83,7 +83,7 @@ func (c Client) resumeJob(job *batchv1.Job) error {
 			return nil
 		}
 		updated := current.DeepCopy()
-		updated.Spec.Suspend = ptr.To(false)
+		updated.Spec.Suspend = new(false)
 		_, err = c.Jobs.Update(updated)
 		return err
 	})
@@ -111,7 +111,7 @@ func (c Client) createSecret(job *batchv1.Job, data func() (map[string][]byte, e
 			Name: Name(job.Name), Namespace: job.Namespace,
 			OwnerReferences: []metav1.OwnerReference{*owner},
 		},
-		Type: corev1.SecretTypeOpaque, Immutable: ptr.To(true), Data: values,
+		Type: corev1.SecretTypeOpaque, Immutable: new(true), Data: values,
 	}
 	_, err = c.Secrets.Create(desired)
 	return err

@@ -321,7 +321,7 @@ func (re *ResticEngine) retryForgetJob(job *batchv1.Job) error {
 
 func (re *ResticEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, name string) error {
 	if err := re.imports.Import(vmb, common.SnapshotName(vmb, vb), re.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	pvc, err := re.pvcCache.Get(joblifecycle.Namespace, name)
 	if apierrors.IsNotFound(err) {
@@ -365,9 +365,6 @@ func (re *ResticEngine) createClonePVC(
 	pvc.Spec.DataSourceRef = nil
 	joblifecycle.Track(&pvc.ObjectMeta, vmb, vmBackupKind)
 	_, err := re.pvcClient.Create(pvc)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	return err
 }
 
@@ -625,9 +622,6 @@ func (re *ResticEngine) startJob(vmb *harvesterv1.VirtualMachineBackup, job *bat
 	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
 	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
 	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	if err != nil {
 		return err
 	}
@@ -699,10 +693,10 @@ func (re *ResticEngine) cleanupTemporaryResources(vmb *harvesterv1.VirtualMachin
 		return err
 	}
 	if err := re.deleteClonePVC(vmb, vb); err != nil {
-		return pending(err)
+		return err
 	}
 	if err := re.imports.Delete(vmb, re.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	return re.deleteSnapshot(vmb, common.SnapshotName(vmb, vb))
 }
@@ -713,7 +707,7 @@ func (re *ResticEngine) stopVolumeJobs(
 	for _, prefix := range []string{jobNamePrefix, checkJobNamePrefix} {
 		name := joblifecycle.Name(prefix, vmb, re.volumeSnapshotName(vb))
 		if err := datamover.StopJob(re.clientset, vmb, vmBackupKind, name); err != nil {
-			return pending(err)
+			return err
 		}
 	}
 	return nil
@@ -777,13 +771,6 @@ func (re *ResticEngine) checkJobName(vmb *harvesterv1.VirtualMachineBackup, vb *
 		return "", fmt.Errorf("volume backup name is nil")
 	}
 	return joblifecycle.Name(checkJobNamePrefix, vmb, *name), nil
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
 }
 
 func (re *ResticEngine) deleteClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) error {

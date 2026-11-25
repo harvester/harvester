@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
-	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
@@ -314,7 +313,7 @@ func TestMaintenanceStopsBeforeCredentialsChange(t *testing.T) {
 			setTargetValue(t, h, setting, target)
 			job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
 				Name: "maintenance", Namespace: util.LonghornSystemNamespaceName, UID: "job",
-				OwnerReferences: []metav1.OwnerReference{{Kind: "CronJob", Name: kopiautil.QuickMaintenanceCronJobName, Controller: ptr.To(true)}},
+				OwnerReferences: []metav1.OwnerReference{{Kind: "CronJob", Name: kopiautil.QuickMaintenanceCronJobName, Controller: new(true)}},
 			}}
 			_, err := h.clientset.BatchV1().Jobs(job.Namespace).Create(h.ctx, job, metav1.CreateOptions{})
 			require.NoError(t, err)

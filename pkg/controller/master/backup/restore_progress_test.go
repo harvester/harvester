@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	backupcommon "github.com/harvester/harvester/pkg/backup/common"
@@ -60,7 +59,7 @@ func restoreProgressFixture(
 	for i, size := range sizes {
 		name := fmt.Sprintf("disk-%d", i)
 		vmb.Status.VolumeBackups = append(vmb.Status.VolumeBackups, harvesterv1.VolumeBackup{
-			Name: ptr.To("backup-" + name), VolumeName: name, VolumeSize: size,
+			Name: new("backup-" + name), VolumeName: name, VolumeSize: size,
 		})
 		re.volumeProgress[name] = progress[i]
 	}

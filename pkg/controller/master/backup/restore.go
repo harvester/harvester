@@ -311,7 +311,7 @@ func (h *RestoreHandler) reconcileRestore(vmr *harvesterv1.VirtualMachineRestore
 		return err
 	}
 
-	// Pending work and API conflicts share one retry path. Real failures return
+	// Pending work and transient errors share one retry path. Real failures return
 	// to Wrangler, including failures joined with a retryable error.
 	h.enqueueRestore(vmr)
 	return nil
@@ -567,7 +567,7 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 ) (bool, error) {
 	// Select appropriate engine based on backup type
 	re := h.getRestoreEngine(vmb)
-	isVolumesReady := true
+	var retryErr error
 
 	// Reconcile each per-volume restore via the engine
 	volRestores := h.vmro.GetVolRestores(vmr)
@@ -576,8 +576,8 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 		switch {
 		case err == nil:
 			continue
-		case errors.Is(err, engine.ErrRetryLater) && isRestoreRetry(err):
-			isVolumesReady = false
+		case isRestoreRetry(err):
+			retryErr = errors.Join(retryErr, err)
 			continue
 		default:
 			return false, fmt.Errorf(
@@ -588,10 +588,7 @@ func (h *RestoreHandler) reconcileVolumeRestores(
 		}
 	}
 
-	if !isVolumesReady {
-		return false, engine.ErrRetryLater
-	}
-	return isVolumesReady, nil
+	return retryErr == nil, retryErr
 }
 
 func (h *RestoreHandler) reconcileVM(

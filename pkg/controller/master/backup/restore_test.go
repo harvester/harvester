@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -21,6 +22,8 @@ import (
 func TestReconcileVolumeRestores(t *testing.T) {
 	errBoot := errors.New("boot restore failed")
 	errData := errors.New("data restore failed")
+	conflict := conflictError()
+	throttled := apierrors.NewTooManyRequests("API throttled", 1)
 
 	tests := []struct {
 		name       string
@@ -47,6 +50,33 @@ func TestReconcileVolumeRestores(t *testing.T) {
 			errors:    []error{fmt.Errorf("snapshot check: %w", engine.ErrRetryLater), nil},
 			wantRetry: true,
 			wantCalls: 2,
+		},
+		{
+			name:       "conflict does not block other volumes",
+			errors:     []error{conflict, nil},
+			wantRetry:  true,
+			wantErrors: []error{conflict},
+			wantCalls:  2,
+		},
+		{
+			name:       "transient API error does not block other volumes",
+			errors:     []error{throttled, nil},
+			wantRetry:  true,
+			wantErrors: []error{throttled},
+			wantCalls:  2,
+		},
+		{
+			name:       "preserve errors from all retrying volumes",
+			errors:     []error{throttled, conflict},
+			wantRetry:  true,
+			wantErrors: []error{throttled, conflict},
+			wantCalls:  2,
+		},
+		{
+			name:       "hard error takes precedence over conflict",
+			errors:     []error{conflictError(), errData},
+			wantErrors: []error{errData},
+			wantCalls:  2,
 		},
 		{
 			name:       "hard error stops reconciliation",

@@ -71,7 +71,7 @@ func TestBackupProgressWriteFailure(t *testing.T) {
 				vmb.Status.VolumeBackups[index].Progress = 50
 				return retryErr
 			}
-			var updateErr error = apierrors.NewServiceUnavailable("status unavailable")
+			updateErr := errors.New("status write failed")
 			client.PrependReactor("update", "virtualmachinebackups",
 				func(clienttesting.Action) (bool, runtime.Object, error) {
 					return updateErr != nil, nil, updateErr

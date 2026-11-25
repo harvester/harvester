@@ -145,7 +145,7 @@ func (re *ResticRestoreEngine) resumeHandoff(
 		vmr, re.stagingName(vmr, vr), re.destinationPVC(vmr, vr, vb),
 	)
 	if err != nil {
-		return found, pending(err)
+		return found, err
 	}
 	if found && !ready {
 		return true, engine.ErrRetryLater
@@ -228,7 +228,7 @@ func (re *ResticRestoreEngine) ensurePVC(
 		return err
 	}
 	if err := datamover.ValidateClaim(vmr, vmRestoreKind, pvc, desired); err != nil {
-		return pending(err)
+		return err
 	}
 	if pvc.Spec.DataSource != nil || pvc.Spec.DataSourceRef != nil {
 		return fmt.Errorf("restore staging PVC has an unexpected source")
@@ -258,7 +258,7 @@ func (re *ResticRestoreEngine) getStage(
 		return pvc, err
 	}
 	if _, err := re.pvcClient.Create(desired); err != nil {
-		return nil, pending(err)
+		return nil, err
 	}
 	return nil, engine.ErrRetryLater
 }
@@ -460,9 +460,6 @@ func (re *ResticRestoreEngine) startJob(
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
 	job, err = client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	if err != nil {
 		return err
 	}
@@ -511,23 +508,22 @@ func (re *ResticRestoreEngine) syncFromJob(
 		return engine.ErrRetryLater
 	}
 	volumes := datamover.Volumes{Client: re.clientset}
-	err := volumes.BeginHandoff(
+	return volumes.BeginHandoff(
 		vmr, re.stagingName(vmr, vr), job.Name, re.destinationPVC(vmr, vr, vb),
 	)
-	return pending(err)
 }
 
 func (re *ResticRestoreEngine) getJob(vmr *harvesterv1.VirtualMachineRestore, name string) (*batchv1.Job, error) {
 	job, err := joblifecycle.GetJob(re.jobClient, vmr, vmRestoreKind, name)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("getting job: %w: %w", engine.ErrRetryLater, err)
+		return nil, fmt.Errorf("getting job: %w", err)
 	}
 	return job, err
 }
 
 func (re *ResticRestoreEngine) releaseJob(vmr *harvesterv1.VirtualMachineRestore, name string) error {
 	if err := joblifecycle.ReleaseJob(re.jobClient, vmr, vmRestoreKind, name); err != nil {
-		return fmt.Errorf("releasing restore job: %w: %w", engine.ErrRetryLater, err)
+		return fmt.Errorf("releasing restore job: %w", err)
 	}
 	return nil
 }
@@ -546,14 +542,7 @@ func (re *ResticRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) er
 		return nil
 	}
 	if err := datamover.StopJobs(re.clientset, vmr, vmRestoreKind); err != nil {
-		return pending(err)
+		return err
 	}
-	return pending((datamover.Volumes{Client: re.clientset}).Cleanup(vmr))
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
+	return (datamover.Volumes{Client: re.clientset}).Cleanup(vmr)
 }

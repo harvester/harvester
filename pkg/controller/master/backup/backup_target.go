@@ -20,7 +20,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/utils/ptr"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/config"
@@ -368,7 +367,7 @@ func (h *TargetHandler) deleteKopiaMaintenance() error {
 func (h *TargetHandler) deleteMaintenanceCron(name string) error {
 	cronJobs := h.clientset.BatchV1().CronJobs(util.LonghornSystemNamespaceName)
 	err := cronJobs.Delete(h.ctx, name, metav1.DeleteOptions{
-		PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
+		PropagationPolicy: new(metav1.DeletePropagationForeground),
 	})
 	if err == nil || apierrors.IsNotFound(err) {
 		return nil
