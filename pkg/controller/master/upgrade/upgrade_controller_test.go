@@ -758,6 +758,22 @@ func newManagedChartWithKubevirtValuesOverride(namespace, name string) *mgmtv3.M
 	}
 }
 
+func TestMissingUpgradeImageMarksCleanupPending(t *testing.T) {
+	upgrade := newTestUpgradeBuilder().InitStatus().WithImage("missing-image").Build()
+	clientset := fake.NewSimpleClientset(upgrade)
+	h := &upgradeHandler{
+		upgradeClient: fakeclients.UpgradeClient(clientset.HarvesterhciV1beta1().Upgrades),
+		vmImageCache:  fakeclients.VirtualMachineImageCache(clientset.HarvesterhciV1beta1().VirtualMachineImages),
+	}
+	_, err := h.OnChanged(upgrade.Name, upgrade)
+	require.NoError(t, err)
+	stored, err := clientset.HarvesterhciV1beta1().Upgrades(upgrade.Namespace).Get(context.Background(), upgrade.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.True(t, harvesterv1.UpgradeCompleted.IsFalse(stored))
+	assert.Equal(t, StateFailed, stored.Labels[upgradeStateLabel])
+	assert.Equal(t, StatePending, stored.Labels[upgradeCleanupLabel])
+}
+
 func TestUpgradeHandler_OnChanged(t *testing.T) {
 	type input struct {
 		key          string

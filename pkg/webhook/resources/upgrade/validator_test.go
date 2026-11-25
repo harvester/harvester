@@ -28,6 +28,29 @@ const (
 	machine2 = "machine2"
 )
 
+func TestCreateWaitsForFailedUpgradeCleanup(t *testing.T) {
+	for _, cleanup := range []string{"Pending", "Succeeded"} {
+		t.Run(cleanup, func(t *testing.T) {
+			previous := &harvesterv1.Upgrade{ObjectMeta: metav1.ObjectMeta{
+				Name: "previous", Namespace: util.HarvesterSystemNamespaceName,
+				Labels: map[string]string{upgradeStateLabel: "Failed", upgradeCleanupLabel: cleanup},
+			}}
+			clientset := fake.NewSimpleClientset(previous)
+			v := &upgradeValidator{upgrades: fakeclients.UpgradeCache(clientset.HarvesterhciV1beta1().Upgrades)}
+			next := &harvesterv1.Upgrade{
+				ObjectMeta: metav1.ObjectMeta{Name: "next", Namespace: previous.Namespace, Annotations: map[string]string{skipWebhookAnnotation: "true"}},
+				Spec:       harvesterv1.UpgradeSpec{Image: previous.Namespace + "/iso"},
+			}
+			err := v.Create(nil, next)
+			if cleanup == "Pending" {
+				require.ErrorContains(t, err, "completed their cleanup process: previous")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func Test_isNodeMachineMatching(t *testing.T) {
 	tests := []struct {
 		name        string
