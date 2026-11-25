@@ -117,3 +117,44 @@ func TestBackupRequiresRepository(t *testing.T) {
 	_, err = os.Stat(filepath.Join(repo, "config"))
 	require.True(t, os.IsNotExist(err), "backup must not initialize a missing repository")
 }
+
+func TestBackupRecoversKilledLock(t *testing.T) {
+	for _, when := range []string{"before first attempt", "during retry"} {
+		t.Run(when, func(t *testing.T) {
+			lr := newLocalRestic(t)
+			_, holder, _ := lr.holdLock()
+			if when == "before first attempt" {
+				require.NoError(t, holder.Process.Kill())
+				require.Error(t, holder.Wait())
+			}
+
+			command := BackupCommand(shellQuote(lr.binary)+" --no-cache", "printf complete-data", "volume",
+				[]string{"ns=default", "vmb=concurrent", "sn=volume"})
+			job := lr.startCommand(command)
+			if when == "during retry" {
+				require.Eventually(t, func() bool {
+					out, err := os.ReadFile(job.log)
+					return err == nil && strings.Contains(string(out), "retrying lock acquisition")
+				}, 30*time.Second, 50*time.Millisecond, "tag did not wait for the active backup")
+				lr.assertBackupTag(false)
+				require.NoError(t, holder.Process.Kill())
+				require.Error(t, holder.Wait())
+			}
+
+			// Local processes share a hostname, so unlock detects the dead PID.
+			// Across Pods, it waits until 30 minutes after the lock's last refresh.
+			select {
+			case err := <-job.done:
+				out, readErr := os.ReadFile(job.log)
+				require.NoError(t, readErr)
+				require.NoError(t, err, "%s", out)
+				require.Contains(t, string(out), "successfully removed 1 locks")
+			case <-lr.ctx.Done():
+				t.Fatal("backup did not recover the killed process's lock")
+			}
+			lr.assertBackupTag(true)
+			payload := lr.run("", "dump", "--tag", "vmb=concurrent", "latest", "/volume")
+			require.Equal(t, "complete-data", string(payload))
+		})
+	}
+}

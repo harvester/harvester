@@ -25,7 +25,7 @@ func runShell(t *testing.T, command string) (string, error) {
 func TestBackupCommitRequiresEngineSuccess(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "committed")
 	command := "fake() { if [ \"$1\" = --retry-lock ]; then shift 2; fi; " +
-		"case \"$1\" in snapshots) echo '[]';; backup) " +
+		"case \"$1\" in unlock) echo 'removed stale lock';; backup) " +
 		"echo '{\"message_type\":\"summary\",\"snapshot_id\":\"abc\"}'; return 1;; " +
 		"tag) touch " + shellQuote(marker) + ";; esac; };\n"
 	command += BackupCommand("fake", "printf data", "volume", nil)
@@ -58,7 +58,7 @@ fake() {
     printf '%%s\n' "$*" >> %s
     if [ "$1" = --retry-lock ]; then shift 2; fi
     case "$1" in
-        snapshots) echo '[]';;
+        unlock) echo 'removed stale lock';;
         backup) echo '{"message_type":"summary","snapshot_id":"abc"}';;
         tag)
             tag_calls=$((tag_calls + 1))
@@ -79,10 +79,13 @@ fake() {
 			log, err := os.ReadFile(calls)
 			require.NoError(t, err)
 			lines := strings.Split(strings.TrimSpace(string(log)), "\n")
-			require.Len(t, lines, 2+tc.locks)
-			require.Contains(t, lines[0], "--retry-lock 5m backup ")
-			for _, call := range lines[1:] {
-				require.Equal(t, "--retry-lock 5m tag --add harvester-complete abc", call,
+			require.Len(t, lines, 2*(2+tc.locks))
+			for i := 0; i < len(lines); i += 2 {
+				require.Equal(t, "unlock", lines[i])
+			}
+			require.Contains(t, lines[1], "--retry-lock 5m backup ")
+			for i := 3; i < len(lines); i += 2 {
+				require.Equal(t, "--retry-lock 5m tag --add harvester-complete abc", lines[i],
 					"retry only the tag for the uploaded snapshot")
 			}
 		})
@@ -97,7 +100,7 @@ fake() {
     printf '%%s\n' "$*" >> %s
     if [ "$1" = --retry-lock ]; then shift 2; fi
     case "$1" in
-        snapshots) echo '[]';;
+        unlock) echo 'removed stale lock';;
         backup)
             attempts=$((attempts + 1))
             if [ "$attempts" -le 2 ]; then return 11; fi
@@ -113,6 +116,7 @@ fake() {
 	require.NoError(t, err)
 	require.Equal(t, 3, strings.Count(string(log), "--retry-lock 5m backup "))
 	require.Equal(t, 1, strings.Count(string(log), "--retry-lock 5m tag --add harvester-complete abc"))
+	require.Equal(t, 4, strings.Count(string(log), "unlock\n"))
 }
 
 func TestLocalBackupCompletion(t *testing.T) {

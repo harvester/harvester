@@ -36,11 +36,11 @@ func TestRestoreRetriesLocks(t *testing.T) {
 			requireExit(t, script, tc.want)
 			log, err := os.ReadFile(calls)
 			require.NoError(t, err)
-			expected := "--retry-lock 5m -q dump --tag=vmb=backup,harvester-complete latest /volume\n"
+			expected := "unlock\n--retry-lock 5m -q dump --tag=vmb=backup,harvester-complete latest /volume\n"
 			require.Equal(t, strings.Repeat(expected, tc.locks+1), string(log))
 			payload, err := os.ReadFile(data)
 			require.NoError(t, err)
-			require.Equal(t, []byte("volume\x00data\n"), payload, "retry messages must not reach the writer")
+			require.Equal(t, []byte("volume\x00data\n"), payload, "unlock and retry messages must not reach the writer")
 		})
 	}
 }
