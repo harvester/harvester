@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/harvester/harvester/pkg/config"
+	"github.com/harvester/harvester/pkg/util"
 	"github.com/harvester/harvester/pkg/util/resourcequota"
 )
 
@@ -22,7 +23,6 @@ const (
 	vmiControllerRemoveDeprecatedFinalizerControllerName         = "VMIController.RemoveDeprecatedFinalizer"
 	vmiControllerSetHaltIfOccurExceededQuotaControllerName       = "VMIController.StopVMIfExceededQuota"
 	vmControllerReconcileBSCloneControllerName                   = "VMController.ReconcileBackendStorageClone"
-	vmControllerCleanupPVCAndSnapshotFinalizerName               = "VMController.CleanupPVCAndSnapshot"
 
 	// this finalizer is special one which was added by our controller, not wrangler.
 	// https://github.com/harvester/harvester/blob/78b0f20abb118b5d0fba564e18867b90a1d3c0ee/pkg/controller/master/virtualmachine/vm_controller.go#L97-L101
@@ -94,7 +94,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	vmClient.OnChange(ctx, vmControllerRemoveDeprecatedFinalizerControllerName, vmCtrl.removeDeprecatedFinalizer)
 	vmClient.OnChange(ctx, vmControllerSetTargetVolumeStrategyControllerName, vmCtrl.SetTargetVolumeStrategy)
 	vmClient.OnChange(ctx, vmControllerCleanupTargetVolumeAnnotationControllerName, vmCtrl.CleanupTargetVolumeAnnotation)
-	vmClient.OnRemove(ctx, vmControllerCleanupPVCAndSnapshotFinalizerName, vmCtrl.cleanupPVCAndSnapshot)
+	vmClient.OnRemove(ctx, util.VMCleanupPVCAndSnapshotControllerName, vmCtrl.cleanupPVCAndSnapshot)
 
 	vmClient.OnChange(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.ReconcileBackendStorageClone)
 	vmClient.OnRemove(ctx, vmControllerReconcileBSCloneControllerName, vmCtrl.CleanUpBackendStorageClone)
