@@ -259,7 +259,7 @@ func (s *HarvesterServer) generateSteveServer(options config.Options) error {
 	s.steve.APIServer.Parser = dynamicURLBuilderParse
 	apiroot.Register(s.steve.BaseSchemas, []string{"v1", "v1/harvester"}, "proxy:/apis")
 
-	authMiddleware := steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.AlwaysAdmin))
+	authMiddleware := steveauth.ToMiddleware(steveauth.AuthenticatorFunc(steveauth.Impersonation))
 	s.Handler = authMiddleware(s.steve)
 
 	s.startHooks = []StartHook{
