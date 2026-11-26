@@ -64,6 +64,7 @@ fake() {
             tag_calls=$((tag_calls + 1))
             if [ "$tag_calls" -le %d ]; then return 11; fi
             return %d;;
+        snapshots) echo '[{"id":"def","original":"abc"}]';;
         *) return 99;;
     esac
 }
@@ -79,12 +80,17 @@ fake() {
 			log, err := os.ReadFile(calls)
 			require.NoError(t, err)
 			lines := strings.Split(strings.TrimSpace(string(log)), "\n")
-			require.Len(t, lines, 2*(2+tc.locks))
+			expected := 2 * (2 + tc.locks)
+			if tc.code == 0 {
+				expected += 2 // Unlock and verify the completed snapshot.
+				require.Equal(t, "--retry-lock 5m snapshots --json --tag=harvester-complete", lines[len(lines)-1])
+			}
+			require.Len(t, lines, expected)
 			for i := 0; i < len(lines); i += 2 {
 				require.Equal(t, "unlock", lines[i])
 			}
 			require.Contains(t, lines[1], "--retry-lock 5m backup ")
-			for i := 3; i < len(lines); i += 2 {
+			for i := 3; i < 2*(2+tc.locks); i += 2 {
 				require.Equal(t, "--retry-lock 5m tag --add harvester-complete abc", lines[i],
 					"retry only the tag for the uploaded snapshot")
 			}
@@ -106,6 +112,7 @@ fake() {
             if [ "$attempts" -le 2 ]; then return 11; fi
             echo '{"message_type":"summary","snapshot_id":"abc"}';;
         tag) return 0;;
+        snapshots) echo '[{"id":"def","original":"abc"}]';;
         *) return 99;;
     esac
 }
@@ -116,7 +123,7 @@ fake() {
 	require.NoError(t, err)
 	require.Equal(t, 3, strings.Count(string(log), "--retry-lock 5m backup "))
 	require.Equal(t, 1, strings.Count(string(log), "--retry-lock 5m tag --add harvester-complete abc"))
-	require.Equal(t, 4, strings.Count(string(log), "unlock\n"))
+	require.Equal(t, 5, strings.Count(string(log), "unlock\n"))
 }
 
 func TestLocalBackupCompletion(t *testing.T) {

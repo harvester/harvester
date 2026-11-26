@@ -28,8 +28,24 @@ func BackupCommand(command, reader, filename string, tags []string) string {
 			"SNAPSHOT=$(%s"+
 			" | jq -er 'select(.message_type == \"summary\") | .snapshot_id // empty')\n"+
 			"test -n \"$SNAPSHOT\"\n"+
-			"%s",
+			"%s\n%s",
 		retryCommand(command, backup),
 		retryCommand(command, "tag --add "+CompleteTag+" \"$SNAPSHOT\""),
+		verifyCompletion(command, tags),
+	)
+}
+
+// Tag can return success after failing to save the modified snapshot. Verify
+// its completion tag using the uploaded ID, which tag preserves as original.
+func verifyCompletion(command string, tags []string) string {
+	query := "snapshots --json --tag=" + shellQuote(completedTags(tags))
+	return fmt.Sprintf(
+		"SNAPSHOTS=$( %s )\n"+
+			"if ! printf '%%s\\n' \"$SNAPSHOTS\" | jq -en --arg id \"$SNAPSHOT\" "+
+			"'input | any(.[]; .id == $id or .original == $id)' > /dev/null; then\n"+
+			"    printf 'Completed snapshot %%s could not be verified\\n' \"$SNAPSHOT\" >&2\n"+
+			"    exit 1\n"+
+			"fi",
+		retryCommand(command, query),
 	)
 }
