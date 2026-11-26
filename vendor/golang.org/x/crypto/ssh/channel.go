@@ -160,18 +160,22 @@ type channel struct {
 	extraData         []byte
 	localId, remoteId uint32
 
-	// maxIncomingPayload and maxRemotePayload are the maximum
-	// payload sizes of normal and extended data packets for
-	// receiving and sending, respectively. The wire packet will
-	// be 9 or 13 bytes larger (excluding encryption overhead).
-	maxIncomingPayload uint32
-	maxRemotePayload   uint32
+	// maxRemotePayload is the maximum payload size of normal and extended data
+	// packets that we can send to the peer. The wire packet will be 9 or 13
+	// bytes larger (excluding encryption overhead).
+	maxRemotePayload uint32
 
 	mux *mux
 
 	// decided is set to true if an accept or reject message has been sent
 	// (for outbound channels) or received (for inbound channels).
 	decided bool
+
+	// established is set to true once the channel is open and may carry normal
+	// channel traffic: for an outbound channel when the peer's open
+	// confirmation is received, for an inbound channel when the local side
+	// accepts it. It is set and read from different goroutines.
+	established atomic.Bool
 
 	// direction contains either channelOutbound, for channels created
 	// locally, or channelInbound, for channels created by the peer.
@@ -216,6 +220,10 @@ type channel struct {
 	// packetPool has a buffer for each extended channel ID to
 	// save allocations during writes.
 	packetPool map[uint32][]byte
+
+	// closeOnce guards close so it is idempotent: closing the internal Go
+	// channels (msg, incomingRequests) more than once would panic.
+	closeOnce sync.Once
 }
 
 // writePacket sends a packet. If the packet is a channel close, it updates
@@ -318,7 +326,7 @@ func (ch *channel) handleData(packet []byte) error {
 	if length == 0 {
 		return nil
 	}
-	if length > ch.maxIncomingPayload {
+	if length > channelMaxPacket {
 		// TODO(hanwen): should send Disconnect?
 		return errors.New("ssh: incoming packet exceeds maximum payload size")
 	}
@@ -340,7 +348,18 @@ func (ch *channel) handleData(packet []byte) error {
 	if extended == 1 {
 		ch.extPending.write(data)
 	} else if extended > 0 {
-		// discard other extended data.
+		// RFC 4254, Section 5.2 defines no extended data types other
+		// than stderr (type 1, handled above) and this package provides
+		// no API to read them, so the data is discarded. Credit its
+		// window back immediately: it can never be read, so the
+		// deduction above would otherwise shrink the window permanently.
+		// adjustWindow returns io.EOF if the local side has already
+		// sent a channel close; ignore it like ReadExtended does, since
+		// an error returned here would terminate the mux read loop and
+		// tear down the whole connection.
+		if err := ch.adjustWindow(length); err != nil && err != io.EOF {
+			return err
+		}
 	} else {
 		ch.pending.write(data)
 	}
@@ -353,7 +372,7 @@ func (c *channel) adjustWindow(adj uint32) error {
 	// exceed the initial window setting, we don't worry about overflow.
 	c.myConsumed += adj
 	var sendAdj uint32
-	if (channelWindowSize-c.myWindow > 3*c.maxIncomingPayload) ||
+	if (channelWindowSize-c.myWindow > 3*channelMaxPacket) ||
 		(c.myWindow < channelWindowSize/2) {
 		sendAdj = c.myConsumed
 		c.myConsumed = 0
@@ -393,17 +412,19 @@ func (c *channel) ReadExtended(data []byte, extended uint32) (n int, err error) 
 }
 
 func (c *channel) close() {
-	c.pending.eof()
-	c.extPending.eof()
-	close(c.msg)
-	close(c.incomingRequests)
-	c.writeMu.Lock()
-	// This is not necessary for a normal channel teardown, but if
-	// there was another error, it is.
-	c.sentClose = true
-	c.writeMu.Unlock()
-	// Unblock writers.
-	c.remoteWin.close()
+	c.closeOnce.Do(func() {
+		c.pending.eof()
+		c.extPending.eof()
+		close(c.msg)
+		close(c.incomingRequests)
+		c.writeMu.Lock()
+		// This is not necessary for a normal channel teardown, but if
+		// there was another error, it is.
+		c.sentClose = true
+		c.writeMu.Unlock()
+		// Unblock writers.
+		c.remoteWin.close()
+	})
 }
 
 // responseMessageReceived is called when a success or failure message is
@@ -417,10 +438,20 @@ func (ch *channel) responseMessageReceived() error {
 		return errors.New("ssh: duplicate response received for channel")
 	}
 	ch.decided = true
+	ch.established.Store(true)
 	return nil
 }
 
 func (ch *channel) handlePacket(packet []byte) error {
+	// Only the open response is expected before the channel is established.
+	if !ch.established.Load() {
+		switch packet[0] {
+		case msgChannelOpenConfirm, msgChannelOpenFailure:
+		default:
+			return nil
+		}
+	}
+
 	switch packet[0] {
 	case msgChannelData, msgChannelExtendedData:
 		return ch.handleData(packet)
@@ -486,7 +517,8 @@ func (ch *channel) handlePacket(packet []byte) error {
 		default:
 		}
 	default:
-		ch.msg <- msg
+		// No other message type is expected on an established channel.
+		return fmt.Errorf("ssh: unexpected message type %d on channel %d", packet[0], ch.localId)
 	}
 	return nil
 }
@@ -505,7 +537,10 @@ func (m *mux) newChannel(chanType string, direction channelDirection, extraData 
 		mux:              m,
 		packetPool:       make(map[uint32][]byte),
 	}
-	ch.localId = m.chanList.add(ch)
+	if !m.chanList.add(ch) {
+		// The mux has shut down and will not close the channel.
+		ch.close()
+	}
 	return ch
 }
 
@@ -529,14 +564,14 @@ func (ch *channel) Accept() (Channel, <-chan *Request, error) {
 	if ch.decided {
 		return nil, nil, errDecidedAlready
 	}
-	ch.maxIncomingPayload = channelMaxPacket
 	confirm := channelOpenConfirmMsg{
 		PeersID:       ch.remoteId,
 		MyID:          ch.localId,
 		MyWindow:      ch.myWindow,
-		MaxPacketSize: ch.maxIncomingPayload,
+		MaxPacketSize: channelMaxPacket,
 	}
 	ch.decided = true
+	ch.established.Store(true)
 	if err := ch.sendMessage(confirm); err != nil {
 		return nil, nil, err
 	}
