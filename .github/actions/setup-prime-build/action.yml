@@ -96,12 +96,12 @@ runs:
     - name: Login to staging registry
       id: login-staging
       if: steps.mode.outputs.test != 'true' && inputs.target == 'staging'
-      uses: harvester/harvester-actions/actions/login-staging-registry@b4aee419059d4d0cc86ccabe6f1d600b58c21e68 # main
+      uses: harvester/harvester-actions/actions/login-staging-registry@ba4e25aa5e0661e6021c8426840614dd26fc051a # main
 
     - name: Login to Prime registry
       id: login-prime
       if: steps.mode.outputs.test != 'true' && inputs.target == 'prime'
-      uses: harvester/harvester-actions/actions/login-prime-registry@b4aee419059d4d0cc86ccabe6f1d600b58c21e68 # main
+      uses: harvester/harvester-actions/actions/login-prime-registry@ba4e25aa5e0661e6021c8426840614dd26fc051a # main
 
     - name: Read Rancher Prime registry
       if: steps.mode.outputs.test != 'true'
