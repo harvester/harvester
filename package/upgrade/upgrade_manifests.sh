@@ -65,6 +65,32 @@ EOF
   fi
 }
 
+# Disable HTTP/2 on rke2-ingress-nginx by default.
+# The HelmChartConfig is created at install time. Merge into it; a user-set `use-http2` is kept as is.
+patch_rke2_ingress_nginx_config() {
+  echo "Check and set use-http2 in rke2-ingress-nginx HelmChartConfig."
+
+  local name="rke2-ingress-nginx"
+  local namespace="kube-system"
+  local values
+
+  values=$(kubectl get helmchartconfig "$name" -n "$namespace" -o jsonpath='{.spec.valuesContent}')
+
+  local current
+  current=$(printf '%s\n' "$values" | yq e '.controller.config."use-http2" // ""' -)
+  if [[ -n "$current" ]]; then
+    echo "use-http2 is already set to '$current' in '$name'. Keeping the user value."
+    return 0
+  fi
+
+  local new_values
+  new_values=$(printf '%s\n' "$values" | yq e '.controller.config."use-http2" = "false"' -)
+
+  kubectl patch helmchartconfig "$name" -n "$namespace" --type merge \
+    -p "$(NEW_VALUES="$new_values" yq -n -o=json '.spec.valuesContent = strenv(NEW_VALUES)')"
+  echo "Set use-http2 to \"false\" in '$name'."
+}
+
 pre_upgrade_manifest() {
   if [ -e "/usr/local/share/migrations/upgrade_manifests/${UPGRADE_PREVIOUS_VERSION}/pre-hook.sh" ]; then
     echo "Executing ${UPGRADE_PREVIOUS_VERSION} pre-hook..."
@@ -76,6 +102,8 @@ pre_upgrade_manifest() {
   # Since 'set -e' is active, any failure here will safely halt the upgrade
   # to prevent potential NAD CRD deletion and VM networking loss.
   patch_rke2_multus_config
+
+  patch_rke2_ingress_nginx_config
 }
 
 # Preserve the current overcommit-config value before upgrade.
