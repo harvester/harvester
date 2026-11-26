@@ -222,7 +222,7 @@ jobs:
         target: ${{ needs.configure.outputs.target }}
 
     - name: Publish harvester
-      uses: &publish-prime-image harvester/harvester-actions/actions/publish-prime-image@76572fec5f9a3b807e726b173b730b93ef6dc3ff # main
+      uses: &publish-prime-image harvester/harvester-actions/actions/publish-prime-image@ba4e25aa5e0661e6021c8426840614dd26fc051a # main
       with:
         context: package/
         dockerfile: package/Dockerfile

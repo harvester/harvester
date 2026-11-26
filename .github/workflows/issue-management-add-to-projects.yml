@@ -101,7 +101,7 @@ jobs:
         steps.is-harvester-member.outputs.isOrganization == 'true' &&
         github.event.issue.milestone == null
         }}
-      uses: harvester/harvester-actions/actions/check-team-membership@45fd3ff19068df5e2bc2426f41e8bba90fe013be # main
+      uses: harvester/harvester-actions/actions/check-team-membership@ba4e25aa5e0661e6021c8426840614dd26fc051a # main
       with:
         username: ${{ github.event.issue.user.login }}
         organization: harvester
