@@ -3,6 +3,7 @@ package cdi
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -31,9 +32,10 @@ type Backend struct {
 	vmio             common.VMIOperator
 	settingCache     ctlharvesterv1.SettingCache
 	configMaps       ctlcorev1.ConfigMapClient
+	httpClient       http.Client
 }
 
-func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator, settingCache ctlharvesterv1.SettingCache, configMaps ctlcorev1.ConfigMapClient) backend.Backend {
+func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient, scClient ctlstoragev1.StorageClassClient, pvcCache ctlcorev1.PersistentVolumeClaimCache, vmio common.VMIOperator, settingCache ctlharvesterv1.SettingCache, configMaps ctlcorev1.ConfigMapClient, httpClient http.Client) backend.Backend {
 	return &Backend{
 		ctx:              ctx,
 		dataVolumeClient: dataVolumeClient,
@@ -42,6 +44,7 @@ func GetBackend(ctx context.Context, dataVolumeClient ctlcdiv1.DataVolumeClient,
 		vmio:             vmio,
 		settingCache:     settingCache,
 		configMaps:       configMaps,
+		httpClient:       httpClient,
 	}
 }
 
@@ -175,12 +178,12 @@ func (b *Backend) isDataVolumeCreated(vmImg *harvesterv1.VirtualMachineImage) (b
 }
 
 func (b *Backend) initializeDownload(vmImg *harvesterv1.VirtualMachineImage) (*harvesterv1.VirtualMachineImage, error) {
-	virtualSize, err := fetchImageVirtualSize(b.vmio.GetURL(vmImg))
+	virtualSize, err := fetchImageVirtualSize(b.ctx, &b.httpClient, b.vmio.GetURL(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image virtual size: %v", err)
 	}
 
-	size, err := fetchImageSize(b.vmio.GetURL(vmImg))
+	size, err := fetchImageSize(b.ctx, &b.httpClient, b.vmio.GetURL(vmImg))
 	if err != nil {
 		return vmImg, fmt.Errorf("failed to fetch image size: %v", err)
 	}

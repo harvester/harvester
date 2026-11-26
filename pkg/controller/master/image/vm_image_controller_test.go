@@ -162,6 +162,7 @@ func TestVMImageHandler_OnChanged_UploadImageInitialization(t *testing.T) {
 				vmio,
 				fakeclients.HarvesterSettingCache(clientset.HarvesterhciV1beta1().Settings),
 				fakeclients.ConfigmapClient(clientset.CoreV1().ConfigMaps),
+				http.Client{},
 			)
 
 			// Create backends map
