@@ -27,7 +27,9 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 	settingCache := management.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache()
 	configMaps := management.CoreFactory.Core().V1().ConfigMap()
 
-	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), sc.Cache(), http.Client{Timeout: 15 * time.Second})
+	httpClient := http.Client{Timeout: 15 * time.Second}
+
+	vmio, err := common.GetVMIOperator(vmi, vmi.Cache(), sc.Cache(), httpClient)
 	if err != nil {
 		return err
 	}
@@ -38,7 +40,7 @@ func Register(ctx context.Context, management *config.Management, _ config.Optio
 			pvcs.Cache(), secrets.Cache(),
 			vmi, vmi.Cache(), vmio,
 		),
-		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, sc, pvcs.Cache(), vmio, settingCache, configMaps),
+		harvesterv1.VMIBackendCDI: cdi.GetBackend(ctx, ctlcdi, sc, pvcs.Cache(), vmio, settingCache, configMaps, httpClient),
 	}
 
 	vmImageHandler := &vmImageHandler{
