@@ -36,7 +36,7 @@ func cloneTestBackend(t *testing.T, clientset *fake.Clientset) *Backend {
 		&namespacedDataVolumes{clientset: clientset},
 		fakeclients.StorageClassClient(clientset.StorageV1().StorageClasses),
 		fakeclients.PersistentVolumeClaimCache(clientset.CoreV1().PersistentVolumeClaims),
-		vmio, nil, nil).(*Backend)
+		vmio, nil, nil, http.Client{}).(*Backend)
 }
 
 func TestInitializeImageCryptoClone(t *testing.T) {
