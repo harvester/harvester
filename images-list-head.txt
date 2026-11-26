@@ -80,9 +80,9 @@ docker.io/rancher/mirrored-prometheus-operator-prometheus-config-reloader:v0.87.
 docker.io/rancher/mirrored-prometheus-operator-prometheus-operator:v0.87.1
 docker.io/rancher/mirrored-prometheus-operator-admission-webhook:v0.87.1
 docker.io/rancher/prom-prometheus:v3.8.1
-docker.io/rancher/rancher:v2.16-head
-docker.io/rancher/rancher-agent:v2.16-head
-docker.io/rancher/rancher-webhook:v2.16-head
+docker.io/rancher/rancher-server:v2.17-head
+docker.io/rancher/rancher-agent:v2.17-head
+docker.io/rancher/rancher-webhook::v0.9.12
 docker.io/rancher/shell:v0.9.1-rc.2
 docker.io/rancher/system-agent:v0.15.3-suc
 docker.io/rancher/system-upgrade-controller:v0.20.2
