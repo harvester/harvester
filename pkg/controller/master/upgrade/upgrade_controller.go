@@ -194,17 +194,26 @@ func (h *upgradeHandler) OnChanged(_ string, upgrade *harvesterv1.Upgrade) (*har
 				return h.upgradeClient.Update(toUpdate)
 			}
 
-			image, err := repo.CreateImageFromISO(version.Spec.ISOURL, version.Spec.ISOChecksum)
-			if err != nil && apierrors.IsAlreadyExists(err) {
-				image, err = h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
-				if err != nil {
+			// A previous reconcile may have created the image already, but the
+			// status update with the image ID did not land. Reuse that image
+			// instead of creating it again: the image validating webhook rejects
+			// a second image with the same display name with a Conflict error.
+			image, err := h.vmImageCache.Get(harvesterSystemNamespace, upgrade.Name)
+			if err == nil && image.Labels[harvesterUpgradeLabel] == upgrade.Name {
+				logrus.Infof("Reuse the existing image: %s/%s", image.Namespace, image.Name)
+			} else {
+				image, err = repo.CreateImageFromISO(version.Spec.ISOURL, version.Spec.ISOChecksum)
+				if err != nil && (apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err)) {
+					image, err = h.vmImageClient.Get(harvesterSystemNamespace, upgrade.Name, metav1.GetOptions{})
+					if err != nil {
+						setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
+						return h.upgradeClient.Update(toUpdate)
+					}
+					logrus.Infof("Reuse the existing image: %s/%s", image.Namespace, image.Name)
+				} else if err != nil {
 					setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
 					return h.upgradeClient.Update(toUpdate)
 				}
-				logrus.Infof("Reuse the existing image: %s/%s", image.Namespace, image.Name)
-			} else if err != nil && !apierrors.IsAlreadyExists(err) {
-				setUpgradeCompletedCondition(toUpdate, StateFailed, corev1.ConditionFalse, err.Error(), "")
-				return h.upgradeClient.Update(toUpdate)
 			}
 			toUpdate.Status.ImageID = fmt.Sprintf("%s/%s", image.Namespace, image.Name)
 		} else {
