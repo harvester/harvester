@@ -22,7 +22,11 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+)
+
+const (
+	VirtualMachineBackupFinalizer        = "backup.kubevirt.io/vmbackup-protection"
+	VirtualMachineBackupTrackerFinalizer = "backup.kubevirt.io/vmbt-protection"
 )
 
 // BackupMode is the const type for the backup possible modes
@@ -41,21 +45,49 @@ const (
 type BackupVolumeInfo struct {
 	// VolumeName is the volume name from VMI spec
 	VolumeName string `json:"volumeName"`
-	// DiskTarget is the disk target device name at backup time
-	DiskTarget string `json:"diskTarget"`
-	// DataEndpoint is the URL of the endpoint for read for pull mode
-	DataEndpoint string `json:"dataEndpoint,omitempty"`
-	// MapEndpoint is the URL of the endpoint for map for pull mode
-	MapEndpoint string `json:"mapEndpoint,omitempty"`
+	// Type is how the volume was backed up, either Full or Incremental
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self in ['Full', 'Incremental']",message="type must be Full or Incremental"
+	Type BackupType `json:"type,omitempty"`
+}
+
+// BackupLinks contains internal and external links for accessing backup data in pull mode
+// Internal links use in-cluster service DNS (ClusterIP), while external links
+// use a Route or Ingress hostname via virt-exportproxy
+type BackupLinks struct {
+	// Internal contains endpoints reachable from within the cluster
+	// +optional
+	Internal *BackupLink `json:"internal,omitempty"`
+	// External contains endpoints reachable from outside the cluster
+	// +optional
+	External *BackupLink `json:"external,omitempty"`
+}
+
+// BackupLink contains a CA certificate and per-volume endpoints for one network path
+type BackupLink struct {
+	// Cert is the CA certificate bundle for TLS verification.
+	// It may be empty for external links.
+	Cert string `json:"cert"`
+	// Volumes lists the data and map endpoints for each backed-up volume
+	// +listType=map
+	// +listMapKey=volumeName
+	// +optional
+	Volumes []BackupVolumeLink `json:"volumes,omitempty"`
+}
+
+// BackupVolumeLink contains the data and map endpoint URLs for a single volume
+type BackupVolumeLink struct {
+	// VolumeName identifies the volume these endpoints belong to
+	VolumeName string `json:"volumeName"`
+	// DataEndpoint is the URL for reading backup data
+	DataEndpoint string `json:"dataEndpoint"`
+	// MapEndpoint is the URL for reading the changed block map
+	MapEndpoint string `json:"mapEndpoint"`
 }
 
 type BackupCheckpoint struct {
 	Name         string       `json:"name,omitempty"`
 	CreationTime *metav1.Time `json:"creationTime,omitempty"`
-	// Volumes lists volumes and their disk targets at backup time
-	// +optional
-	// +listType=atomic
-	Volumes []BackupVolumeInfo `json:"volumes,omitempty"`
 }
 
 // BackupType is the const type for the backup possible types
@@ -73,25 +105,20 @@ const (
 type BackupCmd string
 
 const (
-	Start  BackupCmd = "Start"
-	Abort  BackupCmd = "Abort"
-	Export BackupCmd = "Export"
+	Start BackupCmd = "Start"
+	Abort BackupCmd = "Abort"
 )
 
 // BackupOptions are options used to configure virtual machine backup job
 type BackupOptions struct {
-	BackupName       string       `json:"backupName,omitempty"`
-	Cmd              BackupCmd    `json:"cmd,omitempty"`
-	Mode             BackupMode   `json:"mode,omitempty"`
-	BackupStartTime  *metav1.Time `json:"backupStartTime,omitempty"`
-	Incremental      *string      `json:"incremental,omitempty"`
-	TargetPath       *string      `json:"targetPath,omitempty"`
-	SkipQuiesce      bool         `json:"skipQuiesce,omitempty"`
-	ExportServerAddr *string      `json:"exportServerAddr,omitempty"`
-	ExportServerName *string      `json:"exportServerName,omitempty"`
-	BackupKey        *string      `json:"backupKey,omitempty"`
-	BackupCert       *string      `json:"backupCert,omitempty"`
-	CACert           *string      `json:"caCert,omitempty"`
+	BackupName              string       `json:"backupName,omitempty"`
+	Cmd                     BackupCmd    `json:"cmd,omitempty"`
+	Mode                    BackupMode   `json:"mode,omitempty"`
+	BackupStartTime         *metav1.Time `json:"backupStartTime,omitempty"`
+	Incremental             *string      `json:"incremental,omitempty"`
+	IncrementalCreationTime *metav1.Time `json:"incrementalCreationTime,omitempty"`
+	TargetPath              *string      `json:"targetPath,omitempty"`
+	SkipQuiesce             bool         `json:"skipQuiesce,omitempty"`
 }
 
 // VirtualMachineBackupTracker defines the way to track the latest checkpoint of
@@ -124,12 +151,6 @@ type VirtualMachineBackupTrackerStatus struct {
 	// LatestCheckpoint is the metadata of the checkpoint of
 	// the latest performed backup
 	LatestCheckpoint *BackupCheckpoint `json:"latestCheckpoint,omitempty"`
-
-	// +optional
-	// CheckpointRedefinitionRequired is set to true by virt-handler when the VM
-	// restarts and has a checkpoint that needs to be redefined in libvirt.
-	// virt-controller will process this flag, attempt redefinition, and clear it.
-	CheckpointRedefinitionRequired *bool `json:"checkpointRedefinitionRequired,omitempty"`
 }
 
 // VirtualMachineBackupTrackerList is a list of VirtualMachineBackupTracker resources
@@ -152,6 +173,10 @@ type VirtualMachineBackup struct {
 
 	// +optional
 	Status *VirtualMachineBackupStatus `json:"status,omitempty"`
+}
+
+func (b *VirtualMachineBackup) IsPushMode() bool {
+	return b.Spec.Mode == nil || *b.Spec.Mode == PushMode
 }
 
 // VirtualMachineBackupList is a list of VirtualMachineBackup resources
@@ -221,8 +246,8 @@ const (
 // VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource
 type VirtualMachineBackupStatus struct {
 	// +optional
-	// Type indicates if the backup was full or incremental
-	Type BackupType `json:"type,omitempty"`
+	// StartTimestamp is the timestamp when the backup started
+	StartTimestamp *metav1.Time `json:"startTimestamp,omitempty"`
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -231,17 +256,15 @@ type VirtualMachineBackupStatus struct {
 	// CheckpointName the name of the checkpoint created for the current backup
 	CheckpointName *string `json:"checkpointName,omitempty"`
 	// +optional
-	// EndpointCert is the raw CACert that is to be used when connecting
-	// to an exported backup endpoint in pull mode.
-	EndpointCert *string `json:"endpointCert,omitempty"`
-	// +optional
 	// +listType=atomic
 	// IncludedVolumes lists the volumes that were included in the backup
+	// +kubebuilder:validation:MaxItems=256
 	IncludedVolumes []BackupVolumeInfo `json:"includedVolumes,omitempty"`
 	// +optional
-	// ExportUID tracks the UID of the associated VMExport for pull-mode backups
-	// used to detect VMExport recreation and re-initiate the export handshake
-	ExportUID *types.UID `json:"exportUID,omitempty"`
+	// Links exposes internal (in-cluster) and external (Ingress/Route) endpoints
+	// for pull-mode backups, each with a CA certificate and per-volume URLs.
+	// Contains per-volume data and map endpoint URLs for each network path.
+	Links *BackupLinks `json:"links,omitempty"`
 }
 
 // ConditionType is the const type for Conditions
@@ -266,7 +289,6 @@ const (
 	ReasonInitializing         = "Initializing"
 	ReasonInitiated            = "Initiated"
 	ReasonPreparingExport      = "PreparingExport"
-	ReasonExportInitiated      = "ExportInitiated"
 	ReasonExportReady          = "ExportReady"
 	ReasonAborting             = "Aborting"
 	ReasonCompleted            = "Completed"
