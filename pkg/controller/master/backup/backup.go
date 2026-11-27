@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -52,7 +53,7 @@ const (
 
 	vmBackupKindName = "VirtualMachineBackup"
 
-	// engineRetryDelay is the delay before retrying volume backup creation when engine returns ErrRetryLater
+	// engineRetryDelay is the delay before retrying pending work or transient errors.
 	engineRetryDelay = 5 * time.Second
 )
 
@@ -189,6 +190,10 @@ func newBackupEngines(
 			controllers.lhbackups.Cache(),
 			controllers.lhbackups,
 			controllers.vmbs.Cache(),
+			backuputil.TargetClient{
+				Settings: management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+				Secrets:  controllers.secrets,
+			},
 		),
 		harvesterv1.Restic: backuprestic.GetBackupEngine(
 			vmbo,
@@ -198,6 +203,7 @@ func newBackupEngines(
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.secrets,
+			management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
 			controllers.storageClasses.Cache(),
 			controllers.jobs,
 			management.ClientSet,
@@ -210,6 +216,7 @@ func newBackupEngines(
 			controllers.pvcs.Cache(),
 			controllers.pvcs,
 			controllers.secrets,
+			management.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
 			controllers.storageClasses.Cache(),
 			controllers.jobs,
 			management.ClientSet,
@@ -261,45 +268,68 @@ func (h *Handler) getBackupEngine(vmb *harvesterv1.VirtualMachineBackup) engine.
 
 // OnBackupChange handles vm backup object on change and reconcile vm backup status
 func (h *Handler) OnBackupChange(_ string, vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+	return nil, h.reconcileBackup(vmb)
+}
+
+func (h *Handler) reconcileBackup(vmb *harvesterv1.VirtualMachineBackup) error {
 	if vmb == nil || h.vmbo.GetDeletionTimestamp(vmb) != nil {
-		return nil, nil
+		return nil
 	}
 
+	err := h.runBackup(vmb)
+	if !isBackupRetry(err) {
+		return err
+	}
+
+	// Pending work and transient errors share one retry path. Real failures return
+	// to Wrangler, including failures joined with a retryable error.
+	h.enqueueBackup(vmb)
+	return nil
+}
+
+func (h *Handler) runBackup(vmb *harvesterv1.VirtualMachineBackup) error {
 	if h.vmbo.IsReady(vmb) {
-		return nil, h.handleBackupReady(vmb)
+		return h.handleBackupReady(vmb)
 	}
 
 	logrus.Debugf("OnBackupChange: vmBackup name:%s", vmb.Name)
-	// set vmBackup init status
-	if h.vmbo.IsMissingStatus(vmb) {
-		// We cannot get VM outside this block, because we also can sync VMBackup from remote target.
-		// A VMBackup without status is a new VMBackup, so it must have sourceVM.
-		sourceVM, err := h.vmbo.ResolveSourceVM(vmb)
-		if err != nil {
-			return nil, h.vmbo.UpdateError(vmb, err)
-		}
-
-		if err = h.vmbo.InitVMBackup(vmb, sourceVM); err != nil {
-			return nil, h.vmbo.UpdateError(vmb, err)
-		}
-
-		return nil, nil
+	updated, err := h.syncBackup(vmb)
+	// Only real failures are recorded. Retryable results still need their progress saved.
+	if err != nil && !isBackupRetry(err) {
+		return h.vmbo.UpdateError(vmb, err)
 	}
+	if updated == nil {
+		return err
+	}
+	return errors.Join(err, h.updateConditions(vmb, updated, err == nil))
+}
 
+func isBackupRetry(err error) bool {
+	return onlyRetry(err, engine.ErrRetryLater)
+}
+
+// syncBackup returns a working copy once volume reconciliation starts so its
+// progress can be saved even when another volume must retry.
+func (h *Handler) syncBackup(vmb *harvesterv1.VirtualMachineBackup) (*harvesterv1.VirtualMachineBackup, error) {
+	if h.vmbo.IsMissingStatus(vmb) {
+		return nil, h.initBackup(vmb)
+	}
 	_, csiVSClassMap, err := h.vmbo.BuildCSIDriverMap(vmb)
 	if err != nil {
-		return nil, h.vmbo.UpdateError(vmb, err)
+		return nil, err
 	}
-
 	updated := vmb.DeepCopy()
 	err = h.CreateVolumeBackups(updated, csiVSClassMap)
-	if err != nil && err != engine.ErrRetryLater {
-		return nil, h.vmbo.UpdateError(vmb, err)
+	return updated, err
+}
+
+func (h *Handler) initBackup(vmb *harvesterv1.VirtualMachineBackup) error {
+	// Only new backups require the source VM; remotely synced backups have status already.
+	sourceVM, err := h.vmbo.ResolveSourceVM(vmb)
+	if err != nil {
+		return err
 	}
-	if err == engine.ErrRetryLater {
-		h.enqueueBackup(vmb)
-	}
-	return nil, h.updateConditions(vmb, updated, err == nil)
+	return h.vmbo.InitVMBackup(vmb, sourceVM)
 }
 
 // OnBackupRemove removes remote backup state and releases cleanup resources.

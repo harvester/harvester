@@ -19,13 +19,33 @@ func shellQuote(value string) string {
 // reader and engine. Never promote snapshots by tag: a previous attempt may
 // have left a partial snapshot with those same tags.
 func BackupCommand(command, reader, filename string, tags []string) string {
+	backup := fmt.Sprintf(
+		"backup --json --stdin-from-command --stdin-filename %s --tag=%s -- %s",
+		shellQuote(filename), shellQuote(strings.Join(tags, ",")), reader,
+	)
 	return fmt.Sprintf(
 		"set -eo pipefail\n"+
-			"(%[1]s snapshots > /dev/null 2>&1 || { %[1]s init || %[1]s snapshots > /dev/null 2>&1; })\n"+
-			"SNAPSHOT=$(%[1]s backup --json --stdin-from-command --stdin-filename %[2]s --tag=%[3]s -- %[4]s"+
+			"SNAPSHOT=$(%s"+
 			" | jq -er 'select(.message_type == \"summary\") | .snapshot_id // empty')\n"+
 			"test -n \"$SNAPSHOT\"\n"+
-			"%[1]s tag --add %[5]s \"$SNAPSHOT\"",
-		command, shellQuote(filename), shellQuote(strings.Join(tags, ",")), reader, CompleteTag,
+			"%s\n%s",
+		retryCommand(command, backup),
+		retryCommand(command, "tag --add "+CompleteTag+" \"$SNAPSHOT\""),
+		verifyCompletion(command, tags),
+	)
+}
+
+// Tag can return success after failing to save the modified snapshot. Verify
+// its completion tag using the uploaded ID, which tag preserves as original.
+func verifyCompletion(command string, tags []string) string {
+	query := "snapshots --json --tag=" + shellQuote(completedTags(tags))
+	return fmt.Sprintf(
+		"SNAPSHOTS=$( %s )\n"+
+			"if ! printf '%%s\\n' \"$SNAPSHOTS\" | jq -en --arg id \"$SNAPSHOT\" "+
+			"'input | any(.[]; .id == $id or .original == $id)' > /dev/null; then\n"+
+			"    printf 'Completed snapshot %%s could not be verified\\n' \"$SNAPSHOT\" >&2\n"+
+			"    exit 1\n"+
+			"fi",
+		retryCommand(command, query),
 	)
 }

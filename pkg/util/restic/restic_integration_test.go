@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,7 @@ func newLocalRestic(t *testing.T) *localRestic {
 	repository := filepath.Join(t.TempDir(), "repository")
 	t.Setenv("RESTIC_REPOSITORY", repository)
 	t.Setenv("RESTIC_PASSWORD", "local-regression-test")
+	t.Setenv("RESTIC_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
 	lr := &localRestic{t: t, ctx: ctx, binary: binary, repository: repository}
 	lr.run("", "init")
 	for i := 0; i < 3; i++ {
@@ -66,6 +68,12 @@ func (lr *localRestic) holdLock() (*os.File, *exec.Cmd, *bytes.Buffer) {
 	holder.Stdout, holder.Stderr = logs, logs
 	require.NoError(lr.t, holder.Start())
 	lr.t.Cleanup(func() { _ = holder.Process.Kill(); _ = holder.Wait() })
+	lr.waitForLock()
+	return writer, holder, logs
+}
+
+func (lr *localRestic) waitForLock() {
+	lr.t.Helper()
 	require.Eventually(lr.t, func() bool {
 		locks, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
 		if err != nil {
@@ -79,7 +87,24 @@ func (lr *localRestic) holdLock() (*os.File, *exec.Cmd, *bytes.Buffer) {
 		}
 		return false
 	}, 5*time.Second, 20*time.Millisecond, "lock holder did not acquire repository lock")
-	return writer, holder, logs
+}
+
+func (lr *localRestic) holdRestore(payload string) (*os.File, *exec.Cmd, *bytes.Buffer) {
+	lr.t.Helper()
+	lr.run(payload, "backup", "--stdin", "--stdin-filename", "volume", "--tag", "vmb=restore-source")
+	reader, writer, err := os.Pipe()
+	require.NoError(lr.t, err)
+	lr.t.Cleanup(func() { _ = reader.Close(); _ = writer.Close() })
+	// Leave the output unread so dump retains its shared lock while restoring.
+	// #nosec G204 -- the binary comes from trusted test configuration; arguments are fixed.
+	holder := exec.CommandContext(lr.ctx, lr.binary, "dump", "--tag", "vmb=restore-source", "latest", "/volume")
+	logs := &bytes.Buffer{}
+	holder.Stdout, holder.Stderr = writer, logs
+	require.NoError(lr.t, holder.Start())
+	lr.t.Cleanup(func() { _ = holder.Process.Kill(); _ = holder.Wait() })
+	require.NoError(lr.t, writer.Close())
+	lr.waitForLock()
+	return reader, holder, logs
 }
 
 type forgetResult struct {
@@ -181,4 +206,60 @@ func TestForgetAfterKilledBackup(t *testing.T) {
 	for _, snapshot := range snapshots {
 		require.NotContains(t, snapshot.Tags, "vmb=backup-0")
 	}
+}
+
+func TestBackupWaitsForRestore(t *testing.T) {
+	lr := newLocalRestic(t)
+	payload := strings.Repeat("restore-data", 128*1024)
+	reader, holder, logs := lr.holdRestore(payload)
+	locks, err := os.ReadDir(filepath.Join(lr.repository, "locks"))
+	require.NoError(t, err)
+
+	command := BackupCommand(shellQuote(lr.binary)+" --no-cache", "printf complete-data", "volume",
+		[]string{"ns=default", "vmb=concurrent", "sn=volume"})
+	// Exercise multiple tag attempts quickly; unit tests check the production 5m wait.
+	command = strings.ReplaceAll(command, "--retry-lock 5m", "--retry-lock 100ms")
+	output, err := os.CreateTemp(t.TempDir(), "backup-log")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = output.Close() })
+	// #nosec G702 -- the script is generated from trusted test inputs.
+	job := exec.CommandContext(lr.ctx, "/bin/bash", "-c", command)
+	job.Stdout, job.Stderr = output, output
+	require.NoError(t, job.Start())
+	t.Cleanup(func() { _ = job.Process.Kill(); _ = job.Wait() })
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(output.Name())
+		return err == nil && strings.Count(string(data), "repo already locked") >= 2
+	}, 30*time.Second, 50*time.Millisecond, "tag did not retry after its first lock wait")
+
+	lr.assertBackupTag(false)
+	for _, lock := range locks {
+		_, err := os.Stat(filepath.Join(lr.repository, "locks", lock.Name()))
+		require.NoError(t, err, "backup must preserve the active restore's lock")
+	}
+	n, err := io.Copy(io.Discard, reader)
+	require.NoError(t, err)
+	require.EqualValues(t, len(payload), n)
+	require.NoError(t, holder.Wait(), "%s", logs.String())
+	err = job.Wait()
+	data, readErr := os.ReadFile(output.Name())
+	require.NoError(t, readErr)
+	require.NoError(t, err, "%s", data)
+	lr.assertBackupTag(true)
+	require.Equal(t, "complete-data", string(lr.run("", "dump", "--tag", "vmb=concurrent", "latest", "/volume")))
+}
+
+func (lr *localRestic) assertBackupTag(complete bool) {
+	lr.t.Helper()
+	var snapshots []struct {
+		Tags []string `json:"tags"`
+	}
+	data := lr.run("", "snapshots", "--json", "--tag", "vmb=concurrent")
+	require.NoError(lr.t, json.Unmarshal(data, &snapshots))
+	require.Len(lr.t, snapshots, 1, "waiting for the tag lock must not repeat the upload")
+	if complete {
+		require.Contains(lr.t, snapshots[0].Tags, CompleteTag)
+		return
+	}
+	require.NotContains(lr.t, snapshots[0].Tags, CompleteTag)
 }

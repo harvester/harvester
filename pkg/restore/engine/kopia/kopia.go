@@ -22,6 +22,7 @@ import (
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/restore/engine"
 	"github.com/harvester/harvester/pkg/restore/pvchelper"
+	"github.com/harvester/harvester/pkg/util/acceleratedio"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
@@ -42,6 +43,7 @@ type KopiaRestoreEngine struct {
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
 	secretClient  ctlcorev1.SecretClient
+	targets       backuputil.TargetClient
 	jobController ctlbatchv1.JobController
 	jobClient     ctlbatchv1.JobClient
 	vmrController ctlharvesterv1.VirtualMachineRestoreController
@@ -54,6 +56,7 @@ func GetRestoreEngine(
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
 	scCache ctlstoragev1.StorageClassCache,
 	secretClient ctlcorev1.SecretClient,
+	settingClient ctlharvesterv1.SettingClient,
 	jobController ctlbatchv1.JobController,
 	vmrController ctlharvesterv1.VirtualMachineRestoreController,
 	clientset kubernetes.Interface,
@@ -64,6 +67,7 @@ func GetRestoreEngine(
 		pvcClient:     pvcClient,
 		scCache:       scCache,
 		secretClient:  secretClient,
+		targets:       backuputil.TargetClient{Settings: settingClient, Secrets: secretClient},
 		jobController: jobController,
 		jobClient:     jobController,
 		vmrController: vmrController,
@@ -142,7 +146,7 @@ func (ke *KopiaRestoreEngine) resumeHandoff(
 		vmr, ke.stagingName(vmr, vr), ke.destinationPVC(vmr, vr, vb),
 	)
 	if err != nil {
-		return found, pending(err)
+		return found, err
 	}
 	if found && !ready {
 		return true, engine.ErrRetryLater
@@ -210,7 +214,7 @@ func (ke *KopiaRestoreEngine) ensurePVC(
 		return err
 	}
 	if err := datamover.ValidateClaim(vmr, vmRestoreKind, pvc, desired); err != nil {
-		return pending(err)
+		return err
 	}
 	if pvc.Spec.DataSource != nil || pvc.Spec.DataSourceRef != nil {
 		return fmt.Errorf("restore staging PVC has an unexpected source")
@@ -240,7 +244,7 @@ func (ke *KopiaRestoreEngine) getStage(
 		return pvc, err
 	}
 	if _, err := ke.pvcClient.Create(desired); err != nil {
-		return nil, pending(err)
+		return nil, err
 	}
 	return nil, engine.ErrRetryLater
 }
@@ -309,12 +313,12 @@ func (ke *KopiaRestoreEngine) createRestoreJob(
 			// the newest matching snapshot. jq is far less brittle than the prior
 			// sed/grep pipeline that depended on the literal output formatting.
 			"%s",
-			"%s show \"$OBJ/%s\" | /usr/bin/harvester io-mode -device /dev/%s -mode=write",
+			"%s show \"$OBJ/%s\" | %s",
 		}, "\n"),
 		kopiautil.SnapshotObjectCommand(kopiautil.ConnectCommand(), tags),
 		runtime.Command,
 		pvName,
-		pvcName,
+		acceleratedio.WriteCommand("/dev/"+pvcName),
 	)
 
 	job := newRestoreJob(runtime, command, pvcName, jobName)
@@ -427,15 +431,9 @@ func (ke *KopiaRestoreEngine) createCheckJob(
 	return ke.startJob(vmr, vmb, job)
 }
 
-// jobRuntime validates shared credentials before a Job can be created.
 func (ke *KopiaRestoreEngine) jobRuntime(
 	vmb *harvesterv1.VirtualMachineBackup, name string,
 ) (*kopiautil.JobRuntime, error) {
-	if _, err := backuputil.CredentialData(
-		ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
-	); err != nil {
-		return nil, fmt.Errorf("reading repository credentials: %w: %w", engine.ErrRetryLater, err)
-	}
 	repository, err := ke.repository(vmb)
 	if err != nil {
 		return nil, err
@@ -456,29 +454,30 @@ func (ke *KopiaRestoreEngine) jobRuntime(
 func (ke *KopiaRestoreEngine) startJob(
 	vmr *harvesterv1.VirtualMachineRestore, vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job,
 ) error {
+	data, err := ke.targets.ThirdPartyCredentials(
+		ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
+	)
+	if err != nil {
+		return err
+	}
 	joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	job, err := client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
+	job, err = client.Create(job)
 	if err != nil {
-		return fmt.Errorf("creating job: %w: %w", engine.ErrRetryLater, err)
+		return err
 	}
-	return ke.ensureSecret(vmb, job)
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return data, nil
+	})
 }
 
 func (ke *KopiaRestoreEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
 	client := jobcredentials.Client{Jobs: ke.jobClient, Secrets: ke.secretClient}
-	err := client.Ensure(job, func() (map[string][]byte, error) {
-		return backuputil.CredentialData(
-			ke.secretClient, ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return ke.targets.ThirdPartyCredentials(
+			ke.vmbo.GetBackupTarget(vmb), kopiautil.PasswordKey,
 		)
 	})
-	if err != nil {
-		return fmt.Errorf("preparing job credentials: %w: %w", engine.ErrRetryLater, err)
-	}
-	return nil
 }
 
 func (ke *KopiaRestoreEngine) repository(vmb *harvesterv1.VirtualMachineBackup) (*kopiautil.Repository, error) {
@@ -502,23 +501,22 @@ func (ke *KopiaRestoreEngine) syncFromJob(
 		return engine.ErrRetryLater
 	}
 	volumes := datamover.Volumes{Client: ke.clientset}
-	err := volumes.BeginHandoff(
+	return volumes.BeginHandoff(
 		vmr, ke.stagingName(vmr, vr), job.Name, ke.destinationPVC(vmr, vr, vb),
 	)
-	return pending(err)
 }
 
 func (ke *KopiaRestoreEngine) getJob(vmr *harvesterv1.VirtualMachineRestore, name string) (*batchv1.Job, error) {
 	job, err := joblifecycle.GetJob(ke.jobClient, vmr, vmRestoreKind, name)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("getting job: %w: %w", engine.ErrRetryLater, err)
+		return nil, fmt.Errorf("getting job: %w", err)
 	}
 	return job, err
 }
 
 func (ke *KopiaRestoreEngine) releaseJob(vmr *harvesterv1.VirtualMachineRestore, name string) error {
 	if err := joblifecycle.ReleaseJob(ke.jobClient, vmr, vmRestoreKind, name); err != nil {
-		return fmt.Errorf("releasing restore job: %w: %w", engine.ErrRetryLater, err)
+		return fmt.Errorf("releasing restore job: %w", err)
 	}
 	return nil
 }
@@ -549,14 +547,7 @@ func (ke *KopiaRestoreEngine) Delete(vmr *harvesterv1.VirtualMachineRestore) err
 		return nil
 	}
 	if err := datamover.StopJobs(ke.clientset, vmr, vmRestoreKind); err != nil {
-		return pending(err)
+		return err
 	}
-	return pending((datamover.Volumes{Client: ke.clientset}).Cleanup(vmr))
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
+	return (datamover.Volumes{Client: ke.clientset}).Cleanup(vmr)
 }

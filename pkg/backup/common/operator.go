@@ -906,12 +906,14 @@ func (vmbo *vmbackupOperator) UpdateCondition(old *harvesterv1.VirtualMachineBac
 	return vmbo.Update(old, newVMb)
 }
 
+// UpdateError persists a failure and returns it together with any update error.
+// The controller filters retryable errors before calling this method.
 func (vmbo *vmbackupOperator) UpdateError(old *harvesterv1.VirtualMachineBackup, err error) error {
 	newVMb := old.DeepCopy()
 	newVMb = vmbo.SetErrorCondition(newVMb, err)
 
 	_, updateErr := vmbo.Update(old, newVMb)
-	return updateErr
+	return errors.Join(err, updateErr)
 }
 
 func (vmbo *vmbackupOperator) UpdateMetadataReady(old *harvesterv1.VirtualMachineBackup) error {

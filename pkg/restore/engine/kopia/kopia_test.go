@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clienttesting "k8s.io/client-go/testing"
@@ -28,7 +29,7 @@ func TestCompletionWaitsForHandoff(t *testing.T) {
 	ke, vmb, vmr, client := credentialFixture(t)
 	vr, vb := &vmr.Status.VolumeRestores[0], &vmb.Status.VolumeBackups[0]
 	job := completedTransfer(t, ke, vmb, vmr, client)
-	require.ErrorIs(t, ke.syncFromJob(vmr, vr, vb, job), engine.ErrRetryLater)
+	require.ErrorIs(t, ke.syncFromJob(vmr, vr, vb, job), datamover.ErrPending)
 	require.Zero(t, vr.Progress)
 	pv, err := client.CoreV1().PersistentVolumes().Get(context.Background(), "restore-pv", metav1.GetOptions{})
 	require.NoError(t, err)
@@ -78,7 +79,7 @@ func TestPersistedCompletionReleasesJob(t *testing.T) {
 	require.Empty(t, updated.Finalizers)
 }
 
-func TestCompletionRetriesAPIErrors(t *testing.T) {
+func TestCompletionPreservesAPIErrors(t *testing.T) {
 	for _, verb := range []string{"get", "update"} {
 		t.Run(verb, func(t *testing.T) {
 			vmro := restorecommon.NewVMRestoreOperatorBuilder().Build()
@@ -100,13 +101,13 @@ func TestCompletionRetriesAPIErrors(t *testing.T) {
 			}
 			joblifecycle.Track(&job.ObjectMeta, vmr, vmRestoreKind)
 			clientset := fake.NewSimpleClientset(job)
-			apiErr := errors.New("API unavailable")
+			apiErr := apierrors.NewServiceUnavailable("API unavailable")
 			clientset.PrependReactor(verb, "jobs", func(clienttesting.Action) (bool, runtime.Object, error) {
 				return true, nil, apiErr
 			})
 			ke.jobClient = fakeclients.JobClient(clientset.BatchV1().Jobs)
 
-			require.ErrorIs(t, ke.Reconcile(vmr, nil, 0), engine.ErrRetryLater)
+			require.ErrorIs(t, ke.Reconcile(vmr, nil, 0), apiErr)
 			obj, err := clientset.Tracker().Get(batchv1.SchemeGroupVersion.WithResource("jobs"), job.Namespace, job.Name)
 			require.NoError(t, err)
 			require.Equal(t, job.Finalizers, obj.(*batchv1.Job).Finalizers)
@@ -224,6 +225,7 @@ func TestJobIdentity(t *testing.T) {
 					return
 				}
 				require.Error(t, err)
+				require.NotErrorIs(t, err, engine.ErrRetryLater)
 				for _, action := range client.Actions() {
 					require.Equal(t, "get", action.GetVerb(), "a foreign Job must not be changed")
 				}
@@ -232,15 +234,15 @@ func TestJobIdentity(t *testing.T) {
 	}
 }
 
-func TestJobLookupRetriesAPIErrors(t *testing.T) {
+func TestJobLookupPreservesAPIErrors(t *testing.T) {
 	ke, vmb, vmr, client := credentialFixture(t)
-	apiErr := errors.New("API unavailable")
+	apiErr := apierrors.NewTooManyRequests("API throttled", 1)
 	client.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, apiErr
 	})
 	_, err := ke.ensureRestoreJob(vmr, vmb, &vmr.Status.VolumeRestores[0], &vmb.Status.VolumeBackups[0])
-	require.ErrorIs(t, err, engine.ErrRetryLater)
 	require.ErrorIs(t, err, apiErr)
+	require.NotErrorIs(t, err, engine.ErrRetryLater)
 	require.Len(t, client.Actions(), 1, "retry without creating another Job")
 }
 

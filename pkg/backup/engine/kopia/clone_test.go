@@ -2,6 +2,7 @@ package kopia
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -126,7 +127,7 @@ func TestClonePVCReuseAndCleanup(t *testing.T) {
 			vb.ReadyToUse = ptr.To(true)
 			err = ke.Reconcile(vmb, 0, nil)
 			if !conflict {
-				require.ErrorIs(t, err, engine.ErrRetryLater)
+				require.ErrorIs(t, err, datamover.ErrPending)
 				_, err = ke.pvcClient.Get(pvc.Namespace, pvc.Name, metav1.GetOptions{})
 				require.True(t, apierrors.IsNotFound(err))
 				return
@@ -201,7 +202,7 @@ func TestCleanupTemporaryResources(t *testing.T) {
 		if err == nil {
 			break
 		}
-		require.ErrorIs(t, err, engine.ErrRetryLater)
+		require.True(t, errors.Is(err, engine.ErrRetryLater) || errors.Is(err, datamover.ErrPending))
 	}
 	require.NoError(t, err)
 	_, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).

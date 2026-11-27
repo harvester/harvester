@@ -268,12 +268,12 @@ func NewSnapshotCheckJob(opts SnapshotCheckJobOptions) *batchv1.Job {
 }
 
 func SnapshotCheckCommand(resticCommand string, tags []string) string {
+	query := "snapshots --json --tag=" + shellQuote(completedTags(tags))
 	return fmt.Sprintf(
-		"set -eo pipefail; "+
-			"SNAPSHOTS=$(%s snapshots --json --tag=%s | tr -d '[:space:]'); "+
+		"set -eo pipefail\n"+
+			"SNAPSHOTS=$(%s | tr -d '[:space:]')\n"+
 			"test \"$SNAPSHOTS\" != \"[]\" || exit %d",
-		resticCommand,
-		completedTags(tags),
+		retryCommand(resticCommand, query),
 		SnapshotCheckMissingExitCode,
 	)
 }

@@ -20,6 +20,7 @@ import (
 	restorecommon "github.com/harvester/harvester/pkg/restore/common"
 	"github.com/harvester/harvester/pkg/settings"
 	"github.com/harvester/harvester/pkg/util"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	vmutil "github.com/harvester/harvester/pkg/util/virtualmachine"
 	werror "github.com/harvester/harvester/pkg/webhook/error"
 	"github.com/harvester/harvester/pkg/webhook/indexeres"
@@ -43,9 +44,11 @@ func NewValidator(
 	scCache ctlstoragev1.StorageClassCache,
 	resourceQuotaCache ctlharvesterv1.ResourceQuotaCache,
 	vmimCache ctlkubevirtv1.VirtualMachineInstanceMigrationCache,
+	targets backuputil.TargetClient,
 ) types.Validator {
 	return &virtualMachineBackupValidator{
 		vms:                vms,
+		targets:            targets,
 		setting:            setting,
 		vmrestores:         vmrestores,
 		pvcCache:           pvcCache,
@@ -61,6 +64,7 @@ func NewValidator(
 
 type virtualMachineBackupValidator struct {
 	types.DefaultValidator
+	targets backuputil.TargetClient
 
 	vms                ctlkubevirtv1.VirtualMachineCache
 	setting            ctlharvesterv1.SettingCache
@@ -290,27 +294,36 @@ func (v *virtualMachineBackupValidator) checkLonghornV2Volume(
 }
 
 func (v *virtualMachineBackupValidator) checkBackupTarget(backupType v1beta1.BackupType) error {
-	backupTargetSetting, err := v.setting.Get(settings.BackupTargetSettingName)
+	setting, target, err := v.targets.Get()
 	if err != nil {
-		return fmt.Errorf("can't get backup target setting, err: %w", err)
-	}
-	backupTarget, err := settings.DecodeBackupTarget(backupTargetSetting.Value)
-	if err != nil {
-		return fmt.Errorf("unmarshal backup target failed, value: %s, err: %w", backupTargetSetting.Value, err)
+		return err
 	}
 
-	if backupTarget.IsDefaultBackupTarget() {
+	if target.IsDefaultBackupTarget() {
 		return fmt.Errorf("backup target is not set")
 	}
+	if err := v.checkThirdPartyTarget(target, backupType); err != nil {
+		return err
+	}
+	if !target.ThirdPartyBackupEnabled {
+		return nil
+	}
+
+	_, err = v.targets.ReadyRepoSecret(setting, target)
+	return err
+}
+
+func (v *virtualMachineBackupValidator) checkThirdPartyTarget(
+	target *settings.BackupTarget, backupType v1beta1.BackupType,
+) error {
 	if !backupType.IsDataMover() {
 		return nil
 	}
-	if backupTarget.Type != settings.S3BackupType || !backupTarget.ThirdPartyBackupEnabled {
+	if target.Type != settings.S3BackupType || !target.ThirdPartyBackupEnabled {
 		return fmt.Errorf(
 			"%s backup requires an S3 backup target with thirdPartyBackupEnabled=true", backupType)
 	}
-
-	return nil
+	return v.targets.CheckThirdPartyOptions(target)
 }
 
 func (v *virtualMachineBackupValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {

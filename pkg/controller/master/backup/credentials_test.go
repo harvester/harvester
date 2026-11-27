@@ -60,7 +60,7 @@ func TestTargetPasswordSync(t *testing.T) {
 			target.AccessKeyID, target.SecretAccessKey = " access ", " secret "
 			target.ThirdPartyBackupEnabled = true
 			target.RepoPassword = "  repo$$$(AWS_SECRET_ACCESS_KEY)  "
-			setTargetValue(t, setting, target)
+			setTargetValue(t, h, setting, target)
 			updated, err := h.OnBackupTargetChange(setting.Name, setting)
 			require.NoError(t, err)
 			require.NotContains(t, updated.Value, "thirdPartyRepositoryPassword")
@@ -93,7 +93,7 @@ func TestCredentialsSurviveRotation(t *testing.T) {
 		if key == util.AWSSecretKey {
 			target.SecretAccessKey = " rotated-secret "
 		}
-		setTargetValue(t, setting, target)
+		setTargetValue(t, h, setting, target)
 		updated, err := h.OnBackupTargetChange(setting.Name, setting)
 		require.NoError(t, err)
 		stripped, err := settings.DecodeBackupTarget(updated.Value)
@@ -122,7 +122,7 @@ func TestRepositoryChange(t *testing.T) {
 	target.BucketName = "another-bucket"
 	target.AccessKeyID, target.SecretAccessKey = " access ", " secret "
 	target.RepoPassword = "another-password"
-	require.NoError(t, h.syncS3Secret(target))
+	require.NoError(t, syncTestTarget(t, h, target))
 	current := readCredentials(t, h)
 	require.Equal(t, backuputil.RepositoryID(target), string(current.Data[backuputil.RepositoryIDKey]))
 	require.NotEqual(t, initial.Data[backuputil.RepositoryIDKey], current.Data[backuputil.RepositoryIDKey])
@@ -135,7 +135,7 @@ func TestDisabledClearsPasswords(t *testing.T) {
 	initRepo(t, h, target)
 	target.ThirdPartyBackupEnabled, target.RepoPassword = false, ""
 	target.AccessKeyID, target.SecretAccessKey = "access", "secret"
-	setTargetValue(t, setting, target)
+	setTargetValue(t, h, setting, target)
 	updated, err := h.OnBackupTargetChange(setting.Name, setting)
 	require.NoError(t, err)
 	secret := readCredentials(t, h)
@@ -153,7 +153,7 @@ func TestDisabledClearsPasswords(t *testing.T) {
 
 	target.ThirdPartyBackupEnabled, target.RepoPassword = true, "replacement"
 	target.AccessKeyID, target.SecretAccessKey = "access", "secret"
-	require.NoError(t, h.syncS3Secret(target))
+	require.NoError(t, syncTestTarget(t, h, target))
 	assertRepoPassword(t, readCredentials(t, h), "replacement")
 }
 
@@ -166,14 +166,16 @@ func TestMaskedTargetPreservesPasswords(t *testing.T) {
 			// contains passwords while third-party backups are disabled.
 			target.ThirdPartyBackupEnabled = enabled
 			target.AccessKeyID, target.SecretAccessKey, target.RepoPassword = "", "", ""
-			setTargetValue(t, setting, target)
+			setTargetValue(t, h, setting, target)
 			secret := readCredentials(t, h)
 			client.ClearActions()
 			_, err := h.OnBackupTargetChange(setting.Name, setting)
 			require.NoError(t, err)
 			require.Equal(t, secret.Data, readCredentials(t, h).Data)
 			for _, action := range client.Actions() {
-				require.Equal(t, "get", action.GetVerb(), "masked reconciliation must not write credentials")
+				if action.GetResource().Resource == "secrets" {
+					require.Equal(t, "get", action.GetVerb(), "masked reconciliation must not write credentials")
+				}
 			}
 		})
 	}
@@ -215,7 +217,7 @@ func TestMaskedTargetRequiresAWS(t *testing.T) {
 					require.NoError(t, err)
 				}
 				client.ClearActions()
-				err := h.syncS3Secret(target)
+				_, err := h.checkSavedSecret(target)
 				require.Error(t, err)
 				if tt.name == "read failure" {
 					require.ErrorContains(t, err, "injected read failure")
@@ -297,7 +299,10 @@ func TestInvalidCredentialsStayUnchanged(t *testing.T) {
 			client.ClearActions()
 			kubeClient := h.clientset.(*kubefake.Clientset)
 			kubeClient.ClearActions()
-			require.Error(t, h.syncS3Secret(target))
+			setting, err := h.settings.Get(settings.BackupTargetSettingName, metav1.GetOptions{})
+			require.NoError(t, err)
+			_, err = h.syncS3Target(setting, target)
+			require.Error(t, err)
 			require.Equal(t, secret.Data, readCredentials(t, h).Data)
 			for _, action := range client.Actions() {
 				require.Equal(t, "get", action.GetVerb(), "invalid input must not change resources")
@@ -322,11 +327,14 @@ func TestPasswordSyncRetries(t *testing.T) {
 			original := readCredentials(t, h)
 			target.ThirdPartyBackupEnabled, target.RepoPassword = tt.password != "", tt.password
 			target.AccessKeyID, target.SecretAccessKey = "access", "secret"
-			setTargetValue(t, setting, target)
+			setTargetValue(t, h, setting, target)
 			_, err := h.settings.Update(setting)
 			require.NoError(t, err)
 			fail := true
-			client.PrependReactor("update", tt.resource, func(clienttesting.Action) (bool, runtime.Object, error) {
+			client.PrependReactor("update", tt.resource, func(action clienttesting.Action) (bool, runtime.Object, error) {
+				if tt.resource == "settings" && action.(clienttesting.UpdateAction).GetObject().(*harvesterv1.Setting).Value == setting.Value {
+					return false, nil, nil
+				}
 				if fail {
 					return true, nil, fmt.Errorf("injected write failure")
 				}
@@ -375,14 +383,16 @@ func initRepo(t *testing.T, h *TargetHandler, target *settings.BackupTarget) {
 	t.Helper()
 	target.ThirdPartyBackupEnabled, target.RepoPassword = true, "repo-password"
 	target.AccessKeyID, target.SecretAccessKey = "access", "secret"
-	require.NoError(t, h.syncS3Secret(target))
+	require.NoError(t, syncTestTarget(t, h, target))
 }
 
-func setTargetValue(t *testing.T, setting *harvesterv1.Setting, target *settings.BackupTarget) {
+func setTargetValue(t *testing.T, h *TargetHandler, setting *harvesterv1.Setting, target *settings.BackupTarget) {
 	t.Helper()
 	value, err := json.Marshal(target)
 	require.NoError(t, err)
 	setting.Value = string(value)
+	_, err = h.settings.Update(setting)
+	require.NoError(t, err)
 }
 
 func assertRepoPassword(t *testing.T, secret *corev1.Secret, password string) {
@@ -414,7 +424,7 @@ func credentialHandler(t *testing.T) (*TargetHandler, *harvesterv1.Setting, *set
 	}
 	harvesterv1.SettingConfigured.True(setting)
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName},
+		ObjectMeta: metav1.ObjectMeta{Name: util.BackupTargetSecretName, Namespace: util.LonghornSystemNamespaceName, UID: "source-uid", ResourceVersion: "1"},
 		Data: map[string][]byte{
 			util.AWSAccessKey: []byte("access"), util.AWSSecretKey: []byte("secret"),
 			util.AWSCERT: []byte("certificate"), util.HTTPProxyEnv: []byte("http://proxy.test"),
@@ -428,8 +438,15 @@ func credentialHandler(t *testing.T) (*TargetHandler, *harvesterv1.Setting, *set
 		Spec: longhornv1.BackupTargetSpec{CredentialSecret: util.BackupTargetSecretName},
 	}
 	client := fake.NewSimpleClientset(secret, setting, lhTarget)
+	client.PrependReactor("create", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		secret := action.(clienttesting.CreateAction).GetObject().(*corev1.Secret)
+		secret.UID, secret.ResourceVersion = "new-source-uid", "1"
+		return false, nil, nil
+	})
 	h := &TargetHandler{
 		ctx: context.Background(), clientset: kubefake.NewSimpleClientset(),
+		initRepos:           func(context.Context, *settings.BackupTarget, map[string][]byte) error { return nil },
+		connectRepos:        func(context.Context, *settings.BackupTarget, map[string][]byte) error { return nil },
 		secrets:             fakeclients.SecretClient(client.CoreV1().Secrets),
 		settings:            fakeclients.HarvesterSettingClient(client.HarvesterhciV1beta1().Settings),
 		lhBackupTargetCache: credentialTargetCache{client: client},
@@ -456,4 +473,15 @@ func (c credentialTargetClient) Update(target *longhornv1.BackupTarget) (*longho
 	return c.client.LonghornV1beta2().BackupTargets(target.Namespace).Update(
 		context.Background(), target, metav1.UpdateOptions{},
 	)
+}
+
+// Keep direct submission tests on the same path as the Setting controller.
+func syncTestTarget(t *testing.T, h *TargetHandler, target *settings.BackupTarget) error {
+	t.Helper()
+	setting, err := h.settings.Get(settings.BackupTargetSettingName, metav1.GetOptions{})
+	require.NoError(t, err)
+	setTargetValue(t, h, setting, target)
+	copy := *target
+	_, err = h.syncS3Target(setting, &copy)
+	return err
 }

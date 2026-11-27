@@ -10,6 +10,7 @@ import (
 
 	ctlkubeovnv1 "github.com/harvester/harvester/pkg/generated/controllers/kubeovn.io/v1"
 	imagecommon "github.com/harvester/harvester/pkg/image/common"
+	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/volumeremotebackup/common"
 	"github.com/harvester/harvester/pkg/webhook/clients"
 	"github.com/harvester/harvester/pkg/webhook/config"
@@ -184,6 +185,10 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.StorageFactory.Storage().V1().StorageClass().Cache(),
 			clients.HarvesterFactory.Harvesterhci().V1beta1().ResourceQuota().Cache(),
 			clients.KubevirtFactory.Kubevirt().V1().VirtualMachineInstanceMigration().Cache(),
+			backuputil.TargetClient{
+				Settings: clients.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+				Secrets:  clients.CoreFactory.Core().V1().Secret(),
+			},
 		),
 		virtualmachinerestore.NewValidator(
 			clients.Core.Namespace().Cache(),
@@ -198,6 +203,10 @@ func Validation(clients *clients.Clients, options *config.Options, crdExists boo
 			clients.SnapshotFactory.Snapshot().V1().VolumeSnapshotClass().Cache(),
 			clients.CNIFactory.K8s().V1().NetworkAttachmentDefinition().Cache(),
 			clients.K8s.AuthorizationV1().SubjectAccessReviews(),
+			backuputil.TargetClient{
+				Settings: clients.HarvesterFactory.Harvesterhci().V1beta1().Setting(),
+				Secrets:  clients.CoreFactory.Core().V1().Secret(),
+			},
 		),
 		setting.NewValidator(
 			clients.HarvesterFactory.Harvesterhci().V1beta1().Setting().Cache(),

@@ -41,12 +41,15 @@ func (e *completionEngine) UpdateProgress(
 	return int64(vb.Progress), nil
 }
 
-type completionOperator struct{ common.VMBackupOperator }
+type completionOperator struct {
+	common.VMBackupOperator
+	buildErr error
+}
 
 func (o completionOperator) BuildCSIDriverMap(*harvesterv1.VirtualMachineBackup) (
 	map[string]string, map[string]snapshotv1.VolumeSnapshotClass, error,
 ) {
-	return nil, nil, nil
+	return nil, nil, o.buildErr
 }
 
 func completionFixture(t *testing.T, backupType harvesterv1.BackupType) (
@@ -70,7 +73,7 @@ func completionFixture(t *testing.T, backupType harvesterv1.BackupType) (
 		WithClient(fakeclients.VMBackupClient(client.HarvesterhciV1beta1().VirtualMachineBackups)).Build()
 	backupEngine := &completionEngine{preparingEngine: preparingEngine{prepared: true}}
 	handler := &Handler{
-		vmbo: completionOperator{operator}, vmbController: &requeueBackupController{},
+		vmbo: completionOperator{VMBackupOperator: operator}, vmbController: &requeueBackupController{},
 		engines: map[harvesterv1.BackupType]engine.BackupEngine{backupType: backupEngine},
 	}
 	return handler, backupEngine, vmb, client

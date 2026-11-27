@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -21,6 +22,8 @@ import (
 func TestReconcileVolumeRestores(t *testing.T) {
 	errBoot := errors.New("boot restore failed")
 	errData := errors.New("data restore failed")
+	conflict := conflictError()
+	throttled := apierrors.NewTooManyRequests("API throttled", 1)
 
 	tests := []struct {
 		name       string
@@ -49,6 +52,33 @@ func TestReconcileVolumeRestores(t *testing.T) {
 			wantCalls: 2,
 		},
 		{
+			name:       "conflict does not block other volumes",
+			errors:     []error{conflict, nil},
+			wantRetry:  true,
+			wantErrors: []error{conflict},
+			wantCalls:  2,
+		},
+		{
+			name:       "transient API error does not block other volumes",
+			errors:     []error{throttled, nil},
+			wantRetry:  true,
+			wantErrors: []error{throttled},
+			wantCalls:  2,
+		},
+		{
+			name:       "preserve errors from all retrying volumes",
+			errors:     []error{throttled, conflict},
+			wantRetry:  true,
+			wantErrors: []error{throttled, conflict},
+			wantCalls:  2,
+		},
+		{
+			name:       "hard error takes precedence over conflict",
+			errors:     []error{conflictError(), errData},
+			wantErrors: []error{errData},
+			wantCalls:  2,
+		},
+		{
 			name:       "hard error stops reconciliation",
 			errors:     []error{errBoot, errData},
 			wantErrors: []error{errBoot},
@@ -59,6 +89,12 @@ func TestReconcileVolumeRestores(t *testing.T) {
 			errors:     []error{engine.ErrRetryLater, errData},
 			wantErrors: []error{errData},
 			wantCalls:  2,
+		},
+		{
+			name:       "joined failure is not treated as pending",
+			errors:     []error{errors.Join(engine.ErrRetryLater, errBoot), nil},
+			wantErrors: []error{engine.ErrRetryLater, errBoot},
+			wantCalls:  1,
 		},
 	}
 
@@ -87,7 +123,7 @@ func TestReconcileVolumeRestores(t *testing.T) {
 
 			require.Equal(t, tt.wantReady, ready)
 			require.Len(t, re.calls, tt.wantCalls)
-			require.Equal(t, tt.wantRetry, errors.Is(err, engine.ErrRetryLater))
+			require.Equal(t, tt.wantRetry, isRestoreRetry(err))
 			for _, wantErr := range tt.wantErrors {
 				require.ErrorIs(t, err, wantErr)
 			}
@@ -96,10 +132,12 @@ func TestReconcileVolumeRestores(t *testing.T) {
 }
 
 type fakeRestoreEngine struct {
-	errors    []error
-	calls     []int
-	deletes   int
-	deleteErr error
+	errors         []error
+	progress       int64
+	volumeProgress map[string]int64
+	calls          []int
+	deletes        int
+	deleteErr      error
 }
 
 func (f *fakeRestoreEngine) Reconcile(
@@ -116,14 +154,46 @@ func (f *fakeRestoreEngine) Delete(*harvesterv1.VirtualMachineRestore) error {
 	return f.deleteErr
 }
 
-func (f *fakeRestoreEngine) UpdateProgress(*harvesterv1.VirtualMachineRestore, *harvesterv1.VolumeRestore) (int64, error) {
-	return 0, nil
+func (f *fakeRestoreEngine) UpdateProgress(_ *harvesterv1.VirtualMachineRestore, vr *harvesterv1.VolumeRestore) (int64, error) {
+	if progress, ok := f.volumeProgress[vr.VolumeName]; ok {
+		return progress, nil
+	}
+	return f.progress, nil
 }
 
 func (f *fakeRestoreEngine) RegisterWatchers(
 	context.Context,
 	func(namespace, name string),
 ) {
+}
+
+func TestUpdateStatusWaitsForVolumes(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		retry bool
+	}{
+		{name: "saved", retry: true},
+		{name: "conflict", err: conflictError(), retry: true},
+		{name: "failure", err: errors.New("status unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, client := restoreVMFixture()
+			client.updateErr = tc.err
+			op := h.vmro.(*retryRestoreOperator)
+			op.vm.Status.Ready = true
+			err := h.updateStatus(client.current, client.current.DeepCopy(), op.vm, false)
+			require.ErrorIs(t, err, engine.ErrRetryLater)
+			if tc.err != nil {
+				require.ErrorIs(t, err, tc.err)
+			}
+			require.Equal(t, tc.retry, isRestoreRetry(err))
+			require.Zero(t, op.starts)
+			require.Zero(t, op.cleanups, "unfinished volumes must block completion even when the VM is ready")
+			require.False(t, h.vmro.IsComplete(client.current))
+			require.False(t, h.vmro.IsFailed(client.current))
+		})
+	}
 }
 
 func TestUpdateStatusWaitsForVMStartup(t *testing.T) {
@@ -137,6 +207,9 @@ func TestUpdateStatusWaitsForVMStartup(t *testing.T) {
 	}{
 		{name: "accepted start waits for readiness"},
 		{name: "duplicate start waits for readiness", startErr: fmt.Errorf("start: %w", restorecommon.ErrVMStartInProgress)},
+		{name: "conflict waits for readiness", startErr: conflictError()},
+		{name: "wrapped conflict waits for readiness", startErr: fmt.Errorf("start: %w", conflictError())},
+		{name: "wrapped retry waits for readiness", startErr: fmt.Errorf("start: %w", engine.ErrRetryLater)},
 		{name: "real failure does not finalize", startErr: errors.New("start forbidden"), wantFailed: true},
 		{name: "ready VM completes", ready: true, wantDone: true},
 		{name: "halt after restore completes without starting", keepHalted: true, wantDone: true},
@@ -167,10 +240,13 @@ func TestUpdateStatusWaitsForVMStartup(t *testing.T) {
 				require.Equal(t, 1, op.starts)
 				require.Zero(t, op.cleanups)
 				require.False(t, op.IsComplete(op.updated))
-				if tt.wantFailed {
-					require.ErrorIs(t, err, tt.startErr)
-				} else {
-					require.ErrorIs(t, err, engine.ErrRetryLater)
+				wantErr := tt.startErr
+				if wantErr == nil {
+					wantErr = engine.ErrRetryLater
+				}
+				require.ErrorIs(t, err, wantErr)
+				if !tt.wantFailed {
+					require.True(t, isRestoreRetry(err))
 					require.True(t, op.IsProgressing(op.updated))
 				}
 			}
@@ -207,8 +283,8 @@ func (o *startupRestoreOperator) Update(
 }
 
 func (o *startupRestoreOperator) UpdateError(old *harvesterv1.VirtualMachineRestore, err error) error {
-	o.updated = o.SetErrorCondition(old.DeepCopy(), err)
-	return nil
+	_, updateErr := o.Update(old, o.SetErrorCondition(old.DeepCopy(), err))
+	return errors.Join(err, updateErr)
 }
 
 func (o *startupRestoreOperator) DeleteOldPVCs(*harvesterv1.VirtualMachineRestore, *kubevirtv1.VirtualMachine) error {

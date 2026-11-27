@@ -21,7 +21,9 @@ import (
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/backup/common"
 	"github.com/harvester/harvester/pkg/backup/engine"
+	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	ctlsnapshotv1 "github.com/harvester/harvester/pkg/generated/controllers/snapshot.storage.k8s.io/v1"
+	"github.com/harvester/harvester/pkg/util/acceleratedio"
 	backuputil "github.com/harvester/harvester/pkg/util/backup"
 	"github.com/harvester/harvester/pkg/util/datamover"
 	"github.com/harvester/harvester/pkg/util/jobcredentials"
@@ -46,6 +48,7 @@ type ResticEngine struct {
 	pvcClient     ctlcorev1.PersistentVolumeClaimClient
 	scCache       ctlstoragev1.StorageClassCache
 	secretClient  ctlcorev1.SecretClient
+	targets       backuputil.TargetClient
 	jobController ctlbatchv1.JobController
 	jobClient     ctlbatchv1.JobClient
 	clientset     kubernetes.Interface
@@ -59,6 +62,7 @@ func GetBackupEngine(
 	pvcCache ctlcorev1.PersistentVolumeClaimCache,
 	pvcClient ctlcorev1.PersistentVolumeClaimClient,
 	secretClient ctlcorev1.SecretClient,
+	settingClient ctlharvesterv1.SettingClient,
 	scCache ctlstoragev1.StorageClassCache,
 	jobController ctlbatchv1.JobController,
 	clientset kubernetes.Interface,
@@ -72,6 +76,7 @@ func GetBackupEngine(
 		pvcClient:     pvcClient,
 		scCache:       scCache,
 		secretClient:  secretClient,
+		targets:       backuputil.TargetClient{Settings: settingClient, Secrets: secretClient},
 		jobController: jobController,
 		jobClient:     jobController,
 		clientset:     clientset,
@@ -316,7 +321,7 @@ func (re *ResticEngine) retryForgetJob(job *batchv1.Job) error {
 
 func (re *ResticEngine) ensureClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup, name string) error {
 	if err := re.imports.Import(vmb, common.SnapshotName(vmb, vb), re.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	pvc, err := re.pvcCache.Get(joblifecycle.Namespace, name)
 	if apierrors.IsNotFound(err) {
@@ -360,9 +365,6 @@ func (re *ResticEngine) createClonePVC(
 	pvc.Spec.DataSourceRef = nil
 	joblifecycle.Track(&pvc.ObjectMeta, vmb, vmBackupKind)
 	_, err := re.pvcClient.Create(pvc)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
 	return err
 }
 
@@ -395,7 +397,7 @@ func (re *ResticEngine) createBackupJob(
 	}
 	command := resticutil.BackupCommand(
 		runtime.Command,
-		fmt.Sprintf("/usr/bin/harvester io-mode -device /dev/%s -mode=read", clonePVCName),
+		acceleratedio.ReadCommand("/dev/"+clonePVCName),
 		re.vmbo.GetVolBackupPVName(vb), re.snapshotTags(vmb, *vbName),
 	)
 	return re.startJob(vmb, newBackupJob(runtime, command, clonePVCName, jobName))
@@ -591,15 +593,9 @@ func newForgetJob(runtime *resticutil.JobRuntime, command, name string) *batchv1
 	return job
 }
 
-// jobRuntime validates shared credentials before a Job can be created.
 func (re *ResticEngine) jobRuntime(
 	vmb *harvesterv1.VirtualMachineBackup, name string,
 ) (*resticutil.JobRuntime, error) {
-	if _, err := backuputil.CredentialData(
-		re.secretClient, re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
-	); err != nil {
-		return nil, err
-	}
 	repository, err := re.repository(vmb)
 	if err != nil {
 		return nil, err
@@ -617,16 +613,21 @@ func (re *ResticEngine) jobRuntime(
 }
 
 func (re *ResticEngine) startJob(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
-	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
-	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
-	job, err := client.Create(job)
-	if apierrors.IsAlreadyExists(err) {
-		return engine.ErrRetryLater
-	}
+	data, err := re.targets.ThirdPartyCredentials(
+		re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
+	)
 	if err != nil {
 		return err
 	}
-	return re.ensureSecret(vmb, job)
+	joblifecycle.Track(&job.ObjectMeta, vmb, vmBackupKind)
+	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
+	job, err = client.Create(job)
+	if err != nil {
+		return err
+	}
+	return client.Ensure(job, func() (map[string][]byte, error) {
+		return data, nil
+	})
 }
 
 func (re *ResticEngine) snapshotTags(vmb *harvesterv1.VirtualMachineBackup, name string) []string {
@@ -640,8 +641,8 @@ func (re *ResticEngine) snapshotTags(vmb *harvesterv1.VirtualMachineBackup, name
 func (re *ResticEngine) ensureSecret(vmb *harvesterv1.VirtualMachineBackup, job *batchv1.Job) error {
 	client := jobcredentials.Client{Jobs: re.jobClient, Secrets: re.secretClient}
 	return client.Ensure(job, func() (map[string][]byte, error) {
-		return backuputil.CredentialData(
-			re.secretClient, re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
+		return re.targets.ThirdPartyCredentials(
+			re.vmbo.GetBackupTarget(vmb), resticutil.PasswordKey,
 		)
 	})
 }
@@ -692,10 +693,10 @@ func (re *ResticEngine) cleanupTemporaryResources(vmb *harvesterv1.VirtualMachin
 		return err
 	}
 	if err := re.deleteClonePVC(vmb, vb); err != nil {
-		return pending(err)
+		return err
 	}
 	if err := re.imports.Delete(vmb, re.importedSnapshot(vmb, vb)); err != nil {
-		return pending(err)
+		return err
 	}
 	return re.deleteSnapshot(vmb, common.SnapshotName(vmb, vb))
 }
@@ -706,7 +707,7 @@ func (re *ResticEngine) stopVolumeJobs(
 	for _, prefix := range []string{jobNamePrefix, checkJobNamePrefix} {
 		name := joblifecycle.Name(prefix, vmb, re.volumeSnapshotName(vb))
 		if err := datamover.StopJob(re.clientset, vmb, vmBackupKind, name); err != nil {
-			return pending(err)
+			return err
 		}
 	}
 	return nil
@@ -770,13 +771,6 @@ func (re *ResticEngine) checkJobName(vmb *harvesterv1.VirtualMachineBackup, vb *
 		return "", fmt.Errorf("volume backup name is nil")
 	}
 	return joblifecycle.Name(checkJobNamePrefix, vmb, *name), nil
-}
-
-func pending(err error) error {
-	if datamover.Retryable(err) {
-		return engine.ErrRetryLater
-	}
-	return err
 }
 
 func (re *ResticEngine) deleteClonePVC(vmb *harvesterv1.VirtualMachineBackup, vb *harvesterv1.VolumeBackup) error {
