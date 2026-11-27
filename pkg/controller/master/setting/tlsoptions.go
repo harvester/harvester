@@ -70,10 +70,6 @@ func generateUnstructuredTLSOption(tlsOptionSpec *settings.TLSOptionSpec) (*unst
 		curvePreferencesInterface = append(curvePreferencesInterface, curvePreference)
 	}
 
-	alpnProtocolsInterface := make([]interface{}, 0, len(tlsOptionSpec.ALPNProtocols))
-	for _, alpnProtocol := range tlsOptionSpec.ALPNProtocols {
-		alpnProtocolsInterface = append(alpnProtocolsInterface, alpnProtocol)
-	}
 	clientAuthSecretNamesInterface := make([]interface{}, 0, len(tlsOptionSpec.ClientAuth.SecretNames))
 	for _, secretName := range tlsOptionSpec.ClientAuth.SecretNames {
 		clientAuthSecretNamesInterface = append(clientAuthSecretNamesInterface, secretName)
@@ -93,10 +89,14 @@ func generateUnstructuredTLSOption(tlsOptionSpec *settings.TLSOptionSpec) (*unst
 				"maxVersion":            tlsOptionSpec.MaxVersion,
 				"sniStrict":             tlsOptionSpec.SniStrict,
 				"curvePreferences":      curvePreferencesInterface,
-				"alpnProtocols":         alpnProtocolsInterface,
 				"disableSessionTickets": tlsOptionSpec.DisableSessionTickets,
 			},
 		},
+	}
+	if len(tlsOptionSpec.ALPNProtocols) > 0 {
+		if err := unstructured.SetNestedStringSlice(traefikOptionsObj.Object, tlsOptionSpec.ALPNProtocols, "spec", "alpnProtocols"); err != nil {
+			return nil, fmt.Errorf("failed to set alpnProtocols in TLSOption object: %w", err)
+		}
 	}
 	if tlsOptionSpec.ClientAuth.ClientAuthType != "" {
 		clientAuthMap := map[string]interface{}{

@@ -1439,6 +1439,11 @@ reuse_vlan_cn() {
   kubectl get clusternetwork vlan -o yaml | yq '.metadata.finalizers = []' | kubectl apply -f -
 }
 
+sync_traefik_default_tls_options() {
+  echo "Sync traefik-default-tls-options setting"
+  kubectl annotate --overwrite=true setting.harvesterhci.io traefik-default-tls-options "harvesterhci.io/upgrade-patched=$REPO_HARVESTER_VERSION"
+}
+
 sync_containerd_registry_to_rancher() {
   echo "Sync containerd-registry setting to Rancher"
 
@@ -1743,6 +1748,7 @@ upgrade_harvester_cluster_repo
 ensure_ingress_class_name
 apply_extra_nonversion_manifests
 upgrade_harvester
+sync_traefik_default_tls_options
 sync_containerd_registry_to_rancher
 wait_longhorn_upgrade
 reuse_vlan_cn
