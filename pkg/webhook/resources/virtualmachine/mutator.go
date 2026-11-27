@@ -175,6 +175,8 @@ func (m *vmMutator) Update(request *types.Request, oldObj runtime.Object, newObj
 		return nil, err
 	}
 
+	patchOps = patchUpdateVolumesStrategy(oldVM, newVM, patchOps)
+
 	return patchOps, nil
 }
 
@@ -957,4 +959,150 @@ func checkCpuManagerAffinityTermChanged(request *types.Request, oldVM, newVM *ku
 		fmt.Sprintf("key %q is automatically operated by Harvester controller and can't be changed manually", kubevirtv1.CPUManager),
 		"spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution",
 	)
+}
+
+type persistentVolumeRef struct {
+	claimName    string
+	hotpluggable bool
+}
+
+// patchUpdateVolumesStrategy clears spec.updateVolumesStrategy when a user
+// replaces or removes a non-migration persistent volume on a Harvester-managed
+// VM that has already completed a storage migration and still carries a
+// leftover UpdateVolumesStrategyMigration.
+//
+// Two-stage guard:
+//  1. Identify VMs that actually completed a Harvester storage migration:
+//     both oldVM and newVM carry UpdateVolumesStrategyMigration, oldVM has a
+//     non-empty volumeClaimTemplates annotation and a recorded
+//     status.volumeUpdateState.volumeMigrationState, and no migration is
+//     currently waiting or in progress. Native KubeVirt VMs (without
+//     volumeClaimTemplates) as well as single-step or first-time two-step
+//     native API migrations (without prior VolumeMigrationState) are left
+//     untouched.
+//  2. Clear /spec/updateVolumesStrategy only when the update performs a
+//     same-name persistent volume replacement not matching an active
+//     targetVolume entry (preserving subsequent Harvester storageMigrations)
+//     or removes a non-hotplug persistent volume.
+func patchUpdateVolumesStrategy(oldVM, newVM *kubevirtv1.VirtualMachine, patchOps types.PatchOps) types.PatchOps {
+	if newVM == nil || newVM.Spec.UpdateVolumesStrategy == nil ||
+		*newVM.Spec.UpdateVolumesStrategy != kubevirtv1.UpdateVolumesStrategyMigration {
+		return patchOps
+	}
+	if oldVM == nil || oldVM.Spec.Template == nil || newVM.Spec.Template == nil ||
+		oldVM.Spec.UpdateVolumesStrategy == nil ||
+		*oldVM.Spec.UpdateVolumesStrategy != kubevirtv1.UpdateVolumesStrategyMigration {
+		return patchOps
+	}
+
+	// Do not interfere while a storage migration is waiting to start or actively running.
+	if _, waiting := oldVM.Annotations[util.AnnotationWaitingStorageMigration]; waiting {
+		return patchOps
+	}
+	if hasVolumesChangeCondition(oldVM) {
+		return patchOps
+	}
+
+	// Only act on VMs that have already undergone a volume migration; this
+	// preserves two-step native API migrations where Migration is set before
+	// swapping the volume claim in a subsequent update.
+	if !hasVolumeMigrationState(oldVM) {
+		return patchOps
+	}
+
+	// Purely native KubeVirt VMs do not carry Harvester's volumeClaimTemplates
+	// annotation and manage spec.updateVolumesStrategy on their own.
+	oldVCTAnn := ""
+	if oldVM.Annotations != nil {
+		oldVCTAnn = oldVM.Annotations[util.AnnotationVolumeClaimTemplates]
+	}
+	if oldVCTAnn == "" {
+		return patchOps
+	}
+	oldEntries, err := util.UnmarshalVolumeClaimTemplates(oldVCTAnn)
+	if err != nil {
+		logrus.WithError(err).Warnf("failed to parse old volumeClaimTemplates annotation for VM %s/%s, skipping updateVolumesStrategy cleanup", newVM.Namespace, newVM.Name)
+		return patchOps
+	}
+	if len(oldEntries) == 0 {
+		return patchOps
+	}
+
+	activeTargets := collectActiveTargetVolumes(oldEntries)
+	if !hasNonMigrationVolumeChange(oldVM, newVM, activeTargets) {
+		return patchOps
+	}
+
+	return append(patchOps, `{"op": "remove", "path": "/spec/updateVolumesStrategy"}`)
+}
+
+func hasVolumeMigrationState(vm *kubevirtv1.VirtualMachine) bool {
+	return vm.Status.VolumeUpdateState != nil &&
+		vm.Status.VolumeUpdateState.VolumeMigrationState != nil &&
+		len(vm.Status.VolumeUpdateState.VolumeMigrationState.MigratedVolumes) > 0
+}
+
+func hasVolumesChangeCondition(vm *kubevirtv1.VirtualMachine) bool {
+	for _, cond := range vm.Status.Conditions {
+		if string(cond.Type) == string(kubevirtv1.VirtualMachineInstanceVolumesChange) &&
+			cond.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func extractPersistentVolumeRefs(volumes []kubevirtv1.Volume) map[string]persistentVolumeRef {
+	refs := make(map[string]persistentVolumeRef, len(volumes))
+	for _, vol := range volumes {
+		if vol.PersistentVolumeClaim != nil {
+			refs[vol.Name] = persistentVolumeRef{
+				claimName:    vol.PersistentVolumeClaim.ClaimName,
+				hotpluggable: vol.PersistentVolumeClaim.Hotpluggable,
+			}
+		} else if vol.DataVolume != nil {
+			refs[vol.Name] = persistentVolumeRef{
+				claimName:    vol.DataVolume.Name,
+				hotpluggable: vol.DataVolume.Hotpluggable,
+			}
+		}
+	}
+	return refs
+}
+
+func collectActiveTargetVolumes(oldEntries []util.VolumeClaimTemplateEntry) map[string]string {
+	targets := map[string]string{}
+	for _, entry := range oldEntries {
+		if entry.TargetVolume != "" {
+			targets[entry.Name] = entry.TargetVolume
+		}
+	}
+	return targets
+}
+
+func hasNonMigrationVolumeChange(oldVM, newVM *kubevirtv1.VirtualMachine, activeTargets map[string]string) bool {
+	oldRefs := extractPersistentVolumeRefs(oldVM.Spec.Template.Spec.Volumes)
+	newRefs := extractPersistentVolumeRefs(newVM.Spec.Template.Spec.Volumes)
+
+	for name, oldRef := range oldRefs {
+		newRef, exists := newRefs[name]
+		if !exists {
+			// Removing a non-hotplug persistent volume already requires a VM restart;
+			// clearing the leftover Migration strategy also prevents a subsequent
+			// re-addition of a volume with the same name from clearing RestartRequired
+			// and triggering an unintended migration.
+			if !oldRef.hotpluggable {
+				return true
+			}
+			continue
+		}
+		if oldRef.claimName != newRef.claimName {
+			if target, ok := activeTargets[oldRef.claimName]; ok && target == newRef.claimName {
+				continue
+			}
+			return true
+		}
+	}
+
+	return false
 }

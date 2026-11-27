@@ -2417,3 +2417,323 @@ func Test_ForkliftCreateAppliesOvercommit(t *testing.T) {
 	// 8Gi at 150% overcommit, truncated to MiB.
 	assert.Equal(t, memory.Value()*100/150/1048576*1048576, resources.Requests.Memory().Value(), "memory request should be overcommitted")
 }
+
+func TestPatchUpdateVolumesStrategy(t *testing.T) {
+	migrationStrategy := kubevirtv1.UpdateVolumesStrategyMigration
+	replacementStrategy := kubevirtv1.UpdateVolumesStrategyReplacement
+
+	completedMigState := &kubevirtv1.VolumeUpdateState{
+		VolumeMigrationState: &kubevirtv1.VolumeMigrationState{
+			MigratedVolumes: []kubevirtv1.StorageMigratedVolumeInfo{
+				{
+					VolumeName:         "disk-0",
+					SourcePVCInfo:      &kubevirtv1.PersistentVolumeClaimInfo{ClaimName: "pvc-src"},
+					DestinationPVCInfo: &kubevirtv1.PersistentVolumeClaimInfo{ClaimName: "pvc-dst"},
+				},
+			},
+		},
+	}
+
+	defaultVCT := map[string]string{
+		util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"}}]`,
+	}
+
+	makePVCVolume := func(volName, claimName string, hotpluggable bool) kubevirtv1.Volume {
+		return kubevirtv1.Volume{
+			Name: volName,
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: v1.PersistentVolumeClaimVolumeSource{
+						ClaimName: claimName,
+					},
+					Hotpluggable: hotpluggable,
+				},
+			},
+		}
+	}
+
+	makeDVVolume := func(volName, dvName string, hotpluggable bool) kubevirtv1.Volume {
+		return kubevirtv1.Volume{
+			Name: volName,
+			VolumeSource: kubevirtv1.VolumeSource{
+				DataVolume: &kubevirtv1.DataVolumeSource{
+					Name:         dvName,
+					Hotpluggable: hotpluggable,
+				},
+			},
+		}
+	}
+
+	makeVM := func(strategy *kubevirtv1.UpdateVolumesStrategy, annotations map[string]string, volUpdateState *kubevirtv1.VolumeUpdateState, conditions []kubevirtv1.VirtualMachineCondition, volumes ...kubevirtv1.Volume) *kubevirtv1.VirtualMachine {
+		return &kubevirtv1.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "test-vm",
+				Namespace:   "default",
+				Annotations: annotations,
+			},
+			Spec: kubevirtv1.VirtualMachineSpec{
+				UpdateVolumesStrategy: strategy,
+				Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+					Spec: kubevirtv1.VirtualMachineInstanceSpec{
+						Volumes: volumes,
+					},
+				},
+			},
+			Status: kubevirtv1.VirtualMachineStatus{
+				VolumeUpdateState: volUpdateState,
+				Conditions:        conditions,
+			},
+		}
+	}
+
+	const removeStrategyPatch = `{"op": "remove", "path": "/spec/updateVolumesStrategy"}`
+
+	tests := []struct {
+		name           string
+		oldVM          *kubevirtv1.VirtualMachine
+		newVM          *kubevirtv1.VirtualMachine
+		expectRemoveOp bool
+	}{
+		{
+			name:  "post-migration manual PVC replacement clears updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-other"}}]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: true,
+		},
+		{
+			name: "post-migration manual DataVolume replacement clears updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"dv-dst"}}]`,
+			}, completedMigState, nil, makeDVVolume("disk-0", "dv-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"dv-other"}}]`,
+			}, completedMigState, nil, makeDVVolume("disk-0", "dv-other", false)),
+			expectRemoveOp: true,
+		},
+		{
+			name:  "post-migration removal of non-hotplug persistent volume clears updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[]`,
+			}, completedMigState, nil),
+			expectRemoveOp: true,
+		},
+		{
+			name:           "empty new claimName does not match missing activeTargets zero value",
+			oldVM:          makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM:          makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "", false)),
+			expectRemoveOp: true,
+		},
+		{
+			name: "newly selected Migration strategy in single-step native update preserves updateVolumesStrategy",
+			oldVM: makeVM(nil, defaultVCT, nil, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, defaultVCT, nil, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "two-step native API migration without prior VolumeMigrationState preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, nil, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, defaultVCT, nil, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name:  "native KubeVirt VM without volumeClaimTemplates annotation preserves updateVolumesStrategy across repeated migrations",
+			oldVM: makeVM(&migrationStrategy, nil, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, nil, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "empty volumeClaimTemplates array skips cleanup",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "second legitimate Harvester storageMigration with prior VolumeMigrationState preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"},"targetVolume":"pvc-third"}]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"},"targetVolume":"pvc-third"}]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-third", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name:  "targetVolume only present on newVM does not bypass cleanup",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"},"targetVolume":"pvc-other"}]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: true,
+		},
+		{
+			name: "CleanupTargetVolumeAnnotation update without volume change preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-src"},"targetVolume":"pvc-dst"}]`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "unrelated VM metadata edit preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"}}]`,
+				"foo":                               "bar",
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"}}]`,
+				"foo":                               "baz",
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "hotplug volume removal preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil,
+				makePVCVolume("disk-0", "pvc-dst", false),
+				makePVCVolume("disk-1", "pvc-hp", true),
+			),
+			newVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil,
+				makePVCVolume("disk-0", "pvc-dst", false),
+			),
+			expectRemoveOp: false,
+		},
+		{
+			name:  "adding a new volume preserves updateVolumesStrategy",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, nil,
+				makePVCVolume("disk-0", "pvc-dst", false),
+				makePVCVolume("disk-1", "pvc-new", false),
+			),
+			expectRemoveOp: false,
+		},
+		{
+			name: "active VolumesChange condition skips cleanup",
+			oldVM: makeVM(&migrationStrategy, defaultVCT, completedMigState, []kubevirtv1.VirtualMachineCondition{
+				{
+					Type:   kubevirtv1.VirtualMachineConditionType(kubevirtv1.VirtualMachineInstanceVolumesChange),
+					Status: v1.ConditionTrue,
+				},
+			}, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM:          makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "waitingStorageMigration annotation skips cleanup",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates:    `[{"metadata":{"name":"pvc-dst"}}]`,
+				util.AnnotationWaitingStorageMigration: "true",
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM:          makeVM(&migrationStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name:           "nil or Replacement strategy does not emit remove op",
+			oldVM:          makeVM(&replacementStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM:          makeVM(&replacementStrategy, defaultVCT, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+		{
+			name: "malformed volumeClaimTemplates annotation conservatively skips cleanup",
+			oldVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `not-valid-json`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-dst", false)),
+			newVM: makeVM(&migrationStrategy, map[string]string{
+				util.AnnotationVolumeClaimTemplates: `not-valid-json`,
+			}, completedMigState, nil, makePVCVolume("disk-0", "pvc-other", false)),
+			expectRemoveOp: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ops := patchUpdateVolumesStrategy(tc.oldVM, tc.newVM, nil)
+			if tc.expectRemoveOp {
+				require.Equal(t, types.PatchOps{removeStrategyPatch}, ops)
+
+				// Also verify JSON patch applies cleanly and clears UpdateVolumesStrategy.
+				raw, err := json.Marshal(tc.newVM)
+				require.NoError(t, err)
+				patched, err := patch.Apply(raw, []byte(fmt.Sprintf("[%s]", strings.Join(ops, ","))))
+				require.NoError(t, err)
+				var patchedVM kubevirtv1.VirtualMachine
+				require.NoError(t, json.Unmarshal(patched, &patchedVM))
+				assert.Nil(t, patchedVM.Spec.UpdateVolumesStrategy)
+			} else {
+				assert.Empty(t, ops)
+			}
+		})
+	}
+}
+
+func TestMutatorUpdateClearsLeftoverMigrationStrategy(t *testing.T) {
+	migrationStrategy := kubevirtv1.UpdateVolumesStrategyMigration
+	clientset := fake.NewSimpleClientset()
+	createDefaultKubeVirt(clientset)
+	mutator := setupTestMutator(clientset).(*vmMutator)
+
+	makeVol := func(volName, claimName string) kubevirtv1.Volume {
+		return kubevirtv1.Volume{
+			Name: volName,
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: v1.PersistentVolumeClaimVolumeSource{
+						ClaimName: claimName,
+					},
+				},
+			},
+		}
+	}
+
+	oldVM := &kubevirtv1.VirtualMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vm-migrated",
+			Namespace: "default",
+			Annotations: map[string]string{
+				util.AnnotationVolumeClaimTemplates: `[{"metadata":{"name":"pvc-dst"}}]`,
+			},
+		},
+		Spec: kubevirtv1.VirtualMachineSpec{
+			UpdateVolumesStrategy: &migrationStrategy,
+			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
+				Spec: kubevirtv1.VirtualMachineInstanceSpec{
+					Volumes: []kubevirtv1.Volume{makeVol("disk-0", "pvc-dst")},
+				},
+			},
+		},
+		Status: kubevirtv1.VirtualMachineStatus{
+			VolumeUpdateState: &kubevirtv1.VolumeUpdateState{
+				VolumeMigrationState: &kubevirtv1.VolumeMigrationState{
+					MigratedVolumes: []kubevirtv1.StorageMigratedVolumeInfo{
+						{
+							VolumeName:         "disk-0",
+							SourcePVCInfo:      &kubevirtv1.PersistentVolumeClaimInfo{ClaimName: "pvc-src"},
+							DestinationPVCInfo: &kubevirtv1.PersistentVolumeClaimInfo{ClaimName: "pvc-dst"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	newVM := oldVM.DeepCopy()
+	newVM.Annotations[util.AnnotationVolumeClaimTemplates] = `[{"metadata":{"name":"pvc-other"}}]`
+	newVM.Spec.Template.Spec.Volumes = []kubevirtv1.Volume{makeVol("disk-0", "pvc-other")}
+
+	patchOps, err := mutator.Update(newMutatorControllerRequest(), oldVM, newVM)
+	require.NoError(t, err)
+	assert.Contains(t, patchOps, `{"op": "remove", "path": "/spec/updateVolumesStrategy"}`)
+
+	raw, err := json.Marshal(newVM)
+	require.NoError(t, err)
+	patched, err := patch.Apply(raw, []byte(fmt.Sprintf("[%s]", strings.Join(patchOps, ","))))
+	require.NoError(t, err)
+	var patchedVM kubevirtv1.VirtualMachine
+	require.NoError(t, json.Unmarshal(patched, &patchedVM))
+	assert.Nil(t, patchedVM.Spec.UpdateVolumesStrategy)
+}
