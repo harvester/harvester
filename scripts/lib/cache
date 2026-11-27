@@ -85,6 +85,7 @@ docker_pull_and_save() {
     local output_archive="$2"
 
     pull_images "${image_list}"
+    echo "Saving $(grep -c . "${image_list}") images from ${image_list} to ${output_archive}..."
     docker image save $(<"${image_list}") | zstd -o "${output_archive}"
 }
 
