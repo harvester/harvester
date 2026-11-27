@@ -74,6 +74,7 @@ var (
 	ClusterPodSecurityStandardSetting = NewSetting(ClusterPodSecurityStandardSettingName, `{"enabled":false,"whitelistedNamespacesList":"", "privilegedNamespacesList":"", "restrictedNamespacesList":""}`)
 	TraefikDefaultTLSOptionSetting    = NewSetting(TraefikDefaultTLSOptionsSettingName, `{"minVersion":"VersionTLS12", "maxVersion":"VersionTLS13", "sniStrict":false,"cipherSuites":[],"clientAuth":{"secretNames":[],"clientAuthType":""}}`)
 	MaintenanceModeDrainTimeout       = NewSetting(MaintenanceModeDrainTimeoutSettingName, "15") // Unit is minute. 0 disables the overall timeout.
+	PersistentReservationEnabled      = NewSetting(PersistentReservationEnabledSettingName, "false")
 )
 
 const (
@@ -135,6 +136,7 @@ const (
 	ClusterPodSecurityStandardSettingName             = "cluster-pod-security-standard"
 	TraefikDefaultTLSOptionsSettingName               = "traefik-default-tls-options"
 	MaintenanceModeDrainTimeoutSettingName            = "maintenance-mode-drain-timeout"
+	PersistentReservationEnabledSettingName           = "persistent-reservation-enabled"
 	ServerFlavorCommunity                             = "community"
 	ServerFlavorPrime                                 = "prime"
 
