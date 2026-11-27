@@ -84,8 +84,8 @@ func (c VirtualMachineImageClient) Create(virtualMachineImage *harvesterv1.Virtu
 	}
 	return c(virtualMachineImage.Namespace).Create(context.TODO(), virtualMachineImage, metav1.CreateOptions{})
 }
-func (c VirtualMachineImageClient) Delete(_, _ string, _ *metav1.DeleteOptions) error {
-	panic("implement me")
+func (c VirtualMachineImageClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+	return c(namespace).Delete(context.TODO(), name, *options)
 }
 func (c VirtualMachineImageClient) List(_ string, _ metav1.ListOptions) (*harvesterv1.VirtualMachineImageList, error) {
 	panic("implement me")
