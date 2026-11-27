@@ -9,15 +9,32 @@ import (
 	"github.com/guonaihong/gout"
 	"github.com/guonaihong/gout/dataflow"
 	"github.com/rancher/apiserver/pkg/types"
+	"k8s.io/client-go/transport"
 	"sigs.k8s.io/yaml"
 )
 
+const (
+	DefaultImpersonateUser = "admin"
+)
+
+var DefaultImpersonateGroups = []string{
+	"system:masters",
+	"system:authenticated",
+}
+
 func NewHTTPClient() *dataflow.Gout {
+	baseTransport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	return gout.
 		New(&http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+			Transport: transport.NewImpersonatingRoundTripper(
+				transport.ImpersonationConfig{
+					UserName: DefaultImpersonateUser,
+					Groups:   DefaultImpersonateGroups,
+				},
+				baseTransport,
+			),
 		})
 }
 
