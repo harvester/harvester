@@ -107,6 +107,7 @@ const (
 	AddressCCW     = "ccw"
 
 	ControllerTypePCI              = "pci"
+	ControllerModelPCIRoot         = "pci-root"
 	ControllerModelPCIeRoot        = "pcie-root"
 	ControllerModelPCIeRootPort    = "pcie-root-port"
 	ControllerModelPCIeExpanderBus = "pcie-expander-bus"
@@ -121,13 +122,19 @@ type Domain struct {
 }
 
 type DomainStatus struct {
-	Status         LifeCycle
-	Reason         StateChangeReason
-	Interfaces     []InterfaceStatus
-	OSInfo         GuestOSInfo
-	FSFreezeStatus FSFreeze
-	GuestPanicInfo *GuestPanicInfo
-	PanicCount     int
+	Status                  LifeCycle
+	Reason                  StateChangeReason
+	Interfaces              []InterfaceStatus
+	OSInfo                  GuestOSInfo
+	FSFreezeStatus          FSFreeze
+	GuestPanicInfo          *GuestPanicInfo
+	PanicCount              int
+	CompletedMigrationStats *CompletedMigrationStats
+}
+
+type CompletedMigrationStats struct {
+	DowntimeSet bool
+	Downtime    uint64
 }
 
 // GuestPanicInfo contains details about a guest panic event from QEMU
@@ -228,7 +235,7 @@ type DomainSpec struct {
 	MaxMemory      *MaxMemory      `xml:"maxMemory,omitempty"`
 	MemoryBacking  *MemoryBacking  `xml:"memoryBacking,omitempty"`
 	OS             OS              `xml:"os"`
-	SysInfo        *SysInfo        `xml:"sysinfo,omitempty"`
+	SysInfo        []SysInfo       `xml:"sysinfo,omitempty" json:"sysinfoList,omitempty"`
 	Devices        Devices         `xml:"devices"`
 	Clock          *Clock          `xml:"clock,omitempty"`
 	Resource       *Resource       `xml:"resource,omitempty"`
@@ -243,11 +250,14 @@ type DomainSpec struct {
 	IOThreads      *IOThreads      `xml:"iothreads,omitempty"`
 	LaunchSecurity *LaunchSecurity `xml:"launchSecurity,omitempty"`
 	OnReboot       string          `xml:"on_reboot,omitempty"`
+	OnCrash        string          `xml:"on_crash,omitempty"`
 	IOMMUFD        *IOMMUFD        `xml:"iommufd,omitempty"`
 }
 
 const DomainOnRebootDestroy = "destroy"
 const DomainOnRebootRestart = "restart"
+
+const DomainOnCrashPreserveRunning = "preserve-running"
 
 type CPUTune struct {
 	VCPUPin     []CPUTuneVCPUPin     `xml:"vcpupin"`
@@ -435,6 +445,7 @@ type KubeVirtMetadata struct {
 	Backup           *BackupMetadata           `xml:"backup,omitempty"`
 	AccessCredential *AccessCredentialMetadata `xml:"accessCredential,omitempty"`
 	MemoryDump       *MemoryDumpMetadata       `xml:"memoryDump,omitempty"`
+	SnapshotOverlay  *SnapshotOverlayMetadata  `xml:"snapshotOverlay,omitempty"`
 }
 
 type AccessCredentialMetadata struct {
@@ -449,6 +460,27 @@ type MemoryDumpMetadata struct {
 	Completed      bool         `xml:"completed,omitempty"`
 	Failed         bool         `xml:"failed,omitempty"`
 	FailureReason  string       `xml:"failureReason,omitempty"`
+}
+
+// SnapshotOverlayPhase is reported as the reason of the OverlaySnapshotActive condition
+type SnapshotOverlayPhase string
+
+const (
+	SnapshotOverlayPreparing  SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlayPreparing
+	SnapshotOverlayReady      SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlaysReady
+	SnapshotOverlayCommitting SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlayCommitting
+	SnapshotOverlayCommitted  SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlayCommitted
+	// the disks are back on their base images, nothing to commit
+	SnapshotOverlaySnapshotFailed SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlaySnapshotFailed
+	// the overlays may still hold writes, so the scratch volume stays
+	SnapshotOverlayCommitFailed SnapshotOverlayPhase = v1.VirtualMachineInstanceReasonOverlayCommitFailed
+)
+
+type SnapshotOverlayMetadata struct {
+	ContentUID    types.UID            `xml:"contentUID,omitempty"`
+	ScratchPVCUID types.UID            `xml:"scratchPVCUID,omitempty"`
+	Phase         SnapshotOverlayPhase `xml:"phase,omitempty"`
+	Message       string               `xml:"message,omitempty"`
 }
 
 type MigrationMetadata struct {
@@ -497,6 +529,7 @@ type BackupDisks struct {
 type BackupDisk struct {
 	Name         string         `xml:"name,attr"`
 	Backup       string         `xml:"backup,attr"`
+	BackupMode   string         `xml:"backupmode,attr,omitempty"`
 	Type         string         `xml:"type,attr,omitempty"`
 	Target       *BackupTarget  `xml:"target,omitempty"`
 	Scratch      *BackupScratch `xml:"scratch,omitempty"`
@@ -509,6 +542,27 @@ type BackupTarget struct {
 }
 
 type BackupScratch struct {
+	File string `xml:"file,attr,omitempty"`
+}
+
+// DomainSnapshot mirroring libvirt XML under https://libvirt.org/formatsnapshot.html#snapshot-xml
+type DomainSnapshot struct {
+	XMLName       xml.Name       `xml:"domainsnapshot"`
+	Name          string         `xml:"name"`
+	SnapshotDisks *SnapshotDisks `xml:"disks"`
+}
+
+type SnapshotDisks struct {
+	Disks []SnapshotDisk `xml:"disk"`
+}
+
+type SnapshotDisk struct {
+	Name     string              `xml:"name,attr"`
+	Snapshot string              `xml:"snapshot,attr"`
+	Source   *SnapshotDiskSource `xml:"source,omitempty"`
+}
+
+type SnapshotDiskSource struct {
 	File string `xml:"file,attr,omitempty"`
 }
 
@@ -787,9 +841,10 @@ type Controller struct {
 
 // BEGIN ControllerDriver
 type ControllerDriver struct {
-	IOThread *uint  `xml:"iothread,attr,omitempty"`
-	Queues   *uint  `xml:"queues,attr,omitempty"`
-	IOMMU    string `xml:"iommu,attr,omitempty"`
+	IOThread  *uint          `xml:"iothread,attr,omitempty"`
+	IOThreads *DiskIOThreads `xml:"iothreads"`
+	Queues    *uint          `xml:"queues,attr,omitempty"`
+	IOMMU     string         `xml:"iommu,attr,omitempty"`
 }
 
 // END ControllerDriver
@@ -804,6 +859,7 @@ type PCIHole64 struct {
 
 // BEGIN ControllerTarget
 type ControllerTarget struct {
+	Hotplug  string  `xml:"hotplug,attr,omitempty"`
 	BusNr    *uint32 `xml:"busNr,attr,omitempty"`
 	NUMANode *uint32 `xml:"node,omitempty"`
 }
@@ -823,7 +879,7 @@ type IOMMUDriver struct {
 	Accel    string `xml:"accel,attr,omitempty"`
 	ATS      string `xml:"ats,attr,omitempty"`
 	RIL      string `xml:"ril,attr,omitempty"`
-	SSIDSize string `xml:"ssidSize,attr,omitempty"`
+	SSIDSize string `xml:"ssidsize,attr,omitempty"`
 	OAS      string `xml:"oas,attr,omitempty"`
 }
 
@@ -850,6 +906,11 @@ type Disk struct {
 	FilesystemOverhead *v1.Percent   `xml:"filesystemOverhead,omitempty"`
 	Capacity           *int64        `xml:"capacity,omitempty"`
 	Shareable          *Shareable    `xml:"shareable,omitempty"`
+	Mirror             *DiskMirror   `xml:"mirror,omitempty"`
+}
+
+type DiskMirror struct {
+	Ready string `xml:"ready,attr,omitempty"`
 }
 
 type DiskAuth struct {
@@ -1170,6 +1231,7 @@ type OS struct {
 	BIOS         *BIOS         `xml:"bios,omitempty"`
 	BootLoader   *Loader       `xml:"loader,omitempty"`
 	NVRam        *NVRam        `xml:"nvram,omitempty"`
+	VarStore     *VarStore     `xml:"varstore,omitempty"`
 	Kernel       string        `xml:"kernel,omitempty"`
 	Initrd       string        `xml:"initrd,omitempty"`
 	KernelArgs   string        `xml:"cmdline,omitempty"`
@@ -1209,6 +1271,11 @@ type NVRam struct {
 	NVRam    string `xml:",chardata"`
 }
 
+type VarStore struct {
+	Path     string `xml:"path,attr,omitempty"`
+	Template string `xml:"template,attr,omitempty"`
+}
+
 type Boot struct {
 	Dev string `xml:"dev,attr"`
 }
@@ -1230,12 +1297,30 @@ type BIOS struct {
 	UseSerial string `xml:"useserial,attr,omitempty"`
 }
 
+// SysInfo is one <sysinfo> block: smbios sub-elements for Type "smbios",
+// Entries for Type "fwcfg". DomainSpec.SysInfo uses a distinct JSON key so that
+// events from pre-upgrade virt-launchers, which encoded it as a single object,
+// still unmarshal.
 type SysInfo struct {
 	Type      string  `xml:"type,attr"`
 	System    []Entry `xml:"system>entry"`
 	BIOS      []Entry `xml:"bios>entry"`
 	BaseBoard []Entry `xml:"baseBoard>entry"`
 	Chassis   []Entry `xml:"chassis>entry"`
+	Entries   []Entry `xml:"entry"`
+}
+
+// MarshalXML emits only the entries of a fwcfg block, encoding/xml would
+// otherwise add empty smbios parent elements that fail libvirt's schema.
+func (s SysInfo) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if s.Type != "fwcfg" {
+		type plain SysInfo
+		return e.EncodeElement(plain(s), start)
+	}
+	return e.EncodeElement(struct {
+		Type    string  `xml:"type,attr"`
+		Entries []Entry `xml:"entry"`
+	}{s.Type, s.Entries}, start)
 }
 
 type Entry struct {
