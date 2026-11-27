@@ -226,7 +226,6 @@ func RegisterSchema(scaled *config.Scaled, server *server.Server, options config
 			return &vmStore{
 				Store:    store,
 				vms:      vms,
-				vmCache:  vms.Cache(),
 				pvcs:     pvcs,
 				pvcCache: pvcs.Cache(),
 			}

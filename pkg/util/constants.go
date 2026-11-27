@@ -379,6 +379,11 @@ const (
 	HarvesterManagedPSSValue = "true"
 
 	GoArchArm64 = "arm64"
+
+	// VMCleanupPVCAndSnapshotControllerName names the OnRemove handler of the VM controller that
+	// deletes the PVCs of the removedPersistentVolumeClaims annotation. It runs through a finalizer,
+	// see GetWranglerFinalizerName.
+	VMCleanupPVCAndSnapshotControllerName = "VMController.CleanupPVCAndSnapshot"
 )
 
 // CSISecretKeyPair groups a CSI secret-name parameter key with its matching namespace key.
