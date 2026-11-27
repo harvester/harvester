@@ -722,6 +722,23 @@ set_nic_names_by_mac_address() {
   fi
 }
 
+# Installers before harvester/harvester#11837 wrote /etc/multipath/conf.d with
+# permissions 0644 (420) into /oem/90_custom.yaml. The upgrade never rewrites that
+# file, and yip creates missing parent directories with the same mode, so
+# /etc/multipath or /etc/multipath/conf.d can end up without the execute bit.
+# qemu-pr-helper drops capabilities and then can't read /etc/multipath/prkeys or
+# the multipath configuration, so SCSI-3 persistent reservations fail.
+fix_oem_multipath_permissions() {
+  local custom90_file="${HOST_DIR}/oem/90_custom.yaml"
+
+  if [ ! -f "$custom90_file" ]; then
+    echo "File not found: $custom90_file"
+    return
+  fi
+
+  sed -i -E '/^[[:space:]]*- path: "?\/etc\/multipath\/conf\.d"?[[:space:]]*$/{n;s/^([[:space:]]*permissions:[[:space:]]*)(420|0644)[[:space:]]*$/\1493/}' "$custom90_file"
+}
+
 upgrade_os() {
   # The trap will be only effective from this point to the end of the execution
   trap clean_up_tmp_files EXIT
@@ -834,12 +851,18 @@ EOF
     fi
   fi
 
+  fix_oem_multipath_permissions
+
     # add cloud-init directive to disable multipathing for longhorn as default behaviour
   cat > ${HOST_DIR}/oem/99_disable_lh_multipathd.yaml << EOF
 name: "disable longhorn multipathing"
 stages:
    initramfs:
      - directories:
+       - path: "/etc/multipath"
+         permissions: 0755
+         owner: 0
+         group: 0
        - path: "/etc/multipath/conf.d"
          permissions: 0755
          owner: 0
