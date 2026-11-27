@@ -4,18 +4,39 @@ package v1alpha1
 
 func (BackupVolumeInfo) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":             "BackupVolumeInfo contains information about a volume included in a backup",
-		"volumeName":   "VolumeName is the volume name from VMI spec",
-		"diskTarget":   "DiskTarget is the disk target device name at backup time",
-		"dataEndpoint": "DataEndpoint is the URL of the endpoint for read for pull mode",
-		"mapEndpoint":  "MapEndpoint is the URL of the endpoint for map for pull mode",
+		"":           "BackupVolumeInfo contains information about a volume included in a backup",
+		"volumeName": "VolumeName is the volume name from VMI spec",
+		"type":       "Type is how the volume was backed up, either Full or Incremental\n+optional\n+kubebuilder:validation:XValidation:rule=\"self in ['Full', 'Incremental']\",message=\"type must be Full or Incremental\"",
+	}
+}
+
+func (BackupLinks) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":         "BackupLinks contains internal and external links for accessing backup data in pull mode\nInternal links use in-cluster service DNS (ClusterIP), while external links\nuse a Route or Ingress hostname via virt-exportproxy",
+		"internal": "Internal contains endpoints reachable from within the cluster\n+optional",
+		"external": "External contains endpoints reachable from outside the cluster\n+optional",
+	}
+}
+
+func (BackupLink) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":        "BackupLink contains a CA certificate and per-volume endpoints for one network path",
+		"cert":    "Cert is the CA certificate bundle for TLS verification.\nIt may be empty for external links.",
+		"volumes": "Volumes lists the data and map endpoints for each backed-up volume\n+listType=map\n+listMapKey=volumeName\n+optional",
+	}
+}
+
+func (BackupVolumeLink) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":             "BackupVolumeLink contains the data and map endpoint URLs for a single volume",
+		"volumeName":   "VolumeName identifies the volume these endpoints belong to",
+		"dataEndpoint": "DataEndpoint is the URL for reading backup data",
+		"mapEndpoint":  "MapEndpoint is the URL for reading the changed block map",
 	}
 }
 
 func (BackupCheckpoint) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"volumes": "Volumes lists volumes and their disk targets at backup time\n+optional\n+listType=atomic",
-	}
+	return map[string]string{}
 }
 
 func (BackupOptions) SwaggerDoc() map[string]string {
@@ -40,8 +61,7 @@ func (VirtualMachineBackupTrackerSpec) SwaggerDoc() map[string]string {
 
 func (VirtualMachineBackupTrackerStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"latestCheckpoint":               "+optional\nLatestCheckpoint is the metadata of the checkpoint of\nthe latest performed backup",
-		"checkpointRedefinitionRequired": "+optional\nCheckpointRedefinitionRequired is set to true by virt-handler when the VM\nrestarts and has a checkpoint that needs to be redefined in libvirt.\nvirt-controller will process this flag, attempt redefinition, and clear it.",
+		"latestCheckpoint": "+optional\nLatestCheckpoint is the metadata of the checkpoint of\nthe latest performed backup",
 	}
 }
 
@@ -82,11 +102,10 @@ func (VirtualMachineBackupSpec) SwaggerDoc() map[string]string {
 func (VirtualMachineBackupStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                "VirtualMachineBackupStatus is the status for a VirtualMachineBackup resource",
-		"type":            "+optional\nType indicates if the backup was full or incremental",
+		"startTimestamp":  "+optional\nStartTimestamp is the timestamp when the backup started",
 		"conditions":      "+listType=map\n+listMapKey=type\n+optional",
 		"checkpointName":  "+optional\nCheckpointName the name of the checkpoint created for the current backup",
-		"endpointCert":    "+optional\nEndpointCert is the raw CACert that is to be used when connecting\nto an exported backup endpoint in pull mode.",
-		"includedVolumes": "+optional\n+listType=atomic\nIncludedVolumes lists the volumes that were included in the backup",
-		"exportUID":       "+optional\nExportUID tracks the UID of the associated VMExport for pull-mode backups\nused to detect VMExport recreation and re-initiate the export handshake",
+		"includedVolumes": "+optional\n+listType=atomic\nIncludedVolumes lists the volumes that were included in the backup\n+kubebuilder:validation:MaxItems=256",
+		"links":           "+optional\nLinks exposes internal (in-cluster) and external (Ingress/Route) endpoints\nfor pull-mode backups, each with a CA certificate and per-volume URLs.\nContains per-volume data and map endpoint URLs for each network path.",
 	}
 }
