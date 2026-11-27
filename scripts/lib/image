@@ -336,6 +336,7 @@ save_image()
   local archive_name="$(basename ${image_list%.txt}).tar"
   local archive_file="${save_dir}/${archive_name}"
   pull_images $image_list
+  echo "Saving $(grep -c . ${image_list}) images from ${image_list} to ${archive_file}.zst..."
   docker image save $(<${image_list}) | zstd -o "${archive_file}.zst"
 
   add_image_list_to_metadata $image_type $bundle_dir $image_list "${archive_file}.zst"
