@@ -3,6 +3,33 @@ pack_iso() {
     local uefi_img=$2
     local vol_id=$3
     local iso_file=$4
+    # Optional: grub boot_hybrid.img, enables legacy BIOS boot when set.
+    # Requires boot/x86_64/loader/eltorito.img inside extract_dir.
+    local bios_mbr=${5:-}
+
+    if [ -n "${bios_mbr}" ]; then
+        echo "Creating ISO ${iso_file} from ${extract_dir} with legacy BIOS and uefi partition ${uefi_img}, vol_id: ${vol_id}..."
+        xorriso -volid "$vol_id" \
+            -joliet on -padding 0 \
+            -outdev "$iso_file" \
+            -map "${extract_dir}" / -chmod 0755 -- \
+            -boot_image grub bin_path="boot/x86_64/loader/eltorito.img" \
+            -boot_image grub grub2_mbr="${bios_mbr}" \
+            -boot_image grub grub2_boot_info=on \
+            -boot_image any partition_offset=16 \
+            -boot_image any cat_path="boot/boot.catalog" \
+            -boot_image any cat_hidden=on \
+            -boot_image any boot_info_table=on \
+            -boot_image any platform_id=0x00 \
+            -boot_image any emul_type=no_emulation \
+            -boot_image any load_size=2048 \
+            -append_partition 2 0xef "${uefi_img}" \
+            -boot_image any next \
+            -boot_image any efi_path=--interval:appended_partition_2:all:: \
+            -boot_image any platform_id=0xef \
+            -boot_image any emul_type=no_emulation
+        return
+    fi
 
     echo "Creating ISO ${iso_file} from ${extract_dir} with uefi partition ${uefi_img}, vol_id: ${vol_id}..."
 
@@ -17,4 +44,29 @@ pack_iso() {
         -boot_image any platform_id=0xef \
         -boot_image any appended_part_as=gpt \
         -boot_image any partition_offset=16
+}
+
+# prepare_bios_boot builds the legacy BIOS El Torito image with the grub
+# i386-pc modules shipped in the OS image, so the ISO bootloader always
+# matches the grub version of the OS (no outdated third party grub build).
+# It installs the modules and eltorito.img into the ISO tree and writes
+# boot_hybrid.img to the given output directory.
+prepare_bios_boot() {
+    local os_image=$1
+    local extract_dir=$2
+    local out_dir=$3
+
+    mkdir -p "${out_dir}" "${extract_dir}/boot/grub2" "${extract_dir}/boot/x86_64/loader"
+    docker run --rm --user "$(id -u):$(id -g)" -v "${out_dir}:/out" --entrypoint /bin/sh "${os_image}" -c '
+        set -e
+        grub2-mkimage -O i386-pc-eltorito -d /usr/share/grub2/i386-pc \
+            -p /boot/grub2 -o /out/eltorito.img \
+            biosdisk iso9660 part_msdos part_gpt fat search search_fs_file search_label \
+            normal configfile linux echo test all_video gfxterm font
+        cp /usr/share/grub2/i386-pc/boot_hybrid.img /out/boot_hybrid.img
+        cp -r /usr/share/grub2/i386-pc /out/i386-pc
+    '
+    mv "${out_dir}/eltorito.img" "${extract_dir}/boot/x86_64/loader/eltorito.img"
+    rm -rf "${extract_dir}/boot/grub2/i386-pc"
+    mv "${out_dir}/i386-pc" "${extract_dir}/boot/grub2/i386-pc"
 }

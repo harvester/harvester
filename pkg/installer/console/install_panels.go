@@ -2654,14 +2654,6 @@ func addInstallPanel(c *Console) error {
 	installV := widgets.NewPanel(c.Gui, installPanel)
 	installV.PreShow = func() error {
 		go func() {
-			// Legacy BIOS systems are no longer supported
-			biosCheck := preflight.BIOSCheck{}
-			if msg, _ := biosCheck.Run(); len(msg) > 0 {
-				logrus.Error(msg)
-				printToPanel(c.Gui, msg, installPanel)
-				return
-			}
-
 			// in alreadyInstalled mode and auto configuration, the network is not available
 			if alreadyInstalled && c.config.Automatic && c.config.ManagementInterface.Method == "dhcp" {
 				configureInstallModeDHCP(c)
