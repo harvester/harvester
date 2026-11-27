@@ -21,8 +21,8 @@ dependencies:
   repository: file://dependency_charts/csi-snapshotter
   version: 0.3.1
 - name: longhorn
-  repository: https://charts.longhorn.io
-  version: 1.13.0
+  repository: file://dependency_charts/longhorn-rc
+  version: 1.13.1-rc3
 - name: kube-vip
   repository: https://kube-vip.github.io/helm-charts
   version: 0.11.0
@@ -35,5 +35,5 @@ dependencies:
 - name: harvester-node-manager
   repository: https://charts.harvesterhci.io
   version: 1.10.0-rc3
-digest: sha256:ae2b0c327d503e598cdabda72ddb7e801dcc61b1064b2499d3f1b552957f193f
-generated: "2026-11-20T16:59:03.961126819Z"
+digest: sha256:6c025281511ccc582e015789a3827d8e97c58675052139c1479d5093a1281d70
+generated: "2026-11-27T17:35:06.452264769+08:00"

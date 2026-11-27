@@ -1,0 +1,163 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-role
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - "*"
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "delete", "deletecollection"]
+- apiGroups: [""]
+  resources: ["secrets", "services", "endpoints", "configmaps", "serviceaccounts", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events", "persistentvolumes", "persistentvolumeclaims", "persistentvolumeclaims/status", "nodes"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "statefulsets", "deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["scheduling.k8s.io"]
+  resources: ["priorityclasses"]
+  verbs: ["watch", "list"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments", "volumeattachments/status", "volumeattributesclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  verbs: ["*"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents", "volumesnapshotcontents/status"]
+  verbs: ["*"]
+- apiGroups: ["groupsnapshot.storage.k8s.io"]
+  resources: ["volumegroupsnapshotclasses", "volumegroupsnapshots", "volumegroupsnapshotcontents", "volumegroupsnapshotcontents/status"]
+  verbs: ["*"]
+- apiGroups: ["longhorn.io"]
+  resources: ["volumes", "volumes/status", "enginefrontends", "enginefrontends/status", "engines", "engines/status", "replicas", "replicas/status", "settings", "settings/status",
+              "engineimages", "engineimages/status", "nodes", "nodes/status", "instancemanagers", "instancemanagers/status",
+  {{- if .Values.openshift.enabled }}
+              "engineimages/finalizers", "nodes/finalizers", "instancemanagers/finalizers",
+  {{- end }}
+              "sharemanagers", "sharemanagers/status", "backingimages", "backingimages/status",
+              "backingimagemanagers", "backingimagemanagers/status", "backingimagedatasources", "backingimagedatasources/status",
+              "backuptargets", "backuptargets/status", "backupvolumes", "backupvolumes/status", "backups", "backups/status",
+              "recurringjobs", "recurringjobs/status", "orphans", "orphans/status", "snapshots", "snapshots/status",
+              "supportbundles", "supportbundles/status", "systembackups", "systembackups/status", "systemrestores", "systemrestores/status",
+              "volumeattachments", "volumeattachments/status", "backupbackingimages", "backupbackingimages/status",
+              "shards", "shards/status", "shardgroups", "shardgroups/status", "snapshotgroups", "snapshotgroups/status",
+              "instancemanagerupgrades", "instancemanagerupgrades/status",
+              "instancemanagerupgradecontrols", "instancemanagerupgradecontrols/status"]
+  verbs: ["*"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+- apiGroups: ["apiregistration.k8s.io"]
+  resources: ["apiservices"]
+  verbs: ["list", "watch"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "create", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings", "clusterroles"]
+  verbs: ["*"]
+{{- if .Values.openshift.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-ocp-privileged-role
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["security.openshift.io"]
+  resources: ["securitycontextconstraints"]
+  resourceNames: ["anyuid", "privileged"]
+  verbs: ["use"]
+{{- end }}
+---
+# Permissions for the CSI attacher, provisioner, resizer, and snapshotter.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-csi-role
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch", "create", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims/status"]
+  verbs: ["patch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "csinodes"]
+  verbs: ["list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["volumeattachments"]
+  verbs: ["list", "watch", "patch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["volumeattachments/status"]
+  verbs: ["patch"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshotclasses"]
+  verbs: ["list", "watch"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshots"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshotcontents"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshotcontents/status"]
+  verbs: ["update", "patch"]
+{{- if .Values.csi.volumeGroupSnapshotEnabled }}
+- apiGroups: ["groupsnapshot.storage.k8s.io"]
+  resources: ["volumegroupsnapshotclasses"]
+  verbs: ["list", "watch"]
+- apiGroups: ["groupsnapshot.storage.k8s.io"]
+  resources: ["volumegroupsnapshotcontents"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["groupsnapshot.storage.k8s.io"]
+  resources: ["volumegroupsnapshotcontents/status"]
+  verbs: ["update", "patch"]
+{{- end }}
+{{- if .Values.csi.allowControllerSecretAccess }}
+---
+# Static Secret access for the CSI attacher, provisioner, resizer, and snapshotter.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-csi-secret-role
+  labels: {{- include "longhorn.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+{{- end }}
